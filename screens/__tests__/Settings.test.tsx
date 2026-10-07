@@ -177,7 +177,9 @@ test('places the optional classic cover pulse at the top of the settings', () =>
   expect(getByText('Wiedergabe')).toBeTruthy();
   const option = getByTestId('settings-cover-bass-pulse-option');
   const appearance = getByTestId('settings-appearance-dark');
-  const content = getByTestId('settings-scroll').findAllByType('View');
+  const content = getByTestId('settings-scroll').findAll(node => node === option || node === appearance);
+  expect(content).toContain(option);
+  expect(content).toContain(appearance);
   expect(content.indexOf(option)).toBeLessThan(content.indexOf(appearance));
   fireEvent(getByTestId('settings-cover-bass-pulse'), 'valueChange', false);
   expect(mockSetBassPulse).toHaveBeenCalledWith(false);

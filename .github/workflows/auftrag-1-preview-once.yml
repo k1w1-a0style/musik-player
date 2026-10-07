@@ -1,0 +1,29 @@
+# Temporary APK verification for the user-authorized Auftrag 1 migration.
+# Delete this trigger after the build result is recorded.
+name: Auftrag 1 preview APK verification
+
+on:
+  push:
+    branches: [codex]
+    paths:
+      - '.github/workflows/auftrag-1-preview-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    if: ${{ github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[auftrag-1-preview]') }}
+    # Reusable workflows require a ceiling covering their optional autofix job;
+    # autofix is false, and the actual build job has contents: read.
+    permissions:
+      contents: write
+    uses: ./.github/workflows/eas-build.yml
+    with:
+      ref: ${{ github.sha }}
+      profile: preview
+      platform: android
+      autofix: false
+      strict_lockfile: 'true'
+    secrets:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

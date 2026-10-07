@@ -1,5 +1,5 @@
 import SystemAudio, { type EqInitResult } from 'expo-system-audio';
-import { NativeModules } from 'react-native';
+import TrackPlayer from 'react-native-track-player';
 import {
   applyNativeEqualizerBands,
   applyNativeEqualizerEnabled,
@@ -22,7 +22,7 @@ const eqNative: EqInitResult = {
 describe('nativeEqualizerHelpers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (NativeModules.TrackPlayerModule.getAudioSessionId as jest.Mock).mockResolvedValue(17);
+    jest.mocked(TrackPlayer.getAudioSessionId).mockResolvedValue(17);
   });
 
   test('initializes native equalizer and returns null on failure', async () => {
@@ -60,7 +60,7 @@ describe('nativeEqualizerHelpers', () => {
   });
 
   test('fails closed without a valid TrackPlayer audio session', async () => {
-    (NativeModules.TrackPlayerModule.getAudioSessionId as jest.Mock).mockResolvedValue(0);
+    jest.mocked(TrackPlayer.getAudioSessionId).mockResolvedValue(0);
     const controller = new AbortController();
     controller.abort();
 

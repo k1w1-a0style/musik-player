@@ -21,7 +21,9 @@ describe('EAS source archive boundary', () => {
   test.each([
     'app.config.js', 'eas.json', 'package.json', 'package-lock.json',
     'modules/expo-system-audio/android/src/main/java/expo/modules/systemaudio/SystemAudioModule.kt',
-    'scripts/patches/patchReactNativeTrackPlayer.cjs', '.env.example',
+    'scripts/patches/patchRntpV5.cjs',
+    'scripts/patches/rntp-v5/patches.json',
+    'modules/playback-backend/index.ts', '.env.example',
   ])('retains required source or documented placeholders: %s', candidate => {
     expect(archiveFilter.ignores(candidate)).toBe(false);
   });

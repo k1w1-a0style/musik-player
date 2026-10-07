@@ -150,7 +150,7 @@ jobs:
 
 
   native-gates:
-    name: Android native compile and tests
+    name: Android native build and tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -179,18 +179,18 @@ jobs:
           EAS_BUILD_PROFILE: production
         run: |
           set -euo pipefail
-          echo "No APK/AAB/EAS build is performed in this workflow."
+          echo "Native debug build and tests only; no EAS build or release signing."
           java -version
           npx --no-install expo prebuild --platform android --no-install --clean
 
-      - name: Android native compile and unit tests – no APK/EAS build
+      - name: Android native debug build and unit tests
         shell: bash
         run: |
           set -uo pipefail
           set +e
           cd android
-          echo "Exact native Gradle test task: ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain"
-          ./gradlew :app:compileDebugKotlin :expo-system-audio:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
+          echo "Exact native Gradle test task: ./gradlew :app:assembleDebug :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain"
+          ./gradlew :app:assembleDebug :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
           status=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$status" > ../native-gradle.exit-code
@@ -206,6 +206,8 @@ jobs:
             native-gradle.exit-code
             modules/expo-system-audio/android/build/test-results/testDebugUnitTest/**/*.xml
             modules/expo-system-audio/android/build/reports/tests/testDebugUnitTest/**
+            node_modules/@rntp/player/android/build/test-results/testDebugUnitTest/**/*.xml
+            node_modules/@rntp/player/android/build/reports/tests/testDebugUnitTest/**
           if-no-files-found: error
           retention-days: 3
 
@@ -215,7 +217,7 @@ jobs:
           set -euo pipefail
           status=$(cat native-gradle.exit-code)
           if [ "$status" -ne 0 ]; then
-            echo "::error::Android native compile or unit tests failed with exit code $status. See native-gradle-log artifact."
+            echo "::error::Android native build or unit tests failed with exit code $status. See native-gradle-log artifact."
             exit "$status"
           fi
 
@@ -227,22 +229,27 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const path = require('path');
-          const resultsDir = path.resolve('..', 'modules', 'expo-system-audio', 'android', 'build', 'test-results', 'testDebugUnitTest');
-          const files = fs.readdirSync(resultsDir).filter((name) => name.endsWith('.xml'));
-          let tests = 0;
-          let failures = 0;
-          let errors = 0;
-          for (const file of files) {
-            const xml = fs.readFileSync(path.join(resultsDir, file), 'utf8');
-            const match = xml.match(/<testsuite[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*errors="(\d+)"/);
-            if (match) {
-              tests += Number(match[1]);
-              failures += Number(match[2]);
-              errors += Number(match[3]);
+          const modules = [
+            ['expo-system-audio', path.resolve('..', 'modules', 'expo-system-audio', 'android')],
+            ['rntp_player', path.resolve('..', 'node_modules', '@rntp', 'player', 'android')],
+          ];
+          for (const [moduleName, moduleDir] of modules) {
+            const resultsDir = path.join(moduleDir, 'build', 'test-results', 'testDebugUnitTest');
+            const files = fs.readdirSync(resultsDir).filter((name) => name.endsWith('.xml'));
+            let tests = 0;
+            let failures = 0;
+            let errors = 0;
+            for (const file of files) {
+              const xml = fs.readFileSync(path.join(resultsDir, file), 'utf8');
+              const suite = xml.match(/<testsuite\b[^>]*>/)?.[0] || '';
+              const count = (attribute) => Number(suite.match(new RegExp(`${attribute}="(\\d+)"`))?.[1] || 0);
+              tests += count('tests');
+              failures += count('failures');
+              errors += count('errors');
             }
+            console.log(`Native Gradle task :${moduleName}:testDebugUnitTest completed: ${tests} tests, ${failures} failures, ${errors} errors.`);
+            if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
           }
-          console.log(`Native Gradle test task :expo-system-audio:testDebugUnitTest completed: ${tests} tests, ${failures} failures, ${errors} errors.`);
-          if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
           NODE
 
   release-ready:

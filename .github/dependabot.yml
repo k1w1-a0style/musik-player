@@ -14,8 +14,8 @@ updates:
         dependency-type: development
         update-types: [minor, patch]
     ignore:
-      # RNTP upgrades require explicit patch removal and the native playback pilot.
-      - dependency-name: react-native-track-player
+      # RNTP engine changes require review of the exact native patch and playback checks.
+      - dependency-name: "@rntp/player"
         update-types: [version-update:semver-major, version-update:semver-minor]
   - package-ecosystem: github-actions
     directory: /

@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   infoChipText: { color: SOUNDCLOUD_PLAYER_COLORS.artistText, fontSize: 13,
     fontFamily: APP_THEME_TOKENS.fonts.body },
   artworkTapArea: { flex: 1, marginHorizontal: -18, alignItems: 'center', justifyContent: 'center' },
-  pauseDim: { ...StyleSheet.absoluteFillObject, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.pauseScrim },
+  pauseDim: { ...StyleSheet.absoluteFill, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.pauseScrim },
   pausedControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 26 },
   primaryTransport: { width: 84, height: 84, borderRadius: 42,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.primaryControlSurface, borderWidth: StyleSheet.hairlineWidth,

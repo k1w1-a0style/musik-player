@@ -17,8 +17,11 @@ expectEqual('name', config.name, 'k1w1-Musik');
 expectEqual('scheme', config.scheme, 'musik-player');
 expectEqual('slug', config.slug, 'musik-player');
 expectEqual('android.package', config.android?.package, 'com.k1w1a0style.musikplayer');
-// Keep the release gate on the supported architecture while react-native-track-player@4.1.2 is pinned.
-expectEqual('newArchEnabled', config.newArchEnabled, false);
+// SDK 55+ has no opt-out; older SDKs must explicitly enable the V5 architecture.
+const sdkMajor = Number.parseInt(config.sdkVersion ?? '', 10);
+if (config.newArchEnabled === false || (sdkMajor < 55 || !Number.isFinite(sdkMajor)) && config.newArchEnabled !== true) {
+  failures.push('New Architecture must be enabled for the V5 playback backend.');
+}
 
 const androidPermissions = config.android?.permissions ?? [];
 const blockedPermissions = config.android?.blockedPermissions ?? [];

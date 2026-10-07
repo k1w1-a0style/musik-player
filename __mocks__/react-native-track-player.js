@@ -138,6 +138,7 @@ const TrackPlayer = {
   getProgress: jest.fn(async () => ({ position: 0, duration: 0, buffered: 0 })),
   getPlaybackState: jest.fn(async () => ({ state })),
   getPlayWhenReady: jest.fn(async () => playWhenReady),
+  getAudioSessionId: jest.fn(async () => 17),
   updateMetadataForTrack: jest.fn(async (trackIndex, metadata) => {
     if (typeof trackIndex !== 'number') return;
     if (trackIndex < 0 || trackIndex >= queue.length) return;
@@ -151,6 +152,7 @@ const TrackPlayer = {
     };
   }),
   registerPlaybackService: jest.fn(),
+  setRemoteCommandGuard: jest.fn(),
   // Hooks
   usePlaybackState: jest.fn(() => ({ state })),
   usePlayWhenReady: jest.fn(() => playWhenReady),

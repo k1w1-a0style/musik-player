@@ -1,0 +1,13 @@
+{
+  "name": "react-native-track-player",
+  "version": "5.12.1-k1w1.0",
+  "private": true,
+  "main": "index.ts",
+  "react-native": "index.ts",
+  "types": "index.ts",
+  "peerDependencies": {
+    "@rntp/player": "5.12.1",
+    "react": "*",
+    "react-native": "*"
+  }
+}

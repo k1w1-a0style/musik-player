@@ -1,4 +1,4 @@
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';

@@ -2,6 +2,7 @@ import { createRemoteNavigationIntentBuffer } from '../remoteNavigationIntentBuf
 import { acquireNativeHydrationGate, publishNativeHydrationGate, releaseNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 
 beforeEach(() => { resetNativeHydrationGateForTests(); jest.restoreAllMocks(); });
+afterEach(() => jest.useRealTimers());
 
 test('replays startup commands once in their submitted order', () => {
   const owner = acquireNativeHydrationGate();
@@ -143,3 +144,63 @@ test('dispose cancels pending commands, detaches the listener and rejects new pr
   publishNativeHydrationGate(owner, 'ready');
   expect(run).not.toHaveBeenCalled();
 });
+
+test('a startup navigation task awaits the native operation after hydration becomes ready', async () => {
+  const owner = acquireNativeHydrationGate();
+  const buffer = createRemoteNavigationIntentBuffer();
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const intent = buffer.submitWithCompletion(() => held);
+  const settled = jest.fn();
+  void intent.completion.then(settled);
+  publishNativeHydrationGate(owner, 'ready');
+  await Promise.resolve();
+  expect(settled).not.toHaveBeenCalled();
+  release();
+  await intent.completion;
+  expect(settled).toHaveBeenCalledTimes(1);
+  buffer.dispose();
+});
+
+test('clear settles a replayed task and invalidates its queued callback without cancelling the native operation', async () => {
+  const owner = acquireNativeHydrationGate();
+  const buffer = createRemoteNavigationIntentBuffer();
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const intent = buffer.submitWithCompletion(() => held);
+  publishNativeHydrationGate(owner, 'ready');
+  expect(intent.isCurrent()).toBe(true);
+  buffer.clear();
+  await expect(intent.completion).resolves.toBeUndefined();
+  expect(intent.isCurrent()).toBe(false);
+  release();
+  buffer.dispose();
+});
+
+test('a navigation task expires after five seconds without waiting for another gate event', async () => {
+  jest.useFakeTimers();
+  const owner = acquireNativeHydrationGate();
+  const buffer = createRemoteNavigationIntentBuffer();
+  const run = jest.fn();
+  const intent = buffer.submitWithCompletion(run);
+  jest.advanceTimersByTime(5_000);
+  await expect(intent.completion).resolves.toBeUndefined();
+  publishNativeHydrationGate(owner, 'ready');
+  expect(run).not.toHaveBeenCalled();
+  buffer.dispose();
+});
+
+test.each(['cleared', 'disposed', 'degraded', 'retry-required', 'released', 'new-owner'] as const)(
+  'cancelled navigation tasks settle immediately after %s', async reason => {
+    const owner = acquireNativeHydrationGate();
+    const buffer = createRemoteNavigationIntentBuffer();
+    const intent = buffer.submitWithCompletion(jest.fn());
+    if (reason === 'cleared') buffer.clear();
+    else if (reason === 'disposed') buffer.dispose();
+    else if (reason === 'released') releaseNativeHydrationGate(owner);
+    else if (reason === 'new-owner') acquireNativeHydrationGate();
+    else publishNativeHydrationGate(owner, reason);
+    await expect(intent.completion).resolves.toBeUndefined();
+    buffer.dispose();
+  },
+);

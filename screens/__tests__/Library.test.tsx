@@ -134,7 +134,7 @@ jest.mock('expo-file-system/legacy', () => ({
   },
 }));
 
-jest.mock('expo-media-library', () => ({
+jest.mock('expo-media-library/legacy', () => ({
   requestPermissionsAsync: () => mockMediaPermission(),
 }));
 
@@ -144,7 +144,7 @@ jest.mock('../../components/SongCard', () => ({ song, onInfoSong }: { song: { id
   <MockPressable testID={`info-${song.id}`} onPress={() => onInfoSong(song)}><MockText>info</MockText></MockPressable>
 ));
 
-const openOverflowMenu = (getByLabelText: (label: string) => ReturnType<typeof render>['getByLabelText']) => {
+const openOverflowMenu = (getByLabelText: ReturnType<typeof render>['getByLabelText']) => {
   fireEvent.press(getByLabelText('Mehr Optionen'));
 };
 

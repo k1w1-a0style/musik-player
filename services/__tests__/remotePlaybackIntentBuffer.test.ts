@@ -2,6 +2,7 @@ import { createRemotePlaybackIntentBuffer } from '../remotePlaybackIntentBuffer'
 import { acquireNativeHydrationGate, publishNativeHydrationGate, releaseNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 
 beforeEach(() => { resetNativeHydrationGateForTests(); jest.restoreAllMocks(); });
+afterEach(() => jest.useRealTimers());
 
 test('cold-start play/pause stores just the final intent', () => {
   const owner = acquireNativeHydrationGate(); const buffer = createRemotePlaybackIntentBuffer();
@@ -56,3 +57,52 @@ test('unowned headset cold-start binds to the first hydration owner only', () =>
   expect(play).toHaveBeenCalledTimes(1);
   buffer.dispose();
 });
+
+test('a replaced transport task settles without replay and the current task waits for native completion', async () => {
+  const owner = acquireNativeHydrationGate();
+  const buffer = createRemotePlaybackIntentBuffer();
+  const old = buffer.submitWithCompletion('playing', jest.fn());
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const current = buffer.submitWithCompletion('paused', () => held);
+  await expect(old.completion).resolves.toBeUndefined();
+  expect(old.isCurrent()).toBe(false);
+  const settled = jest.fn();
+  void current.completion.then(settled);
+  publishNativeHydrationGate(owner, 'ready');
+  await Promise.resolve();
+  expect(settled).not.toHaveBeenCalled();
+  release();
+  await current.completion;
+  expect(settled).toHaveBeenCalledTimes(1);
+  buffer.dispose();
+});
+
+test('transport tasks expire and become invalid after five seconds without a gate event', async () => {
+  jest.useFakeTimers();
+  const owner = acquireNativeHydrationGate();
+  const buffer = createRemotePlaybackIntentBuffer();
+  const run = jest.fn();
+  const intent = buffer.submitWithCompletion('playing', run);
+  jest.advanceTimersByTime(5_000);
+  await expect(intent.completion).resolves.toBeUndefined();
+  expect(intent.isCurrent()).toBe(false);
+  publishNativeHydrationGate(owner, 'ready');
+  expect(run).not.toHaveBeenCalled();
+  buffer.dispose();
+});
+
+test.each(['degraded', 'retry-required', 'released', 'new-owner', 'disposed'] as const)(
+  'cancelled transport tasks settle immediately after %s', async reason => {
+    const owner = acquireNativeHydrationGate();
+    const buffer = createRemotePlaybackIntentBuffer();
+    const intent = buffer.submitWithCompletion('playing', jest.fn());
+    if (reason === 'disposed') buffer.dispose();
+    else if (reason === 'released') releaseNativeHydrationGate(owner);
+    else if (reason === 'new-owner') acquireNativeHydrationGate();
+    else publishNativeHydrationGate(owner, reason);
+    await expect(intent.completion).resolves.toBeUndefined();
+    expect(intent.isCurrent()).toBe(false);
+    buffer.dispose();
+  },
+);

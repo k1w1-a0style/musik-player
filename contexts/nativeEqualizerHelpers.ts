@@ -1,14 +1,10 @@
 import SystemAudio, { type EqInitResult } from 'expo-system-audio';
-import { NativeModules } from 'react-native';
+import TrackPlayer from 'react-native-track-player';
 import {
   buildNativeEqBandUpdates,
   canUseNativeEq,
   shouldApplyNativeEqBands,
 } from '../utils/audioEffects';
-
-interface TrackPlayerNativeAudioSessionModule {
-  getAudioSessionId?: () => Promise<number | null>;
-}
 
 const EQ_SESSION_ATTEMPTS = 12;
 const EQ_SESSION_RETRY_MS = 250;
@@ -30,10 +26,8 @@ const waitForRetry = (signal?: AbortSignal): Promise<void> => new Promise(resolv
 });
 
 export const getTrackPlayerAudioSessionId = async (): Promise<number | null> => {
-  const trackPlayer = NativeModules.TrackPlayerModule as TrackPlayerNativeAudioSessionModule | undefined;
-  if (typeof trackPlayer?.getAudioSessionId !== 'function') return null;
   try {
-    const sessionId = await trackPlayer.getAudioSessionId();
+    const sessionId = await TrackPlayer.getAudioSessionId();
     return Number.isInteger(sessionId) && Number(sessionId) > 0 ? Number(sessionId) : null;
   } catch {
     return null;

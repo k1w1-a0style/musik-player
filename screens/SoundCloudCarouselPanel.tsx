@@ -45,11 +45,11 @@ const SoundCloudCarouselPanel = ({ song, role, artworkUri, paused = false,
 
 const styles = StyleSheet.create({
   panel: { flex: 1, backgroundColor: 'transparent' },
-  artworkFrame: { ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderRadius: 30,
+  artworkFrame: { ...StyleSheet.absoluteFill, overflow: 'hidden', borderRadius: 30,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkBackground },
-  panelArtwork: { ...StyleSheet.absoluteFillObject },
+  panelArtwork: { ...StyleSheet.absoluteFill },
   emptyArtwork: { backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkFallback },
-  artworkShade: { ...StyleSheet.absoluteFillObject, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkShade },
+  artworkShade: { ...StyleSheet.absoluteFill, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artworkShade },
   pausedShade: { backgroundColor: SOUNDCLOUD_PLAYER_COLORS.pauseScrim },
 });
 

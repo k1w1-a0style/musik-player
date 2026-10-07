@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   player: { flex: 1, overflow: 'hidden', backgroundColor: 'transparent' },
   carouselViewport: { flex: 1, overflow: 'hidden' },
   track: { flex: 1, flexDirection: 'row' },
-  currentPage: { ...StyleSheet.absoluteFillObject },
+  currentPage: { ...StyleSheet.absoluteFill },
 });
 
 export default React.memo(SoundCloudTrackCarousel);

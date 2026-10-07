@@ -78,7 +78,7 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
 };
 
 const styles = StyleSheet.create({
-  coverBackdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.18, transform: [{ scale: 1.08 }] },
+  coverBackdrop: { ...StyleSheet.absoluteFill, opacity: 0.18, transform: [{ scale: 1.08 }] },
   glowOrb: { position: 'absolute', width: 260, height: 260, borderRadius: 130, top: 150, opacity: 0.14 },
 });
 

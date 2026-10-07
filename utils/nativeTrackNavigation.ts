@@ -5,7 +5,7 @@ import { enqueuePlaybackIntent, getPlaybackIntentBoundary } from './playbackInte
 import { beginPlaybackSelection, finishPlaybackSelection } from './playbackSelectionStatus';
 import { NATIVE_NAVIGATION_DEADLINE_MS } from './nativePlaybackWatchdog';
 
-interface NavigationIntent { direction: 1 | -1; restartAfterThreshold: boolean }
+interface NavigationIntent { direction: 1 | -1; restartAfterThreshold: boolean; isCurrent: () => boolean }
 interface NavigationBatch { boundary: number; intents: NavigationIntent[]; promise: Promise<void>; closed: boolean }
 let batch: NavigationBatch | null = null;
 
@@ -56,30 +56,39 @@ const readNavigationSnapshot = async (assertCurrent: () => void) => {
 
 const drainNavigation = async (pending: NavigationBatch, { assertHydrationCurrent }: NativePlaybackControlContext): Promise<void> => {
   while (pending.intents.length > 0) {
-    const intents = pending.intents.splice(0);
+    const requested = pending.intents.splice(0).filter(intent => intent.isCurrent());
+    if (!requested.length) continue;
     const { queue, index, repeatMode } = await readNavigationSnapshot(assertHydrationCurrent);
+    const intents = requested.filter(intent => intent.isCurrent());
+    if (!intents.length) continue;
     if (queue.length === 0 || index === undefined) {
-      for (const intent of intents) { assertHydrationCurrent(); await navigateWithoutQueue(intent, assertHydrationCurrent); }
+      for (const intent of intents) {
+        assertHydrationCurrent();
+        if (intent.isCurrent()) await navigateWithoutQueue(intent, assertHydrationCurrent);
+      }
       continue;
     }
     const position = intents.some(intent => intent.restartAfterThreshold)
       ? (await TrackPlayer.getProgress()).position : 0;
     assertHydrationCurrent();
-    const target = resolveNavigationTarget(intents, index, queue.length, repeatMode === RepeatMode.Queue, position);
+    const currentIntents = intents.filter(intent => intent.isCurrent());
+    if (!currentIntents.length) continue;
+    const target = resolveNavigationTarget(currentIntents, index, queue.length, repeatMode === RepeatMode.Queue, position);
     if (target.target !== index) {
       const selectionRevision = beginPlaybackSelection({ id: String(queue[target.target].id), title: queue[target.target].title });
       try { await TrackPlayer.skip(target.target); }
       finally { finishPlaybackSelection(selectionRevision); }
     }
-    else if (target.restart || intents.length > 1) await TrackPlayer.seekTo(0);
+    else if (target.restart || currentIntents.length > 1) await TrackPlayer.seekTo(0);
     assertHydrationCurrent();
   }
 };
 
 /** Accumulate deliberate taps into a target, bounded by ordered edit/control barriers. */
-export const requestNativeTrackNavigation = (direction: 1 | -1, restartAfterThreshold = false): Promise<void> => {
+export const requestNativeTrackNavigation = (direction: 1 | -1, restartAfterThreshold = false,
+  isCurrent: () => boolean = () => true): Promise<void> => {
   const boundary = getPlaybackIntentBoundary();
-  const intent = { direction, restartAfterThreshold };
+  const intent = { direction, restartAfterThreshold, isCurrent };
   if (batch && !batch.closed && batch.boundary === boundary) {
     batch.intents.push(intent);
     return batch.promise;

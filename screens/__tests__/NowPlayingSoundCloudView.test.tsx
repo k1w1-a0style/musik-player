@@ -275,7 +275,7 @@ describe('NowPlayingSoundCloudView', () => {
 
     expect(backCall).toBeTruthy();
     let handled = false;
-    act(() => { handled = backCall?.[1]() ?? false; });
+    act(() => { handled = backCall?.[1]({ type: 'hardwareBackPress', timeStamp: 0 }) ?? false; });
     expect(handled).toBe(true);
     expect(queryByTestId('soundcloud-queue-sheet')).toBeNull();
   });

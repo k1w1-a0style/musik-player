@@ -1,0 +1,170 @@
+[
+  {
+    "path": "src/NativeTrackPlayer.ts",
+    "upstreamSha256": "49ff4e115144135b84410a94577c2d3d54e1095351e4681378fc4e24913c0c45",
+    "patchedSha256": "6d47aeff21000a7cfd7ff596a9ab228c1331ee58789e94c57aaedb01c56d9ea4",
+    "edits": [
+      {
+        "from": "  // Setup\n",
+        "to": "  // k1w1: acknowledged native startup, mutations and the local audio session.\n  awaitReady(): Promise<void>;\n  awaitPlaybackCommands(): Promise<void>;\n  getPlayWhenReady(): boolean;\n  getAudioSessionId(): Promise<number | null>;\n\n  // Setup\n"
+      }
+    ]
+  },
+  {
+    "path": "android/src/main/java/com/doublesymmetry/trackplayer/MainThreadMediaController.kt",
+    "upstreamSha256": "129fd71c5978c560919df65b429e7c17c1c4b986db4ae26dd4fe61d932e7e2e0",
+    "patchedSha256": "87e2487d50c1285a2612f51d5226a8e68615c90ce85857b05a728055a846694a",
+    "edits": [
+      {
+        "from": "  private var playerCommandsPending = false\n",
+        "to": "  private var playerCommandsPending = false\n  private val readyWaiters = ArrayList<(Throwable?) -> Unit>()\n  private val completionCommands = LinkedHashSet<Command>()\n  private var commandFailure: Throwable? = null\n"
+      },
+      {
+        "from": "  private class Command(val operation: String, val playerCommand: Boolean, val block: (MediaController) -> Unit)\n",
+        "to": "  // k1w1: retain each asynchronous service result. A void JS call is not an\n  // acknowledgement; fences must wait for every preceding native operation.\n  private class Command(\n    val operation: String,\n    val playerCommand: Boolean,\n    val completion: ((SessionResult?, Throwable?) -> Unit)? = null,\n    val fence: Boolean = false,\n    val block: (MediaController) -> ListenableFuture<SessionResult>?,\n  ) {\n    private var completed = false\n    fun finish(result: SessionResult?, error: Throwable?) {\n      if (completed) return\n      completed = true\n      completion?.invoke(result, error)\n    }\n  }\n"
+      },
+      {
+        "from": "    if (previous != null) {\n      previous.disconnected()\n      releaseConnection(previous)\n    }\n    deferred?.forEach { it() }",
+        "to": "    if (previous != null) {\n      previous.disconnected()\n      releaseConnection(previous)\n    }\n    val released = IllegalStateException(\"Playback controller released\")\n    val ready = readyWaiters.toList()\n    readyWaiters.clear()\n    val completions = completionCommands.toList()\n    completionCommands.clear()\n    commandFailure = null\n    ready.forEach { it(released) }\n    completions.forEach { it.finish(null, released) }\n    deferred?.forEach { it() }"
+      },
+      {
+        "from": "        commands.addLast(Command(\"destroy\", false) { release() })",
+        "to": "        commands.addLast(Command(\"destroy\", false) { release(); null })"
+      },
+      {
+        "from": "  fun enqueue(operation: String, playerCommand: Boolean = false, block: (MediaController) -> Unit) {\n    runAfterDestroy {\n      val connection = attempt\n      if (connection == null) {\n        Log.w(\"TrackPlayer\", \"Dropping command without a controller connection\")\n      } else {\n        val command = Command(operation, playerCommand, block)\n        if (connection.ready && playerCommand) {\n          execute(command, checkNotNull(controller))\n        } else {\n          commands.addLast(command)\n          drainCommands()\n        }\n      }\n    }\n  }\n",
+        "to": "  fun enqueue(operation: String, playerCommand: Boolean = false, block: (MediaController) -> Unit) {\n    enqueueCommand(Command(operation, playerCommand) { mc -> block(mc); null })\n  }\n\n  fun enqueueResult(\n    operation: String,\n    completion: ((SessionResult?, Throwable?) -> Unit)? = null,\n    block: (MediaController) -> ListenableFuture<SessionResult>,\n  ) {\n    enqueueCommand(Command(operation, false, completion = completion, block = block))\n  }\n\n  fun awaitReady(complete: (Throwable?) -> Unit) {\n    runAfterDestroy {\n      val connection = attempt\n      when {\n        connection == null -> complete(IllegalStateException(\"Playback controller is not connected\"))\n        connection.ready -> complete(null)\n        else -> readyWaiters.add(complete)\n      }\n    }\n  }\n\n  fun awaitPlaybackCommands(complete: (Throwable?) -> Unit) {\n    enqueueCommand(Command(\n      \"awaitPlaybackCommands\", false,\n      completion = { _, error -> complete(error) },\n      fence = true,\n    ) { mc ->\n      mc.sendCustomCommand(\n        SessionCommand(TrackPlayerPlaybackService.COMMAND_AWAIT_PLAYER_COMMANDS, Bundle.EMPTY),\n        Bundle.EMPTY,\n      )\n    })\n  }\n\n  private fun enqueueCommand(command: Command) {\n    runAfterDestroy {\n      if (attempt == null) {\n        val error = IllegalStateException(\"Playback controller is not connected\")\n        command.finish(null, error)\n        Log.w(\"TrackPlayer\", \"Rejecting command without a controller connection\")\n      } else {\n        if (command.completion != null) completionCommands.add(command)\n        // Do not let later player commands bypass an unresolved service future.\n        commands.addLast(command)\n        drainCommands()\n      }\n    }\n  }\n"
+      },
+      {
+        "from": "        awaitResult(connection, connection.configure(mc), configuring = true) {\n          connection.configured = true",
+        "to": "        awaitResult(connection, connection.configure(mc), configuring = true) { _, _ ->\n          connection.configured = true"
+      },
+      {
+        "from": "              ), configuring = false) {}",
+        "to": "              ), configuring = false) { _, _ -> }"
+      },
+      {
+        "from": "              Log.e(\"TrackPlayer\", \"Controller awaitPlayerCommands failed\", error)\n              commandRunning = false",
+        "to": "              Log.e(\"TrackPlayer\", \"Controller awaitPlayerCommands failed\", error)\n              if (commandFailure == null) commandFailure = error\n              commandRunning = false"
+      },
+      {
+        "from": "          connection.connected(mc)\n        }\n        return",
+        "to": "          connection.connected(mc)\n          val ready = readyWaiters.toList()\n          readyWaiters.clear()\n          ready.forEach { it(null) }\n        }\n        return"
+      },
+      {
+        "from": "  private fun execute(command: Command, mc: MediaController) {\n    if (command.playerCommand) playerCommandsPending = true\n    try {\n      command.block(mc)\n    } catch (error: Exception) {\n      Log.e(\"TrackPlayer\", \"Controller ${command.operation} failed\", error)\n    }\n  }\n\n  private fun awaitResult(connection: Connection, result: ListenableFuture<SessionResult>, configuring: Boolean, complete: () -> Unit) {\n    result.addListener({\n      if (attempt === connection) {\n        val operation = if (configuring) \"configuration\" else \"awaitPlayerCommands\"\n        try {\n          val code = result.get().resultCode\n          if (code == SessionError.ERROR_SESSION_DISCONNECTED) {\n            fail(\"Controller $operation disconnected\")\n            return@addListener\n          }\n          check(code == SessionResult.RESULT_SUCCESS) { \"Session result: $code\" }\n        } catch (error: Exception) {\n          if (configuring) {\n            fail(\"Controller $operation failed\", error)\n            return@addListener\n          }\n          Log.e(\"TrackPlayer\", \"Controller $operation failed\", error)\n        }\n        complete()\n        commandRunning = false\n        drainCommands()\n      }\n    }, mainExecutor)\n  }\n",
+        "to": "  private fun execute(command: Command, mc: MediaController) {\n    val connection = attempt ?: return\n    if (command.playerCommand) playerCommandsPending = true\n    try {\n      val result = command.block(mc)\n      if (result == null) {\n        finishCommand(command, null, null)\n      } else {\n        commandRunning = true\n        awaitResult(connection, result, configuring = false) { value, error ->\n          finishCommand(command, value, error)\n        }\n      }\n    } catch (error: Exception) {\n      Log.e(\"TrackPlayer\", \"Controller ${command.operation} failed\", error)\n      if (commandFailure == null) commandFailure = error\n      finishCommand(command, null, error)\n    }\n  }\n\n  private fun finishCommand(command: Command, result: SessionResult?, error: Throwable?) {\n    completionCommands.remove(command)\n    val failure = if (command.fence) commandFailure ?: error else error\n    if (command.fence) commandFailure = null\n    command.finish(result, failure)\n  }\n\n  private fun awaitResult(\n    connection: Connection,\n    result: ListenableFuture<SessionResult>,\n    configuring: Boolean,\n    complete: (SessionResult?, Throwable?) -> Unit,\n  ) {\n    result.addListener({\n      if (attempt === connection) {\n        val operation = if (configuring) \"configuration\" else \"command\"\n        var value: SessionResult? = null\n        var failure: Throwable? = null\n        try {\n          value = result.get()\n          val code = value.resultCode\n          if (code == SessionError.ERROR_SESSION_DISCONNECTED) {\n            fail(\"Controller $operation disconnected\")\n            return@addListener\n          }\n          check(code == SessionResult.RESULT_SUCCESS) { \"Session result: $code\" }\n        } catch (error: Exception) {\n          if (configuring) {\n            fail(\"Controller $operation failed\", error)\n            return@addListener\n          }\n          Log.e(\"TrackPlayer\", \"Controller $operation failed\", error)\n          failure = error\n          if (commandFailure == null) commandFailure = error\n        }\n        complete(value, failure)\n        commandRunning = false\n        drainCommands()\n      }\n    }, mainExecutor)\n  }\n"
+      }
+    ]
+  },
+  {
+    "path": "android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt",
+    "upstreamSha256": "c22508b15f49e0b50ff505faeb43f1dd85d14940eec2f8e135104dd3153a7e8c",
+    "patchedSha256": "5f7af3c9ece96b6fa4621a4c4eef3cc4aabaf9d816c7f88a5e1c1106a153f842",
+    "edits": [
+      {
+        "from": "import com.facebook.react.bridge.ReactMethod\n",
+        "to": "import com.facebook.react.bridge.ReactMethod\nimport com.facebook.react.bridge.Promise\n"
+      },
+      {
+        "from": "  // region Playback\n",
+        "to": "  // k1w1: promises are backed by native completion, not JS snapshots.\n  @ReactMethod\n  override fun awaitReady(promise: Promise) {\n    controller.awaitReady { error ->\n      if (error == null) promise.resolve(null)\n      else promise.reject(\"player-not-ready\", error.message, error)\n    }\n  }\n\n  @ReactMethod\n  override fun awaitPlaybackCommands(promise: Promise) {\n    controller.awaitPlaybackCommands { error ->\n      if (error == null) promise.resolve(null)\n      else promise.reject(\"player-command-failed\", error.message, error)\n    }\n  }\n\n  @ReactMethod(isBlockingSynchronousMethod = true)\n  override fun getPlayWhenReady(): Boolean = sync { it?.playWhenReady ?: false }\n\n  @ReactMethod\n  override fun getAudioSessionId(promise: Promise) {\n    controller.enqueueResult(\"getAudioSessionId\", completion = { result, error ->\n      if (error != null) promise.reject(\"audio-session-unavailable\", error.message, error)\n      else promise.resolve(result?.extras?.getInt(\"audioSessionId\", 0)?.takeIf { it > 0 })\n    }) { mc ->\n      mc.sendCustomCommand(\n        SessionCommand(TrackPlayerPlaybackService.COMMAND_K1W1_AUDIO_SESSION, Bundle.EMPTY),\n        Bundle.EMPTY,\n      )\n    }\n  }\n\n  // region Playback\n"
+      },
+      {
+        "from": "    controller.enqueue(\"play\") { mc ->",
+        "to": "    controller.enqueueResult(\"play\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"seekToLiveEdge\") { mc ->",
+        "to": "    controller.enqueueResult(\"seekToLiveEdge\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"pause\") { mc ->",
+        "to": "    controller.enqueueResult(\"pause\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"stop\") { mc ->",
+        "to": "    controller.enqueueResult(\"stop\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"seekTo\") { mc ->",
+        "to": "    controller.enqueueResult(\"seekTo\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"seekBy\") { mc ->",
+        "to": "    controller.enqueueResult(\"seekBy\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"skipToNext\") { mc ->",
+        "to": "    controller.enqueueResult(\"skipToNext\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"skipToPrevious\") { mc ->",
+        "to": "    controller.enqueueResult(\"skipToPrevious\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"updateProgressSyncHeaders\") { mc ->",
+        "to": "    controller.enqueueResult(\"updateProgressSyncHeaders\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"sleepAfterTime\") { mc ->",
+        "to": "    controller.enqueueResult(\"sleepAfterTime\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"sleepAfterMediaItemAtIndex\") { mc ->",
+        "to": "    controller.enqueueResult(\"sleepAfterMediaItemAtIndex\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"cancelSleepTimer\") { mc ->",
+        "to": "    controller.enqueueResult(\"cancelSleepTimer\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"preload\") { mc ->",
+        "to": "    controller.enqueueResult(\"preload\") { mc ->"
+      },
+      {
+        "from": "    controller.enqueue(\"cancelPreload\") { mc ->",
+        "to": "    controller.enqueueResult(\"cancelPreload\") { mc ->"
+      },
+      {
+        "from": "if (mc != null) controller.enqueue(\"setCommands\") { updateCommands(it) }",
+        "to": "if (mc != null) controller.enqueueResult(\"setCommands\") { updateCommands(it) }"
+      },
+      {
+        "from": "      if (mc == null) return@sync \"idle\"\n      when (mc.playbackState) {",
+        "to": "      if (mc == null) return@sync \"idle\"\n      if (mc.playerError != null) return@sync \"error\"\n      when (mc.playbackState) {"
+      },
+      {
+        "from": "      if (idx in 0 until mc.mediaItemCount) {\n        mc.seekTo(idx, 0)\n      }",
+        "to": "      require(index.isFinite() && index == idx.toDouble() && idx in 0 until mc.mediaItemCount) {\n        \"Queue index is out of range\"\n      }\n      mc.seekTo(idx, 0)"
+      },
+      {
+        "from": "      if (idx !in 0 until mc.mediaItemCount) return@enqueue",
+        "to": "      require(index.isFinite() && index == idx.toDouble() && idx in 0 until mc.mediaItemCount) {\n        \"Metadata queue index is out of range\"\n      }"
+      }
+    ]
+  },
+  {
+    "path": "android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt",
+    "upstreamSha256": "80942d533e1f14e254231732aad5853b773a2a7805f191cc14fa302c1ed2a691",
+    "patchedSha256": "9a7204349b530d0cc33f30b5dfa87a6d3efc3e1a0d10724dbebd0af7a973513f",
+    "edits": [
+      {
+        "from": "      override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {\n        if (!playWhenReady || isPlaybackOngoing) cancelPlaybackStart()\n      }",
+        "to": "      override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {\n        if (!playWhenReady || isPlaybackOngoing) cancelPlaybackStart()\n        // Notify intent changes during buffering even when audible state stays false.\n        this@TrackPlayerPlaybackService.emitEvent(IsPlayingChangedEvent(activePlayer.isPlaying))\n      }"
+      },
+      {
+        "from": "      COMMAND_UPDATE_COMMANDS -> {",
+        "to": "      // k1w1: read the session on the owning service thread. Never expose the\n      // device output mix or a local session while playback is routed to Cast.\n      COMMAND_K1W1_AUDIO_SESSION -> {\n        val sessionId = if (currentPlaybackRoute() == PlaybackRoute.LOCAL) {\n          exoPlayer?.audioSessionId?.takeIf { it > 0 }\n        } else null\n        val extras = Bundle().apply { putInt(\"audioSessionId\", sessionId ?: 0) }\n        return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, extras))\n      }\n      COMMAND_UPDATE_COMMANDS -> {"
+      },
+      {
+        "from": "      .add(SessionCommand(COMMAND_AWAIT_PLAYER_COMMANDS, Bundle.EMPTY))",
+        "to": "      .add(SessionCommand(COMMAND_AWAIT_PLAYER_COMMANDS, Bundle.EMPTY))\n      .add(SessionCommand(COMMAND_K1W1_AUDIO_SESSION, Bundle.EMPTY))"
+      },
+      {
+        "from": "    const val COMMAND_AWAIT_PLAYER_COMMANDS = \"com.doublesymmetry.trackplayer.AWAIT_PLAYER_COMMANDS\"",
+        "to": "    const val COMMAND_AWAIT_PLAYER_COMMANDS = \"com.doublesymmetry.trackplayer.AWAIT_PLAYER_COMMANDS\"\n    const val COMMAND_K1W1_AUDIO_SESSION = \"com.k1w1.musikplayer.GET_AUDIO_SESSION\""
+      }
+    ]
+  }
+]

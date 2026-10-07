@@ -85,7 +85,7 @@ const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewp
 
 const styles = StyleSheet.create({
   strip: { position: 'absolute', left: 0, top: 0 },
-  playedClip: { ...StyleSheet.absoluteFillObject, right: undefined, overflow: 'hidden' },
+  playedClip: { ...StyleSheet.absoluteFill, right: undefined, overflow: 'hidden' },
   loadingLine: { position: 'absolute', left: 0, top: '50%', height: 2,
     marginTop: -1, borderRadius: 1 },
   playheadOutline: { position: 'absolute', top: 0, bottom: 0, width: 6, borderRadius: 3, zIndex: 2, elevation: 2,

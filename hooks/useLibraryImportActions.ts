@@ -3,7 +3,7 @@ import { clearWaveformPreparation } from '../utils/libraryWaveformPreparation';
 import { clearImportFileProgress } from '../utils/libraryImportProgress';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from '../utils/metadataRefreshActivity';
 import { Platform } from 'react-native';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import { DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS } from '../utils/libraryOperationTimeouts';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';

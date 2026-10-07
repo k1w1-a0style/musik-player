@@ -7,6 +7,7 @@ import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacemen
 import { acquireNativeHydrationGate, publishNativeHydrationGate, releaseNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
 import { resetNativeTrackNavigationForTests } from '../../utils/nativeTrackNavigation';
 import { enqueuePlaybackIntent } from '../../utils/playbackIntentScheduler';
+import { getNativePlaybackIntent } from '../../utils/nativePlaybackIntent';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -27,6 +28,7 @@ describe('PlaybackService', () => {
     jest.clearAllMocks();
     jest.restoreAllMocks();
   });
+  afterEach(() => jest.useRealTimers());
 
   test('registers remote playback controls without waiting for a hanging sleep timer restore', async () => {
     (AsyncStorage.getItem as jest.Mock).mockReturnValueOnce(new Promise<string | null>(() => undefined));
@@ -65,6 +67,73 @@ describe('PlaybackService', () => {
     expect(trackPlayerTestApi.__getListeners(Event.RemotePlay)).toHaveLength(1);
     trackPlayerTestApi.__trigger(Event.RemotePlay);
     await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalledTimes(1));
+  });
+
+  test('returns the native operation promise to a remote headless task', async () => {
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    (TrackPlayer.pause as jest.Mock).mockImplementationOnce(() => held);
+    await PlaybackService();
+    const listener = trackPlayerTestApi.__getListeners(Event.RemotePause)[0] as () => Promise<void>;
+
+    const completion = listener();
+    release();
+
+    expect(completion).toBeInstanceOf(Promise);
+    await completion;
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
+  });
+
+  test('remote errors are logged and the headless task promise settles', async () => {
+    const error = new Error('remote pause failed');
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    (TrackPlayer.pause as jest.Mock).mockRejectedValueOnce(error);
+    await PlaybackService();
+    const listener = trackPlayerTestApi.__getListeners(Event.RemotePause)[0] as () => Promise<void>;
+    await expect(listener()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith('[PlaybackService] Remote pause failed', error);
+  });
+
+  test('expired startup play settles and cannot leave a stale playing intent for hydration', async () => {
+    jest.useFakeTimers();
+    const owner = acquireNativeHydrationGate();
+    await PlaybackService();
+    const listener = trackPlayerTestApi.__getListeners(Event.RemotePlay)[0] as () => Promise<void>;
+    const completion = listener();
+    expect(getNativePlaybackIntent().desired).toBe('playing');
+    jest.advanceTimersByTime(5_000);
+    await expect(completion).resolves.toBeUndefined();
+    expect(getNativePlaybackIntent().desired).toBeNull();
+    publishNativeHydrationGate(owner, 'ready');
+    await enqueuePlaybackIntent(async () => undefined);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
+  test('a successfully applied startup play intent remains valid after the buffer lifetime', async () => {
+    jest.useFakeTimers();
+    const owner = acquireNativeHydrationGate();
+    await PlaybackService();
+    const play = trackPlayerTestApi.__getListeners(Event.RemotePlay)[0] as () => Promise<void>;
+    const completion = play();
+    publishNativeHydrationGate(owner, 'ready');
+    await completion;
+    expect(TrackPlayer.play).toHaveBeenCalledTimes(1);
+    jest.advanceTimersByTime(5_001);
+    expect(getNativePlaybackIntent().desired).toBe('playing');
+  });
+
+  test('startup Stop settles buffered navigation headless tasks without native navigation', async () => {
+    const owner = acquireNativeHydrationGate();
+    await PlaybackService();
+    const next = trackPlayerTestApi.__getListeners(Event.RemoteNext)[0] as () => Promise<void>;
+    const stop = trackPlayerTestApi.__getListeners(Event.RemoteStop)[0] as () => Promise<void>;
+    const navigation = next();
+    const stopped = stop();
+    await expect(navigation).resolves.toBeUndefined();
+    publishNativeHydrationGate(owner, 'ready');
+    await expect(stopped).resolves.toBeUndefined();
+    expect(TrackPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -210,6 +279,79 @@ describe('PlaybackService', () => {
     await enqueuePlaybackIntent(async () => undefined);
     expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
     expect(TrackPlayer.skipToNext).not.toHaveBeenCalled();
+  });
+
+  test.each(['next', 'play'] as const)('expired startup %s does not execute after waiting for the native lock', async action => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+    const owner = acquireNativeHydrationGate();
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      started();
+      await new Promise<void>(resolve => { release = resolve; });
+    });
+    await began;
+    await PlaybackService();
+    const event = action === 'next' ? Event.RemoteNext : Event.RemotePlay;
+    const listener = trackPlayerTestApi.__getListeners(event)[0] as () => Promise<void>;
+    const completion = listener();
+    publishNativeHydrationGate(owner, 'ready');
+    now.mockReturnValue(6001);
+    release();
+    await blocker;
+    await completion;
+    expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
+    expect(TrackPlayer.skipToNext).not.toHaveBeenCalled();
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
+  test('Stop invalidates startup navigation already replayed into the scheduler', async () => {
+    const owner = acquireNativeHydrationGate();
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      started();
+      await new Promise<void>(resolve => { release = resolve; });
+    });
+    await began;
+    await PlaybackService();
+    const next = trackPlayerTestApi.__getListeners(Event.RemoteNext)[0] as () => Promise<void>;
+    const stop = trackPlayerTestApi.__getListeners(Event.RemoteStop)[0] as () => Promise<void>;
+    const navigation = next();
+    publishNativeHydrationGate(owner, 'ready');
+    const stopped = stop();
+    release();
+    await blocker;
+    await navigation;
+    await stopped;
+    expect(TrackPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
+    expect(TrackPlayer.skipToNext).not.toHaveBeenCalled();
+  });
+
+  test('headless expiry never releases a native writer that is still running', async () => {
+    jest.useFakeTimers();
+    const owner = acquireNativeHydrationGate();
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const held = new Promise<void>(resolve => { release = resolve; });
+    (TrackPlayer.skipToNext as jest.Mock).mockImplementationOnce(() => { started(); return held; });
+    await PlaybackService();
+    const next = trackPlayerTestApi.__getListeners(Event.RemoteNext)[0] as () => Promise<void>;
+    const completion = next();
+    publishNativeHydrationGate(owner, 'ready');
+    await began;
+    jest.advanceTimersByTime(5_000);
+    await expect(completion).resolves.toBeUndefined();
+    const following = enqueuePlaybackIntent(() => runExclusiveNativeQueueReplacement(() => TrackPlayer.pause()));
+    await Promise.resolve();
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    release();
+    await following;
+    expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
   });
 
   test('does not apply a queued remote seek to a different track', async () => {

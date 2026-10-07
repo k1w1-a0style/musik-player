@@ -131,7 +131,7 @@ const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, on
 };
 
 const styles = StyleSheet.create({
-  queueSheet: { ...StyleSheet.absoluteFillObject, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.queueBackground,
+  queueSheet: { ...StyleSheet.absoluteFill, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.queueBackground,
     zIndex: 100, elevation: 30 },
   dismissHandle: { alignSelf: 'center', width: 44, height: 4, borderRadius: 2, marginTop: 7,
     marginBottom: -3, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.queueControlInactive },

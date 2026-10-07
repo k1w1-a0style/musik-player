@@ -30,13 +30,13 @@ const handleRemotePlaybackAction = (
   action: string,
   run: (assertCurrent: () => void) => Promise<unknown>,
   invalidatesPendingSeek = false,
-): void => {
+): Promise<void> => {
   const queuedAt = getNativeHydrationGate();
   if (queuedAt.status !== 'ready' || !queuedAt.owned) {
     logBlockedRemoteAction(action);
-    return;
+    return Promise.resolve();
   }
-  enqueuePlaybackIntent(() => runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
+  return enqueuePlaybackIntent(() => runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
     const current = getNativeHydrationGate();
     if (current.status !== 'ready' || !current.owned || current.revision !== queuedAt.revision) {
       console.warn('[PlaybackService] Remote action blocked', { action, gateStatus: current.status, reason: 'native-hydration-changed-before-execution' });
@@ -48,44 +48,48 @@ const handleRemotePlaybackAction = (
   }, { hydrationCapture: queuedAt, invalidatesPendingSeek })).catch(error => logRemotePlaybackError(action, error));
 };
 
-const handleRemoteTransportIntent = (desired: DesiredPlaybackState): void => {
+const handleRemoteTransportIntent = (desired: DesiredPlaybackState, isCurrent: () => boolean = () => true): Promise<void> => {
   if (desired === 'stopped') remoteNavigationBuffer?.clear();
   const gate = getNativeHydrationGate();
   if (!gate.owned || gate.status !== 'ready') {
     let revision = 0;
-    const accepted = remoteIntentBuffer?.submit(desired, () => {
-      if (getNativePlaybackIntent().revision === revision) handleRemoteTransportIntent(desired);
+    const buffered = remoteIntentBuffer?.submitWithCompletion(desired, stillCurrent => {
+      if (getNativePlaybackIntent().revision === revision) return handleRemoteTransportIntent(desired, stillCurrent);
+      return Promise.resolve();
     });
-    if (accepted) revision = recordNativePlaybackIntent(desired).revision;
+    if (buffered?.accepted) revision = recordNativePlaybackIntent(desired, buffered.isCurrent).revision;
     else logBlockedRemoteAction(desired);
-    return;
+    return buffered?.completion ?? Promise.resolve();
   }
-  const intent = recordNativePlaybackIntent(desired);
+  let applied = false;
+  const intent = recordNativePlaybackIntent(desired, () => applied || isCurrent());
   const action = { playing: 'play', paused: 'pause', stopped: 'stop' }[desired];
-  handleRemotePlaybackAction(action, async assertCurrent => {
-    if (getNativePlaybackIntent().revision !== intent.revision || isNativePlaybackIntentConfirmed(intent.revision)) return;
-    await restoreNativePlaybackIntent(desired, intent.revision, () => { assertCurrent(); return true; });
+  return handleRemotePlaybackAction(action, async assertCurrent => {
+    if (!isCurrent() || getNativePlaybackIntent().revision !== intent.revision) return;
+    if (isNativePlaybackIntentConfirmed(intent.revision)) { applied = true; return; }
+    applied = await restoreNativePlaybackIntent(desired, intent.revision, () => { assertCurrent(); return isCurrent(); });
   }, desired === 'stopped');
 };
 
-const handleRemoteNavigationIntent = (direction: 1 | -1): void => {
+const handleRemoteNavigationIntent = (direction: 1 | -1, isCurrent: () => boolean = () => true): Promise<void> => {
   const action = direction > 0 ? 'next' : 'previous';
   const gate = getNativeHydrationGate();
   if (!gate.owned || gate.status !== 'ready') {
-    if (remoteIntentBuffer?.hasPendingStop()
-      || !remoteNavigationBuffer?.submit(() => handleRemoteNavigationIntent(direction))) logBlockedRemoteAction(action);
-    return;
+    const buffered = remoteIntentBuffer?.hasPendingStop() ? undefined
+      : remoteNavigationBuffer?.submitWithCompletion(stillCurrent => handleRemoteNavigationIntent(direction, stillCurrent));
+    if (!buffered?.accepted) logBlockedRemoteAction(action);
+    return buffered?.completion ?? Promise.resolve();
   }
-  requestNativeTrackNavigation(direction).catch(error => logRemotePlaybackError(action, error));
+  return requestNativeTrackNavigation(direction, false, isCurrent).catch(error => logRemotePlaybackError(action, error));
 };
 
-const handleRemoteSeek = (action: string, run: () => Promise<void>): void => {
+const handleRemoteSeek = (action: string, run: () => Promise<void>): Promise<void> => {
   const gate = getNativeHydrationGate();
-  if (!gate.owned || gate.status !== 'ready') { logBlockedRemoteAction(action); return; }
+  if (!gate.owned || gate.status !== 'ready') { logBlockedRemoteAction(action); return Promise.resolve(); }
   const identity = TrackPlayer.getActiveTrack();
   // Consume failure even when a changed gate prevents the queued action running.
   void identity.catch(error => logRemotePlaybackError('seek identity', error));
-  handleRemotePlaybackAction(action, async assertCurrent => {
+  return handleRemotePlaybackAction(action, async assertCurrent => {
     const requested = await identity;
     const current = await TrackPlayer.getActiveTrack();
     assertCurrent();
@@ -107,38 +111,23 @@ export const PlaybackService = async (): Promise<void> => {
   remoteNavigationBuffer?.dispose();
   remoteIntentBuffer = createRemotePlaybackIntentBuffer();
   remoteNavigationBuffer = createRemoteNavigationIntentBuffer();
+  TrackPlayer.setRemoteCommandGuard(() => getNativeHydrationGate().owned);
   void restorePersistedSleepTimer().catch(error => {
     console.warn('[PlaybackService] Sleep timer restore failed', error);
   });
-  registerRemoteListener(Event.RemotePlay, () => {
-    handleRemoteTransportIntent('playing');
-  });
-  registerRemoteListener(Event.RemotePause, () => {
-    handleRemoteTransportIntent('paused');
-  });
-  registerRemoteListener(Event.RemoteStop, () => {
-    handleRemoteTransportIntent('stopped');
-  });
-  registerRemoteListener(Event.RemoteNext, () => {
-    handleRemoteNavigationIntent(1);
-  });
-  registerRemoteListener(Event.RemotePrevious, () => {
-    handleRemoteNavigationIntent(-1);
-  });
+  registerRemoteListener(Event.RemotePlay, () => handleRemoteTransportIntent('playing'));
+  registerRemoteListener(Event.RemotePause, () => handleRemoteTransportIntent('paused'));
+  registerRemoteListener(Event.RemoteStop, () => handleRemoteTransportIntent('stopped'));
+  registerRemoteListener(Event.RemoteNext, () => handleRemoteNavigationIntent(1));
+  registerRemoteListener(Event.RemotePrevious, () => handleRemoteNavigationIntent(-1));
   registerRemoteListener(Event.RemoteSeek, ({ position }) => {
     if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {
-      return;
+      return Promise.resolve();
     }
 
-    handleRemoteSeek('seek', () => TrackPlayer.seekTo(position));
+    return handleRemoteSeek('seek', () => TrackPlayer.seekTo(position));
   });
-  registerRemoteListener(Event.RemoteJumpForward, ({ interval }) => {
-    handleRemoteSeek('jump forward', () => TrackPlayer.seekBy(normalizeJumpInterval(interval)));
-  });
-  registerRemoteListener(Event.RemoteJumpBackward, ({ interval }) => {
-    handleRemoteSeek('jump backward', () => TrackPlayer.seekBy(-normalizeJumpInterval(interval)));
-  });
-  registerRemoteListener(Event.PlaybackProgressUpdated, () => {
-    enforceExpiredSleepTimer().catch(error => logRemotePlaybackError('sleep timer expiry', error));
-  });
+  registerRemoteListener(Event.RemoteJumpForward, ({ interval }) => handleRemoteSeek('jump forward', () => TrackPlayer.seekBy(normalizeJumpInterval(interval))));
+  registerRemoteListener(Event.RemoteJumpBackward, ({ interval }) => handleRemoteSeek('jump backward', () => TrackPlayer.seekBy(-normalizeJumpInterval(interval))));
+  registerRemoteListener(Event.PlaybackProgressUpdated, () => enforceExpiredSleepTimer().catch(error => logRemotePlaybackError('sleep timer expiry', error)));
 };

@@ -26,7 +26,8 @@ const baseConfig = {
       'android.permission.SYSTEM_ALERT_WINDOW',
     ],
   },
-  newArchEnabled: false,
+  newArchEnabled: true,
+  sdkVersion: '54.0.0',
   extra: { eas: { projectId: '00000000-0000-4000-8000-000000000000' } },
 };
 
@@ -47,14 +48,18 @@ describe('Expo release config gate', () => {
     expect(result.stdout).toContain('Expo config release gate passed.');
   });
 
-  it('fails when New Architecture is enabled in the release config', () => {
+  it('fails when New Architecture is disabled in the release config', () => {
     const result = runGate({
       ...baseConfig,
-      newArchEnabled: true,
+      newArchEnabled: false,
     });
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('newArchEnabled: expected false, got true');
+    expect(result.stderr).toContain('New Architecture must be enabled');
+  });
+
+  it('accepts mandatory New Architecture without an obsolete flag on SDK 57', () => {
+    expect(runGate({ ...baseConfig, sdkVersion: '57.0.0', newArchEnabled: undefined }).status).toBe(0);
   });
 
   it('fails when RECORD_AUDIO is declared as an Android permission', () => {

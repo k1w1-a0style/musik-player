@@ -78,7 +78,10 @@ npm test -- --runInBand
 ## Konfigurationsentscheidungen
 
 - `tsconfig.json` nutzt kein `ignoreDeprecations` mehr; TypeScript-Warnungen sollen nicht pauschal unterdrückt werden.
-- `newArchEnabled=false` bleibt bewusst gesetzt, solange `react-native-track-player@4.1.2` im Einsatz ist. Eine New-Architecture-Aktivierung braucht einen separaten PR mit Playback-, Background-, Notification- und Android-Smoke-Tests.
+- Expo SDK 57 / React Native 0.86 verwenden die New Architecture. Der Audioplayer ist `@rntp/player@5.12.1`; bestehende App-Aufrufe laufen über die lokale Kompatibilitätsschicht in `modules/playback-backend`, ohne nativen RNTP-4-Player.
+- Der versionsgebundene Postinstall-Patch ergänzt native Bereitschaft, echte Command-Bestätigungen und die Audio-Session-ID. Versions- oder Quellabweichungen stoppen die Installation.
+- RNTP 5 ist laut mitgelieferter Lizenz kostenlos für private, persönliche Nutzung; andere Nutzung benötigt eine gesonderte Lizenz. Es wurde keine Lizenz gekauft.
+- Migrationsnachweis und offene Geräteprüfungen: [`docs/review/auftrag-1-2026-10-07.md`](docs/review/auftrag-1-2026-10-07.md).
 
 ## Release-Hinweise
 

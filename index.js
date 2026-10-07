@@ -5,9 +5,14 @@ const { installDiagnosticConsoleSanitizer } = require('./utils/diagnosticSanitiz
 installDiagnosticConsoleSanitizer();
 
 const { registerRootComponent } = require('expo');
+const React = require('react');
 const TrackPlayer = require('react-native-track-player').default;
-const App = require('./App').default;
 const { PlaybackService } = require('./services/PlaybackService');
 
 TrackPlayer.registerPlaybackService(() => PlaybackService);
-registerRootComponent(App);
+// Screens are loaded only when the UI renders, never by a cold playback task.
+function LazyApp(props) {
+  const App = require('./App').default;
+  return React.createElement(App, props);
+}
+registerRootComponent(LazyApp);

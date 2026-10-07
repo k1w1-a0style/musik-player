@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.72 },
   preparing: { opacity: 0.5 },
   activeRail: { position: 'absolute', left: -10, width: 3, height: 34, borderRadius: 3, backgroundColor: 'transparent' },
-  cardSheen: { ...StyleSheet.absoluteFillObject, opacity: 0.42 },
+  cardSheen: { ...StyleSheet.absoluteFill, opacity: 0.42 },
   playingBadge: { position: 'absolute', right: 2, bottom: 2, width: 17, height: 17, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
   cover: {
     width: 44,

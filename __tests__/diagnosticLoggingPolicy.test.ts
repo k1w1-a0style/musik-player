@@ -9,12 +9,19 @@ describe('diagnostic logging privacy policy', () => {
     const firstRuntimeLoad = indexSource.indexOf("require('expo')");
     const installAt = indexSource.indexOf('installDiagnosticConsoleSanitizer();');
     const playbackAt = indexSource.indexOf('TrackPlayer.registerPlaybackService');
-    const appAt = indexSource.indexOf('registerRootComponent(App)');
+    const appAt = indexSource.indexOf('registerRootComponent(LazyApp)');
     expect(installAt).toBeGreaterThanOrEqual(0);
     expect(firstRuntimeLoad).toBeGreaterThan(installAt);
     expect(indexSource).not.toMatch(/^import\s/m);
     expect(playbackAt).toBeGreaterThan(installAt);
     expect(appAt).toBeGreaterThan(installAt);
+  });
+
+  test('defers the screen import until the root component renders', () => {
+    const renderAt = indexSource.indexOf('function LazyApp(props)');
+    const appImportAt = indexSource.indexOf("require('./App')");
+    expect(appImportAt).toBeGreaterThan(renderAt);
+    expect(indexSource.indexOf('TrackPlayer.registerPlaybackService')).toBeLessThan(renderAt);
   });
 
   test('covers every production console severity and sanitizes every argument', () => {

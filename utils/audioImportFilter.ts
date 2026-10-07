@@ -1,4 +1,4 @@
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { isSupportedAudioCandidate } from './audioImportCandidates';
 
 export const MIN_MUSIC_DURATION_SECONDS = 45;
