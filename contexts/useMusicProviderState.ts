@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Playlist, Song } from '../types/Song';
+import { useNativePlaybackRecovery } from './useNativePlaybackRecovery';
+import { getNativePlaybackWatchdogSnapshot } from '../utils/nativePlaybackWatchdog';
 
 export interface MusicProviderState {
   hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
@@ -36,10 +38,12 @@ export const useMusicProviderState = (): MusicProviderState => {
     });
   }, []);
   const retryHydration = useCallback(() => {
+    if (getNativePlaybackWatchdogSnapshot().status === 'quarantined') return;
     if ((hydrationStatus !== 'degraded' && hydrationStatus !== 'retry-required') || retryPendingRef.current) return;
     retryPendingRef.current = true;
     setHydrationRetryToken(value => value + 1);
   }, [hydrationStatus]);
+  useNativePlaybackRecovery(setHydrationStatus);
   const [songs, setSongsState] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);

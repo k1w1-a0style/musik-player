@@ -30,7 +30,7 @@ export const useNowPlayingQueue = ({
   const playQueueItemById = useCallback((songId: string) => {
     const item = queueById.get(songId);
     if (!item || item.id === currentSong?.id) return;
-    void runPlaybackUiAction('queue-play-song', () => playSong(item, queue), { dropIfPending: true });
+    void runPlaybackUiAction('queue-play-song', () => playSong(item, queue), { dropIfPending: false });
   }, [currentSong?.id, playSong, queue, queueById]);
 
   return { queue, playQueueItemById };

@@ -3,6 +3,7 @@ import { createCoverCacheProtection } from '../../utils/coverCacheCleanup';
 import {
   acquireSongCoverProtection,
   getSongSnapshotKey,
+  protectAcceptedSongCovers,
   resetSongCoverProtectionLifecycleForTests,
 } from '../songCoverProtectionLifecycle';
 
@@ -54,6 +55,23 @@ describe('songCoverProtectionLifecycle', () => {
   beforeEach(() => {
     resetSongCoverProtectionLifecycleForTests();
     jest.clearAllMocks();
+  });
+
+  test('uses one handoff for skipped import renders and claims it only after the newest effect protects covers', () => {
+    protectAcceptedSongCovers(songsA);
+    protectAcceptedSongCovers(songsB);
+    expect(createCoverCacheProtection).toHaveBeenCalledTimes(1);
+    expect(protectionAt(0).replaceProtectedSongCovers).toHaveBeenLastCalledWith(songsB);
+
+    const staleEffect = acquireSongCoverProtection(songsA);
+    expect(protectionAt(0).release).not.toHaveBeenCalled();
+    const newestEffect = acquireSongCoverProtection(songsB);
+    expect(protectionAt(2).protectSongCovers).toHaveBeenCalledWith(songsB);
+    expect(protectionAt(0).release).toHaveBeenCalledTimes(1);
+    expect(protectionAt(2).protectSongCovers.mock.invocationCallOrder[0])
+      .toBeLessThan(protectionAt(0).release.mock.invocationCallOrder[0]);
+    staleEffect.releaseCurrentOwner();
+    newestEffect.releaseCurrentOwner();
   });
 
   test('does not reinsert a released entry when updateSnapshot runs on a stale lease', () => {

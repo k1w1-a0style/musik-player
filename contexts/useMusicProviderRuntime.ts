@@ -16,7 +16,7 @@ export interface MusicProviderRuntime {
 
 export const useMusicProviderRuntime = (): MusicProviderRuntime => {
   const state = useMusicProviderState();
-  const { playback, equalizer } = useMusicProviderControls();
+  const { playback, equalizer } = useMusicProviderControls(state.currentSong);
   const audioFeatures = useMusicProviderAudioFeatures(
     buildMusicProviderAudioFeaturesInput({
       providerState: state,

@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: codex
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      expo-compatible-patches:
+        patterns: ['expo', 'expo-*', '@expo/*', 'babel-preset-expo', 'jest-expo']
+        update-types: [patch]
+      development-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # RNTP upgrades require explicit patch removal and the native playback pilot.
+      - dependency-name: react-native-track-player
+        update-types: [version-update:semver-major, version-update:semver-minor]
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: codex
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

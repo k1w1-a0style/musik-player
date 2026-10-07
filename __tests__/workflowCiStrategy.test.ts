@@ -241,13 +241,36 @@ describe('GitHub workflow CI strategy', () => {
     expect(ciWorkflow).not.toContain('npm test -- --runInBand');
   });
 
+  it('runs security, JS quality and native checks independently with a fail-closed aggregate', () => {
+    const workflow = parseWorkflow('ci.yml');
+    for (const name of ['security-audit', 'quality-gates', 'native-gates']) {
+      expect(workflow.jobs[name].needs).toBeUndefined();
+      expect(workflow.jobs[name]['continue-on-error']).toBeUndefined();
+    }
+    const auditCommands = workflow.jobs['security-audit'].steps.map((step: any) => step.run ?? '').join('\n');
+    expect(auditCommands).toContain('checkNpmAudit.cjs');
+    expect(workflow.jobs['quality-gates'].steps.some((step: any) => /checkNpmAudit/.test(step.run ?? ''))).toBe(false);
+    const aggregate = workflow.jobs['release-ready'];
+    expect(aggregate.if).toBe('${{ always() }}');
+    expect(aggregate.needs).toEqual(['security-audit', 'quality-gates', 'native-gates']);
+    const step = aggregate.steps[0];
+    for (const result of ['SECURITY_RESULT', 'QUALITY_RESULT', 'NATIVE_RESULT']) {
+      expect(step.run).toContain(`test "$${result}" = success`);
+    }
+  });
+
   it('keeps the main CI quality gates explicit and fail-closed', () => {
     const ciWorkflow = readWorkflow('ci.yml');
 
-    expect(ciWorkflow).toContain('npm ci --no-audit --no-fund');
+    expect(ciWorkflow).toContain('uses: ./.github/actions/setup-npm');
+    const setupAction = YAML.parse(fs.readFileSync(path.join(repoRoot, '.github/actions/setup-npm/action.yml'), 'utf8'));
+    expect(setupAction.runs.steps.find((step: any) => step.name === 'Install dependencies').run)
+      .toBe('npm ci --no-audit --no-fund');
     expect(ciWorkflow).toContain('npm run typecheck');
     expect(ciWorkflow).toContain('npm run test:coverage -- --runInBand');
     expect(ciWorkflow).toContain('npm run lint:ci');
+    expect(ciWorkflow).toContain('expo export --platform android --source-maps --output-dir ci-android-export');
+    expect(ciWorkflow).toContain('node scripts/ci/checkAndroidBundleDependencies.cjs ci-android-export');
     expect(ciWorkflow).toContain('node scripts/ci/checkExpoReleaseConfig.cjs expo-config.json');
     expect(ciWorkflow).toContain('npm run check:android-permissions');
     expect(ciWorkflow).not.toContain('continue-on-error: true');

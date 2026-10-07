@@ -1,5 +1,8 @@
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Song } from '../types/Song';
+import { getNativePlaybackIntent, recordNativePlaybackIntent } from '../utils/nativePlaybackIntent';
+import { enqueuePlaybackIntent } from '../utils/playbackIntentScheduler';
+import { withPlaybackSelectionFeedback } from '../utils/playbackSelectionStatus';
 import {
   captureRequiredNativeHydration,
   NativeMutationHydrationStaleError,
@@ -36,10 +39,9 @@ export interface PlaybackQueueActions {
 export { persistRequestedSongId } from './playbackQueueActionHelpers';
 
 const useQueueActionScheduler = () => {
-  const queueActionLockRef = useRef<Promise<void>>(Promise.resolve());
   const playBatchRef = useRef({ latest: 0 });
   const enqueueQueueAction = useCallback((
-    action: (hydrationCapture: NativeHydrationCapture) => Promise<NativeQueueActionResult>,
+    action: (hydrationCapture: NativeHydrationCapture, playbackIntentRevision: number) => Promise<NativeQueueActionResult>,
     playIntent = false,
   ): Promise<NativeQueueActionResult> => {
     // Queue edits keep their ordering. Only consecutive pending track choices
@@ -49,9 +51,8 @@ const useQueueActionScheduler = () => {
     if (hydrationCapture === null) {
       return Promise.resolve({ status: 'failed', error: new NativeMutationHydrationStaleError() });
     }
-    const run = queueActionLockRef.current.catch(() => undefined).then(() => action(hydrationCapture));
-    queueActionLockRef.current = run.then(() => undefined, () => undefined);
-    return run;
+    const playbackIntentRevision = getNativePlaybackIntent().revision;
+    return enqueuePlaybackIntent(() => action(hydrationCapture, playbackIntentRevision), playIntent ? 'selection' : 'edit');
   }, []);
   return { playBatchRef, enqueueQueueAction };
 };
@@ -72,9 +73,12 @@ export const usePlaybackQueueActions = ({
   shuffleRef.current = shuffle;
   const playSong = useCallback(
     async (song: Song, queue?: Song[]) => {
+      const playbackIntentRevision = captureRequiredNativeHydration() !== null
+        ? recordNativePlaybackIntent('playing').revision : undefined;
       const batch = playBatchRef.current;
       const intent = ++batch.latest;
-      return enqueueQueueAction(hydrationCapture => intent !== batch.latest
+      return withPlaybackSelectionFeedback(playbackIntentRevision === undefined ? null : song,
+        () => enqueueQueueAction(hydrationCapture => intent !== batch.latest
         ? Promise.resolve({ status: 'stale' as const }) : runPlaySongQueueAction({
           song,
           queue,
@@ -88,7 +92,8 @@ export const usePlaybackQueueActions = ({
           shuffleRef,
           setShuffle,
           hydrationCapture,
-      }), true);
+          playbackIntentRevision,
+      }), true));
     },
     [baseQueueContextRef, enqueueQueueAction, nativeQueueRef, playBatchRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
   );
@@ -119,7 +124,7 @@ export const usePlaybackQueueActions = ({
     async (song: Song) => insertSongIntoQueue(song, 'end'),
     [insertSongIntoQueue],
   );
-  const toggleShuffle = useCallback(async () => enqueueQueueAction(hydrationCapture => runShuffleQueueAction({
+  const toggleShuffle = useCallback(async () => enqueueQueueAction((hydrationCapture, playbackIntentRevision) => runShuffleQueueAction({
     songsRef,
     queueContextRef,
     baseQueueContextRef,
@@ -131,6 +136,7 @@ export const usePlaybackQueueActions = ({
     shuffleRef,
     setShuffle,
     hydrationCapture,
+    playbackIntentRevision,
   })), [
     baseQueueContextRef,
     currentSongId,

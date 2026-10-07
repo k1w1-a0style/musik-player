@@ -51,7 +51,7 @@ const QueueHeader = ({ shuffle, repeatMode, onToggleShuffle, onCycleRepeatMode, 
       <View><Text style={styles.queueEyebrow}>SOUNDCLOUD PLAYER</Text><Text style={styles.queueTitle}>Als Nächstes</Text></View>
       <View style={styles.queueHeaderActions}>
         <Pressable style={[styles.queueHeaderButton, shuffle && styles.active]}
-          onPress={() => void runPlaybackUiAction('soundcloud-shuffle', onToggleShuffle, { dropIfPending: true })}
+          onPress={() => void runPlaybackUiAction('soundcloud-shuffle', onToggleShuffle, { dropIfPending: false })}
           accessibilityRole="button" accessibilityLabel={shuffle ? 'Zufallswiedergabe ausschalten' : 'Zufallswiedergabe einschalten'}
           testID="soundcloud-queue-shuffle"><Shuffle color={shuffle ? SOUNDCLOUD_PLAYER_COLORS.accent
             : SOUNDCLOUD_PLAYER_COLORS.queueControlInactive} size={22} /></Pressable>

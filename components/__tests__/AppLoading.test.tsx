@@ -1,7 +1,9 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import AppLoading from '../AppLoading';
+import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';
+import { getNativePlaybackWatchdogSnapshot } from '../../utils/nativePlaybackWatchdog';
 
 const mockAppTheme = {
   palette: {
@@ -23,6 +25,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 }));
 
 beforeEach(() => {
+  resetNativeQueueMutationLockForTests();
   mockUseOptionalAppTheme.mockReset();
   mockUseOptionalAppTheme.mockReturnValue({
     appearance: 'dark',
@@ -70,4 +73,28 @@ test('renders a visible degraded message and retry action', () => {
   expect(getByTestId('hydration-retry-button').props.accessibilityLabel).toBe('Erneut versuchen');
   fireEvent.press(getByTestId('hydration-retry-button'));
   expect(onRetry).toHaveBeenCalledTimes(1);
+});
+
+test('explains a stalled player and keeps retry disabled until the native operation settles', async () => {
+  jest.useFakeTimers();
+  const onRetry = jest.fn();
+  const view = render(<AppLoading degraded onRetry={onRetry} />);
+  let started!: () => void; let release!: () => void;
+  const began = new Promise<void>(resolve => { started = resolve; });
+  const operation = runExclusiveNativeQueueReplacement(async () => {
+    started(); await new Promise<void>(resolve => { release = resolve; });
+  }, { timeoutMs: 40 });
+  const outcome = operation.catch(error => error);
+  await began;
+  await act(async () => { await jest.advanceTimersByTimeAsync(40); await outcome; });
+  expect(view.getByTestId('app-loading-subtitle').props.children).toContain('Der Player reagiert nicht.');
+  expect(view.getByTestId('hydration-retry-button').props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(view.getByTestId('hydration-retry-button'));
+  expect(onRetry).not.toHaveBeenCalled();
+  await act(async () => { release(); await jest.advanceTimersByTimeAsync(0); });
+  expect(view.getByTestId('hydration-retry-button').props.accessibilityState.disabled).toBe(false);
+  fireEvent.press(view.getByTestId('hydration-retry-button'));
+  expect(onRetry).toHaveBeenCalledTimes(1);
+  expect(getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
+  view.unmount(); jest.useRealTimers();
 });

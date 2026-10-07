@@ -25,7 +25,7 @@ const runSongQueueAction = (
 ): Promise<void> => runPlaybackUiAction(
   `library-${actionName}-${song.id}`,
   () => action(song),
-  { dropIfPending: true },
+  { dropIfPending: false },
 );
 
 export const useLibraryController = (): UseLibraryControllerResult => {

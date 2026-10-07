@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Text } from 'react-native';
-import { render, waitFor } from '@testing-library/react-native';
+import { AppState, Text, type AppStateStatus } from 'react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePersistedSongs } from '../usePersistedSongs';
 import * as musicPersistenceHelpers from '../musicPersistenceHelpers';
@@ -97,6 +97,61 @@ describe('usePersistedSongs', () => {
     await waitFor(async () => {
       expect(await storage.get(StorageKeys.SONGS)).toEqual(songs);
     });
+  });
+
+  test('coalesces 600-song updates before preparation and stores only the newest snapshot', async () => {
+    jest.useFakeTimers();
+    const prepare = jest.spyOn(musicPersistenceHelpers, 'prepareSongsForPersistence');
+    const makeLibrary = (revision: number): Song[] => Array.from({ length: 600 }, (_, index) => ({
+      id: `s${index}`, title: `Title ${revision}`, artist: 'A', uri: `file:///s${index}.mp3`,
+    }));
+    const initialRefs = {};
+    const { rerender, unmount } = render(<PersistedSongsWithInitialRefsProbe currentSongs={makeLibrary(1)} initialRefs={initialRefs} />);
+    const newest = makeLibrary(3);
+    rerender(<PersistedSongsWithInitialRefsProbe currentSongs={makeLibrary(2)} initialRefs={initialRefs} />);
+    rerender(<PersistedSongsWithInitialRefsProbe currentSongs={newest} initialRefs={initialRefs} />);
+    expect(prepare).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(350); });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(await storage.get(StorageKeys.SONGS)).toEqual(newest);
+    unmount();
+    jest.useRealTimers();
+  });
+
+  test.each(['background', 'unmount'])('flushes the latest deferred library on %s', async event => {
+    jest.useFakeTimers();
+    let appStateListener: ((state: AppStateStatus) => void) | undefined;
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      appStateListener = listener;
+      return { remove: jest.fn() };
+    });
+    const largeSongs = Array.from({ length: 100 }, (_, index) => ({ ...songs[0], id: `s${index}` }));
+    const { unmount } = render(<PersistedSongsWithInitialRefsProbe currentSongs={largeSongs} initialRefs={{}} />);
+    await act(async () => {
+      if (event === 'unmount') unmount();
+      else appStateListener?.('background');
+    });
+    expect(await storage.get(StorageKeys.SONGS)).toEqual(largeSongs);
+    if (event !== 'unmount') unmount();
+    jest.useRealTimers();
+  });
+
+  test('bounds coalescing during a continuous import to two seconds', async () => {
+    jest.useFakeTimers();
+    const prepare = jest.spyOn(musicPersistenceHelpers, 'prepareSongsForPersistence');
+    const initialRefs = {};
+    const makeLibrary = (revision: number) => Array.from({ length: 100 }, (_, index) => ({ ...songs[0], id: `s${index}`, title: `Title ${revision}` }));
+    const { rerender, unmount } = render(<PersistedSongsWithInitialRefsProbe currentSongs={makeLibrary(0)} initialRefs={initialRefs} />);
+    for (let revision = 1; revision <= 9; revision += 1) {
+      await act(async () => { jest.advanceTimersByTime(200); });
+      rerender(<PersistedSongsWithInitialRefsProbe currentSongs={makeLibrary(revision)} initialRefs={initialRefs} />);
+    }
+    expect(prepare).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(200); });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(await storage.get(StorageKeys.SONGS)).toEqual(makeLibrary(9));
+    unmount();
+    jest.useRealTimers();
   });
 
 

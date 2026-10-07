@@ -21,7 +21,7 @@ const remember = (fingerprint: string): void => {
 
 export const wasSongPrepared = (fingerprint: string): boolean => prepared.has(fingerprint);
 
-/** Completion is independent of the bounded waveform cache; source changes invalidate it. */
+/** Historical analysis completion; this does not prove waveform or bass availability. */
 export const loadPreparedSources = (): Promise<void> => {
   if (hydration) return hydration;
   const currentGeneration = generation;

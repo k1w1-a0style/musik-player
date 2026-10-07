@@ -29,6 +29,8 @@ export interface EmbeddedArtworkResult {
   byteLength?: number;
   width?: number;
   height?: number;
+  /** Pins the native staging file until its consumer copies or discards it. Older APKs omit this. */
+  leaseId?: string;
 }
 
 export interface AudioTagWriteRequest {
@@ -157,6 +159,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   eqRelease(): void;
   extractPalette(uri: string): Promise<PaletteResult | null>;
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
+  releaseEmbeddedArtworkLease?(leaseId: string): Promise<boolean>;
   extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
@@ -257,7 +260,21 @@ type NativeReadSettlement<T> =
   | { kind: 'value'; value: T }
   | { kind: 'error'; error: unknown };
 
-const runBoundedNativeRead = async <T>(operation: () => Promise<T>): Promise<T | null> => {
+const releaseNativeArtworkLease = async (leaseId?: string): Promise<boolean> => {
+  if (!leaseId) return false;
+  try {
+    return typeof native?.releaseEmbeddedArtworkLease === 'function'
+      && await native.releaseEmbeddedArtworkLease(leaseId);
+  } catch {
+    // Cleanup must not replace a successful cover copy with a bridge error.
+    return false;
+  }
+};
+
+const runBoundedNativeRead = async <T>(
+  operation: () => Promise<T>,
+  onDiscard?: (value: T) => void,
+): Promise<T | null> => {
   if (nativeReadsInFlight >= MAX_NATIVE_READS_IN_FLIGHT) return null;
   nativeReadsInFlight += 1;
   const raw = Promise.resolve().then(operation);
@@ -271,8 +288,9 @@ const runBoundedNativeRead = async <T>(operation: () => Promise<T>): Promise<T |
   });
   const first = await Promise.race([settled, timeout]);
   if (first.kind === 'timeout') {
-    void settled.finally(() => {
+    void settled.then(outcome => {
       nativeReadsInFlight = Math.max(0, nativeReadsInFlight - 1);
+      if (outcome.kind === 'value') onDiscard?.(outcome.value);
     });
     return null;
   }
@@ -317,7 +335,14 @@ export const SystemAudio = {
   },
 
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {
-    return native ? runBoundedNativeRead(() => native.extractEmbeddedArtwork(uri)) : null;
+    return native ? runBoundedNativeRead(
+      () => native.extractEmbeddedArtwork(uri),
+      artwork => { void releaseNativeArtworkLease(artwork?.leaseId); },
+    ) : null;
+  },
+
+  releaseEmbeddedArtworkLease(leaseId?: string): Promise<boolean> {
+    return releaseNativeArtworkLease(leaseId);
   },
 
   async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {

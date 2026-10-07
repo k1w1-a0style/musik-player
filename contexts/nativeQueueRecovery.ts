@@ -7,6 +7,8 @@ import {
 } from '../utils/currentSongPersistence';
 import { isPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import { getNativePlaybackIntent, restoreNativePlaybackIntent, resolveNativePlaybackIntent } from '../utils/nativePlaybackIntent';
+import { NativePlaybackTimeoutError } from '../utils/nativePlaybackWatchdog';
 
 export { resetCurrentSongPersistenceQueueForTests };
 
@@ -26,6 +28,7 @@ export interface NativeQueueMutationSnapshot extends NativeQueueReadback {
   nativeQueue: Song[];
   baseQueue: Song[];
   shuffleEnabled: boolean;
+  playbackIntentRevision?: number;
 }
 
 export interface NativeQueueRecoveryDiagnostics {
@@ -240,12 +243,14 @@ export const createNativeQueueMutationSnapshot = async ({
   shuffleEnabled: boolean;
   targets: NativeQueueStateTargets;
 }): Promise<NativeQueueMutationSnapshot> => {
+  const playbackIntentRevision = getNativePlaybackIntent().revision;
   const readback = await readNativeQueueTruth([...knownSongs, ...targets.nativeQueueRef.current]);
   return {
     ...readback,
     nativeQueue: readback.queue.slice(),
     baseQueue: targets.baseQueueContextRef.current.slice(),
     shuffleEnabled,
+    playbackIntentRevision,
   };
 };
 
@@ -317,6 +322,7 @@ export const commitNativeQueueTruth = async ({
   previousPersistedId,
   shuffleStrategy,
   persistCurrentSong = true,
+  isCurrent = () => true,
 }: {
   readback: NativeQueueReadback;
   preferredBaseQueue: Song[];
@@ -325,7 +331,9 @@ export const commitNativeQueueTruth = async ({
   previousPersistedId?: string | null;
   shuffleStrategy: NativeQueueShuffleStrategy;
   persistCurrentSong?: boolean;
+  isCurrent?: () => boolean;
 }): Promise<RecoveredState> => {
+  if (!isCurrent()) throw new NativePlaybackTimeoutError('queue');
   const queue = readback.queue.slice();
   const baseQueue = deriveBaseQueue(queue, preferredBaseQueue);
   const shuffleEnabled = resolveShuffleState(shuffleStrategy, queue, baseQueue);
@@ -350,17 +358,25 @@ export const commitNativeQueueTruth = async ({
   };
 };
 
-export const executeNativeQueueRollback = async (snapshot: NativeQueueMutationSnapshot): Promise<void> => {
+export const executeNativeQueueRollback = async (
+  snapshot: NativeQueueMutationSnapshot,
+  isCurrent: () => boolean = () => true,
+): Promise<void> => {
+  const assertCurrent = () => { if (!isCurrent()) throw new NativePlaybackTimeoutError('queue'); };
+  assertCurrent();
   await TrackPlayer.reset();
+  assertCurrent();
   if (snapshot.nativeQueue.length === 0) return;
   const playableQueue = snapshot.nativeQueue.filter(isPlayableSong);
   if (playableQueue.length !== snapshot.nativeQueue.length) throw new Error('Snapshot queue contains an unplayable song.');
   await TrackPlayer.add(playableQueue.map(toTrackPlayerTrack));
+  assertCurrent();
   if (snapshot.activeIndex >= 0) await TrackPlayer.skip(snapshot.activeIndex);
+  assertCurrent();
   await TrackPlayer.seekTo(snapshot.progressSeconds);
-  if (snapshot.playbackState === 'playing') await TrackPlayer.play();
-  else if (snapshot.playbackState === 'paused') await TrackPlayer.pause();
-  else if (snapshot.playbackState === 'stopped') await TrackPlayer.stop();
+  assertCurrent();
+  await restoreNativePlaybackIntent(snapshot.playbackState,
+    snapshot.playbackIntentRevision ?? getNativePlaybackIntent().revision, isCurrent);
 };
 
 const ROLLBACK_PROGRESS_TOLERANCE_SECONDS = 0.25;
@@ -375,7 +391,9 @@ export const verifyNativeQueueRollback = (
   if (Math.abs(snapshot.progressSeconds - readback.progressSeconds) > ROLLBACK_PROGRESS_TOLERANCE_SECONDS) {
     throw new Error('Rollback progress differs from snapshot.');
   }
-  if (snapshot.playbackState !== 'unknown' && snapshot.playbackState !== readback.playbackState) {
+  const expectedPlayback = resolveNativePlaybackIntent(
+    snapshot.playbackIntentRevision ?? getNativePlaybackIntent().revision, snapshot.playbackState);
+  if (expectedPlayback !== 'unknown' && expectedPlayback !== readback.playbackState) {
     throw new Error('Rollback playback state differs from snapshot.');
   }
 };
@@ -389,6 +407,7 @@ interface RecoveryArgs {
   preferredBaseQueue?: Song[];
   reconciliationShuffleStrategy: NativeQueueShuffleStrategy;
   persistCurrentSong?: boolean;
+  isCurrent?: () => boolean;
 }
 
 const reconcileReadback = async (
@@ -407,22 +426,26 @@ const reconcileReadback = async (
       ? { kind: 'restore-snapshot', enabled: args.snapshot.shuffleEnabled }
       : args.reconciliationShuffleStrategy,
     persistCurrentSong: args.persistCurrentSong,
+    isCurrent: args.isCurrent,
   }),
   diagnostics,
 });
 
 export const recoverNativeQueueMutation = async (args: RecoveryArgs): Promise<NativeQueueRecoveryResult> => {
   const diagnostics: NativeQueueRecoveryDiagnostics = { originalError: args.originalError };
+  if (args.isCurrent?.() === false) return { status: 'failed', diagnostics };
   try {
     return await reconcileReadback('reconciled', await readNativeQueueTruth(args.knownSongs), args, diagnostics);
   } catch (error) {
     diagnostics.initialReadbackError = error;
   }
+  if (args.isCurrent?.() === false) return { status: 'failed', diagnostics };
   try {
-    await executeNativeQueueRollback(args.snapshot);
+    await executeNativeQueueRollback(args.snapshot, args.isCurrent);
   } catch (error) {
     diagnostics.rollbackExecutionError = error;
   }
+  if (args.isCurrent?.() === false) return { status: 'failed', diagnostics };
   if (!diagnostics.rollbackExecutionError) {
     try {
       const readback = await readNativeQueueTruth(args.knownSongs);

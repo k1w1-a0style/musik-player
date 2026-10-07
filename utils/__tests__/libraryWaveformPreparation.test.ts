@@ -1,3 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
+jest.mock('expo-file-system/legacy', () => require('./waveformFileSystemMock'));
+import { resetWaveformFileSystem } from './waveformFileSystemMock';
+beforeEach(() => resetWaveformFileSystem());
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../../types/Song';
@@ -26,7 +31,7 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-test('a previously prepared track is not decoded again after cache eviction and restart', async () => {
+test('rebuilds missing data after restart even if historical analysis was completed', async () => {
   const existing = song('previously-prepared');
   await markSongPrepared(getWaveformSourceIdentity(existing).sourceFingerprint);
   resetSongPreparationForTests();
@@ -34,8 +39,8 @@ test('a previously prepared track is not decoded again after cache eviction and 
   const task = prepareLibraryWaveforms([existing, song('new')]);
   await jest.advanceTimersByTimeAsync(1000);
   await task;
-  expect(audio.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///new.mp3']);
-  expect(getWaveformPreparationState()).toMatchObject({ ready: 1, total: 1, failed: 0 });
+  expect(audio.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///previously-prepared.mp3', 'file:///new.mp3']);
+  expect(getWaveformPreparationState()).toMatchObject({ ready: 2, total: 2, failed: 0 });
 });
 
 test('prepares uncached songs once, keeps cached songs, and continues after an unreadable song', async () => {

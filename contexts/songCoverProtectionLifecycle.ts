@@ -33,6 +33,8 @@ const entriesBySnapshot = new Map<string, ProtectionEntry>();
 let confirmedEntry: ProtectionEntry | undefined;
 let nextGeneration = 0;
 let latestConfirmedGeneration = 0;
+let pendingAcceptedProtection: CoverCacheProtection | undefined;
+let pendingAcceptedSnapshotKey: string | undefined;
 
 
 const hashSnapshotField = (value: string): string => {
@@ -65,6 +67,25 @@ export const getSongSnapshotKey = (songs: Song[]): string => songs
     getSongArtworkSnapshot(song),
   ].join('|'))
   .join('\n');
+
+/** One replaceable handoff protects accepted import batches before React has
+ * committed their effect. Skipped intermediate renders do not accumulate owners. */
+export const protectAcceptedSongCovers = (songs: Song[]): void => {
+  pendingAcceptedProtection ??= createCoverCacheProtection();
+  pendingAcceptedProtection.replaceProtectedSongCovers(songs);
+  pendingAcceptedSnapshotKey = getSongSnapshotKey(songs);
+};
+
+const protectSnapshotAndClaimAcceptedHandoff = (
+  protection: CoverCacheProtection, songs: Song[], snapshotKey: string,
+): void => {
+  // Acquire the real effect lease before releasing the import handoff.
+  protection.protectSongCovers(songs);
+  if (snapshotKey !== pendingAcceptedSnapshotKey) return;
+  pendingAcceptedProtection?.release();
+  pendingAcceptedProtection = undefined;
+  pendingAcceptedSnapshotKey = undefined;
+};
 
 const releaseEntryProtection = (entry: ProtectionEntry): void => {
   if (entry.released) return;
@@ -165,7 +186,7 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
     };
     entriesBySnapshot.set(snapshotKey, entry);
   }
-  entry.protection.protectSongCovers(songs);
+  protectSnapshotAndClaimAcceptedHandoff(entry.protection, songs, snapshotKey);
   if (entry.nextEffectHandoffOwners > 0) entry.nextEffectHandoffOwners -= 1;
   else if (entry.hydrationHandoffOwners > 0) entry.hydrationHandoffOwners -= 1;
   entry.currentOwners += 1;
@@ -254,6 +275,9 @@ export const acquireSongCoverProtection = (songs: Song[]): SongCoverProtectionLe
 };
 
 export const resetSongCoverProtectionLifecycleForTests = (): void => {
+  pendingAcceptedProtection?.release();
+  pendingAcceptedProtection = undefined;
+  pendingAcceptedSnapshotKey = undefined;
   const protections = new Set(Array.from(entriesBySnapshot.values()).map(entry => entry.protection));
   protections.forEach(protection => protection.release());
   entriesBySnapshot.clear();

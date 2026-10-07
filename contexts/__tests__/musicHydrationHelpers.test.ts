@@ -537,8 +537,10 @@ describe('musicHydrationHelpers', () => {
 
   test('drops a seek requested while the hydrated native queue is being replaced', async () => {
     const nativeQueueRef = createSongRef();
+    let seekOutcome: Promise<void> | undefined;
     (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
-      void seekToMillis(5000);
+      seekOutcome = seekToMillis(5000);
+      void seekOutcome.catch(() => undefined);
     });
 
     await hydrateStoredSongs({
@@ -565,7 +567,7 @@ describe('musicHydrationHelpers', () => {
 
     expect(TrackPlayer.add).toHaveBeenCalledWith([expect.objectContaining({ id: 's1' })]);
     expect(nativeQueueRef.current.map(song => song.id)).toEqual(['s1']);
-    await Promise.resolve();
+    await expect(seekOutcome).rejects.toThrow('Seek target is no longer the active song.');
     expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
   });
 

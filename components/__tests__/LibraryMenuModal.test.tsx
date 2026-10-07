@@ -107,6 +107,15 @@ test('calls onClose when backdrop is pressed', () => {
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+test('offers and disables the explicit full scan alongside the normal import', () => {
+  const onDeepScan = jest.fn();
+  const screen = render(<LibraryMenuModal {...defaultProps} onDeepScan={onDeepScan} />);
+  fireEvent.press(screen.getByText('Vollständiger Scan'));
+  expect(onDeepScan).toHaveBeenCalledTimes(1);
+  screen.rerender(<LibraryMenuModal {...defaultProps} loading onDeepScan={onDeepScan} />);
+  expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityState.disabled).toBe(true);
+});
+
 
 test('uses app theme chrome for the menu card', () => {
   const { getByTestId } = renderMenu();

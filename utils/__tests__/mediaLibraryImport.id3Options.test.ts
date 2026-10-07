@@ -28,7 +28,7 @@ test('media library enrichment reads ID3 by default', async () => {
     { id: 's1', uri: 'file:///song.mp3', filename: 'Fallback.mp3', duration: 1 } as any,
   ]);
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ signal: undefined, filename: 'Fallback.mp3', extension: 'mp3' }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ signal: expect.any(AbortSignal), filename: 'Fallback.mp3', extension: 'mp3' }));
   expect(result.songs[0].title).toBe('ID3 Title');
   expect(result.songs[0].artist).toBe('ID3 Artist');
 });
@@ -51,7 +51,7 @@ test('SAF scan reads ID3 by default and can explicitly skip it', async () => {
   const metadataResult = await scanFromSafFolders([
     { id: 'f1', name: 'Root', uri: 'content://root', addedAt: 1, enabled: true },
   ]);
-  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3', expect.objectContaining({ signal: undefined, extension: 'mp3' }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3', expect.objectContaining({ signal: expect.any(AbortSignal), extension: 'mp3' }));
   expect(metadataResult.songs[0].title).toBe('SAF Title');
   expect(metadataResult.songs[0].artist).toBe('SAF Artist');
 
@@ -74,7 +74,7 @@ test('media library enrichment passes abort signal to ID3 reads', async () => {
     { readId3Tags: true, signal: controller.signal },
   );
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ signal: controller.signal, filename: 'Fallback.mp3', extension: 'mp3' }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('file:///song.mp3', expect.objectContaining({ signal: expect.any(AbortSignal), filename: 'Fallback.mp3', extension: 'mp3' }));
 });
 
 
@@ -129,7 +129,7 @@ test('SAF scan passes abort signal to ID3 reads', async () => {
     { readId3Tags: true, signal: controller.signal },
   );
 
-  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3', expect.objectContaining({ signal: controller.signal, extension: 'mp3' }));
+  expect(parseId3FromUri).toHaveBeenCalledWith('content://root/song.mp3', expect.objectContaining({ signal: expect.any(AbortSignal), extension: 'mp3' }));
 });
 
 

@@ -6,10 +6,11 @@ export type NativeReadOutcome<T> =
   | { kind: 'failure' }
   | { kind: 'timeout' };
 
-interface NativeReadTimeoutOptions {
+interface NativeReadTimeoutOptions<T> {
   timeoutMs?: number;
   signal?: AbortSignal;
   label: string;
+  onDiscard?: (value: T) => void;
 }
 
 const resolveNativeReadTimeoutMs = (value?: number): number =>
@@ -24,12 +25,21 @@ const resolveNativeReadTimeoutMs = (value?: number): number =>
  */
 export const runNativeReadWithTimeout = async <T>(
   operation: () => Promise<T>,
-  options: NativeReadTimeoutOptions,
+  options: NativeReadTimeoutOptions<T>,
 ): Promise<NativeReadOutcome<T>> => {
   const timeoutMs = resolveNativeReadTimeoutMs(options.timeoutMs);
   try {
     const value = await withTimeout(
-      () => operation(),
+      async signal => {
+        const result = await operation();
+        if (signal.aborted) {
+          // A feature deadline may precede the module's own safety deadline.
+          // Returned resources then have no consumer and must be released.
+          options.onDiscard?.(result);
+          throwIfAborted(signal);
+        }
+        return result;
+      },
       timeoutMs,
       `${options.label} timed out after ${timeoutMs}ms.`,
       { signal: options.signal },

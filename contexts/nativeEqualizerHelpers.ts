@@ -12,6 +12,7 @@ interface TrackPlayerNativeAudioSessionModule {
 
 const EQ_SESSION_ATTEMPTS = 12;
 const EQ_SESSION_RETRY_MS = 250;
+const EQ_BAND_WRITE_INTERVAL_MS = 16;
 let equalizerInitQueue: Promise<void> = Promise.resolve();
 
 const waitForRetry = (signal?: AbortSignal): Promise<void> => new Promise(resolve => {
@@ -84,7 +85,61 @@ export const applyNativeEqualizerBands = (
   eqBands: number[],
 ): void => {
   if (!shouldApplyNativeEqBands(eqNative, eqEnabled)) return;
+  applyBandUpdates(eqNative, eqBands);
+};
+
+const applyBandUpdates = (
+  eqNative: EqInitResult,
+  eqBands: number[],
+  appliedLevels?: Map<number, number>,
+): void => {
   buildNativeEqBandUpdates(eqNative, eqBands).forEach(update => {
-    SystemAudio.eqSetBandLevel(update.index, update.millibel);
+    if (appliedLevels?.get(update.index) === update.millibel) return;
+    if (SystemAudio.eqSetBandLevel(update.index, update.millibel)) {
+      appliedLevels?.set(update.index, update.millibel);
+    }
   });
+};
+
+/** Coalesces slider bursts once per frame; only confirmed changed native bands are written. */
+export const createNativeEqualizerBandScheduler = (
+  isCurrent: (info: EqInitResult) => boolean,
+): {
+  schedule: (info: EqInitResult | null, enabled: boolean, bands: number[]) => void;
+  cancel: () => void;
+} => {
+  let pending: { info: EqInitResult; bands: number[] } | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let appliedInfo: EqInitResult | null = null;
+  const appliedLevels = new Map<number, number>();
+
+  const cancel = (): void => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+    pending = null;
+    appliedInfo = null;
+    appliedLevels.clear();
+  };
+  const flush = (): void => {
+    timer = undefined;
+    const next = pending;
+    pending = null;
+    if (!next || !isCurrent(next.info)) return;
+    if (appliedInfo !== next.info) {
+      appliedInfo = next.info;
+      appliedLevels.clear();
+    }
+    applyBandUpdates(next.info, next.bands, appliedLevels);
+  };
+  const schedule = (info: EqInitResult | null, enabled: boolean, bands: number[]): void => {
+    if (!shouldApplyNativeEqBands(info, enabled)) {
+      cancel();
+      return;
+    }
+    pending = { info, bands: [...bands] };
+    // Keep the first frame deadline while replacing the pending values. A
+    // trailing debounce could postpone all writes during a continuous drag.
+    if (timer === undefined) timer = setTimeout(flush, EQ_BAND_WRITE_INTERVAL_MS);
+  };
+  return { schedule, cancel };
 };

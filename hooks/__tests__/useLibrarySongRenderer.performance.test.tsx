@@ -210,7 +210,7 @@ describe('useLibrarySongRenderer performance guarantees', () => {
     expect(mockedRunPlaybackUiAction).toHaveBeenCalledWith(
       'library-play-song-a',
       expect.any(Function),
-      { dropIfPending: true },
+      { dropIfPending: false },
     );
   });
 });

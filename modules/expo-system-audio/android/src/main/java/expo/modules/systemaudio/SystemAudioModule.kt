@@ -18,6 +18,7 @@ import expo.modules.systemaudio.saf.TransactionWriteRequest
 import expo.modules.systemaudio.saf.isValidTagWriteOperationId
 import android.media.audiofx.Equalizer
 import android.net.Uri
+import android.system.Os
 import android.util.Base64
 import android.util.Log
 import androidx.palette.graphics.Palette
@@ -35,57 +36,68 @@ import java.util.UUID
  * Requires MODIFY_AUDIO_SETTINGS.
  */
 class SystemAudioModule : Module() {
-  private var equalizer: Equalizer? = null
-  private var equalizerAudioSessionId: Int? = null
+  private val artworkLeaseOwner = ArtworkCacheLeaseOwner()
+  private val equalizerLifecycle = SerializedSessionEffect(
+    create = { sessionId: Int ->
+      Equalizer(0, sessionId).also { created ->
+        try {
+          created.enabled = true
+        } catch (error: Throwable) {
+          try { created.release() } catch (_: Throwable) {}
+          throw error
+        }
+      }
+    },
+    dispose = { eq ->
+      try { eq.enabled = false } finally { eq.release() }
+    },
+    onFailure = { operation, error ->
+      Log.d(TAG, "equalizer $operation failed ${error.safeLogType()}")
+    },
+  )
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
 
     // ---------- Equalizer ----------
 
     AsyncFunction("eqInit") { audioSessionId: Int ->
-      if (audioSessionId <= 0) return@AsyncFunction null
-      ensureEqualizer(audioSessionId)
-      val eq = equalizer ?: return@AsyncFunction null
-      val range = eq.bandLevelRange
-      val bands = (0 until eq.numberOfBands).map { i ->
-        val freq = try { eq.getCenterFreq(i.toShort()) } catch (_: Throwable) { 0 }
+      equalizerLifecycle.initialize(audioSessionId) { eq ->
+        val range = eq.bandLevelRange
+        val bands = (0 until eq.numberOfBands).map { i ->
+          val freq = try { eq.getCenterFreq(i.toShort()) } catch (_: Throwable) { 0 }
+          mapOf(
+            "index" to i,
+            "centerFreqHz" to freq / 1000, // millihertz → Hz
+          )
+        }
         mapOf(
-          "index" to i,
-          "centerFreqHz" to freq / 1000, // millihertz → Hz
+          "available" to true,
+          "enabled" to eq.enabled,
+          "bands" to bands,
+          "minMillibel" to range[0].toInt(),
+          "maxMillibel" to range[1].toInt(),
         )
       }
-      mapOf(
-        "available" to true,
-        "enabled" to eq.enabled,
-        "bands" to bands,
-        "minMillibel" to range[0].toInt(),
-        "maxMillibel" to range[1].toInt(),
-      )
     }
 
     Function("eqSetEnabled") { enabled: Boolean ->
-      val eq = equalizer ?: return@Function false
-      try {
+      equalizerLifecycle.use { eq ->
         eq.enabled = enabled
         eq.enabled == enabled
-      } catch (_: Throwable) {
-        false
-      }
+      } ?: false
     }
 
     Function("eqSetBandLevel") { band: Int, millibel: Int ->
-      val eq = equalizer ?: return@Function false
-      try {
+      equalizerLifecycle.use { eq ->
+        if (band < 0 || band >= eq.numberOfBands.toInt()) return@use false
         val clamped = millibel.coerceIn(eq.bandLevelRange[0].toInt(), eq.bandLevelRange[1].toInt())
         eq.setBandLevel(band.toShort(), clamped.toShort())
         true
-      } catch (_: Throwable) {
-        false
-      }
+      } ?: false
     }
 
     Function("eqRelease") {
-      releaseEqualizer()
+      equalizerLifecycle.release()
     }
 
     // ---------- Palette / artwork extraction ----------
@@ -145,17 +157,27 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
         Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogReference()}")
         return@AsyncFunction null
       }
-      val fileUri = cacheArtworkBytes(uri, bytes, extensionForMime(mimeType)) ?: return@AsyncFunction null
+      val artwork = cacheArtworkBytes(bytes, extensionForMime(mimeType)) ?: return@AsyncFunction null
+      val fileUri = Uri.fromFile(artwork.file).toString()
       Log.d(TAG, "embedded artwork cached bytes=${bytes.size} mime=$mimeType file=${fileUri.safeLogReference()}")
       mapOf(
         "uri" to fileUri,
         "mimeType" to mimeType,
         "byteLength" to bytes.size,
+        "leaseId" to artwork.leaseId,
       )
     }
 
+    AsyncFunction("releaseEmbeddedArtworkLease") { leaseId: String ->
+      AtomicArtworkCache.releaseLease(artworkLeaseOwner, leaseId)
+    }
+
     OnDestroy {
-      releaseEqualizer()
+      try {
+        AtomicArtworkCache.closeOwner(artworkLeaseOwner)
+      } finally {
+        equalizerLifecycle.destroy()
+      }
     }
   }
 
@@ -307,27 +329,6 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     }
   }
 
-  private fun ensureEqualizer(audioSessionId: Int) {
-    if (equalizer != null && equalizerAudioSessionId == audioSessionId) return
-    releaseEqualizer()
-    try {
-      equalizer = Equalizer(0, audioSessionId).apply { enabled = true }
-      equalizerAudioSessionId = audioSessionId
-    } catch (_: Throwable) {
-      equalizer = null
-      equalizerAudioSessionId = null
-    }
-  }
-
-  private fun releaseEqualizer() {
-    try {
-      equalizer?.enabled = false
-      equalizer?.release()
-    } catch (_: Throwable) {}
-    equalizer = null
-    equalizerAudioSessionId = null
-  }
-
   private fun hex(rgb: Int): String {
     val r = (rgb shr 16) and 0xff
     val g = (rgb shr 8) and 0xff
@@ -371,24 +372,13 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
   private fun hasValidBounds(opts: BitmapFactory.Options): Boolean =
     opts.outWidth > 0 && opts.outHeight > 0
 
-  private fun calculateInSampleSize(width: Int, height: Int, maxPixels: Int): Int {
-    if (width <= 0 || height <= 0 || maxPixels <= 0) return 1
-
-    var sampleSize = 1
-    while ((width.toLong() / sampleSize) * (height.toLong() / sampleSize) > maxPixels) {
-      if (sampleSize > Int.MAX_VALUE / 2) return sampleSize
-      sampleSize *= 2
-    }
-    return sampleSize.coerceAtLeast(1)
-  }
-
   private fun decodeByteArrayForPalette(bytes: ByteArray): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
     if (!hasValidBounds(bounds)) return null
 
     val opts = BitmapFactory.Options().apply {
-      inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
+      inSampleSize = calculatePaletteSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
     }
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
   }
@@ -408,7 +398,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     if (!hasValidBounds(bounds)) return null
 
     val opts = BitmapFactory.Options().apply {
-      inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
+      inSampleSize = calculatePaletteSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
     }
     return BitmapFactory.decodeFile(path, opts)
   }
@@ -425,7 +415,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     if (!hasValidBounds(bounds)) return null
 
     val opts = BitmapFactory.Options().apply {
-      inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
+      inSampleSize = calculatePaletteSampleSize(bounds.outWidth, bounds.outHeight, MAX_PALETTE_PIXELS)
     }
     return ctx.contentResolver.openInputStream(uri)?.use { stream ->
       BitmapFactory.decodeStream(stream, null, opts)
@@ -618,45 +608,26 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     }
   }
 
-  private fun cacheArtworkBytes(sourceUri: String, bytes: ByteArray, extension: String): String? {
+  private fun cacheArtworkBytes(bytes: ByteArray, extension: String): LeasedArtworkCacheEntry? {
     if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) return null
     val ctx = appContext.reactContext ?: return null
     return try {
-      val dir = File(ctx.cacheDir, EMBEDDED_ARTWORK_CACHE_DIR)
-      if (!dir.exists()) dir.mkdirs()
-      val safeName = "${Integer.toHexString(sourceUri.hashCode())}-${Integer.toHexString(bytes.contentHashCode())}.$extension"
-      val out = File(dir, safeName)
-      if (!out.exists()) out.writeBytes(bytes)
-      out.setLastModified(System.currentTimeMillis())
-      trimEmbeddedArtworkCache(dir)
-      "file://${out.absolutePath}"
+      val cache = AtomicArtworkCache(
+        directory = File(ctx.cacheDir, EMBEDDED_ARTWORK_CACHE_DIR),
+        validateImage = { file ->
+          val bitmap = decodeFileForPalette(file.absolutePath)
+          if (bitmap == null) false else withBitmapRecycled(bitmap) { true }
+        },
+        atomicReplace = { temporary, destination -> Os.rename(temporary.absolutePath, destination.absolutePath) },
+        maxEntryBytes = MAX_EMBEDDED_ARTWORK_BYTES,
+        maxFiles = MAX_EMBEDDED_ARTWORK_CACHE_FILES,
+        maxCacheBytes = MAX_EMBEDDED_ARTWORK_CACHE_BYTES,
+        onCleanupFailure = { error -> Log.d(TAG, "embedded artwork cleanup failed ${error.safeLogType()}") },
+      )
+      cache.putLeased(bytes, extension, artworkLeaseOwner)
     } catch (e: Throwable) {
       Log.d(TAG, "embedded artwork cache failed ${e.safeLogType()}")
       null
-    }
-  }
-
-  private fun trimEmbeddedArtworkCache(dir: File) {
-    try {
-      val files = dir.listFiles()
-        ?.filter { it.isFile }
-        ?.sortedByDescending { it.lastModified() }
-        ?: return
-      var totalBytes = 0L
-      var keptFiles = 0
-      files.forEach { file ->
-        val fileSize = file.length()
-        val keepFile = keptFiles < MAX_EMBEDDED_ARTWORK_CACHE_FILES &&
-          totalBytes + fileSize <= MAX_EMBEDDED_ARTWORK_CACHE_BYTES
-        if (keepFile) {
-          totalBytes += fileSize
-          keptFiles += 1
-        } else if (!file.delete()) {
-          Log.d(TAG, "embedded artwork cache trim skipped file=${file.absolutePath.safeLogReference()}")
-        }
-      }
-    } catch (e: Throwable) {
-      Log.d(TAG, "embedded artwork cache trim failed ${e.safeLogType()}")
     }
   }
 
@@ -710,6 +681,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     private const val MAX_EMBEDDED_ARTWORK_CACHE_BYTES = 25L * 1024L * 1024L
     private const val MAX_EMBEDDED_ARTWORK_BYTES = 2L * 1024L * 1024L
     private const val MAX_PALETTE_IMAGE_BYTES = 2L * 1024L * 1024L
-    private const val MAX_PALETTE_PIXELS = 1024 * 1024
+    // Palette extraction needs a color sample, not a full-size cover bitmap.
+    private const val MAX_PALETTE_PIXELS = 256 * 256
   }
 }

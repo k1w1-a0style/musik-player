@@ -1,3 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
+jest.mock('expo-file-system/legacy', () => require('../../utils/__tests__/waveformFileSystemMock'));
+import { resetWaveformFileSystem } from '../../utils/__tests__/waveformFileSystemMock';
+beforeEach(() => resetWaveformFileSystem());
+
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
@@ -132,22 +137,16 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-test('playlist play skips pending tracks and unlocks a row when preparation finishes', async () => {
+test('playlist playback includes readable audio while waveform preparation is pending', async () => {
   resetSongPreparationForTests(); await AsyncStorage.clear();
   await markSongPrepared(getWaveformSourceIdentity(mockSongs[0]).sourceFingerprint);
   const view = render(<PlaylistDetail />);
-  expect(view.getByTestId('playlist-detail-song-song-b')).toBeDisabled();
-  expect(view.queryByTestId('song-preparation-progress-song-b')).toBeNull();
-  expect(view.queryByTestId('song-preparation-percent-song-b')).toBeNull();
-  fireEvent.press(view.getByTestId('playlist-detail-song-song-b'));
-  expect(mockPlaySong).not.toHaveBeenCalled();
-  await act(async () => fireEvent.press(view.getByTestId('playlist-detail-play-button')));
-  expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[0], [mockSongs[0]]);
-  await act(async () => markSongPrepared(getWaveformSourceIdentity(mockSongs[1]).sourceFingerprint));
   expect(view.getByTestId('playlist-detail-song-song-b')).toBeEnabled();
-  expect(view.queryByTestId('song-preparation-progress-song-b')).toBeNull();
   await act(async () => fireEvent.press(view.getByTestId('playlist-detail-song-song-b')));
   expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[1], [mockSongs[1], mockSongs[0]]);
+  await act(async () => fireEvent.press(view.getByTestId('playlist-detail-play-button')));
+  expect(mockPlaySong).toHaveBeenLastCalledWith(mockSongs[1], [mockSongs[1], mockSongs[0]]);
+  expect(view.queryByTestId('song-preparation-percent-song-b')).toBeNull();
 });
 
 test('renders playlist name, valid song count, and contained songs in playlist order', () => {

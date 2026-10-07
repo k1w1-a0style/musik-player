@@ -25,7 +25,6 @@ import { useReorderableSongListDrag } from '../hooks/useNowPlayingQueueDrag';
 import { getQueuePreviewOffset } from '../utils/soundCloudPlayer';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
 import PlaylistDetailSongRow, { PLAYLIST_DETAIL_ROW_HEIGHT } from './PlaylistDetailSongRow';
-import { getPreparedSongs, isSongPrepared } from '../utils/songPreparation';
 
 type PlaylistDetailRoute = RouteProp<AppStackParamList, 'PlaylistDetail'>;
 type PlaylistDetailNavigation = NativeStackNavigationProp<AppStackParamList, 'PlaylistDetail'>;
@@ -84,13 +83,13 @@ const PlaylistDetail: React.FC = () => {
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
   const playDisabled = playlistSongs.length === 0;
   const handlePlaySong = useCallback((song: Song | undefined) => {
-    if (!song || !isSongPrepared(song)) return;
+    if (!song) return;
     void runPlaybackUiAction('playlist-play-song', async () => {
-      const result = await playSong(song, getPreparedSongs(playlistSongs));
+      const result = await playSong(song, playlistSongs);
       if (result.status === 'applied' || result.status === 'noop') {
         navigation.navigate(APP_STACK_ROUTES.NOW_PLAYING);
       }
-    }, { dropIfPending: true });
+    }, { dropIfPending: false });
   }, [navigation, playSong, playlistSongs]);
   const canMoveSongs = typeof moveSongInPlaylist === 'function';
   const trimmedDraftName = draftName.trim();
@@ -241,7 +240,7 @@ const PlaylistDetail: React.FC = () => {
                 accessibilityLabel={`Playlist ${playlist.name} abspielen`}
                 accessibilityState={{ disabled: playDisabled }}
                 disabled={playDisabled}
-                onPress={() => handlePlaySong(getPreparedSongs(playlistSongs)[0])}
+                onPress={() => handlePlaySong(playlistSongs[0])}
                 style={[
                   styles.playButton,
                   {

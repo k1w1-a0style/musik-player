@@ -3,8 +3,9 @@ import {
   scheduleNativeWaveformExtraction,
   WaveformSchedulerUnavailableError,
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
+  waitForWaveformSchedulerAvailability, WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS,
 } from '../waveformExtractionLifecycle';
-import { OperationAbortError } from '../withTimeout';
+import { OperationAbortError, TimeoutError } from '../withTimeout';
 
 type NativeResult = { points: number[]; durationMs?: number } | null;
 
@@ -27,6 +28,48 @@ describe('waveformExtractionLifecycle', () => {
   afterEach(() => {
     resetWaveformExtractionLifecycleForTests();
     jest.useRealTimers();
+  });
+
+  test('capacity wait uses one deadline, resolves on decoder release and cleans its timer', async () => {
+    const native = deferred<NativeResult>();
+    const controller = new AbortController();
+    const flight = scheduleNativeWaveformExtraction('busy', () => native.promise, controller.signal);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    const wait = waitForWaveformSchedulerAvailability(new AbortController().signal);
+    expect(jest.getTimerCount()).toBe(1);
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(jest.getTimerCount()).toBe(1);
+    native.resolve(null);
+    await flight;
+    await wait;
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test('capacity wait times out instead of polling forever and cancellation removes its listener', async () => {
+    const native = deferred<NativeResult>();
+    const flight = scheduleNativeWaveformExtraction('busy', () => native.promise, new AbortController().signal);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    const wait = waitForWaveformSchedulerAvailability(new AbortController().signal, 'background').catch(error => error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS);
+    await expect(wait).resolves.toBeInstanceOf(TimeoutError);
+    const controller = new AbortController();
+    const cancelled = waitForWaveformSchedulerAvailability(controller.signal).catch(error => error);
+    controller.abort();
+    await expect(cancelled).resolves.toBeInstanceOf(OperationAbortError);
+    expect(jest.getTimerCount()).toBe(0);
+    native.resolve(null); await flight;
+  });
+
+  test('queued consumers have a deadline even behind a native call without a decode timeout', async () => {
+    const native = deferred<NativeResult>();
+    const active = scheduleNativeWaveformExtraction('busy', () => native.promise, new AbortController().signal);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    const queuedOperation = jest.fn(async () => null);
+    const queued = scheduleNativeWaveformExtraction('queued', queuedOperation, new AbortController().signal).catch(error => error);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS);
+    await expect(queued).resolves.toBeInstanceOf(TimeoutError);
+    native.resolve(null); await active;
+    expect(queuedOperation).not.toHaveBeenCalled();
   });
 
   test('lifecycle reset rejects active waiters even when native work ignores cancellation', async () => {

@@ -1,0 +1,14 @@
+name: Setup locked npm toolchain
+description: Use the supported Node LTS line and install the committed npm lockfile.
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+        cache-dependency-path: package-lock.json
+    - name: Install dependencies
+      shell: bash
+      run: npm ci --no-audit --no-fund

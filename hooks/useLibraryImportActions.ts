@@ -23,11 +23,19 @@ import { useLibraryImportLifecycle } from './useLibraryImportLifecycle';
 import { useLibraryImportStateUpdate } from './useLibraryImportStateUpdate';
 import { useLibraryScanFolderImportFlow } from './useLibraryScanFolderImportFlow';
 import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImportFlow';
+import { createCoverCacheProtection } from '../utils/coverCacheCleanup';
 
 export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
 
 type ImportAlert = UseLibraryImportActionsOptions['showAlert'];
 type IsCurrentImport = (generation: ImportGeneration) => boolean;
+
+const beginImportActivities = (generation: ImportGeneration): void => {
+  generation.coverCacheProtection = createCoverCacheProtection();
+  clearWaveformPreparation();
+  clearImportFileProgress();
+  beginMetadataRefreshActivity();
+};
 
 const reportLibraryImportFailure = (
   error: unknown,
@@ -35,11 +43,11 @@ const reportLibraryImportFailure = (
   isCurrentImport: IsCurrentImport,
   showAlert: ImportAlert,
 ): void => {
-  if (isTimeoutError(error)) {
-    console.warn('[Import] Import timed out.', error);
-  } else if (!isCurrentImport(generation) || isAbortError(error)) {
+  if (!isCurrentImport(generation) || isAbortError(error)) {
     console.warn('[Import] Import cancelled.', error);
     return;
+  } else if (isTimeoutError(error)) {
+    console.warn('[Import] Import timed out.', error);
   } else {
     console.warn('[Import] Import failed.', error);
   }
@@ -71,7 +79,7 @@ export const useLibraryImportActions = ({
     ensureCurrentImport,
     finishImport,
   } = useLibraryImportLifecycle({ setLoading, setImportStatus });
-  const { applyImportedSongsUpdate } = useLibraryImportStateUpdate({ setSongs, setActiveTab, ensureCurrentImport });
+  const { applyImportedSongsUpdate } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport });
   const { importFromScanFolders } = useLibraryScanFolderImportFlow({
     songs,
     setImportStatus,
@@ -100,9 +108,7 @@ export const useLibraryImportActions = ({
 
   const importFromDevice = useCallback(async (options?: { folders?: typeof scanFolders; refreshExisting?: boolean }): Promise<void> => {
     const generation = startImport();
-    clearWaveformPreparation();
-    clearImportFileProgress();
-    beginMetadataRefreshActivity();
+    beginImportActivities(generation);
     setMenuOpen(false);
     setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
@@ -117,6 +123,7 @@ export const useLibraryImportActions = ({
     } catch (error) {
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
     } finally {
+      generation.coverCacheProtection?.release();
       endMetadataRefreshActivity();
       if (isCurrentImport(generation)) clearImportFileProgress();
       finishImport(generation);

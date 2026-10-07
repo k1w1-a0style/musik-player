@@ -99,6 +99,17 @@ describe('npm audit policy gate', () => {
     );
   });
 
+  it('resolves dependency cycles with an exit to an advisory root regardless of order', () => {
+    for (const entries of [
+      { alpha: { severity: 'high', via: ['beta', 'brace-expansion'] }, beta: { severity: 'high', via: ['alpha'] } },
+      { beta: { severity: 'high', via: ['alpha'] }, alpha: { severity: 'high', via: ['beta', 'brace-expansion'] } },
+    ]) {
+      const result = evaluateAudit({ audit: audit({ ...entries, 'brace-expansion': braceExpansion }),
+        policy, lock: vulnerableLock(), today: '2026-07-26' });
+      expect(result.failures).toEqual([]);
+    }
+  });
+
   it('fails a cyclic blocking effect graph without an advisory root', () => {
     const result = evaluateAudit({
       audit: audit({

@@ -287,16 +287,18 @@ describe('MusicContext', () => {
     await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalled());
   });
 
-  test('next and previous do not throw', async () => {
+  test('next and previous confirm the requested queue item', async () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
     fireEvent.press(getByTestId('set-songs'));
     fireEvent.press(getByTestId('play-s2'));
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
     fireEvent.press(getByTestId('next'));
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
+    expect(await TrackPlayer.getActiveTrackIndex()).toBe(2);
     fireEvent.press(getByTestId('previous'));
-    await waitFor(() => expect(TrackPlayer.skipToNext).toHaveBeenCalled());
-    expect(TrackPlayer.skipToPrevious).toHaveBeenCalled();
+    await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
+    expect(await TrackPlayer.getActiveTrackIndex()).toBe(1);
   });
 
   test('repeat cycle persists mode and updates TrackPlayer', async () => {

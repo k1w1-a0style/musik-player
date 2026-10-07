@@ -16,6 +16,7 @@ import {
   runExclusiveNativeQueueReplacement,
 } from '../../utils/nativeQueueMutationLock';
 import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
+import { getNativePlaybackWatchdogSnapshot, NativePlaybackTimeoutError } from '../../utils/nativePlaybackWatchdog';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -113,6 +114,31 @@ describe('sleepTimerController', () => {
     expect(TrackPlayer.getPlaybackState).toHaveBeenCalledTimes(1);
     expect(TrackPlayer.pause).toHaveBeenCalledTimes(1);
     expect(isSleepTimerActive()).toBe(false);
+  });
+
+  test('a playback-state read returning after its deadline cannot start a late pause', async () => {
+    const playbackState = createDeferred<{ state: State }>();
+    const stateReadStarted = createDeferred<void>();
+    (TrackPlayer.getPlaybackState as jest.Mock).mockImplementationOnce(() => {
+      stateReadStarted.resolve(); return playbackState.promise;
+    });
+    startSleepTimer(15);
+    jest.setSystemTime(new Date('2026-01-01T00:15:01.000Z'));
+    const expiry = enforceExpiredSleepTimer();
+    const timedOut = expect(expiry).rejects.toBeInstanceOf(NativePlaybackTimeoutError);
+    await stateReadStarted.promise;
+    const mutate = jest.fn(async () => undefined);
+    const replacement = runExclusiveNativeQueueReplacement(mutate, { timeoutMs: 20000 });
+    await jest.advanceTimersByTimeAsync(8000);
+    await timedOut;
+    expect(getNativePlaybackWatchdogSnapshot().status).toBe('quarantined');
+    expect(mutate).not.toHaveBeenCalled();
+    expect(isSleepTimerActive()).toBe(true);
+    playbackState.resolve({ state: State.Playing });
+    await replacement;
+    expect(TrackPlayer.pause).not.toHaveBeenCalled();
+    expect(isSleepTimerActive()).toBe(true);
+    expect(getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
   });
 
   test('keeps the expired deadline active and retries when pause fails', async () => {

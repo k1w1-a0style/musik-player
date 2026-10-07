@@ -101,7 +101,7 @@ const NowPlayingSoundCloudView: React.FC<NowPlayingSoundCloudViewProps> = props 
   const { onSwipeToNext } = props;
   const canGoNext = props.canSwipeToNext ?? true;
   const togglePlayback = useCallback(() => {
-    if (props.currentSong) void runPlaybackUiAction('soundcloud-toggle', props.onTogglePlayback, { dropIfPending: true });
+    if (props.currentSong) void runPlaybackUiAction('soundcloud-toggle', props.onTogglePlayback, { dropIfPending: false });
   }, [props.currentSong, props.onTogglePlayback]);
   const handleNext = useCallback(() => {
     if (canGoNext) onSwipeToNext();

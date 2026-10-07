@@ -111,15 +111,16 @@ const SoundCloudTrackPage = ({ song, role, isPlaying, accent, canSwipeToNext, to
       locations={[0, 0.48, 1]} style={[styles.trackPage, { paddingTop: Math.max(topInset + 54, 68),
         paddingBottom: Math.max(bottomInset + 76, 88) }]} testID={`soundcloud-track-page-${role}`}>
       <TrackMetadata song={song} onOpenTrackInfo={onOpenTrackInfo} />
-      <Pressable style={styles.artworkTapArea} onPress={isCurrent ? onTogglePlayback : undefined}
-        disabled={!isCurrent} accessibilityRole={isCurrent ? 'button' : undefined}
-        accessibilityLabel={isCurrent ? (isPlaying ? 'Pausieren' : 'Abspielen') : undefined}
-        testID={isCurrent ? 'soundcloud-swipe-hitbox' : `soundcloud-${role}-page-hitbox`}>
+      <View style={styles.artworkTapArea}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={isCurrent ? onTogglePlayback : undefined}
+          disabled={!isCurrent} accessibilityRole={isCurrent ? 'button' : undefined}
+          accessibilityLabel={isCurrent ? (isPlaying ? 'Pausieren' : 'Abspielen') : undefined}
+          testID={isCurrent ? 'soundcloud-swipe-hitbox' : `soundcloud-${role}-page-hitbox`} />
         {isCurrent ? <><Animated.View pointerEvents="none" style={[styles.pauseDim, { opacity: transition }]}
           testID="soundcloud-pause-dim" /><PausedControls hidden={!isPaused} transition={transition}
           scale={controlsScale} canGoNext={canSwipeToNext} onPrevious={onPrevious}
           onPlay={onTogglePlayback} onNext={onNext} /></> : null}
-      </Pressable>
+      </View>
       <View style={styles.progressArea}>{isCurrent
         ? <ActiveWaveform song={song} isPlaying={isPlaying} accent={accent} onSeek={onSeek}
           gestureHandlerRef={waveformGestureRef} />

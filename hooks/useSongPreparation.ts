@@ -19,6 +19,7 @@ export const useSongPreparation = (song: Song) => {
   useEffect(() => {
     if (prepared || waveformStatus === 'ready') void markSongPrepared(sourceFingerprint).catch(() => undefined);
   }, [prepared, sourceFingerprint, waveformStatus]);
-  if (waveformStatus === 'unavailable') return waveformStatus;
-  return prepared ? 'ready' : waveformStatus;
+  // A durable completion marker records history only. Missing/evicted payloads
+  // still need preparation and must not be presented as an available waveform.
+  return waveformStatus;
 };

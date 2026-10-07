@@ -144,6 +144,8 @@ test('buildLibraryMenuModalProps returns menu modal props', () => {
   expect(props.hasSongs).toBe(true);
   expect(props.onOpenSettings).toBe(fn);
   expect(props.onOpenEqualizer).toBe(fn);
+  props.onDeepScan?.();
+  expect(fn).toHaveBeenCalledWith({ refreshExisting: true });
 });
 
 test('buildLibraryMenuModalProps marks empty library when song count is zero', () => {

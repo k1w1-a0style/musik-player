@@ -74,7 +74,6 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
 }: PlaylistDetailSongRowProps) => {
   const { theme } = useAppTheme();
   const preparation = useSongPreparation(song);
-  const prepared = preparation === 'ready';
   const canDrag = canReorder && songCount > 1;
   const drag = useQueueRowDrag({
     index,
@@ -100,9 +99,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
       transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}
       testID={`playlist-detail-drag-surface-${song.id}`}>
       <Pressable testID={`playlist-detail-song-${song.id}`}
-        onPress={() => { if (prepared && !drag.dragging) onPlay(song); }}
-        disabled={!prepared}
-        accessibilityState={{ disabled: !prepared, busy: preparation === 'analyzing' }}
+        onPress={() => { if (!drag.dragging) onPlay(song); }}
         accessible accessibilityRole="button"
         accessibilityLabel={`${title} von ${artist} abspielen. Position ${index + 1} von ${songCount}`}
         accessibilityHint={canDrag ? 'Die Zeile lange drücken und ziehen oder den Griff rechts verwenden.' : undefined}
@@ -116,7 +113,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           pressed && !drag.dragging && styles.songRowPressed]}>
         <PanGestureHandler enabled={canDrag} activateAfterLongPress={340}
           {...drag.longPressGestureHandlers} testID={`playlist-detail-long-press-drag-${song.id}`}>
-          <Animated.View style={[styles.longPressArea, !prepared && styles.preparing]}>
+          <Animated.View style={styles.longPressArea}>
             <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
             <SongArtwork song={song} />
             <SongText song={song} preparation={preparation} />

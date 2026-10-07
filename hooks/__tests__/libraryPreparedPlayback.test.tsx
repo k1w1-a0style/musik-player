@@ -14,27 +14,27 @@ beforeEach(async () => {
   await markSongPrepared(getWaveformSourceIdentity(songs[1]).sourceFingerprint);
 });
 
-test('rejects a direct unprepared selection and filters the playback queue to prepared tracks', async () => {
+test('allows readable audio without waveform analysis and preserves the playback queue', async () => {
   const playSong = jest.fn();
   const { result } = renderHook(() => useLibrarySongRenderer({ currentSongId: null, filteredSongs: songs,
     isPlaying: false, onOpenTrackInfo: jest.fn(), playSong }));
   await act(async () => result.current.handleSongPress(songs[0]));
-  expect(playSong).not.toHaveBeenCalled();
+  expect(playSong).toHaveBeenCalledWith(songs[0], songs);
   await act(async () => result.current.handleSongPress(songs[1]));
-  expect(playSong).toHaveBeenCalledWith(songs[1], [songs[1]]);
+  expect(playSong).toHaveBeenCalledWith(songs[1], songs);
 });
 
-test('list play and shuffle cannot bypass preparation', async () => {
+test('list play and shuffle do not depend on analysis history', async () => {
   const handleSongPress = jest.fn(); const playSong = jest.fn();
   const { result } = renderHook(() => useLibraryPlaybackActions({ handleSongPress, playSong,
     setAlbumViewMode: jest.fn(), songsForActiveList: songs }));
   await act(async () => result.current.handlePlayActiveList());
-  expect(handleSongPress).toHaveBeenCalledWith(songs[1], [songs[1]]);
+  expect(handleSongPress).toHaveBeenCalledWith(songs[0], songs);
   await act(async () => result.current.handleShufflePress());
-  expect(playSong).toHaveBeenCalledWith(songs[1], [songs[1]]);
+  expect(playSong).toHaveBeenCalledWith(expect.objectContaining({ id: expect.any(String) }), expect.arrayContaining(songs));
 });
 
-test('album and artist starts choose the first prepared track', () => {
+test('album and artist start the first audio track without waiting for analysis', () => {
   const handleSongPress = jest.fn();
   const { result } = renderHook(() => useLibraryGroupRenderers({ handleSongPress }));
   const group = { id: 'album', songs } as LibraryGroupItem;
@@ -43,5 +43,5 @@ test('album and artist starts choose the first prepared track', () => {
   (artist.props as { onPress: (group: LibraryGroupItem) => void }).onPress(group);
   (album.props as { onPress: (group: LibraryGroupItem) => void }).onPress(group);
   expect(handleSongPress).toHaveBeenCalledTimes(2);
-  expect(handleSongPress).toHaveBeenLastCalledWith(songs[1], [songs[1]]);
+  expect(handleSongPress).toHaveBeenLastCalledWith(songs[0], songs);
 });

@@ -28,7 +28,7 @@ export interface UseLibraryControllerActionsOptions {
 
 export interface UseLibraryControllerActionsResult {
   closeMenu: () => void;
-  importFromDevice: () => Promise<void>;
+  importFromDevice: ReturnType<typeof useLibraryImportActions>['importFromDevice'];
   onAddScanFolder: () => Promise<void>;
   openMenu: () => void;
   openSettings: () => void;

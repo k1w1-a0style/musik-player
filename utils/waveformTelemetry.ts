@@ -3,6 +3,8 @@ import {
   isNativeWaveformRejectionNoteworthy,
   type WaveformSourceDiagnostics,
 } from './waveformDecision';
+import { getCoverBassScale, hasBassEnvelope } from './coverBassPulse';
+import type { SongWaveform } from './waveformTypes';
 
 declare const __DEV__: boolean;
 
@@ -37,4 +39,15 @@ export const logWaveformTiming = (source: 'cache' | 'native' | 'analysis' | 'una
   if (typeof __DEV__ === 'undefined' || !__DEV__) return;
   // eslint-disable-next-line no-console
   console.info('[WaveformTiming]', { source, elapsedMs, points });
+};
+
+/** Missing native envelopes, real silence, and storage hits have distinct evidence. */
+export const logCoverBassEnvelope = (source: 'cache' | 'native', waveform: SongWaveform | null): void => {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
+  const bass = hasBassEnvelope(waveform) ? waveform.bassPoints : [];
+  const maxEnergy = bass.reduce((maximum, value) => Math.max(maximum, value), 0);
+  // eslint-disable-next-line no-console
+  console.info('[CoverBassPulse]', { source, waveformSource: waveform?.source ?? 'unavailable',
+    bassAvailable: hasBassEnvelope(waveform), bassPointCount: bass.length,
+    maxEnergy, maxPulseAmplitude: getCoverBassScale([maxEnergy], 1, 0) - 1 });
 };

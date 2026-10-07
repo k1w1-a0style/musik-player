@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TrackPlayer, { State } from 'react-native-track-player';
 import { runExclusiveNativePlaybackControl } from '../utils/nativeQueueMutationLock';
+import { recordNativePlaybackIntent } from '../utils/nativePlaybackIntent';
 
 type SleepTimerListener = (active: boolean) => void;
 type SleepTimerExpiryGuard = () => boolean;
@@ -61,9 +62,12 @@ const PAUSABLE_ON_EXPIRY_STATES = new Set<State>([State.Playing, State.Loading, 
 export const pausePlaybackExplicitly = async (
   shouldPause: SleepTimerExpiryGuard = () => true,
 ): Promise<boolean> => {
-  return runExclusiveNativePlaybackControl(async () => {
+  if (!shouldPause()) return false;
+  recordNativePlaybackIntent('paused', shouldPause);
+  return runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
     if (!shouldPause()) return false;
     const state = (await TrackPlayer.getPlaybackState()).state;
+    assertHydrationCurrent();
     if (!shouldPause()) return false;
     if (!PAUSABLE_ON_EXPIRY_STATES.has(state)) return true;
     await TrackPlayer.pause();

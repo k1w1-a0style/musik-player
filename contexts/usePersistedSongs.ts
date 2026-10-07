@@ -1,20 +1,7 @@
-import { useEffect, type MutableRefObject } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
+import { AppState } from 'react-native';
 import type { Song } from '../types/Song';
-import { cleanupCoverCache } from '../utils/coverCacheCleanup';
-import { StorageKeys } from '../utils/storage';
-import { acquireSongCoverProtection } from './songCoverProtectionLifecycle';
-import {
-  persistIfChanged,
-  prepareSongsForPersistence,
-} from './musicPersistenceHelpers';
-
-const cleanupPersistedSongCovers = async (songs: Song[]): Promise<void> => {
-  try {
-    await cleanupCoverCache(songs);
-  } catch (error) {
-    console.warn('[usePersistedSongs] Cover cache cleanup failed:', error);
-  }
-};
+import { createSongPersistenceTask } from './songPersistenceTask';
 
 export const usePersistedSongs = (
   isReady: boolean,
@@ -22,51 +9,51 @@ export const usePersistedSongs = (
   setSongsState: (songs: Song[]) => void,
   persistedRefs: MutableRefObject<Record<string, string>>,
 ): void => {
+  const pendingFlush = useRef<((detached?: boolean) => void) | undefined>(undefined);
+  const firstPendingAt = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') pendingFlush.current?.();
+    });
+    return () => {
+      // Start the latest pending snapshot before the snapshot effect releases its owner.
+      pendingFlush.current?.(true);
+      subscription.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (!isReady) return;
-    const coverLease = acquireSongCoverProtection(songs);
+    const task = createSongPersistenceTask(songs, setSongsState, persistedRefs);
     let cancelled = false;
-    let persistenceStarted = false;
-    let persistenceFinished = false;
+    let started = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    (async () => {
-      try {
-        const { sanitizedSongs, coversChanged } = await prepareSongsForPersistence(songs, coverLease.protection);
-        if (cancelled) return;
-        coverLease.updateSnapshot(sanitizedSongs);
-        if (coversChanged) {
-          coverLease.handoffToNextEffect(sanitizedSongs);
-          setSongsState(sanitizedSongs);
-          return;
-        }
-        coverLease.markPersisting();
-        persistenceStarted = true;
-        const persistResult = await persistIfChanged(StorageKeys.SONGS, sanitizedSongs, persistedRefs.current);
-        if (persistResult.status === 'stored' || persistResult.status === 'unchanged') {
-          if (cancelled) {
-            coverLease.finishPersistence({ status: 'superseded' });
-            persistenceFinished = true;
-            return;
-          }
-          coverLease.prepareConfirmedCleanup(sanitizedSongs);
-          await cleanupPersistedSongCovers(sanitizedSongs);
-        }
-        coverLease.finishPersistence(persistResult);
-        persistenceFinished = true;
-        if (!cancelled && persistResult.status === 'failed') {
-          console.warn('[usePersistedSongs] Persistence failed:', persistResult.error);
-        }
-      } catch (error) {
-        if (persistenceStarted && !persistenceFinished) {
-          coverLease.finishPersistence({ status: 'failed', error });
-        }
-        console.warn('[usePersistedSongs] Persistence failed:', error);
-      }
-    })();
+    const flush = (flushDetached = false): void => {
+      if (started || cancelled) return;
+      started = true;
+      clearTimeout(timer);
+      firstPendingAt.current = undefined;
+      if (pendingFlush.current === flush) pendingFlush.current = undefined;
+      task.start(flushDetached);
+    };
+    pendingFlush.current = flush;
+    if (songs.length >= 100) {
+      firstPendingAt.current ??= Date.now();
+      // Coalesce import/cover bursts before preparation and JSON serialization, with
+      // a maximum wait so a continuously growing import still makes durable progress.
+      const delay = Math.max(0, Math.min(350, 2000 - (Date.now() - firstPendingAt.current)));
+      timer = setTimeout(flush, delay);
+    } else {
+      flush();
+    }
 
     return () => {
       cancelled = true;
-      coverLease.releaseCurrentOwner();
+      clearTimeout(timer);
+      if (pendingFlush.current === flush) pendingFlush.current = undefined;
+      task.cancel();
     };
   }, [isReady, persistedRefs, setSongsState, songs]);
 };

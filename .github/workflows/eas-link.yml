@@ -101,7 +101,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Validate secrets
         id: validate_inputs
@@ -198,7 +198,7 @@ jobs:
         if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
@@ -206,7 +206,7 @@ jobs:
         if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
           cache: yarn
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
@@ -214,7 +214,7 @@ jobs:
         if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
@@ -222,7 +222,7 @@ jobs:
         if: steps.lock.outputs.has_lockfile != 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install deps (package-manager-aware, fail-closed)
         id: install_deps

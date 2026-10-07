@@ -1,5 +1,6 @@
 import { requestLatestSeek, isSeekDrainingForTests, resetSeekControllerForTests } from '../seekController';
 import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../nativeHydrationGate';
+import { waitFor } from '@testing-library/react-native';
 
 describe('seekController', () => {
   beforeEach(() => {
@@ -36,7 +37,7 @@ describe('seekController', () => {
 
       await expect(requestLatestSeek(5000, seek, {
         requireStableReadyHydration: true,
-      })).resolves.toBeUndefined();
+      })).resolves.toEqual({ status: 'stale' });
       expect(seek).not.toHaveBeenCalled();
     },
   );
@@ -59,7 +60,7 @@ describe('seekController', () => {
 
     expect(seek).toHaveBeenCalledTimes(1);
     expect(seek).toHaveBeenCalledWith(5);
-    expect(isSeekDrainingForTests()).toBe(false);
+    await waitFor(() => expect(isSeekDrainingForTests()).toBe(false));
   });
 
   test('clamps negative and NaN targets to zero seconds', async () => {
@@ -89,16 +90,16 @@ describe('seekController', () => {
     // These arrive while the first seek is still in flight.
     void requestLatestSeek(2000, seek);
     void requestLatestSeek(3000, seek);
-    void requestLatestSeek(8000, seek);
+    const latest = requestLatestSeek(8000, seek);
 
     expect(isSeekDrainingForTests()).toBe(true);
 
     resolveFirst();
-    await first;
+    await Promise.all([first, latest]);
 
     expect(calls).toEqual([1, 8]);
     expect(seek).toHaveBeenCalledTimes(2);
-    expect(isSeekDrainingForTests()).toBe(false);
+    await waitFor(() => expect(isSeekDrainingForTests()).toBe(false));
   });
 
 
@@ -132,7 +133,7 @@ describe('seekController', () => {
 
     expect(calls).toEqual([1, 9]);
     expect(secondSettled).toBe(true);
-    expect(isSeekDrainingForTests()).toBe(false);
+    await waitFor(() => expect(isSeekDrainingForTests()).toBe(false));
   });
 
   test('swallows native seek errors and keeps the lane usable', async () => {
@@ -147,7 +148,7 @@ describe('seekController', () => {
 
     expect(warn).toHaveBeenCalledWith('[Seek] native seek failed.', expect.any(Error));
     expect(seek).toHaveBeenNthCalledWith(2, 6);
-    expect(isSeekDrainingForTests()).toBe(false);
+    await waitFor(() => expect(isSeekDrainingForTests()).toBe(false));
     warn.mockRestore();
   });
 });

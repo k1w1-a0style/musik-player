@@ -1,3 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
+jest.mock('expo-file-system/legacy', () => require('../../utils/__tests__/waveformFileSystemMock'));
+import { resetWaveformFileSystem } from '../../utils/__tests__/waveformFileSystemMock';
+beforeEach(() => resetWaveformFileSystem());
+
 import React from 'react';
 import { act, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';

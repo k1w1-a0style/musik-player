@@ -334,6 +334,7 @@ const recoverHydrationMutation = async ({
 }): Promise<HydratedNativeQueueResult> => {
   if (context.isCancelled()) return cancelledResult(context.targets, 'mutation', error);
   const recovery = await recoverNativeQueueMutation({
+    isCurrent: () => !context.isCancelled(),
     originalError: error,
     snapshot,
     knownSongs: context.knownSongs,
@@ -418,14 +419,18 @@ export const applyHydratedNativeQueue = async ({
     return await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       if (!isCurrent()) return { ...failedResult(guardedTargets, 'snapshot'), nativeStatus: 'superseded' };
       if (isCancelled()) return cancelledResult(guardedTargets, 'snapshot');
-      if (plan.nativeQueueAction === 'clearMalformedCurrent') return clearMalformedNativeCurrent(context);
-      const snapshotResult = await createHydrationSnapshot(context);
+      const executionContext = { ...context,
+        isCancelled: () => isCancelled() || !isCurrent(),
+        targets: guardNativeQueueTargets(guardedTargets, () => !isCancelled() && isCurrent()),
+      };
+      if (plan.nativeQueueAction === 'clearMalformedCurrent') return clearMalformedNativeCurrent(executionContext);
+      const snapshotResult = await createHydrationSnapshot(executionContext);
       if (isHydrationResult(snapshotResult)) return snapshotResult;
       const expectation = createNativeHydrationExpectation(plan, snapshotResult);
-      if (isCancelled()) return cancelledResult(guardedTargets, 'snapshot');
+      if (executionContext.isCancelled()) return cancelledResult(guardedTargets, 'snapshot');
       return plan.nativeQueueAction === 'none'
-        ? applyNoopHydration({ snapshot: snapshotResult, expectation, context })
-        : applyHydrationMutation({ snapshot: snapshotResult, expectation, context });
+        ? applyNoopHydration({ snapshot: snapshotResult, expectation, context: executionContext })
+        : applyHydrationMutation({ snapshot: snapshotResult, expectation, context: executionContext });
     });
   } catch (error) {
     return failedResult(guardedTargets, 'exclusive-action', error);

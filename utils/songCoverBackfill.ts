@@ -1,4 +1,4 @@
-import SystemAudio from 'expo-system-audio';
+import SystemAudio, { type EmbeddedArtworkResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { cacheLocalCoverFile, isLikelyVolatileArtworkUri } from './coverCache';
 import type { CoverCacheProtection } from './coverCacheCleanup';
@@ -77,6 +77,10 @@ type EmbeddedCoverReadResult =
   | { kind: 'failure' }
   | { kind: 'timeout' };
 
+const releaseNativeArtwork = (artwork: EmbeddedArtworkResult | null): void => {
+  if (artwork?.leaseId) void SystemAudio.releaseEmbeddedArtworkLease(artwork.leaseId);
+};
+
 const readAndCacheEmbeddedCover = async (
   song: Song,
   uri: string,
@@ -84,18 +88,22 @@ const readAndCacheEmbeddedCover = async (
 ): Promise<EmbeddedCoverReadResult> => {
   const nativeRead = await runNativeReadWithTimeout(
     () => SystemAudio.extractEmbeddedArtwork(uri),
-    { timeoutMs: options.nativeReadTimeoutMs, signal: options.signal, label: 'Embedded artwork extraction' },
+    { timeoutMs: options.nativeReadTimeoutMs, signal: options.signal, label: 'Embedded artwork extraction',
+      onDiscard: releaseNativeArtwork },
   );
   if (nativeRead.kind !== 'success') return nativeRead;
-  const extractedUri = nativeRead.value?.uri;
-  if (!extractedUri || isRemoteUri(extractedUri)) return { kind: 'success' };
   try {
+    throwIfAborted(options.signal);
+    const extractedUri = nativeRead.value?.uri;
+    if (!extractedUri || isRemoteUri(extractedUri)) return { kind: 'success' };
     const artworkUri = await cacheLocalCoverFile(song.id, extractedUri, options.coverCacheProtection);
     throwIfAborted(options.signal);
     return artworkUri ? { kind: 'success', artworkUri } : { kind: 'failure' };
   } catch {
     throwIfAborted(options.signal);
     return { kind: 'failure' };
+  } finally {
+    releaseNativeArtwork(nativeRead.value);
   }
 };
 

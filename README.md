@@ -21,11 +21,12 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 
 - Expo SDK 54, React Native 0.81, React 19, TypeScript
 - `react-native-track-player` 4.1
-- Jest + jest-expo, ESLint 9
+- Jest + jest-expo, ESLint 10
 
 ## Setup
 
 ```bash
+nvm use # Node-LTS-Linie aus .nvmrc (22)
 npm ci --no-audit --no-fund
 npm run start
 ```
@@ -59,9 +60,12 @@ npx expo config --json
 
 ## CI / GitHub Actions
 
-- Pull Requests gegen `codex` und `main` laufen über den normalen CI-Workflow; failing CI blockiert die Merge-Freigabe.
+- Pull Requests gegen `codex` und `main` laufen über unabhängige Security-, Quality- und Native-Jobs. `Required release checks` wird nur grün, wenn alle drei erfolgreich sind. Der Check muss zusätzlich in GitHub als Branch-Schutz aktiviert sein; eine Workflow-Datei allein blockiert keine direkten Pushes oder Merges.
 - `main` bleibt der Haupt-/Release-Branch.
 - EAS-/Release-Builds und der Supabase-Legacy-Workflow bleiben separate manuelle bzw. gezielte Workflows und werden nicht automatisch auf jeden PR ausgeführt.
+
+V2-Umsetzung und verbleibende Freigabeprüfungen: [`docs/review/v2-implementation-2026-10-07.md`](docs/review/v2-implementation-2026-10-07.md).
+Zeitlich befristete Tooling-Risiken: [`security/npm-audit-risk-2026-10-07.md`](security/npm-audit-risk-2026-10-07.md).
 
 ## Aktuelle Testlage
 

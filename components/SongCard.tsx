@@ -40,7 +40,6 @@ const EmptySongInfoSlot = ({ variant }: { variant: LibrarySongCardVariant }) =>
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
   const preparation = useSongPreparation(song);
-  const prepared = preparation === 'ready';
   const [coverFailed, setCoverFailed] = useState(false);
   const artworkUri = getSongArtworkUri(song); const artworkSource = useMemo(
     () => getArtworkSource(coverFailed ? undefined : artworkUri), [artworkUri, coverFailed]);
@@ -56,7 +55,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     setCoverFailed(false);
   }, [song.id, song.cover, song.coverInfo?.uri]);
 
-  const handlePress = useCallback(() => { if (prepared) onPressSong(song); }, [onPressSong, prepared, song]);
+  const handlePress = useCallback(() => { onPressSong(song); }, [onPressSong, song]);
 
   const handleInfoPress = useCallback((event?: GestureResponderEvent) => {
     event?.stopPropagation();
@@ -85,7 +84,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     </View>
   );
 
-  const infoButton = onInfoSong && prepared ? (
+  const infoButton = onInfoSong ? (
     <Pressable
       testID={`song-card-info-${songTestId}`}
       accessibilityRole="button"
@@ -114,8 +113,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         testID={`song-card-${songTestId}`}
         accessibilityRole="button"
         accessibilityLabel={`${song.title} von ${song.artist}`}
-        accessibilityState={{ selected: isCurrent, disabled: !prepared, busy: preparation === 'analyzing' }}
-        disabled={!prepared}
+        accessibilityState={{ selected: isCurrent }}
         onPress={handlePress}
         style={({ pressed }) => [
           styles.tileContainer,
@@ -126,7 +124,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         ]}
       >
         <View testID={`song-card-content-${songTestId}`}
-          style={[styles.tileContent, !prepared && styles.preparing]}>
+          style={styles.tileContent}>
           <View>
             {cover}
             {infoButton}
@@ -154,8 +152,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       testID={`song-card-${songTestId}`}
       accessibilityRole="button"
       accessibilityLabel={`${song.title} von ${song.artist}`}
-      accessibilityState={{ selected: isCurrent, disabled: !prepared, busy: preparation === 'analyzing' }}
-      disabled={!prepared}
+      accessibilityState={{ selected: isCurrent }}
       onPress={handlePress}
       style={({ pressed }) => [
         styles.container,
@@ -168,7 +165,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       <LinearGradient pointerEvents="none" colors={[theme.palette.surfaceElevated, theme.palette.surface]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardSheen} />
       <View testID={`song-card-content-${songTestId}`}
-        style={[styles.rowContent, !prepared && styles.preparing]}>
+        style={styles.rowContent}>
         <View
           style={[
             styles.activeRail,

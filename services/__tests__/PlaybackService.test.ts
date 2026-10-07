@@ -57,6 +57,13 @@ describe('PlaybackService', () => {
     expect(trackPlayerTestApi.__getListeners(Event.PlaybackProgressUpdated)).toHaveLength(1);
   });
 
+  test('service restart replaces remote listeners instead of duplicating commands', async () => {
+    await PlaybackService(); await PlaybackService();
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePlay)).toHaveLength(1);
+    trackPlayerTestApi.__trigger(Event.RemotePlay);
+    await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalledTimes(1));
+  });
+
   test.each([
     ['loading', Event.RemotePrevious, TrackPlayer.skipToPrevious, undefined],
     ['degraded', Event.RemoteNext, TrackPlayer.skipToNext, undefined],
@@ -85,7 +92,35 @@ describe('PlaybackService', () => {
     await waitFor(() => expect(TrackPlayer.play).toHaveBeenCalledTimes(1));
   });
 
+  test('replays just the latest transport intent after a successful cold-start hydration', async () => {
+    const owner = acquireNativeHydrationGate();
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemotePlay);
+    trackPlayerTestApi.__trigger(Event.RemotePause);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    publishNativeHydrationGate(owner, 'ready');
+    await waitFor(() => expect(TrackPlayer.pause).toHaveBeenCalledTimes(1));
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
+  test('does not apply a queued remote seek to a different track', async () => {
+    await TrackPlayer.add([{ id: 'old', url: 'file:///old.mp3' }, { id: 'new', url: 'file:///new.mp3' }]);
+    let release!: () => void; let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const replacement = runExclusiveNativeQueueReplacement(async () => {
+      started(); await new Promise<void>(resolve => { release = resolve; });
+      await TrackPlayer.skip(1);
+    });
+    await began;
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteSeek, { position: 20 });
+    release(); await replacement;
+    await waitFor(() => expect(TrackPlayer.getActiveTrack).toHaveBeenCalledTimes(2));
+    expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
+  });
+
   test.each([12.5, 0])('seeks when remote seek position %p is valid', async position => {
+    await TrackPlayer.add({ id: 'remote-song', url: 'file:///remote.mp3' });
     await PlaybackService();
 
     trackPlayerTestApi.__trigger(Event.RemoteSeek, { position });
@@ -187,6 +222,7 @@ describe('PlaybackService', () => {
     [Event.RemoteJumpBackward, Number.POSITIVE_INFINITY, -10],
     [Event.RemoteJumpBackward, -5, -10],
   ])('runs jump seekBy for %s with interval %p', async (event, interval, expectedOffset) => {
+    await TrackPlayer.add({ id: 'remote-song', url: 'file:///remote.mp3' });
     await PlaybackService();
 
     trackPlayerTestApi.__trigger(event, { interval });

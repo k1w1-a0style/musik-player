@@ -8,6 +8,7 @@ import {
   usePlaybackControls,
 } from '../usePlaybackControls';
 import { resetSeekControllerForTests } from '../../utils/seekController';
+import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
 
 
 const deferred = <T,>() => {
@@ -52,6 +53,7 @@ const PlaybackControlsProbe = () => {
 
 describe('usePlaybackControls', () => {
   beforeEach(() => {
+    resetNativeQueueMutationLockForTests();
     resetSeekControllerForTests();
     jest.clearAllMocks();
     jest.mocked(usePlayWhenReady).mockReturnValue(undefined);
@@ -159,8 +161,8 @@ describe('usePlaybackControls', () => {
     hook.unmount();
   });
 
-  test('toggles playback based on current TrackPlayer state', async () => {
-    jest.spyOn(TrackPlayer, 'getPlaybackState').mockResolvedValueOnce({ state: State.Playing });
+  test('records pause immediately from the visible playing state', async () => {
+    (TrackPlayer as unknown as { usePlaybackState: jest.Mock }).usePlaybackState.mockReturnValueOnce({ state: State.Playing });
     const { getByTestId } = render(<PlaybackControlsProbe />);
 
     await act(async () => {
@@ -197,7 +199,7 @@ describe('usePlaybackControls', () => {
     });
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
     jest.useRealTimers();
   });
@@ -262,7 +264,7 @@ describe('usePlaybackControls', () => {
     });
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
     jest.useRealTimers();
   });
@@ -295,7 +297,7 @@ describe('usePlaybackControls', () => {
     });
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
   });
 
@@ -326,7 +328,7 @@ describe('usePlaybackControls', () => {
     });
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
   });
 
@@ -364,7 +366,7 @@ describe('usePlaybackControls', () => {
     });
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
   });
 
@@ -397,7 +399,7 @@ describe('usePlaybackControls', () => {
     rerender(<PlaybackControlsProbe />);
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
 
     expect(getByTestId('is-playing').props.children).toBe('true');
@@ -413,7 +415,7 @@ describe('usePlaybackControls', () => {
     rerender(<PlaybackControlsProbe />);
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
 
     expect(getByTestId('is-playing').props.children).toBe('true');
@@ -428,7 +430,7 @@ describe('usePlaybackControls', () => {
     expect(getByTestId('is-playing').props.children).toBe('true');
 
     await act(async () => {
-      jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(500);
     });
     rerender(<PlaybackControlsProbe />);
 

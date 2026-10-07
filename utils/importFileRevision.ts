@@ -21,20 +21,22 @@ const readProviderStat = (uri: string, hints: ImportFileRevision): ImportFileRev
   } catch { return hints; }
 };
 
-/** Ordinary rescans use size and modification time, without reading the audio.
- * A digest is needed only for providers without dates, explicit verification,
- * or to migrate a previously stored digest to the cheap provider revision. */
+/** Quick scans never open the complete audio stream. Missing provider dates are
+ * an unknown revision, not a reason to hash every track. Only an explicit full
+ * scan verifies the content; callers must report unverified reused sources. */
 export const readImportFileRevision = async (uri: string, hints: ImportFileRevision = {},
   signal?: AbortSignal, options: RevisionReadOptions = {}): Promise<ImportFileRevision> => {
   throwIfAborted(signal);
   const stat = readProviderStat(uri, hints);
+  throwIfAborted(signal);
   const previous = options.previous;
-  if (!options.verifyContent && positive(stat.modificationTime)) {
-    if (!previous?.contentHash || previous.modificationTime !== undefined) return stat;
+  if (!options.verifyContent) {
     // Files last modified before their import already have a verified baseline.
     // Keep the existing shape while recording their provider date once.
-    if (previous.size === stat.size && positive(previous.importedAt)
+    if (previous?.contentHash && previous.modificationTime === undefined
+      && positive(stat.modificationTime) && previous.size === stat.size && positive(previous.importedAt)
       && stat.modificationTime <= previous.importedAt) return { ...stat, contentHash: previous.contentHash };
+    return stat;
   }
   try {
     const info = await getInfoAsync(uri, { md5: true });
@@ -53,5 +55,14 @@ export const readImportFileRevision = async (uri: string, hints: ImportFileRevis
 export const sameImportFileRevision = (previous: ImportFileRevision, current: ImportFileRevision): boolean => {
   if (current.contentHash) return Boolean(previous.contentHash && previous.contentHash === current.contentHash);
   if (previous.size !== undefined && current.size !== undefined && previous.size !== current.size) return false;
-  return current.modificationTime !== undefined && previous.modificationTime === current.modificationTime;
+  return positive(current.modificationTime) && previous.modificationTime === current.modificationTime;
+};
+
+export const compareImportFileRevision = (previous: ImportFileRevision, current: ImportFileRevision): 'same' | 'changed' | 'unknown' => {
+  if (sameImportFileRevision(previous, current)) return 'same';
+  if (previous.contentHash && current.contentHash) return 'changed';
+  if (positive(previous.size) && positive(current.size) && previous.size !== current.size) return 'changed';
+  if (positive(previous.modificationTime) && positive(current.modificationTime)
+    && previous.modificationTime !== current.modificationTime) return 'changed';
+  return 'unknown';
 };

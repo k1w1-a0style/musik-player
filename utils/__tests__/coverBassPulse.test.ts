@@ -1,4 +1,4 @@
-import { getCoverBassScale, hasBassEnvelope, MAX_COVER_BASS_SCALE } from '../coverBassPulse';
+import { buildCoverBassCurve, getCoverBassScale, hasBassEnvelope, MAX_BASS_CURVE_POINTS, MAX_COVER_BASS_SCALE } from '../coverBassPulse';
 import { buildNativeWaveform } from '../waveformGenerator';
 
 test('ordinary bass energy produces a visible pulse rather than a subpixel change', () => {
@@ -27,4 +27,30 @@ test('new decoded bass data survives waveform construction; invalid data is disc
   expect(waveform.bassPoints).toEqual([0, 0.5, 1]);
   expect(hasBassEnvelope({ ...waveform, bassPoints: [NaN] })).toBe(false);
   expect(buildNativeWaveform(null, { ...result, bassPoints: [Infinity] }, 3000).bassPoints).toBeUndefined();
+});
+
+test('a long envelope uses a small active window while retaining every 50 ms kick', () => {
+  const points = Array<number>(24_000).fill(0);
+  points[10_000] = 1; points[10_003] = 0.7;
+  const original = [...points];
+  const curve = buildCoverBassCurve(points, 1_200_000, 499750, 501000);
+  expect(curve.inputRange.length).toBeLessThanOrEqual(MAX_BASS_CURVE_POINTS);
+  const kick = curve.inputRange.indexOf(500000);
+  expect(kick).toBeGreaterThan(0);
+  expect(curve.outputRange[kick]).toBeCloseTo(MAX_COVER_BASS_SCALE - 1);
+  expect(curve.inputRange).toContain(500150);
+  expect(points).toEqual(original);
+  expect(curve.inputRange.every((value, index) => !index || value > curve.inputRange[index - 1])).toBe(true);
+});
+
+test('dense envelopes preserve troughs and maxima under the graph bound instead of averaging kicks away', () => {
+  const points = Array<number>(24_000).fill(0.01);
+  points[12_000] = 1;
+  const curve = buildCoverBassCurve(points, 1000, 0, 1000);
+  expect(curve.inputRange.length).toBeLessThanOrEqual(MAX_BASS_CURVE_POINTS);
+  expect(Math.max(...curve.outputRange)).toBeCloseTo(MAX_COVER_BASS_SCALE - 1);
+  expect(curve.outputRange).toContain(0);
+  expect(buildCoverBassCurve([], 1000, 0, 1000)).toEqual({ inputRange: [0, 1], outputRange: [0, 0] });
+  expect(buildCoverBassCurve([1], NaN, 0, 1000).outputRange).toEqual([0, 0]);
+  expect(buildCoverBassCurve([1], 1000, NaN, NaN).inputRange.every(Number.isFinite)).toBe(true);
 });

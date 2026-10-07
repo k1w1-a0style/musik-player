@@ -111,7 +111,8 @@ test('uses scan folder import on android when active scan folders exist', async 
 
   await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')],
     platformOs: 'android', signal: expect.any(AbortSignal), onSafProgress: expect.any(Function),
-    existingSongs: [song('existing')], refreshExisting: false, onFileProgress: expect.any(Function) }));
+    existingSongs: [song('existing')], refreshExisting: false, onFileProgress: expect.any(Function), onCheckpoint: expect.any(Function),
+    coverCacheProtection: expect.any(Object) }));
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).toHaveBeenCalledWith([folder('music')]);
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
@@ -298,6 +299,26 @@ test('does not apply or persist stale scan import after timeout', async () => {
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
+test('keeps an accepted batch when a scan stalls and rejects its late checkpoint', async () => {
+  let lateCheckpoint: ((checkpoint: { songs: Song[]; processed: number; total: number }) => void) | undefined;
+  const importSongsFromSourcesImpl = jest.fn(({ onCheckpoint }) => {
+    lateCheckpoint = onCheckpoint;
+    onCheckpoint({ songs: [song('accepted')], processed: 1, total: 2 });
+    return new Promise(() => undefined);
+  });
+  const withTimeoutImpl = async <T,>(): Promise<T> => { throw new TimeoutError('scan stalled'); };
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const screen = render(<HookHarness scanFolders={[folder('music')]} songs={[song('existing')]}
+    importSongsFromSourcesImpl={importSongsFromSourcesImpl} withTimeoutImpl={withTimeoutImpl} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith({ title: 'Import gestoppt', message: 'scan stalled' }));
+  expect(setSongs).toHaveBeenCalledWith([song('accepted'), song('existing')]);
+  const acceptedCalls = setSongs.mock.calls.length;
+  lateCheckpoint?.({ songs: [song('late')], processed: 2, total: 2 });
+  expect(setSongs).toHaveBeenCalledTimes(acceptedCalls);
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+});
+
 test('shows empty scan alert without applying song update', async () => {
   const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [], errors: [], folderUpdates: undefined });
   const screen = render(
@@ -338,11 +359,11 @@ test('uses media library import when no active scan folders exist', async () => 
 
   await waitFor(() => expect(requestMediaLibraryPermissionsAsync).toHaveBeenCalledTimes(1));
   expect(importSongsFromSourcesImpl).not.toHaveBeenCalled();
-  expect(scanMediaLibraryCandidatesImpl).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
+  expect(scanMediaLibraryCandidatesImpl).toHaveBeenCalledWith({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) });
   expect(confirmLibraryImportImpl).toHaveBeenCalledWith(1, 0);
   expect(enrichMediaLibraryAssetsImpl).toHaveBeenCalledWith([{ id: 'asset-1' }], 0,
     { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: false,
-      onFileProgress: expect.any(Function) });
+      onFileProgress: expect.any(Function), onCheckpoint: expect.any(Function), coverCacheProtection: expect.any(Object) });
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('media-song')]);
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
 });

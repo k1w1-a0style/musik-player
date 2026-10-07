@@ -1,8 +1,13 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
+jest.mock('expo-file-system/legacy', () => require('../../utils/__tests__/waveformFileSystemMock'));
+import { readAsStringAsync, resetWaveformFileSystem } from '../../utils/__tests__/waveformFileSystemMock';
+beforeEach(() => resetWaveformFileSystem());
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import type { Song } from '../../types/Song';
-import { useSongWaveform } from '../useSongWaveform';
+import { useSongWaveform, WAVEFORM_CACHE_LOOKUP_TIMEOUT_MS } from '../useSongWaveform';
 import {
   getWaveformFailureBackoff,
   MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS,
@@ -11,12 +16,13 @@ import {
   resetWaveformExtractionLifecycleForTests,
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
   WAVEFORM_FAILURE_BACKOFF_MS,
+  WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS,
 } from '../../utils/waveformExtractionLifecycle';
 import {
   WAVEFORM_EXTRACTION_TIMEOUT_MS,
 } from '../../utils/waveformExtraction';
-import { getWaveformSourceIdentity } from '../../utils/waveformGenerator';
-import { resetWaveformCacheStateForTests } from '../../utils/waveformCache';
+import { buildNativeWaveform, getWaveformSourceIdentity } from '../../utils/waveformGenerator';
+import { resetWaveformCacheStateForTests, setCachedWaveform } from '../../utils/waveformCache';
 import {
   preloadSongWaveform,
   resetWaveformPreloadStateForTests,
@@ -65,6 +71,42 @@ describe('useSongWaveform lifecycle', () => {
     jest.useRealTimers();
   });
 
+  test('a stalled disk read has a finite UI deadline and falls back to native analysis', async () => {
+    const selected = song('slow-disk');
+    await setCachedWaveform(buildNativeWaveform(selected, decoded(peaks, 1000)!, 1000));
+    resetWaveformCacheStateForTests();
+    readAsStringAsync.mockImplementationOnce(() => new Promise(() => undefined));
+    extractor.extractWaveformPeaks.mockResolvedValue(decoded(peaks, 1000));
+    const view = renderHook(() => useSongWaveform({ song: selected, durationMs: 1000 }));
+    await flush(WAVEFORM_CACHE_LOOKUP_TIMEOUT_MS + WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(view.result.current.loadingNative).toBe(false);
+    expect(view.result.current.waveformReady).toBe(true);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  test('two permanently stuck native flights end the visible loading state without retry polling', async () => {
+    const firstNative = deferred<NativeResult>(); const secondNative = deferred<NativeResult>();
+    extractor.extractWaveformPeaks.mockReturnValueOnce(firstNative.promise).mockReturnValueOnce(secondNative.promise);
+    const first = renderHook(() => useSongWaveform({ song: song('first-stuck'), durationMs: 1000 }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
+    const second = renderHook(() => useSongWaveform({ song: song('second-stuck'), durationMs: 1000 }));
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS + WAVEFORM_EXTRACTION_TIMEOUT_MS + 1);
+    const decision = jest.fn();
+    const blocked = renderHook(() => useSongWaveform({ song: song('blocked'), durationMs: 1000, onWaveformDecision: decision }));
+    await flush();
+    expect(blocked.result.current.loadingNative).toBe(true);
+    expect(jest.getTimerCount()).toBe(1);
+    await flush(WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS + 1);
+    expect(blocked.result.current.loadingNative).toBe(false);
+    expect(blocked.result.current.waveformReady).toBe(false);
+    expect(decision).toHaveBeenCalledTimes(1);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+    expect(jest.getTimerCount()).toBe(0);
+    first.unmount(); second.unmount(); blocked.unmount();
+    firstNative.resolve(null); secondNative.resolve(null); await flush();
+  });
+
   test('song change aborts A updates/cache and latest B alone becomes visible', async () => {
     const a = deferred<NativeResult>();
     const songA = song('A');
@@ -84,7 +126,7 @@ describe('useSongWaveform lifecycle', () => {
     expect(hook.result.current.sourceKey).toBe(sourceKeyFor(songB));
     expect(hook.result.current.waveform).toMatchObject({ source: 'native', sourceKey: sourceKeyFor(songB) });
     expect(onDecision).not.toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-error' }));
-    const keys = [...(AsyncStorage as typeof AsyncStorage & { __getStore(): Map<string, string> }).__getStore().keys()].join('|');
+    const keys = JSON.stringify((AsyncStorage as typeof AsyncStorage & { __getStore(): Map<string, string> }).__getStore().get('@musikplayer:waveform:v6:index'));
     expect(keys).not.toContain(sourceKeyFor(songA));
     expect(keys).toContain(sourceKeyFor(songB));
     hook.unmount();

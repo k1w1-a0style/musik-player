@@ -1044,6 +1044,7 @@ describe('mediaLibraryImport', () => {
     expect(cacheBase64Cover).toHaveBeenCalledWith(
       'content://dir/The%20Artist%20-%20Title.mp3',
       undefined,
+      undefined,
     );
   });
 
@@ -1216,7 +1217,7 @@ test('buildSongFromImportSource strips m4b extension and placeholder artist segm
   expect(result.fileInfo?.mimeType).toBe('audio/mp4');
 });
 
-test('a repeat scan skips tags and audio analysis, but a same-size file edit is imported with a new preparation revision', async () => {
+test('Quick Scan reports undated revisions honestly and full scan imports same-size edits with a new preparation revision', async () => {
   jest.clearAllMocks();
   const file = 'content://root/track.mp3';
   const folders = [{ id: 'f', name: 'Music', uri: 'content://root', enabled: true, addedAt: 1 }];
@@ -1228,12 +1229,14 @@ test('a repeat scan skips tags and audio analysis, but a same-size file edit is 
   const same = await mediaImport.scanFromSafFolders(folders, { existingSongs: first.songs });
   expect(same.songs).toEqual([]);
   expect(same.reusedCount).toBe(1);
+  expect(same.unverifiedCount).toBe(1);
+  expect(getInfoAsync).not.toHaveBeenCalled();
   expect(parseId3FromUri).not.toHaveBeenCalled();
   expect(SystemAudio.extractAudioInfo).not.toHaveBeenCalled();
   expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
   (getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 123, md5: 'changed-tags' });
   (parseId3FromUri as jest.Mock).mockResolvedValue({ title: 'Changed' });
-  const changed = await mediaImport.scanFromSafFolders(folders, { existingSongs: first.songs });
+  const changed = await mediaImport.scanFromSafFolders(folders, { existingSongs: first.songs, refreshExisting: true });
   expect(changed.songs[0].id).toBe(first.songs[0].id);
   expect(changed.songs[0].title).toBe('Changed');
   expect(changed.songs[0].fileInfo?.size).toBe(123);

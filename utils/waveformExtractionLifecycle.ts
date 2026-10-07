@@ -4,6 +4,8 @@ export const WAVEFORM_EXTRACTION_DEBOUNCE_MS = 120;
 export const WAVEFORM_FAILURE_BACKOFF_MS = 30_000;
 export const MAX_WAVEFORM_FAILURE_BACKOFF_ENTRIES = 80;
 export const MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS = 2;
+export const WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS = 30_000;
+export const MAX_WAVEFORM_CONTENTION_RETRIES = 6;
 
 type NativeResult = {
   points: number[];
@@ -63,6 +65,8 @@ let activeFlight: Flight | null = null;
 let pendingLatest: Pending | null = null;
 const detachedFlights = new Set<Flight>();
 const failures = new Map<string, FailureBackoff>();
+const schedulerListeners = new Set<() => void>();
+const notifyScheduler = (): void => schedulerListeners.forEach(listener => listener());
 
 const clearPendingTimer = (pending: Pending): void => {
   if (pending.timer === null) return;
@@ -156,6 +160,7 @@ function startPending(pending: Pending): void {
       if (flight.detached) detachedFlights.delete(flight);
       if (activeFlight === flight) activeFlight = null;
       if (pendingLatest) armPending(pendingLatest);
+      notifyScheduler();
     });
 }
 
@@ -195,6 +200,7 @@ const detachActiveFlight = (flight: Flight): void => {
   flight.controller.abort(new OperationAbortError('Waveform request no longer needed'));
   flight.detached = true;
   detachedFlights.add(flight);
+  notifyScheduler();
 
   if (detachedFlights.size >= MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS && pendingLatest) {
     const blocked = pendingLatest;
@@ -280,6 +286,7 @@ const awaitPending = (
       if (pendingLatest === pending) {
         pendingLatest = null;
         rejectPending(pending, new OperationAbortError('Waveform request no longer needed'));
+        notifyScheduler();
         return;
       }
       if (activeFlight?.pending === pending) detachActiveFlight(activeFlight);
@@ -290,17 +297,50 @@ const awaitPending = (
     // Queue time is not decode time. Keep the deadline attached to each waiter
     // so a stuck old APK still detaches into the bounded native-flight fallback.
     const startTimeout = () => {
-      if (settled || timeoutMs === undefined) return;
-      timer = setTimeout(() => cancelWaiter(new TimeoutError('Waveform extraction timed out')), timeoutMs);
+      if (settled) return;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = timeoutMs === undefined ? undefined
+        : setTimeout(() => cancelWaiter(new TimeoutError('Waveform extraction timed out')), timeoutMs);
     };
 
     signal.addEventListener('abort', abort, { once: true });
     if (pending.started) startTimeout();
-    else pending.startListeners.add(startTimeout);
+    else {
+      pending.startListeners.add(startTimeout);
+      timer = setTimeout(() => cancelWaiter(new TimeoutError('Waveform scheduler queue timed out')),
+        WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS);
+    }
     pending.promise.then(
       value => { if (finish()) resolve(value); },
       error => { if (finish()) reject(error); },
     );
+  });
+};
+
+/** Wait for a scheduler transition, with one deadline and prompt cancellation. */
+export const waitForWaveformSchedulerAvailability = (
+  signal: AbortSignal,
+  priority: WaveformExtractionPriority = 'foreground',
+  timeoutMs = WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS,
+): Promise<void> => {
+  throwIfAborted(signal);
+  const available = () => detachedFlights.size < MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS
+    && (!activeFlight || priorityRank(priority) > priorityRank(activeFlight.pending.priority))
+    && (!pendingLatest || priorityRank(priority) >= priorityRank(pendingLatest.priority));
+  if (available()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const finish = (error?: Error) => {
+      clearTimeout(timer); schedulerListeners.delete(check);
+      signal.removeEventListener('abort', abort);
+      if (error) reject(error); else resolve();
+    };
+    const check = () => { if (available()) finish(); };
+    const abort = () => finish(new OperationAbortError('Waveform scheduler wait cancelled'));
+    const timer = setTimeout(() => finish(new TimeoutError('Waveform scheduler capacity did not recover')),
+      Math.max(0, timeoutMs));
+    schedulerListeners.add(check);
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort(); else check();
   });
 };
 
@@ -398,4 +438,5 @@ export const resetWaveformExtractionLifecycleForTests = (): void => {
   activeFlight = null;
   detachedFlights.clear();
   failures.clear();
+  notifyScheduler();
 };

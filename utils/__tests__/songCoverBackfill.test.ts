@@ -5,6 +5,7 @@ import type { Song } from '../../types/Song';
 
 jest.mock('expo-system-audio', () => ({
   extractEmbeddedArtwork: jest.fn(),
+  releaseEmbeddedArtworkLease: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock('../coverCache', () => ({
@@ -22,6 +23,7 @@ const song = (id: string, patch: Partial<Song> = {}): Song => ({
 
 beforeEach(() => {
   (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockReset();
+  (SystemAudio.releaseEmbeddedArtworkLease as jest.Mock).mockClear();
 });
 
 describe('needsEmbeddedCoverBackfill', () => {
@@ -83,7 +85,7 @@ test('backfills songs without covers and skips existing artwork', async () => {
 });
 
 test('stabilizes extracted native cache artwork before applying cover result', async () => {
-  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg' });
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg', leaseId: 'backfill-copy' });
   const protection = { protectUri: jest.fn(), protectSongCovers: jest.fn(), replaceProtectedSongCovers: jest.fn(), release: jest.fn() };
 
   const result = await backfillEmbeddedSongCovers([song('a')], { coverCacheProtection: protection });
@@ -93,6 +95,48 @@ test('stabilizes extracted native cache artwork before applying cover result', a
     cover: 'file:///docs/covers/native-cover.jpg',
     coverInfo: { status: 'cached', uri: 'file:///docs/covers/native-cover.jpg', embeddedArtworkChecked: true },
   });
+  expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledTimes(1);
+  expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledWith('backfill-copy');
+});
+
+test('releases the native receipt when a permanent backfill copy fails', async () => {
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg', leaseId: 'failed-backfill' });
+  (cacheLocalCoverFile as jest.Mock).mockResolvedValueOnce(undefined);
+  const result = await backfillEmbeddedSongCovers([song('a')]);
+  expect(result.songs[0].coverInfo).toBeUndefined();
+  expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledWith('failed-backfill');
+});
+
+test('applies a copied cover without waiting for native lease cleanup', async () => {
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg', leaseId: 'queued-release' });
+  (SystemAudio.releaseEmbeddedArtworkLease as jest.Mock).mockImplementationOnce(() => new Promise(() => {}));
+  const result = await backfillEmbeddedSongCovers([song('a')]);
+  expect(result.songs[0].cover).toBe('file:///docs/covers/native-cover.jpg');
+  expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledWith('queued-release');
+});
+
+test('holds the staging receipt until a slow backfill copy really settles', async () => {
+  jest.useFakeTimers();
+  let completeCopy!: (value: string) => void;
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => { markStarted = resolve; });
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg', leaseId: 'slow-backfill' });
+  (cacheLocalCoverFile as jest.Mock).mockImplementationOnce(() => new Promise(resolve => {
+    markStarted();
+    completeCopy = resolve;
+  }));
+  const pending = backfillEmbeddedSongCovers([song('a')]);
+  try {
+    await started;
+    await jest.advanceTimersByTimeAsync(120_000);
+    expect(SystemAudio.releaseEmbeddedArtworkLease).not.toHaveBeenCalled();
+    completeCopy('file:///docs/covers/native-cover.jpg');
+    await expect(pending).resolves.toMatchObject({ updated: 1 });
+    expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledTimes(1);
+    expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledWith('slow-backfill');
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 

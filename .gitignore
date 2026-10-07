@@ -58,6 +58,10 @@ k1w1-*-hotfix*.zip
 # Local test/build artifacts
 coverage/
 .nyc_output/
+ci-logs/
+ci-android-export/
+__pycache__/
+*.pyc
 expo-config.json
 
 # Local temp/backup files

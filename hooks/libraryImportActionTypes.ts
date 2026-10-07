@@ -7,6 +7,7 @@ import type { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLib
 import type { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import type { CancellableOperation, TimeoutOptions } from '../utils/withTimeout';
 import type { getLibraryImportFlowCopy } from '../utils/libraryImportFlow';
+import type { CoverCacheProtection } from '../utils/coverCacheCleanup';
 
 export interface ImportedSongsStateUpdate {
   songs: Song[];
@@ -16,6 +17,7 @@ export interface ImportedSongsStateUpdate {
 export interface ImportGeneration {
   controller: AbortController;
   id: number;
+  coverCacheProtection?: CoverCacheProtection;
 }
 
 export type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;

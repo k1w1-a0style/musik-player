@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { OperationAbortError, throwIfAborted } from '../utils/withTimeout';
 import type { ImportGeneration } from './libraryImportActionTypes';
 
@@ -20,6 +20,11 @@ export const useLibraryImportLifecycle = ({
 }: UseLibraryImportLifecycleOptions): UseLibraryImportLifecycleResult => {
   const generationRef = useRef(0);
   const activeImportRef = useRef<ImportGeneration | null>(null);
+
+  useEffect(() => () => {
+    activeImportRef.current?.controller.abort(new OperationAbortError('Import screen unmounted'));
+    activeImportRef.current = null;
+  }, []);
 
   const startImport = useCallback((): ImportGeneration => {
     const previousImport = activeImportRef.current;

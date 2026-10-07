@@ -19,7 +19,6 @@ import type {
   LibraryRendererPlaySong,
 } from './libraryRendererTypes';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
-import { getPreparedSongs, isSongPrepared } from '../utils/songPreparation';
 
 interface UseLibrarySongRendererOptions {
   currentSongId: string | null;
@@ -60,12 +59,10 @@ export const useLibrarySongRenderer = ({
   const handleSongPress = useCallback<LibraryRendererHandleSongPress>((song, queue) => {
     // Reading refs at press-time avoids stale closures when the filtered list
     // changes between the row render and the actual tap (e.g. active search).
-    if (!isSongPrepared(song)) return;
-    const preparedQueue = getPreparedSongs(queue ?? filteredSongsRef.current);
     void runPlaybackUiAction(
       `library-play-song-${song.id}`,
-      () => playSongRef.current(song, preparedQueue),
-      { dropIfPending: true },
+      () => playSongRef.current(song, queue ?? filteredSongsRef.current),
+      { dropIfPending: false },
     );
   }, []);
 

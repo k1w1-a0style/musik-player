@@ -85,30 +85,24 @@ const validateException = (entry, today) => {
 const difference = (left, right) => left.filter(value => !right.includes(value));
 
 const createBlockingAdvisoryPathResolver = vulnerabilities => {
-  const memo = new Map();
-
-  const resolve = (packageName, visiting = new Set()) => {
-    if (memo.has(packageName)) return memo.get(packageName);
-    const vulnerability = vulnerabilities[packageName];
-    if (!vulnerability || !isBlocking(vulnerability.severity)) {
-      memo.set(packageName, false);
-      return false;
+  // Compute reachability as a least fixed point. Caching false during a DFS
+  // can misclassify a node in a dependency cycle that has an exit to a root.
+  const reachable = new Set(Object.entries(vulnerabilities)
+    .filter(([, vulnerability]) => isBlocking(vulnerability?.severity)
+      && advisorySourcesFor(vulnerability).length > 0)
+    .map(([name]) => name));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [name, vulnerability] of Object.entries(vulnerabilities)) {
+      if (reachable.has(name) || !isBlocking(vulnerability?.severity)) continue;
+      if (dependencyRootsFor(vulnerability).some(dependency => reachable.has(dependency))) {
+        reachable.add(name);
+        changed = true;
+      }
     }
-    if (advisorySourcesFor(vulnerability).length > 0) {
-      memo.set(packageName, true);
-      return true;
-    }
-    if (visiting.has(packageName)) return false;
-
-    const nextVisiting = new Set(visiting);
-    nextVisiting.add(packageName);
-    const result = dependencyRootsFor(vulnerability)
-      .some(dependency => resolve(dependency, nextVisiting));
-    memo.set(packageName, result);
-    return result;
-  };
-
-  return resolve;
+  }
+  return packageName => reachable.has(packageName);
 };
 
 const evaluateAudit = ({ audit, policy, lock, today }) => {

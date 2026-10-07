@@ -75,7 +75,7 @@ export interface LibraryTabContentPropsBuilderOptions {
 export interface LibraryMenuModalPropsBuilderOptions {
   activeFolders: number;
   closeMenu: () => void;
-  importFromDevice: () => void;
+  importFromDevice: (options?: { refreshExisting?: boolean }) => void;
   isReady: boolean;
   loading: boolean;
   menuOpen: boolean;
@@ -156,6 +156,7 @@ export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilder
   canResumeRefresh: Boolean(options.canResumeRefresh),
   onClose: options.closeMenu,
   onImport: options.importFromDevice,
+  onDeepScan: () => options.importFromDevice({ refreshExisting: true }),
   onRefreshMetadata: options.refreshMetadataFromFiles,
   onAddFolder: options.onAddScanFolder,
   onShowFolders: options.showScanFolders,

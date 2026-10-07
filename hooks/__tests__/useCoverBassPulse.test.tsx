@@ -5,7 +5,6 @@ import { useCoverBassPulse } from '../useCoverBassPulse';
 import { getCachedWaveformForSong } from '../../utils/waveformSourceCache';
 import { setCachedWaveform } from '../../utils/waveformCache';
 import { extractNativeWaveform } from '../../utils/waveformExtraction';
-import { isSongPrepared } from '../../utils/songPreparation';
 import { setWaveformStatus } from '../../utils/waveformStatus';
 import { buildNativeWaveform, getWaveformSourceIdentity } from '../../utils/waveformGenerator';
 import type { Song } from '../../types/Song';
@@ -13,7 +12,6 @@ import type { Song } from '../../types/Song';
 jest.mock('../../utils/waveformSourceCache', () => ({ getCachedWaveformForSong: jest.fn() }));
 jest.mock('../../utils/waveformCache', () => ({ setCachedWaveform: jest.fn() }));
 jest.mock('../../utils/waveformExtraction', () => ({ extractNativeWaveform: jest.fn() }));
-jest.mock('../../utils/songPreparation', () => ({ isSongPrepared: jest.fn() }));
 jest.mock('../../utils/waveformStatus', () => ({ setWaveformStatus: jest.fn(), getWaveformStatus: jest.fn(() => 'ready'),
   subscribeWaveformStatus: jest.fn(() => () => undefined) }));
 
@@ -30,7 +28,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   cache.mockResolvedValue(envelope());
   decode.mockResolvedValue(envelope());
-  jest.mocked(isSongPrepared).mockReturnValue(true);
   jest.mocked(useProgress).mockReturnValue({ position: 0.5, duration: 1, buffered: 1 });
   frames = [];
   jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => {
@@ -73,8 +70,8 @@ test('upgrades a legacy cache with foreground priority only when that track is p
   expect(valueOf(view.result.current)).toBeGreaterThan(1.03);
 });
 
-test.each(['missing', 'failed'] as const)('keeps a previously prepared track ready when optional bass decoding is %s', async failure => {
-  cache.mockResolvedValue(null);
+test.each(['missing', 'failed'] as const)('keeps an actually cached waveform ready when optional bass decoding is %s', async failure => {
+  cache.mockResolvedValue({ ...envelope(), bassPoints: undefined });
   if (failure === 'failed') decode.mockRejectedValue(new Error('decoder unavailable'));
   else decode.mockResolvedValue(null);
   const view = renderHook(() => useCoverBassPulse(song, true));
@@ -84,7 +81,7 @@ test.each(['missing', 'failed'] as const)('keeps a previously prepared track rea
 });
 
 test('aborts a legacy upgrade on track change and ignores its late result', async () => {
-  cache.mockResolvedValue(null);
+  cache.mockResolvedValue({ ...envelope(), bassPoints: undefined });
   let finish!: (value: ReturnType<typeof envelope>) => void;
   decode.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const view = renderHook(({ selected }: { selected: Song }) => useCoverBassPulse(selected, true), { initialProps: { selected: song } });

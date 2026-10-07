@@ -46,3 +46,21 @@ test('same-size replacement receives a new preparation identity', () => {
   const incoming = { ...previous, fileInfo: { ...previous.fileInfo, modificationTime: 101, importedAt: 20 } };
   expect(getWaveformSourceIdentity(preserveImportedSource(incoming, previous))).not.toEqual(getWaveformSourceIdentity(previous));
 });
+
+test('Quick Scan reuses an undated known source and honestly counts its unknown revision', () => {
+  const selection = createImportSourceSelection({ existingSongs: [old] });
+  expect(selection.include(newUri, { size: 1000 })).toBe(false);
+  expect(selection.getReusedCount()).toBe(1);
+  expect(selection.getUnverifiedCount()).toBe(1);
+  expect(selection.getRevisionUpdates()).toEqual([]);
+  const changed = createImportSourceSelection({ existingSongs: [old] });
+  expect(changed.include(newUri, { size: 1001 })).toBe(true);
+  expect(changed.getUnverifiedCount()).toBe(0);
+});
+
+test('a full scan never skips known files and counts failed content verification', () => {
+  const selection = createImportSourceSelection({ existingSongs: [old], refreshExisting: true });
+  expect(selection.include(newUri, { size: 1000 })).toBe(true);
+  expect(selection.getUnverifiedCount()).toBe(1);
+  expect(selection.getReusedCount()).toBe(0);
+});

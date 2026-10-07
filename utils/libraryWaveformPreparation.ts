@@ -4,12 +4,12 @@ import type { Song } from '../types/Song';
 import { setCachedWaveform } from './waveformCache';
 import { extractNativeWaveform } from './waveformExtraction';
 import { getWaveformSourceIdentity } from './waveformGenerator';
-import { clearWaveformFailure } from './waveformExtractionLifecycle';
+import { clearWaveformFailure, MAX_WAVEFORM_CONTENTION_RETRIES,
+  waitForWaveformSchedulerAvailability, WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS } from './waveformExtractionLifecycle';
 import { setWaveformStatus } from './waveformStatus';
 import { OperationAbortError, isAbortError, throwIfAborted } from './withTimeout';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from './metadataRefreshActivity';
 import { loadPreparedSources, markSongPrepared } from './songPreparationStore';
-import { isSongPrepared } from './songPreparation';
 
 export interface WaveformPreparationState {
   status: 'idle' | 'running' | 'cancelled' | 'completed';
@@ -39,21 +39,12 @@ const subscribe = (listener: () => void): (() => void) => {
 export const useWaveformPreparation = (): WaveformPreparationState =>
   useSyncExternalStore(subscribe, getWaveformPreparationState, getWaveformPreparationState);
 
-const waitToRetry = (signal: AbortSignal): Promise<void> => new Promise((resolve, reject) => {
-  const finish = () => { signal.removeEventListener('abort', abort); resolve(); };
-  const timer = setTimeout(finish, 500);
-  const abort = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(new OperationAbortError()); };
-  signal.addEventListener('abort', abort, { once: true });
-  if (signal.aborted) abort();
-});
-
 const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> => {
   const identity = getWaveformSourceIdentity(song);
   clearWaveformFailure(identity.sourceFingerprint);
-  while (true) {
+  const deadline = Date.now() + WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS;
+  for (let attempts = 0; attempts < MAX_WAVEFORM_CONTENTION_RETRIES; attempts += 1) {
     throwIfAborted(signal);
-    // Completed sources stay completed even after the bounded cache evicts them.
-    if (isSongPrepared(song)) return true;
     const cached = await getCachedWaveformForSong(song);
     throwIfAborted(signal);
     if (cached?.source === 'native') return true;
@@ -75,8 +66,11 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
     }
     // Visible playback wins. Resume this same source after contention instead
     // of counting a preempted job as a corrupt file or abandoning the batch.
-    await waitToRetry(signal);
+    if (Date.now() >= deadline) break;
+    await waitForWaveformSchedulerAvailability(signal, 'background', deadline - Date.now());
   }
+  setWaveformStatus(identity.sourceFingerprint, 'unavailable');
+  return false;
 };
 
 const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<boolean> => {
@@ -113,7 +107,14 @@ export const prepareLibraryWaveforms = async (
   try {
     await loadPreparedSources();
     throwIfAborted(controller.signal);
-    const pendingSongs = songs.filter(song => !isSongPrepared(song));
+    // Validate actual durable data once. An old completion marker alone must
+    // never skip a missing/corrupt waveform after restart or eviction.
+    const pendingSongs: Song[] = [];
+    for (const song of songs) {
+      const cached = await getCachedWaveformForSong(song);
+      throwIfAborted(controller.signal);
+      if (cached?.source !== 'native') pendingSongs.push(song);
+    }
     publish({ ...idle, status: pendingSongs.length ? 'running' : 'completed', total: pendingSongs.length });
     for (const song of pendingSongs) {
       throwIfAborted(controller.signal);

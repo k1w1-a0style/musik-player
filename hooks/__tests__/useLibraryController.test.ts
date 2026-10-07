@@ -430,13 +430,13 @@ test('routes song-menu queue actions through the playback rejection boundary', a
     1,
     'library-play-next-song-1',
     expect.any(Function),
-    { dropIfPending: true },
+    { dropIfPending: false },
   );
   expect(playbackBoundary).toHaveBeenNthCalledWith(
     2,
     'library-add-to-queue-song-1',
     expect.any(Function),
-    { dropIfPending: true },
+    { dropIfPending: false },
   );
 });
 

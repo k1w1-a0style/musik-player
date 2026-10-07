@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useWaveformPreload } from '../hooks/useWaveformPreload';
 import type { Song } from '../types/Song';
 import CrossfadeLayers from './CrossfadeLayers';
+import { getPlaybackSelectionSnapshot, subscribeToPlaybackSelection } from '../utils/playbackSelectionStatus';
 
 const CurrentWaveformPreloader = memo(({ song }: { song: Song }) => {
   useWaveformPreload(song);
@@ -94,7 +95,9 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const artworkSource = useMemo(() => getArtworkSource(coverFailed ? undefined : artworkUri),
     [artworkUri, coverFailed]);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
-  const displayArtistName = currentSong ? displayArtist(currentSong) : '';
+  const selection = useSyncExternalStore(subscribeToPlaybackSelection, getPlaybackSelectionSnapshot);
+  const displayArtistName = selection.target ? `Wechsel zu „${selection.target.title}“ …`
+    : currentSong ? displayArtist(currentSong) : '';
   const effectivePalette = useMemo(
     () => mergeNativeAndFallbackPalette(palette, currentSong),
     [palette, currentSong],
@@ -108,19 +111,19 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
-    void runPlaybackUiAction('mini-toggle', togglePlayPause, { dropIfPending: true });
+    void runPlaybackUiAction('mini-toggle', togglePlayPause, { dropIfPending: false });
   }, [togglePlayPause]);
 
   const handlePrevious = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
     if (!canSkipPrevious) return;
-    void runPlaybackUiAction('mini-previous', previous, { dropIfPending: true });
+    void runPlaybackUiAction('mini-previous', previous, { dropIfPending: false });
   }, [canSkipPrevious, previous]);
 
   const handleNext = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
     if (!canSkipNext) return;
-    void runPlaybackUiAction('mini-next', next, { dropIfPending: true });
+    void runPlaybackUiAction('mini-next', next, { dropIfPending: false });
   }, [canSkipNext, next]);
 
   if (!currentSong) return null;

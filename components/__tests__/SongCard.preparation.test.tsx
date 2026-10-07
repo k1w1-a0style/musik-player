@@ -1,3 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
+jest.mock('expo-file-system/legacy', () => require('../../utils/__tests__/waveformFileSystemMock'));
+import { resetWaveformFileSystem } from '../../utils/__tests__/waveformFileSystemMock';
+beforeEach(() => resetWaveformFileSystem());
+
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
@@ -21,57 +26,58 @@ beforeEach(async () => {
   jest.clearAllMocks();
 });
 
-test.each(['row', 'banner', 'tile'] as const)('locks and dims an unfinished %s, then unlocks without a checkmark', async variant => {
+test.each(['row', 'banner', 'tile'] as const)('allows %s audio taps while waveform analysis is pending or running', async variant => {
   const onPress = jest.fn();
-  const view = render(<SongCard song={song} onPressSong={onPress} isCurrent={false} isPlaying={false} variant={variant} />);
+  const onInfo = jest.fn();
+  const view = render(<SongCard song={song} onPressSong={onPress} onInfoSong={onInfo}
+    isCurrent={false} isPlaying={false} variant={variant} />);
   const row = () => view.getByTestId('song-card-pending');
   const content = () => view.getByTestId('song-card-content-pending');
-  expect(row().props.accessibilityState.disabled).toBe(true);
-  expect(StyleSheet.flatten(content().props.style).opacity).toBeLessThan(1);
-  expect(StyleSheet.flatten(row().props.style).opacity ?? 1).toBe(1);
-  fireEvent.press(row());
-  expect(onPress).not.toHaveBeenCalled();
-  expect(view.queryByTestId('song-scan-animation-pending')).toBeNull();
-  act(() => setWaveformStatus(fingerprint, 'analyzing'));
-  expect(row().props.accessibilityState.busy).toBe(true);
-  expect(StyleSheet.flatten(content().props.style).opacity).toBeLessThan(1);
-  act(() => setWaveformProgress(fingerprint, 0.43));
-  expect(view.getByTestId('song-scan-animation-pending')).toBeTruthy();
-  expect(row().findAllByProps({ testID: 'song-scan-animation-pending' }).length).toBeGreaterThan(0);
-  expect(content().findAllByProps({ testID: 'song-scan-animation-pending' })).toHaveLength(0);
-  await act(async () => { await markSongPrepared(fingerprint); });
-  expect(row().props.accessibilityState.disabled).toBe(false);
-  expect(view.queryByTestId('song-preparation-progress-pending')).toBeNull();
+  expect(row().props.accessibilityState.disabled).not.toBe(true);
   expect(StyleSheet.flatten(content().props.style).opacity ?? 1).toBe(1);
-  expect(view.queryByText('✓')).toBeNull();
   fireEvent.press(row());
   expect(onPress).toHaveBeenCalledWith(song);
+  act(() => setWaveformStatus(fingerprint, 'analyzing'));
+  act(() => setWaveformProgress(fingerprint, 0.43));
+  expect(view.getByTestId('song-scan-animation-pending')).toBeTruthy();
+  expect(StyleSheet.flatten(content().props.style).opacity ?? 1).toBe(1);
+  fireEvent.press(row());
+  expect(onPress).toHaveBeenCalledTimes(2);
+  await act(async () => { await markSongPrepared(fingerprint); });
+  // A history marker alone must not claim that an analyzing waveform is ready.
+  expect(view.getByTestId('song-scan-animation-pending')).toBeTruthy();
+  act(() => setWaveformStatus(fingerprint, 'ready'));
+  expect(view.queryByTestId('song-scan-animation-pending')).toBeNull();
 });
 
-test('failed preparation stays locked and can be retried without playing', () => {
+test('offers analysis retry without disabling audio after a decoder failure', () => {
   setWaveformStatus(fingerprint, 'unavailable');
   const onPress = jest.fn();
   const view = render(<SongCard song={song} onPressSong={onPress} isCurrent={false} isPlaying={false} />);
-  expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).toBe(true);
+  expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).not.toBe(true);
   fireEvent.press(view.getByLabelText('Vorbereitung für New track erneut versuchen'));
   expect(retrySongPreparation).toHaveBeenCalledWith(song);
   expect(onPress).not.toHaveBeenCalled();
+  fireEvent.press(view.getByTestId('song-card-pending'));
+  expect(onPress).toHaveBeenCalledWith(song);
 });
 
-test('keeps a completed track selectable after cache eviction and a fresh JS session', async () => {
+test('keeps both completed and replacement sources playable across a fresh JS session', async () => {
   await markSongPrepared(fingerprint);
   resetSongPreparationForTests(); resetWaveformCacheStateForTests();
-  const view = render(<SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />);
-  await waitFor(() => expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).toBe(false));
-  view.rerender(<SongCard song={{ ...song, uri: 'file:///replaced.mp3' }} onPressSong={jest.fn()}
-    isCurrent={false} isPlaying={false} />);
-  expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).toBe(true);
+  const onPress = jest.fn();
+  const view = render(<SongCard song={song} onPressSong={onPress} isCurrent={false} isPlaying={false} />);
+  await waitFor(() => expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).not.toBe(true));
+  const replacement = { ...song, uri: 'file:///replaced.mp3' };
+  view.rerender(<SongCard song={replacement} onPressSong={onPress} isCurrent={false} isPlaying={false} />);
+  fireEvent.press(view.getByTestId('song-card-pending'));
+  expect(onPress).toHaveBeenCalledWith(replacement);
 });
 
-test('a known preparation failure takes priority over historical completion', async () => {
+test('reports known preparation failure even if historical completion is recorded', async () => {
   await markSongPrepared(fingerprint);
   setWaveformStatus(fingerprint, 'unavailable');
   const view = render(<SongCard song={song} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />);
-  expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).toBe(true);
+  expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).not.toBe(true);
   expect(view.getByLabelText('Vorbereitung für New track erneut versuchen')).toBeTruthy();
 });

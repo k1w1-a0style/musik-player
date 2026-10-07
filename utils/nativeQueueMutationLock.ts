@@ -1,5 +1,9 @@
 import { getNativeHydrationGate, type NativeHydrationGateSnapshot } from './nativeHydrationGate';
 import { blockSeekLaneForNativeMutation } from './seekController';
+import { createNativePlaybackWatchdog, resetNativePlaybackWatchdogForTests } from './nativePlaybackWatchdog';
+import { resetNativePlaybackIntentForTests } from './nativePlaybackIntent';
+import { resetPlaybackIntentSchedulerForTests } from './playbackIntentScheduler';
+import { resetPlaybackSelectionForTests } from './playbackSelectionStatus';
 
 export interface NativeQueueReplacementContext {
   replacementVersion: number;
@@ -8,10 +12,11 @@ export interface NativeQueueReplacementContext {
 }
 
 export type NativeHydrationCapture = NativeHydrationGateSnapshot | null | undefined;
-interface NativeMutationOptions {
+export interface NativeMutationOptions {
   requireStableReadyHydration?: boolean;
   hydrationCapture?: NativeHydrationCapture;
   invalidatesPendingSeek?: boolean;
+  timeoutMs?: number;
 }
 export interface NativePlaybackControlContext { assertHydrationCurrent: () => void }
 
@@ -58,12 +63,15 @@ export const runExclusiveNativeQueueReplacement = async <T>(
 ): Promise<T> => {
   const hydrationGate = captureHydrationGate(options);
   if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
+  const watchdog = createNativePlaybackWatchdog('queue', options?.timeoutMs);
   const replacementVersion = markNativeQueueReplacementIntent();
   const seekBarrier = blockSeekLaneForNativeMutation();
   const run = nativeMutationChain
     .catch(() => undefined)
     .then(async () => {
+      watchdog.start();
       await seekBarrier.waitForDrain;
+      watchdog.assertCurrent();
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
       // Explicitly protected queue intents use two phases. Legacy/internal
       // replacements preserve their historical callback-start semantics.
@@ -71,25 +79,28 @@ export const runExclusiveNativeQueueReplacement = async <T>(
       const legacyCurrentAtStart = hydrationGate === undefined
         ? nativeQueueReplacementVersion === replacementVersion
         : undefined;
-      const isCurrent = (): boolean => legacyCurrentAtStart ?? (mutationStarted || (
+      const isCurrent = (): boolean => watchdog.isCurrent() && (legacyCurrentAtStart ?? (mutationStarted || (
         nativeQueueReplacementVersion === replacementVersion
         && isCapturedHydrationGateCurrent(hydrationGate)
-      ));
+      )));
       const beginNativeMutation = (): void => {
+        watchdog.assertCurrent();
         if (mutationStarted) return;
         if (!isCurrent()) throw new NativeMutationHydrationStaleError();
         mutationStarted = true;
       };
-      return await action({
+      const result = await action({
         replacementVersion,
         isCurrent,
         beginNativeMutation,
       });
+      watchdog.assertCurrent();
+      return result;
     })
     .finally(seekBarrier.release);
 
   nativeMutationChain = run.catch(() => undefined);
-  return run;
+  return watchdog.observe(run);
 };
 
 export const runExclusiveNativePlaybackControl = async <T>(
@@ -98,22 +109,31 @@ export const runExclusiveNativePlaybackControl = async <T>(
 ): Promise<T> => {
   const hydrationGate = captureHydrationGate(options);
   if (hydrationGate === null) throw new NativeMutationHydrationStaleError();
+  const watchdog = createNativePlaybackWatchdog('control', options?.timeoutMs);
   const seekBarrier = options?.invalidatesPendingSeek
     ? blockSeekLaneForNativeMutation()
     : null;
   const run = nativeMutationChain.catch(() => undefined).then(async () => {
+    watchdog.start();
     await seekBarrier?.waitForDrain;
     const assertHydrationCurrent = (): void => {
+      watchdog.assertCurrent();
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
     };
     assertHydrationCurrent();
-    return await action({ assertHydrationCurrent });
+    const result = await action({ assertHydrationCurrent });
+    watchdog.assertCurrent();
+    return result;
   }).finally(() => seekBarrier?.release());
   nativeMutationChain = run.catch(() => undefined);
-  return run;
+  return watchdog.observe(run);
 };
 
 export const resetNativeQueueMutationLockForTests = (): void => {
   nativeMutationChain = Promise.resolve();
   nativeQueueReplacementVersion = 0;
+  resetNativePlaybackWatchdogForTests();
+  resetNativePlaybackIntentForTests();
+  resetPlaybackIntentSchedulerForTests();
+  resetPlaybackSelectionForTests();
 };

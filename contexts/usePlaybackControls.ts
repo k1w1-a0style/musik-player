@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { State, usePlaybackState, usePlayWhenReady } from 'react-native-track-player';
-import type { RepeatMode } from '../types/Song';
+import type { RepeatMode, Song } from '../types/Song';
 import {
   applyRepeatModeToTrackPlayer,
   applyVolumeToTrackPlayer,
@@ -44,7 +44,7 @@ const usePlaybackStatus = (): Pick<PlaybackControls, 'isPlaying' | 'isBuffering'
   return { isPlaying, isBuffering };
 };
 
-export const usePlaybackControls = (): PlaybackControls => {
+export const usePlaybackControls = (currentSong?: Song | null): PlaybackControls => {
   const [repeatMode, setRepeatModeValue] = useState<RepeatMode>('off');
   const [volume, setVolumeValue] = useState(1);
   const { isPlaying, isBuffering } = usePlaybackStatus();
@@ -82,8 +82,9 @@ export const usePlaybackControls = (): PlaybackControls => {
   }, []);
 
   const togglePlayPause = useCallback(async () => {
-    await toggleTrackPlayerPlayback();
-  }, []);
+    await toggleTrackPlayerPlayback(isPlaying);
+  }, [isPlaying]);
+  const seekTo = useCallback((millis: number) => seekToMillis(millis, currentSong), [currentSong]);
 
   const stop = useCallback(async () => {
     await stopTrackPlayerPlayback();
@@ -152,7 +153,7 @@ export const usePlaybackControls = (): PlaybackControls => {
     setVolume,
     togglePlayPause,
     stop,
-    seekTo: seekToMillis,
+    seekTo,
     next,
     previous,
   };

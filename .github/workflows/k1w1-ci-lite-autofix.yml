@@ -155,7 +155,7 @@ jobs:
         if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 22
           cache: ${{ steps.lock.outputs.cache_kind }}
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
@@ -163,7 +163,7 @@ jobs:
         if: steps.lock.outputs.has_lockfile != 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Enable Corepack for Yarn / pnpm
         if: steps.lock.outputs.package_manager == 'yarn' ||

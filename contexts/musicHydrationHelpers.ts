@@ -110,13 +110,15 @@ export const verifySupersededHydration = async (
   const originalError = nativeResult.recoveryErrors?.originalError
     ?? new Error('Native queue hydration was superseded before it started.');
   try {
-    return await runExclusiveNativePlaybackControl(async () => {
+    return await runExclusiveNativePlaybackControl(async ({ assertHydrationCurrent }) => {
       const knownSongs = [
         ...args.songsRef.current, ...args.nativeQueueRef.current,
         ...args.queueContextRef.current, ...args.baseQueueContextRef.current,
       ];
+      const readback = await readNativeQueueTruth(knownSongs);
+      assertHydrationCurrent();
       const state = await commitNativeQueueTruth({
-        readback: await readNativeQueueTruth(knownSongs),
+        readback,
         preferredBaseQueue: args.baseQueueContextRef.current,
         librarySongs: args.songsRef.current,
         targets: args,

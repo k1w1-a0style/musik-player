@@ -11,6 +11,18 @@ class NativeMediaReadSafetyTest {
     var released = false
   }
 
+  @Test fun paletteSamplingBoundsOddLargeAndVeryWideImages() {
+    assertEquals(4, calculatePaletteSampleSize(1024, 1024, 256 * 256))
+    // 513/2 rounds up to 257 pixels when decoded, exceeding a 256² cap.
+    assertEquals(4, calculatePaletteSampleSize(513, 513, 256 * 256))
+    assertEquals(1, calculatePaletteSampleSize(128, 128, 256 * 256))
+    assertEquals(1, calculatePaletteSampleSize(0, 128, 256 * 256))
+    val sample = calculatePaletteSampleSize(Int.MAX_VALUE, 10, 256 * 256)
+    val width = (Int.MAX_VALUE.toLong() + sample - 1) / sample
+    val height = (10L + sample - 1) / sample
+    assertTrue(width * height <= 256 * 256)
+  }
+
   @Test fun metadataFieldsFailIndependently() {
     assertEquals("Title", readNonBlankMetadata { "Title" })
     assertNull(readNonBlankMetadata { "   " })

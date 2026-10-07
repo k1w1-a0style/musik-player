@@ -1,3 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
+jest.mock('expo-file-system/legacy', () => require('./waveformFileSystemMock'));
+import { waveformFiles, resetWaveformFileSystem } from './waveformFileSystemMock';
+beforeEach(() => resetWaveformFileSystem());
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { Song } from '../../types/Song';
@@ -5,7 +10,7 @@ import { useSongPreparation } from '../../hooks/useSongPreparation';
 import { getCachedWaveformForSong } from '../waveformSourceCache';
 import { getCachedWaveform, peekCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform } from '../waveformCache';
 import { getWaveformSourceIdentity } from '../waveformGenerator';
-import { getSongPreparationStatus } from '../songPreparation';
+import { getSongAnalysisState, getSongPreparationStatus } from '../songPreparation';
 import { loadPreparedSources, markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 import type { SongWaveform } from '../waveformTypes';
 
@@ -34,17 +39,17 @@ test('migrates an exact legacy shape durably without changing its points, durati
   const identity = getWaveformSourceIdentity(song);
   const migrated = await getCachedWaveformForSong(song);
   expect(migrated).toEqual({ ...legacy, ...identity });
-  await waitFor(async () => expect(await AsyncStorage.getItem(key(legacy.sourceKey))).toBeNull());
+  await waitFor(() => expect([...waveformFiles.values()].some(raw => JSON.parse(raw).sourceKey === legacy.sourceKey)).toBe(false));
   resetWaveformCacheStateForTests();
   expect(await getCachedWaveformForSong({ ...song, duration: 124000 })).toEqual(migrated);
-  expect(JSON.parse((await AsyncStorage.getItem(indexKey))!)).toEqual([identity]);
+  expect(JSON.parse((await AsyncStorage.getItem(indexKey))!).entries).toEqual([expect.objectContaining(identity)]);
 });
 
 test('finds an old audio-info duration after the top-level duration was corrected', async () => {
   await setCachedWaveform(legacy);
   expect(await getCachedWaveformForSong({ ...song, duration: 124000, audioInfo: { durationMs: 123000 } }))
     .toEqual({ ...legacy, ...getWaveformSourceIdentity(song) });
-  await waitFor(async () => expect(await AsyncStorage.getItem(key(legacy.sourceKey))).toBeNull());
+  await waitFor(() => expect([...waveformFiles.values()].some(raw => JSON.parse(raw).sourceKey === legacy.sourceKey)).toBe(false));
 });
 
 test.each([
@@ -78,22 +83,23 @@ test('keeps the old durable shape and new memory shape if the migration index wr
   const identity = getWaveformSourceIdentity(song);
   await waitFor(() => expect(spy).toHaveBeenCalledWith(indexKey, expect.any(String)));
   await waitFor(async () => expect(await AsyncStorage.getItem(key(identity.sourceKey))).toBeNull());
-  expect(JSON.parse((await AsyncStorage.getItem(key(legacy.sourceKey)))!)).toEqual(legacy);
+  expect(await getCachedWaveform(legacy)).toEqual(legacy);
   expect(peekCachedWaveform(identity)).toEqual(migrated);
   spy.mockImplementation(original);
   resetWaveformCacheStateForTests();
   expect(await getCachedWaveformForSong(song)).toEqual(migrated);
-  await waitFor(async () => expect(await AsyncStorage.getItem(key(legacy.sourceKey))).toBeNull());
+  await waitFor(() => expect([...waveformFiles.values()].some(raw => JSON.parse(raw).sourceKey === legacy.sourceKey)).toBe(false));
 });
 
-test('retains and migrates the preparation marker even after waveform cache eviction', async () => {
+test('retains completion history while reporting a missing waveform accurately', async () => {
   await markSongPrepared(legacy.sourceFingerprint);
   resetSongPreparationForTests();
   await loadPreparedSources();
-  expect(getSongPreparationStatus(song)).toBe('ready');
+  expect(getSongPreparationStatus(song)).toBe('pending');
+  expect(getSongAnalysisState(song)).toEqual({ analysisCompleted: true, waveformAvailable: false, bassAvailable: false });
   const hook = renderHook(() => useSongPreparation(song));
   await act(async () => { await loadPreparedSources(); });
-  expect(hook.result.current).toBe('ready');
+  expect(hook.result.current).toBe('pending');
   const identity = getWaveformSourceIdentity(song);
   await waitFor(() => expect(wasSongPrepared(identity.sourceFingerprint)).toBe(true));
   await waitFor(async () => expect(JSON.parse((await AsyncStorage.getItem('@musikplayer:prepared-sources:v1'))!))
@@ -101,5 +107,5 @@ test('retains and migrates the preparation marker even after waveform cache evic
   hook.unmount();
   resetSongPreparationForTests();
   await loadPreparedSources();
-  expect(getSongPreparationStatus({ ...song, duration: 124000 })).toBe('ready');
+  expect(getSongPreparationStatus({ ...song, duration: 124000 })).toBe('pending');
 });

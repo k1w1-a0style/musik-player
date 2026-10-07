@@ -3,6 +3,7 @@ import { NativeModules } from 'react-native';
 import {
   applyNativeEqualizerBands,
   applyNativeEqualizerEnabled,
+  createNativeEqualizerBandScheduler,
   initNativeEqualizer,
   releaseNativeEqualizer,
 } from '../nativeEqualizerHelpers';
@@ -88,5 +89,71 @@ describe('nativeEqualizerHelpers', () => {
     expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledTimes(2);
     expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledWith(0, 300);
     expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledWith(1, 200);
+  });
+});
+
+describe('native equalizer slider scheduling', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+    (SystemAudio.eqSetBandLevel as jest.Mock).mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    (SystemAudio.eqSetBandLevel as jest.Mock).mockReturnValue(false);
+  });
+
+  test('coalesces bursts and preserves a frame deadline during continuous dragging', () => {
+    const scheduler = createNativeEqualizerBandScheduler(() => true);
+    const bands = new Array<number>(10).fill(0);
+    scheduler.schedule(eqNative, true, bands);
+    jest.advanceTimersByTime(8);
+    scheduler.schedule(eqNative, true, [1, ...bands.slice(1)]);
+    scheduler.schedule(eqNative, true, [2, ...bands.slice(1)]);
+    expect(SystemAudio.eqSetBandLevel).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(8);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledTimes(2);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledWith(0, 200);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledWith(1, 0);
+
+    scheduler.schedule(eqNative, true, [2, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
+    jest.advanceTimersByTime(16);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledTimes(3);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenLastCalledWith(1, 100);
+  });
+
+  test('rejects stale sessions and cancels pending writes on disable or release', () => {
+    let current = true;
+    const scheduler = createNativeEqualizerBandScheduler(() => current);
+    const bands = new Array<number>(10).fill(0);
+    scheduler.schedule(eqNative, true, bands);
+    current = false;
+    jest.advanceTimersByTime(16);
+    expect(SystemAudio.eqSetBandLevel).not.toHaveBeenCalled();
+
+    current = true;
+    scheduler.schedule(eqNative, true, bands);
+    scheduler.schedule(eqNative, false, bands);
+    jest.advanceTimersByTime(16);
+    scheduler.schedule(eqNative, true, bands);
+    scheduler.cancel();
+    jest.advanceTimersByTime(16);
+    expect(SystemAudio.eqSetBandLevel).not.toHaveBeenCalled();
+  });
+
+  test('retries unconfirmed writes and resends bands for a new native session', () => {
+    const scheduler = createNativeEqualizerBandScheduler(() => true);
+    const bands = new Array<number>(10).fill(0);
+    (SystemAudio.eqSetBandLevel as jest.Mock).mockReturnValueOnce(false);
+    scheduler.schedule(eqNative, true, bands);
+    jest.advanceTimersByTime(16);
+    scheduler.schedule(eqNative, true, bands);
+    jest.advanceTimersByTime(16);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledTimes(3);
+
+    scheduler.schedule({ ...eqNative }, true, bands);
+    jest.advanceTimersByTime(16);
+    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledTimes(5);
   });
 });

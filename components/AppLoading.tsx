@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useSyncExternalStore } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Music2 } from 'lucide-react-native';
 import { useOptionalAppTheme } from '../contexts/AppThemeContext';
@@ -8,6 +8,7 @@ import {
   DEFAULT_APP_THEME_SKIN,
   getAppTheme,
 } from '../utils/appTheme';
+import { getNativePlaybackWatchdogSnapshot, subscribeToNativePlaybackWatchdog } from '../utils/nativePlaybackWatchdog';
 
 interface AppLoadingProps { degraded?: boolean; onRetry?: () => void }
 
@@ -18,6 +19,8 @@ const AppLoading: React.FC<AppLoadingProps> = ({ degraded = false, onRetry }) =>
     [],
   );
   const theme = appTheme?.theme ?? fallbackTheme;
+  const watchdog = useSyncExternalStore(subscribeToNativePlaybackWatchdog, getNativePlaybackWatchdogSnapshot);
+  const blocked = watchdog.status === 'quarantined';
 
   return (
     <View style={[styles.loading, { backgroundColor: theme.palette.background }]} testID="app-loading">
@@ -37,12 +40,14 @@ const AppLoading: React.FC<AppLoadingProps> = ({ degraded = false, onRetry }) =>
         k1w1-Musik
       </Text>
       <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]} testID="app-loading-subtitle">
-        {degraded ? 'Die Wiedergabewarteschlange konnte nicht bestätigt werden.' : 'Deine Bibliothek wird vorbereitet'}
+        {blocked ? 'Der Player reagiert nicht. Eine Wiederholung ist möglich, sobald die laufende Aktion beendet ist.'
+          : degraded ? 'Die Wiedergabewarteschlange konnte nicht bestätigt werden.' : 'Deine Bibliothek wird vorbereitet'}
       </Text>
       {degraded ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Erneut versuchen"
+          accessibilityState={{ disabled: blocked }} disabled={blocked}
           onPress={onRetry} testID="hydration-retry-button"
-          style={[styles.retryButton, { backgroundColor: theme.palette.primary }]}>
+          style={[styles.retryButton, { backgroundColor: theme.palette.primary, opacity: blocked ? 0.4 : 1 }]}>
           <Text style={[styles.retryText, { color: theme.palette.background }]}>Erneut versuchen</Text>
         </Pressable>
       ) : <ActivityIndicator size="large" color={theme.palette.primary} testID="app-loading-spinner" />}

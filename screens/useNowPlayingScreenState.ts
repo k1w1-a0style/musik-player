@@ -72,13 +72,13 @@ const useNowPlayingTrackNavigation = ({ playbackQueue, currentSong, repeatMode, 
 
   const swipeToNext = useCallback(() => {
     if (!canSwipeToNext) return Promise.resolve();
-    return runPlaybackUiAction('now-playing-next', next, { dropIfPending: true });
+    return runPlaybackUiAction('now-playing-next', next, { dropIfPending: false });
   }, [canSwipeToNext, next]);
 
   const swipeToPrevious = useCallback(() => {
     if (!adjacentSongs.previousSong) return Promise.resolve();
     return runPlaybackUiAction(
-      'now-playing-previous-track', skipToPreviousTrackSafely, { dropIfPending: true },
+      'now-playing-previous-track', skipToPreviousTrackSafely, { dropIfPending: false },
     );
   }, [adjacentSongs.previousSong]);
 

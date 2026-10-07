@@ -13,6 +13,9 @@ import {
 import { isTimeoutError } from '../utils/withTimeout';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import { publishImportFileProgress } from '../utils/libraryImportProgress';
+import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
+import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
+import { createImportProgressCallbacks } from '../utils/libraryImportProgressCallbacks';
 
 const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
 
@@ -22,6 +25,29 @@ const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string 
     return `Scan läuft… ${progress.directoriesVisited} Ordner gelesen, ${progress.filesFound} Titel gefunden`;
   }
   return `Scan läuft… ${progress.filesFound} Titel gefunden`;
+};
+
+const persistScanFolderUpdates = async (persist: (updates: ScanFolder[] | undefined) => Promise<void>,
+  updates: ScanFolder[] | undefined): Promise<void> => {
+  try { await persist(updates); }
+  catch (error) { console.warn('[Import] Failed to persist scan folder updates after import.', error); }
+};
+
+const createSafProgressPublisher = (publish: (status: string) => void, isActive: () => boolean, activity: () => void) => {
+  let latest: SafDirectoryScanProgress | undefined;
+  let lastPublishedAt = 0;
+  return {
+    getLatest: () => latest,
+    onProgress: (progress: SafDirectoryScanProgress): void => {
+      if (!isActive()) return;
+      activity();
+      latest = progress;
+      const now = Date.now();
+      if (lastPublishedAt > 0 && now - lastPublishedAt < SAF_PROGRESS_STATUS_THROTTLE_MS) return;
+      lastPublishedAt = now;
+      publish(buildSafScanProgressStatus(progress));
+    },
+  };
 };
 
 interface UseLibraryScanFolderImportFlowOptions {
@@ -34,7 +60,7 @@ interface UseLibraryScanFolderImportFlowOptions {
   importSongsFromSourcesImpl: typeof importSongsFromSources;
   withTimeoutImpl: TimeoutRunner;
   ensureCurrentImport: (generation: ImportGeneration) => void;
-  applyImportedSongsUpdate: (update: ImportedSongsStateUpdate, generation: ImportGeneration) => void;
+  applyImportedSongsUpdate: (update: ImportedSongsStateUpdate, generation: ImportGeneration) => Song[];
 }
 
 export const useLibraryScanFolderImportFlow = ({
@@ -54,56 +80,57 @@ export const useLibraryScanFolderImportFlow = ({
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);
-    let latestSafProgress: SafDirectoryScanProgress | undefined;
-    let lastProgressStatusAt = 0;
-    const publishSafProgress = (progress: SafDirectoryScanProgress): void => {
-      latestSafProgress = progress;
-      const now = Date.now();
-      if (lastProgressStatusAt > 0 && now - lastProgressStatusAt < SAF_PROGRESS_STATUS_THROTTLE_MS) return;
-      lastProgressStatusAt = now;
+    let callbacks: ReturnType<typeof createImportProgressCallbacks> | undefined;
+    let activity = (): void => undefined;
+    const progressPublisher = createSafProgressPublisher(status => {
       ensureCurrentImport(generation);
-      setImportStatus(buildSafScanProgressStatus(progress));
-    };
+      setImportStatus(status);
+    }, () => Boolean(callbacks?.isActive()) && !generation.controller.signal.aborted, () => activity());
 
     let result: Awaited<ReturnType<typeof importSongsFromSourcesImpl>>;
     try {
-      result = await withTimeoutImpl(
-        signal => importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal,
-          onSafProgress: publishSafProgress, onFileProgress: publishImportFileProgress,
-          existingSongs: songs, refreshExisting }),
+      result = await withImportInactivityTimeout(
+        (signal, reportActivity) => {
+          activity = reportActivity;
+          callbacks = createImportProgressCallbacks({ songs, signal, activity: reportActivity,
+            onFileProgress: publishImportFileProgress,
+            onApply: update => applyImportedSongsUpdate(update, generation) });
+          return importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal,
+            onSafProgress: progressPublisher.onProgress,
+            onFileProgress: callbacks.onFileProgress, onCheckpoint: callbacks.onCheckpoint,
+            existingSongs: songs, refreshExisting, coverCacheProtection: generation.coverCacheProtection });
+        },
         importTimeoutMs,
         scanProgress.timeoutMessage,
         { signal: generation.controller.signal },
+        withTimeoutImpl,
       );
     } catch (error) {
-      if (latestSafProgress && isTimeoutError(error)) {
-        console.warn('[Import] SAF scan progress before timeout.', latestSafProgress);
+      if (progressPublisher.getLatest() && isTimeoutError(error)) {
+        console.warn('[Import] SAF scan progress before timeout.', progressPublisher.getLatest());
       }
       throw error;
+    } finally {
+      callbacks?.close();
     }
     ensureCurrentImport(generation);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    const scanResult = buildScanImportResult(songs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors);
+    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? songs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors);
+    const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
-      try {
-        await persistChangedFolderUpdates(result.folderUpdates);
-      } catch (error) {
-        console.warn('[Import] Failed to persist scan folder updates after empty import.', error);
-      }
+      await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates);
       ensureCurrentImport(generation);
-      if (!result.reusedCount) showAlert(scanResult.alert);
+      if (verificationAlert) showAlert(verificationAlert);
+      else if (!result.reusedCount || result.errors?.length) showAlert(scanResult.alert);
       return;
     }
-    if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
+    if (verificationAlert) showAlert(verificationAlert);
+    else if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
     applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
-    try {
-      await persistChangedFolderUpdates(result.folderUpdates);
-    } catch (error) {
-      console.warn('[Import] Failed to persist scan folder updates after import.', error);
-    }
+    await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates);
     ensureCurrentImport(generation);
     if (result.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, scanResult.update.songs),
       { signal: generation.controller.signal });

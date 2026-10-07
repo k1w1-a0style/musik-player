@@ -50,7 +50,7 @@ const PressScale: React.FC<PressScaleProps> = ({
 }) => {
   const { theme } = useAppTheme();
   const handlePress = useCallback(() => {
-    void runPlaybackUiAction(testID, onPress, { dropIfPending: testID !== 'controls-repeat' });
+    void runPlaybackUiAction(testID, onPress, { dropIfPending: false });
   }, [onPress, testID]);
 
   return (
