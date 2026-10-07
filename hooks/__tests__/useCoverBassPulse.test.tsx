@@ -1,4 +1,6 @@
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import React, { type PropsWithChildren } from 'react';
+import { PlaybackProgressProvider } from '../../contexts/PlaybackProgressContext';
+import { act, renderHook as renderProgressHook, waitFor } from '@testing-library/react-native';
 import { Animated } from 'react-native';
 import { useProgress } from 'react-native-track-player';
 import { useCoverBassPulse } from '../useCoverBassPulse';
@@ -14,6 +16,9 @@ jest.mock('../../utils/waveformCache', () => ({ setCachedWaveform: jest.fn() }))
 jest.mock('../../utils/waveformExtraction', () => ({ extractNativeWaveform: jest.fn() }));
 jest.mock('../../utils/waveformStatus', () => ({ setWaveformStatus: jest.fn(), getWaveformStatus: jest.fn(() => 'ready'),
   subscribeWaveformStatus: jest.fn(() => () => undefined) }));
+
+const ProgressWrapper = ({ children }: PropsWithChildren) => <PlaybackProgressProvider>{children}</PlaybackProgressProvider>;
+const renderHook: typeof renderProgressHook = (callback, options) => renderProgressHook(callback, { ...options, wrapper: ProgressWrapper });
 
 const song: Song = { id: 'bass', title: 'Bass', artist: 'Artist', uri: 'file:///bass.mp3', duration: 1000 };
 const envelope = (selected: Song = song) => buildNativeWaveform(selected, {
@@ -45,6 +50,7 @@ test('drives the complete native bass curve between clock samples and resets on 
   await waitFor(() => expect(valueOf(view.result.current)).toBeGreaterThan(1.03));
   expect(decode).not.toHaveBeenCalled();
   expect(useProgress).toHaveBeenCalledWith(500);
+  expect(useProgress).toHaveBeenCalledTimes(1);
   expect(Animated.timing).toHaveBeenCalledWith(expect.any(Animated.Value), expect.objectContaining({
     useNativeDriver: true, isInteraction: false,
   }));

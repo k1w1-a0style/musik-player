@@ -5,11 +5,12 @@ beforeEach(() => resetWaveformFileSystem());
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  getCachedWaveform, getWaveformCacheUsage, MAX_MEMORY_WAVEFORMS, MAX_MEMORY_WAVEFORM_BYTES,
+  getCachedWaveform, getCachedWaveformAvailability, getWaveformCacheUsage, MAX_MEMORY_WAVEFORMS, MAX_MEMORY_WAVEFORM_BYTES,
   peekCachedWaveform,
   resetWaveformCacheStateForTests,
   setCachedWaveform,
 } from '../waveformCache';
+import { serializeWaveformManifest, waveformManifestEntry } from '../waveformCacheManifest';
 import { WAVEFORM_VERSION, type SongWaveform, type WaveformSourceIdentity } from '../waveformTypes';
 
 const PREFIX = '@musikplayer:waveform:v6:';
@@ -54,6 +55,52 @@ test('stores and reads a valid waveform', async () => {
   const waveform = waveformFor('source-1');
   await setCachedWaveform(waveform);
   await expect(getCachedWaveform(waveform)).resolves.toEqual(waveform);
+});
+
+test('unchanged finalized publications do not rewrite the durable manifest or reread a verified payload', async () => {
+  const waveform = waveformFor('unchanged');
+  await setCachedWaveform(waveform);
+  const savedFiles = new Map(waveformFiles);
+  jest.clearAllMocks();
+  await setCachedWaveform({ ...waveform, points: [...waveform.points] });
+  await setCachedWaveform(waveform);
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  expect(readAsStringAsync).not.toHaveBeenCalled();
+  expect(waveformFiles).toEqual(savedFiles);
+  await expect(getCachedWaveform(waveform)).resolves.toEqual(waveform);
+});
+
+test('an unchanged publication repairs a missing payload without rewriting its committed manifest', async () => {
+  const waveform = waveformFor('missing-payload');
+  await setCachedWaveform(waveform);
+  waveformFiles.clear(); jest.clearAllMocks();
+  await setCachedWaveform(waveform);
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  expect(waveformFiles.size).toBe(1);
+  resetWaveformCacheStateForTests();
+  await expect(getCachedWaveform(waveform)).resolves.toEqual(waveform);
+});
+
+test('loads a 1000-song manifest with one payload read and correct aggregate budgets', async () => {
+  const waveforms = Array.from({ length: 1000 }, (_, index) => waveformFor(`budget-${index}`, index + 1));
+  const entries = waveforms.map(waveform => {
+    const raw = JSON.stringify(waveform); const entry = waveformManifestEntry(waveform, raw);
+    waveformFiles.set(`file:///documents/waveforms/v6/${entry.fileName}`, raw);
+    return entry;
+  });
+  await AsyncStorage.setItem(INDEX_KEY, serializeWaveformManifest(entries));
+  jest.clearAllMocks();
+  await expect(getCachedWaveform(waveforms[999])).resolves.toEqual(waveforms[999]);
+  expect(readAsStringAsync).toHaveBeenCalledTimes(1);
+  expect(getWaveformCacheUsage()).toMatchObject({
+    persistedEntries: 1000,
+    persistedBytes: waveforms.reduce((bytes, waveform) => bytes + Buffer.byteLength(JSON.stringify(waveform)), 0),
+    memoryEntries: 1,
+  });
+  for (const waveform of waveforms) expect(getCachedWaveformAvailability(waveform).waveformAvailable).toBe(true);
+  expect(readAsStringAsync).toHaveBeenCalledTimes(1);
+  await setCachedWaveform({ ...waveforms[0], ...identityFor(waveforms[0].sourceKey, 1001) });
+  expect(getCachedWaveformAvailability(waveforms[0]).waveformAvailable).toBe(false);
 });
 
 test('serves a finalized waveform synchronously from the bounded memory cache', async () => {

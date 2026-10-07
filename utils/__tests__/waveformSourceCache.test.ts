@@ -9,7 +9,7 @@ import type { Song } from '../../types/Song';
 import { useSongPreparation } from '../../hooks/useSongPreparation';
 import { getCachedWaveformForSong } from '../waveformSourceCache';
 import { getCachedWaveform, peekCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform } from '../waveformCache';
-import { getWaveformSourceIdentity } from '../waveformGenerator';
+import { buildNativeWaveform, getWaveformSourceIdentity } from '../waveformGenerator';
 import { getSongAnalysisState, getSongPreparationStatus } from '../songPreparation';
 import { loadPreparedSources, markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 import type { SongWaveform } from '../waveformTypes';
@@ -56,10 +56,23 @@ test.each([
   { ...song, uri: 'file:///different.mp3' },
   { ...song, fileInfo: { ...song.fileInfo, size: 8192 } },
   { ...song, fileInfo: { ...song.fileInfo, importedAt: 43 } },
+  { ...song, fileInfo: { ...song.fileInfo, modificationTime: 100 } },
+  { ...song, fileInfo: { ...song.fileInfo, contentHash: 'verified-content' } },
 ])('does not reuse a legacy shape for a changed physical source: %j', async changed => {
   await setCachedWaveform(legacy);
   expect(await getCachedWaveformForSong(changed)).toBeNull();
   expect(await getCachedWaveform(legacy)).toEqual(legacy);
+});
+
+test.each(['modificationTime', 'contentHash'] as const)('never reuses a revisioned cache after %s changes at the same URI and size', async field => {
+  const original: Song = { ...song, fileInfo: { ...song.fileInfo, modificationTime: 100, contentHash: 'old-content' } };
+  const saved = buildNativeWaveform(original, { points: legacy.points }, original.duration!);
+  await setCachedWaveform(saved);
+  const changed: Song = { ...original, fileInfo: { ...original.fileInfo,
+    ...(field === 'modificationTime' ? { modificationTime: 101 } : { contentHash: 'changed-content' }),
+  } };
+  expect(await getCachedWaveformForSong(changed)).toBeNull();
+  expect(await getCachedWaveformForSong(original)).toEqual(saved);
 });
 
 test('rejects a legacy primary-key collision with a different full fingerprint', async () => {

@@ -165,3 +165,41 @@ test('new duration queues a follow-up pass without cancelling another active tra
   expect(await getCachedWaveform(getWaveformSourceIdentity(enriched))).toMatchObject({ source: 'native' });
   hook.unmount();
 });
+
+test('a newly ineligible duration is removed from a running idle pass without cancelling its valid active track', async () => {
+  let finish!: (value: NativeResult) => void;
+  const next: Song = { ...librarySong, id: 'next', uri: 'file:///next.mp3' };
+  native.extractWaveformPeaks.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  native.cancelWaveformExtraction.mockImplementation(() => { finish(null); return true; });
+  const hook = renderHook<void, { current: Song[] }>(
+    ({ current }) => useLibraryWaveformPreload(current, true),
+    { initialProps: { current: [librarySong, next] } },
+  );
+  await flush(1620);
+  hook.rerender({ current: [librarySong, { ...next, duration: 1200001 }] });
+  expect(native.cancelWaveformExtraction).not.toHaveBeenCalled();
+  finish(decoded);
+  await flush(3000);
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri)).toEqual([librarySong.uri]);
+  hook.unmount();
+});
+
+test.each(['modificationTime', 'contentHash'] as const)('a same-size %s change cancels old idle work at the same URI and caches only the replacement', async field => {
+  let finish!: (value: NativeResult) => void;
+  const original: Song = { ...librarySong, fileInfo: { size: 4096, importedAt: 1, modificationTime: 100, contentHash: 'old-content' } };
+  const changed: Song = { ...original, fileInfo: { ...original.fileInfo,
+    ...(field === 'modificationTime' ? { modificationTime: 101 } : { contentHash: 'changed-content' }),
+  } };
+  native.extractWaveformPeaks.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  native.cancelWaveformExtraction.mockImplementation(() => { finish(null); return true; });
+  const view = renderHook(({ current }: { current: Song[] }) => useLibraryWaveformPreload(current, true),
+    { initialProps: { current: [original] } });
+  await flush(1620);
+  view.rerender({ current: [changed] });
+  await flush(1700);
+  expect(native.cancelWaveformExtraction).toHaveBeenCalledTimes(1);
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri)).toEqual([original.uri, changed.uri]);
+  expect(await getCachedWaveform(getWaveformSourceIdentity(original))).toBeNull();
+  expect(await getCachedWaveform(getWaveformSourceIdentity(changed))).toMatchObject({ source: 'native' });
+  view.unmount();
+});

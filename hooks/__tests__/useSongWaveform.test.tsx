@@ -132,6 +132,26 @@ describe('useSongWaveform lifecycle', () => {
     hook.unmount();
   });
 
+  test.each(['modificationTime', 'contentHash'] as const)('a same-URI, same-size %s revision ignores late old peaks and decodes the current source', async field => {
+    const original: Song = { ...song('physical'), fileInfo: { size: 4096, importedAt: 1, modificationTime: 100, contentHash: 'old-content' } };
+    const changed: Song = { ...original, fileInfo: { ...original.fileInfo,
+      ...(field === 'modificationTime' ? { modificationTime: 101 } : { contentHash: 'changed-content' }),
+    } };
+    const old = deferred<NativeResult>();
+    extractor.extractWaveformPeaks.mockReturnValueOnce(old.promise).mockResolvedValue(decoded([0.8, 0.1, 0.9, 0.2, 0.7, 0.3, 0.6, 0.4]));
+    const view = renderHook(({ current }: { current: Song }) => useSongWaveform({ song: current, durationMs: 1000 }),
+      { initialProps: { current: original } });
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    view.rerender({ current: changed });
+    old.resolve(decoded());
+    await flush(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+    expect(extractor.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+    expect(view.result.current.waveformReady).toBe(true);
+    expect(view.result.current.waveform.sourceFingerprint).toBe(getWaveformSourceIdentity(changed).sourceFingerprint);
+    expect(view.result.current.waveform.points[0]).toBe(0.8);
+    view.unmount();
+  });
+
 
   test('explicit retry clears failure backoff without showing a synthetic shape', async () => {
     const currentSong = song('retry');

@@ -76,3 +76,21 @@ test.each([
 ])('physical source changes invalidate identity: %j', changed => {
   expect(getWaveformSourceIdentity(changed)).not.toEqual(getWaveformSourceIdentity(song));
 });
+
+test('retains the exact v6 canonical layout when no physical revision is known', () => {
+  expect(getWaveformCanonicalIdentity(song)).toBe('1:6|2:s1|22:file:///music/song.mp3|1:0|1:0|1:0');
+  expect(getWaveformSourceIdentity({ ...song, fileInfo: { modificationTime: Number.NaN, contentHash: ' ' } }))
+    .toEqual(getWaveformSourceIdentity(song));
+});
+
+test.each([
+  { modificationTime: 100 }, { contentHash: 'old-content' },
+])('changing physical revision invalidates a same-URI, same-size source: %j', revision => {
+  const original = { ...song, fileInfo: { size: 4096, importedAt: 42, ...revision } };
+  const changed = { ...original, fileInfo: { ...original.fileInfo,
+    ...(revision.modificationTime ? { modificationTime: 101 } : { contentHash: 'changed-content' }),
+  } };
+  expect(getWaveformSourceIdentity(changed)).not.toEqual(getWaveformSourceIdentity(original));
+  expect(getWaveformSourceIdentity({ ...original, title: 'Edited title', artist: 'Edited artist', duration: 1,
+    audioInfo: { durationMs: 2 }, cover: 'file:///new-cover.jpg' })).toEqual(getWaveformSourceIdentity(original));
+});

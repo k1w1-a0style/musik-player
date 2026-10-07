@@ -21,13 +21,36 @@ export const MAX_MEMORY_WAVEFORM_BYTES = 8 * 1024 * 1024;
 let cacheMutationQueue = Promise.resolve();
 let cacheInitialization: Promise<void> | null = null;
 let cachedIndex: WaveformManifestEntry[] = [];
+const indexedWaveforms = new Map<string, WaveformManifestEntry>();
+const verifiedPayloads = new Set<string>();
 const memoryWaveforms = new Map<string, SongWaveform>();
 const unavailablePayloads = new Set<string>();
 const cleanupPending = new Set<string>();
 let memoryBytes = 0;
+let persistedBytes = 0;
 
 const sameIdentity = (left: WaveformSourceIdentity, right: WaveformSourceIdentity): boolean =>
   left.sourceKey === right.sourceKey && left.sourceFingerprint === right.sourceFingerprint;
+const indexedWaveform = (identity: WaveformSourceIdentity): WaveformManifestEntry | undefined => {
+  const entry = indexedWaveforms.get(identity.sourceKey);
+  return entry && sameIdentity(entry, identity) ? entry : undefined;
+};
+const manifestUnchanged = (entry: WaveformManifestEntry, replaced?: WaveformSourceIdentity): boolean => {
+  const committed = indexedWaveform(entry);
+  const replacement = replaced && indexedWaveform(replaced);
+  return Boolean(committed && committed.fileName === entry.fileName && committed.bytes === entry.bytes
+    && committed.hasBass === entry.hasBass && committed.source === entry.source && committed.generatedAt === entry.generatedAt
+    && (!replacement || replacement.fileName === entry.fileName));
+};
+const forgetReplacedMemory = (identity: WaveformSourceIdentity, replaced?: WaveformSourceIdentity): void => {
+  if (!replaced || replaced.sourceKey === identity.sourceKey) return;
+  const memory = memoryWaveforms.get(replaced.sourceKey);
+  if (memory && sameIdentity(memory, replaced)) forgetMemory(replaced.sourceKey);
+};
+const publishIndex = (entries: WaveformManifestEntry[]): void => {
+  cachedIndex = entries; indexedWaveforms.clear(); persistedBytes = 0;
+  for (const entry of entries) { indexedWaveforms.set(entry.sourceKey, entry); persistedBytes += entry.bytes; }
+};
 const memorySize = (waveform: SongWaveform): number =>
   (waveform.points.length + (waveform.bassPoints?.length ?? 0)) * 8 + 512;
 const forgetMemory = (sourceKey: string): void => {
@@ -36,7 +59,7 @@ const forgetMemory = (sourceKey: string): void => {
   memoryWaveforms.delete(sourceKey);
 };
 const markUnavailableIfEvicted = (identity: WaveformSourceIdentity): void => {
-  if (!memoryWaveforms.has(identity.sourceKey) && !cachedIndex.some(entry => sameIdentity(entry, identity)))
+  if (!memoryWaveforms.has(identity.sourceKey) && !indexedWaveform(identity))
     setWaveformStatus(identity.sourceFingerprint, 'pending');
 };
 const rememberWaveform = (waveform: SongWaveform): void => {
@@ -64,7 +87,7 @@ export const peekCachedWaveform = (identity: WaveformSourceIdentity): SongWavefo
 /** Manifest availability and analysis completion are separate contracts. */
 export const getCachedWaveformAvailability = (identity: WaveformSourceIdentity) => {
   const memory = memoryWaveforms.get(identity.sourceKey);
-  const entry = cachedIndex.find(item => sameIdentity(item, identity));
+  const entry = indexedWaveform(identity);
   const native = memory && sameIdentity(memory, identity) && memory.source === 'native';
   const durable = entry?.source === 'native' && !unavailablePayloads.has(identity.sourceFingerprint);
   return {
@@ -83,22 +106,25 @@ const writeIndex = (entries: WaveformManifestEntry[]): Promise<void> =>
 const retireFiles = async (names: string[]): Promise<void> => {
   for (let offset = 0; offset < names.length; offset += 32) {
     await Promise.all(names.slice(offset, offset + 32).map(async name => {
-      try { await removeWaveformFile(name); cleanupPending.delete(name); }
+      try { await removeWaveformFile(name); cleanupPending.delete(name); verifiedPayloads.delete(name); }
       catch { cleanupPending.add(name); }
     }));
   }
 };
 
-const stageWaveform = async (waveform: SongWaveform): Promise<WaveformManifestEntry> => {
-  const raw = JSON.stringify(waveform);
-  const entry = waveformManifestEntry(waveform, raw);
+const stageWaveform = async (
+  waveform: SongWaveform, raw = JSON.stringify(waveform), entry = waveformManifestEntry(waveform, raw),
+): Promise<WaveformManifestEntry> => {
   if (entry.bytes > MAX_WAVEFORM_PAYLOAD_BYTES) throw new Error('Waveform payload exceeds byte budget');
   if (await waveformFileExists(entry.fileName)) {
-    if (await readWaveformFile(entry.fileName) === raw) return entry;
+    if (verifiedPayloads.has(entry.fileName) || await readWaveformFile(entry.fileName) === raw) {
+      verifiedPayloads.add(entry.fileName); return entry;
+    }
   }
   await writeWaveformFile(entry.fileName, raw);
   if (hashString128(await readWaveformFile(entry.fileName)) !== entry.checksum)
     throw new Error('Waveform payload verification failed');
+  verifiedPayloads.add(entry.fileName);
   return entry;
 };
 
@@ -165,16 +191,17 @@ const initializeCache = async (): Promise<void> => {
       await ensureWaveformDirectory();
       const raw = await AsyncStorage.getItem(INDEX_KEY);
       const manifest = parseWaveformManifest(raw);
-      cachedIndex = manifest ?? await recoverIndex(raw);
+      let entries = manifest ?? await recoverIndex(raw);
       if (manifest) {
         // Reclaim incomplete writes after a crash using filenames only. Never
         // parse every bass/waveform payload on an ordinary process restart.
         const kept = new Set(manifest.map(entry => entry.fileName));
         const files = await listWaveformFiles();
         const present = new Set(files);
-        cachedIndex = manifest.filter(entry => present.has(entry.fileName));
+        entries = manifest.filter(entry => present.has(entry.fileName));
         await retireFiles(files.filter(name => !kept.has(name)));
       }
+      publishIndex(entries);
     })().catch(error => { cacheInitialization = null; throw error; });
   }
   await cacheInitialization;
@@ -191,7 +218,7 @@ export const getCachedWaveform = async (identity: WaveformSourceIdentity): Promi
   if (inMemory) return inMemory;
   try {
     await initializeCache();
-    const entry = cachedIndex.find(item => sameIdentity(item, identity));
+    const entry = indexedWaveform(identity);
     if (!entry) return null;
     const raw = await readWaveformFile(entry.fileName);
     // A decoder may have published a newer final shape while a slow read was
@@ -200,10 +227,12 @@ export const getCachedWaveform = async (identity: WaveformSourceIdentity): Promi
     if (published) return published;
     const waveform = hashString128(raw) === entry.checksum ? parseStoredWaveform(raw) : null;
     if (!waveform || !sameIdentity(waveform, identity)) {
+      verifiedPayloads.delete(entry.fileName);
       unavailablePayloads.add(identity.sourceFingerprint);
       setWaveformStatus(identity.sourceFingerprint, 'pending');
       return null;
     }
+    verifiedPayloads.add(entry.fileName);
     rememberWaveform(waveform);
     return waveform;
   } catch {
@@ -232,21 +261,23 @@ export const setCachedWaveform = async (waveform: SongWaveform, replaced?: Wavef
     const planned = waveformManifestEntry(waveform, raw);
     const existed = await waveformFileExists(planned.fileName);
     try {
-      const entry = await stageWaveform(waveform);
+      const entry = await stageWaveform(waveform, raw, planned);
+      if (manifestUnchanged(entry, replaced)) {
+        unavailablePayloads.delete(waveform.sourceFingerprint);
+        forgetReplacedMemory(waveform, replaced);
+        return;
+      }
       const remaining = cachedIndex.filter(item => item.sourceKey !== waveform.sourceKey
         && (!replaced || !sameIdentity(item, replaced)));
       const { active } = fitWaveformManifest([entry, ...remaining]);
       await writeIndex(active);
       const kept = new Set(active.map(item => item.fileName));
       const retired = cachedIndex.filter(item => !kept.has(item.fileName));
-      cachedIndex = active;
+      publishIndex(active);
       unavailablePayloads.delete(waveform.sourceFingerprint);
       await retireFiles(retired.map(item => item.fileName));
       retired.forEach(markUnavailableIfEvicted);
-      if (replaced && replaced.sourceKey !== waveform.sourceKey) {
-        const memory = memoryWaveforms.get(replaced.sourceKey);
-        if (memory && sameIdentity(memory, replaced)) forgetMemory(replaced.sourceKey);
-      }
+      forgetReplacedMemory(waveform, replaced);
     } catch (error) {
       // Immutable content filenames leave the previous committed payload intact.
       if (!existed) await retireFiles([planned.fileName]);
@@ -258,10 +289,10 @@ export const setCachedWaveform = async (waveform: SongWaveform, replaced?: Wavef
 /** Diagnostics expose aggregate budgets, never source URIs or song payloads. */
 export const getWaveformCacheUsage = () => ({
   memoryEntries: memoryWaveforms.size, memoryBytes,
-  persistedEntries: cachedIndex.length, persistedBytes: cachedIndex.reduce((bytes, entry) => bytes + entry.bytes, 0),
+  persistedEntries: cachedIndex.length, persistedBytes,
   pendingCleanupFiles: cleanupPending.size,
 });
 export const resetWaveformCacheStateForTests = (): void => {
-  cacheMutationQueue = Promise.resolve(); cacheInitialization = null; cachedIndex = [];
+  cacheMutationQueue = Promise.resolve(); cacheInitialization = null; publishIndex([]); verifiedPayloads.clear();
   memoryWaveforms.clear(); unavailablePayloads.clear(); cleanupPending.clear(); memoryBytes = 0; resetWaveformStatusForTests();
 };

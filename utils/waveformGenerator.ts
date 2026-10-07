@@ -42,17 +42,28 @@ const encodeIdentityPart = (value: string | number): string => {
   return `${encoded.length}:${encoded}`;
 };
 
+export const WAVEFORM_PHYSICAL_REVISION_FORMAT = 'physical-v1';
+const physicalRevisionParts = (song: Song | null | undefined): (string | number)[] => {
+  const reportedTime = song?.fileInfo?.modificationTime;
+  const modificationTime = typeof reportedTime === 'number' && Number.isFinite(reportedTime) && reportedTime > 0 ? reportedTime : 0;
+  const contentHash = song?.fileInfo?.contentHash?.trim() ?? '';
+  return modificationTime || contentHash ? [WAVEFORM_PHYSICAL_REVISION_FORMAT, modificationTime, contentHash] : [];
+};
+
 const buildCanonicalIdentity = (song: Song | null | undefined, duration: number): string => {
   if (!song) return [WAVEFORM_VERSION, 'no-song'].map(encodeIdentityPart).join('|');
   const uri = song.fileInfo?.uri ?? song.uri ?? '';
   const size = song.fileInfo?.size ?? 0;
   const importedAt = song.fileInfo?.importedAt ?? 0;
-  return [WAVEFORM_VERSION, song.id, uri, size, importedAt, duration].map(encodeIdentityPart).join('|');
+  return [WAVEFORM_VERSION, song.id, uri, size, importedAt, duration, ...physicalRevisionParts(song)]
+    .map(encodeIdentityPart).join('|');
 };
 
 // Duration is derived metadata: discovering it must not cancel decoding or
 // invalidate a finalized shape. Keep the v6 zero-duration layout so existing
-// unknown-duration cache entries remain directly reusable.
+// unknown-duration cache entries remain directly reusable when no physical
+// revision is known. A known provider date/content hash adds a versioned suffix;
+// every compatibility key keeps it, so an unrevisioned older shape is never selected.
 export const getWaveformCanonicalIdentity = (song: Song | null | undefined): string =>
   buildCanonicalIdentity(song, 0);
 
@@ -67,7 +78,7 @@ export const createWaveformSourceIdentity = (
 export const getWaveformSourceIdentity = (song: Song | null | undefined): WaveformSourceIdentity =>
   createWaveformSourceIdentity(getWaveformCanonicalIdentity(song));
 
-/** Exact legacy v6 identities only; URI, size and import revision still match. */
+/** Exact duration-layout variants only; physical revision is preserved in every candidate. */
 export const getCompatibleWaveformSourceIdentities = (song: Song | null | undefined): WaveformSourceIdentity[] => {
   const durations = new Set([0, song?.duration ?? 0, song?.audioInfo?.durationMs ?? 0]);
   return [...durations].filter(duration => Number.isFinite(duration) && duration >= 0)

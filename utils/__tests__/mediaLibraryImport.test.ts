@@ -22,7 +22,7 @@ jest.mock('../coverCache', () => ({
 }));
 
 describe('mediaLibraryImport', () => {
-  test('unchanged SAF files migrate their revision once without reading audio or invalidating the waveform', async () => {
+  test('unchanged SAF files learn a physical revision once without reading audio', async () => {
     const uri = 'content://music/known.mp3';
     const previous = { id: 'known', title: 'Known', artist: 'Artist', uri, duration: 200_000,
       fileInfo: { uri, size: 20_000_000, contentHash: 'stable-file-hash', importedAt: 2000 } };
@@ -34,7 +34,9 @@ describe('mediaLibraryImport', () => {
     const first = await mediaImport.importSongsFromSources(options);
     expect(first).toMatchObject({ songs: [], reusedCount: 1,
       revisionUpdates: [{ fileInfo: { modificationTime: 1500, importedAt: 2000 } }] });
-    expect(getWaveformSourceIdentity(first.revisionUpdates![0])).toEqual(getWaveformSourceIdentity(previous));
+    // Newly available revision data invalidates older cache keys once. Later
+    // unchanged scans reuse this exact revision without analyzing the audio.
+    expect(getWaveformSourceIdentity(first.revisionUpdates![0])).not.toEqual(getWaveformSourceIdentity(previous));
     const second = await mediaImport.importSongsFromSources({ ...options, existingSongs: first.revisionUpdates });
     expect(second).toMatchObject({ songs: [], reusedCount: 1 });
     expect(second.revisionUpdates).toBeUndefined();

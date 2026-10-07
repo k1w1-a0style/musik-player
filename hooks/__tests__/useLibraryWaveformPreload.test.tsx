@@ -54,3 +54,24 @@ test('playback aborts the active analysis and prevents the next file from starti
   expect(setCachedWaveform).not.toHaveBeenCalled();
   hook.unmount();
 });
+
+test.each([500, 2000, 5000])('disabled preloading does not visit any of %i songs on mount or metadata edits', count => {
+  let songReads = 0;
+  const watched = (values: Song[]) => new Proxy(values, {
+    get(target, property, receiver) {
+      if (typeof property === 'string' && /^\d+$/.test(property)) songReads += 1;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const library = Array.from({ length: count }, (_, id) => ({ ...songs[0], id: String(id) }));
+  const hook = renderHook<void, { current: Song[] }>(
+    ({ current }) => useLibraryWaveformPreload(current, false),
+    { initialProps: { current: watched(library) } },
+  );
+  hook.rerender({ current: watched(library.map(song => ({ ...song, title: 'Edited metadata' }))) });
+  expect(songReads).toBe(0);
+  expect(InteractionManager.runAfterInteractions).not.toHaveBeenCalled();
+  expect(getCachedWaveformForSong).not.toHaveBeenCalled();
+  expect(extractNativeWaveform).not.toHaveBeenCalled();
+  hook.unmount();
+});

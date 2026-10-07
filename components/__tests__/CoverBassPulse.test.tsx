@@ -1,6 +1,7 @@
 import React from 'react';
 import { Animated, Text } from 'react-native';
 import { render } from '@testing-library/react-native';
+import { PlaybackProgressProvider } from '../../contexts/PlaybackProgressContext';
 import { useProgress } from 'react-native-track-player';
 import CoverBassPulse from '../CoverBassPulse';
 import { useCoverBassEnvelope } from '../../hooks/useCoverBassEnvelope';
@@ -17,9 +18,9 @@ test('the actual cover scales with bass only while enabled and playing', () => {
   }, 1000, 1024));
   jest.mocked(useProgress).mockReturnValue({ position: 0.65, duration: 1, buffered: 1 });
   const animation = jest.spyOn(Animated, 'timing').mockReturnValue({ start: jest.fn(), stop: jest.fn(), reset: jest.fn() });
-  const cover = (enabled: boolean, isPlaying = true) => <CoverBassPulse song={song} enabled={enabled} isPlaying={isPlaying}>
+  const cover = (enabled: boolean, isPlaying = true) => <PlaybackProgressProvider><CoverBassPulse song={song} enabled={enabled} isPlaying={isPlaying}>
     <Text testID="artwork">Cover</Text>
-  </CoverBassPulse>;
+  </CoverBassPulse></PlaybackProgressProvider>;
   const view = render(cover(false));
   const scale = () => view.getByTestId('now-playing-cover-bass-pulse').props.style.transform[0].scale;
   expect(scale()).toBe(1);

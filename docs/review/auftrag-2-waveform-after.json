@@ -1,0 +1,81 @@
+{
+  "source": {
+    "revision": "working-tree",
+    "baseCommit": "dad2af1d087f407b888390aa3f9f59e5f1f4b641"
+  },
+  "node": "v22.23.3",
+  "physicalRevisionIdentity": "physical-v1",
+  "fixture": "180-second waveform: 1024 points + 3600 bass buckets; native filesystem and AsyncStorage double, no device timing",
+  "workloads": [
+    {
+      "songs": 500,
+      "disabledRenderPureMsMedian": 0.0058,
+      "disabledSongReadsPerRender": 0,
+      "manifestFitMsMedian": 0.6062,
+      "manifestSerializeMsMedian": 0.7449,
+      "manifestParseMsMedian": 1.8299,
+      "persistedEntries": 500,
+      "persistedBytes": 11646725,
+      "manifestBytes": 137795,
+      "sameArrayIndexMsMedian": 0.0002,
+      "oneMetadataEditMsMedian": 0.1497
+    },
+    {
+      "songs": 1000,
+      "disabledRenderPureMsMedian": 0.0006,
+      "disabledSongReadsPerRender": 0,
+      "manifestFitMsMedian": 0.9436,
+      "manifestSerializeMsMedian": 1.4943,
+      "manifestParseMsMedian": 3.1439,
+      "persistedEntries": 1000,
+      "persistedBytes": 23293456,
+      "manifestBytes": 275526,
+      "sameArrayIndexMsMedian": 0.0001,
+      "oneMetadataEditMsMedian": 0.4581
+    },
+    {
+      "songs": 2000,
+      "disabledRenderPureMsMedian": 0.0006,
+      "disabledSongReadsPerRender": 0,
+      "manifestFitMsMedian": 1.9899,
+      "manifestSerializeMsMedian": 2.9335,
+      "manifestParseMsMedian": 5.949,
+      "persistedEntries": 2000,
+      "persistedBytes": 46586951,
+      "manifestBytes": 551021,
+      "sameArrayIndexMsMedian": 0.0001,
+      "oneMetadataEditMsMedian": 0.4334
+    },
+    {
+      "songs": 5000,
+      "disabledRenderPureMsMedian": 0.0006,
+      "disabledSongReadsPerRender": 0,
+      "manifestFitMsMedian": 4.7351,
+      "manifestSerializeMsMedian": 6.6546,
+      "manifestParseMsMedian": 15.2344,
+      "persistedEntries": 5000,
+      "persistedBytes": 116467396,
+      "manifestBytes": 1377466,
+      "sameArrayIndexMsMedian": 0.0001,
+      "oneMetadataEditMsMedian": 0.5409
+    }
+  ],
+  "cache1000": {
+    "availability10000MsMedian": 0.5709,
+    "repeatedPublication": {
+      "repeated": 10,
+      "totalMs": 3.6893,
+      "manifestWrites": 0,
+      "manifestBytes": 0,
+      "fileReads": 0,
+      "fileWrites": 0
+    },
+    "usage": {
+      "memoryEntries": 2,
+      "memoryBytes": 75008,
+      "persistedEntries": 1000,
+      "persistedBytes": 23293456,
+      "pendingCleanupFiles": 0
+    }
+  }
+}
