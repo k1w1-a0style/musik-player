@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryTab } from '../utils/libraryTabs';
 import type { ImportedSongsStateUpdate, ImportGeneration } from './libraryImportActionTypes';
-import { mergeSongs } from '../utils/libraryPresentation';
+import { createImportSongReconciler } from '../utils/libraryImportReconciliation';
 import { protectAcceptedSongCovers } from '../contexts/songCoverProtectionLifecycle';
 
 interface UseLibraryImportStateUpdateOptions {
@@ -20,18 +20,19 @@ export const useLibraryImportStateUpdate = ({
   ensureCurrentImport,
 }: UseLibraryImportStateUpdateOptions) => {
   const confirmedSongsRef = useRef(songs);
-  const appliedGenerationRef = useRef<number | undefined>(undefined);
+  const reconciliationRef = useRef<{ id: number; merge: ReturnType<typeof createImportSongReconciler> } | null>(null);
   useEffect(() => { confirmedSongsRef.current = songs; }, [songs]);
   const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate, generation: ImportGeneration) => {
     ensureCurrentImport(generation);
-    // A new scan can start before accepted chunk state has rendered back into
-    // the hook's props. Keep that chunk as the next scan's merge baseline.
-    const merged = appliedGenerationRef.current === generation.id ? update.songs
-      : mergeSongs(confirmedSongsRef.current, update.songs);
+    if (reconciliationRef.current?.id !== generation.id) {
+      reconciliationRef.current = { id: generation.id, merge: createImportSongReconciler(update.baselineSongs) };
+    }
+    // Reconcile only this batch against the current library. A producer's full
+    // snapshot may predate unrelated edits, additions or removals.
+    const merged = reconciliationRef.current.merge(confirmedSongsRef.current, update.importedSongs);
     protectAcceptedSongCovers(merged);
     setSongs(merged);
     confirmedSongsRef.current = merged;
-    appliedGenerationRef.current = generation.id;
     ensureCurrentImport(generation);
     setActiveTab(update.activeTab);
     return merged;

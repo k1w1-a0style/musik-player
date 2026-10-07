@@ -165,7 +165,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
   return merged;
 };
 
-const mergeSongKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
+export const getSongMergeKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
 const safeTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string => displayTitle(song);
 const byTitle = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
 const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
@@ -217,7 +217,7 @@ export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[]
   };
 
   [...existingSongs, ...importedSongs].forEach((song, songIndex) => {
-    const keys = mergeSongKeys(song);
+    const keys = getSongMergeKeys(song);
     const nodeIndex = components.length;
     components.push({ parent: nodeIndex, size: 1, song, lastSeen: songIndex });
     const matchedRoots = [...new Set(keys

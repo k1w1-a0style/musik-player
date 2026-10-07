@@ -17,9 +17,14 @@ interface LibraryAlertMessage {
   message: string;
 }
 
-interface ImportedSongsUpdate {
-  songs: Song[];
+export interface ImportedSongsDelta {
   activeTab: LibraryTab;
+  importedSongs: Song[];
+  baselineSongs: Song[];
+}
+
+export interface ImportedSongsUpdate extends ImportedSongsDelta {
+  songs: Song[];
 }
 
 interface ScanImportProgressCopy {
@@ -233,20 +238,23 @@ export const getMetadataUpdateStoppedAlert = (error: unknown): LibraryAlertMessa
   message: getErrorMessage(error, libraryImportMessages.metadataUpdateFallbackError),
 });
 
-export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: Song[]): ImportedSongsUpdate => ({
+export const buildImportedSongsUpdate = (existingSongs: Song[], importedSongs: Song[], baselineSongs = existingSongs): ImportedSongsUpdate => ({
   songs: mergeSongs(existingSongs, importedSongs),
   activeTab: 'tracks',
+  importedSongs,
+  baselineSongs,
 });
 
-export const buildMediaLibraryImportResult = (existingSongs: Song[], importedSongs: Song[]): MediaLibraryImportResult => ({
+export const buildMediaLibraryImportResult = (existingSongs: Song[], importedSongs: Song[], baselineSongs = existingSongs): MediaLibraryImportResult => ({
   kind: 'success',
-  update: buildImportedSongsUpdate(existingSongs, importedSongs),
+  update: buildImportedSongsUpdate(existingSongs, importedSongs, baselineSongs),
 });
 
 export const buildScanImportResult = (
   existingSongs: Song[],
   importedSongs: Song[],
   errors: readonly unknown[] | undefined,
+  baselineSongs = existingSongs,
 ): ScanImportResult => {
   if (importedSongs.length === 0) {
     return {
@@ -257,7 +265,7 @@ export const buildScanImportResult = (
 
   return {
     kind: 'success',
-    update: buildImportedSongsUpdate(existingSongs, importedSongs),
+    update: buildImportedSongsUpdate(existingSongs, importedSongs, baselineSongs),
     ...(hasImportErrors(errors) ? { partialAlert: getPartialScanImportAlert() } : {}),
   };
 };

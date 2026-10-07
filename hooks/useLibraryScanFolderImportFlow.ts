@@ -116,7 +116,7 @@ export const useLibraryScanFolderImportFlow = ({
     ensureCurrentImport(generation);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? songs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors);
+    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? songs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors, songs);
     const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
@@ -128,11 +128,11 @@ export const useLibraryScanFolderImportFlow = ({
     }
     if (verificationAlert) showAlert(verificationAlert);
     else if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
-    applyImportedSongsUpdate(scanResult.update, generation);
+    const acceptedSongs = applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
     await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates);
     ensureCurrentImport(generation);
-    if (result.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, scanResult.update.songs),
+    if (result.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, acceptedSongs),
       { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 

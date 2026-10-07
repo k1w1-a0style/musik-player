@@ -6,13 +6,10 @@ import type { LibraryAlertCopy } from './useLibraryAlerts';
 import type { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import type { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import type { CancellableOperation, TimeoutOptions } from '../utils/withTimeout';
-import type { getLibraryImportFlowCopy } from '../utils/libraryImportFlow';
+import type { getLibraryImportFlowCopy, ImportedSongsDelta } from '../utils/libraryImportFlow';
 import type { CoverCacheProtection } from '../utils/coverCacheCleanup';
 
-export interface ImportedSongsStateUpdate {
-  songs: Song[];
-  activeTab: LibraryTab;
-}
+export type ImportedSongsStateUpdate = ImportedSongsDelta;
 
 export interface ImportGeneration {
   controller: AbortController;

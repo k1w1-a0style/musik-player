@@ -1,5 +1,5 @@
 import type { Song } from '../types/Song';
-import { buildImportedSongsUpdate } from './libraryImportFlow';
+import { buildImportedSongsUpdate, type ImportedSongsDelta } from './libraryImportFlow';
 import type { ImportCheckpoint } from './libraryImportCheckpoint';
 import type { ImportFileProgress } from './libraryImportProgress';
 
@@ -7,7 +7,7 @@ export const createImportProgressCallbacks = (options: {
   songs: Song[];
   signal: AbortSignal;
   activity: () => void;
-  onApply: (update: ReturnType<typeof buildImportedSongsUpdate>) => Song[] | void;
+  onApply: (update: ImportedSongsDelta) => Song[] | void;
   onFileProgress: (progress: ImportFileProgress) => void;
 }) => {
   let confirmedSongs = options.songs;
@@ -24,9 +24,11 @@ export const createImportProgressCallbacks = (options: {
     },
     onCheckpoint: (checkpoint: ImportCheckpoint): void => {
       if (!isActive()) return;
-      const update = buildImportedSongsUpdate(confirmedSongs, checkpoint.songs);
+      const update: ImportedSongsDelta = { importedSongs: checkpoint.songs, baselineSongs: options.songs, activeTab: 'tracks' };
       const accepted = options.onApply(update);
-      confirmedSongs = accepted ?? update.songs;
+      // The state consumer owns the merge. Build a fallback snapshot only for
+      // observers that do not return their accepted state.
+      confirmedSongs = accepted ?? buildImportedSongsUpdate(confirmedSongs, checkpoint.songs).songs;
       options.activity();
     },
   };
