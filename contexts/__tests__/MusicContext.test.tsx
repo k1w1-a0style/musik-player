@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, Pressable } from 'react-native';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';
 import TrackPlayer from 'react-native-track-player';
 import { MusicProvider, useMusicContext } from '../MusicContext';
 import { storage, StorageKeys } from '../../utils/storage';
@@ -179,6 +180,33 @@ describe('MusicContext', () => {
     const { getByTestId } = render(<MusicProvider><Probe /></MusicProvider>);
     await waitReady(getByTestId);
     expect(getByTestId('probe-songs-count').props.children).toBe('0');
+  });
+
+  test('keeps the hydrated library and playlist editor mounted when a native writer hangs', async () => {
+    const view = render(<MusicProvider><Probe /></MusicProvider>);
+    await waitReady(view.getByTestId);
+    fireEvent.press(view.getByTestId('set-songs'));
+    await waitFor(() => expect(view.getByTestId('probe-songs-count').props.children).toBe('4'));
+    jest.useFakeTimers();
+    let release!: () => void; let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const operation = runExclusiveNativeQueueReplacement(async () => {
+      started(); await new Promise<void>(resolve => { release = resolve; });
+    }, { timeoutMs: 40 });
+    const outcome = operation.catch(error => error);
+    await began;
+    await act(async () => { await jest.advanceTimersByTimeAsync(40); await outcome; });
+    try {
+      expect(view.queryByTestId('app-loading')).toBeNull();
+      expect(view.getByTestId('probe-songs-count').props.children).toBe('4');
+      expect(view.getByTestId('playback-recovery-banner')).toBeTruthy();
+      fireEvent.press(view.getByTestId('create-playlist'));
+      expect(view.getByTestId('probe-playlists-count').props.children).toBe('1');
+      expect(view.getByTestId('playback-retry-button').props.accessibilityState.disabled).toBe(true);
+    } finally {
+      await act(async () => { release(); await jest.advanceTimersByTimeAsync(0); });
+      view.unmount(); jest.useRealTimers();
+    }
   });
 
   test('renders the stored library while native TrackPlayer setup is still pending', async () => {

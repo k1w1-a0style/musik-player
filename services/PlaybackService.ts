@@ -6,8 +6,10 @@ import { getNativePlaybackIntent, isNativePlaybackIntentConfirmed, recordNativeP
 import { enqueuePlaybackIntent } from '../utils/playbackIntentScheduler';
 import { requestNativeTrackNavigation } from '../utils/nativeTrackNavigation';
 import { createRemotePlaybackIntentBuffer } from './remotePlaybackIntentBuffer';
+import { createRemoteNavigationIntentBuffer } from './remoteNavigationIntentBuffer';
 
 let remoteIntentBuffer: ReturnType<typeof createRemotePlaybackIntentBuffer> | null = null;
+let remoteNavigationBuffer: ReturnType<typeof createRemoteNavigationIntentBuffer> | null = null;
 const remoteSubscriptions: Array<ReturnType<typeof TrackPlayer.addEventListener>> = [];
 const registerRemoteListener: typeof TrackPlayer.addEventListener = (event, listener) => {
   const subscription = TrackPlayer.addEventListener(event, listener);
@@ -47,6 +49,7 @@ const handleRemotePlaybackAction = (
 };
 
 const handleRemoteTransportIntent = (desired: DesiredPlaybackState): void => {
+  if (desired === 'stopped') remoteNavigationBuffer?.clear();
   const gate = getNativeHydrationGate();
   if (!gate.owned || gate.status !== 'ready') {
     let revision = 0;
@@ -63,6 +66,17 @@ const handleRemoteTransportIntent = (desired: DesiredPlaybackState): void => {
     if (getNativePlaybackIntent().revision !== intent.revision || isNativePlaybackIntentConfirmed(intent.revision)) return;
     await restoreNativePlaybackIntent(desired, intent.revision, () => { assertCurrent(); return true; });
   }, desired === 'stopped');
+};
+
+const handleRemoteNavigationIntent = (direction: 1 | -1): void => {
+  const action = direction > 0 ? 'next' : 'previous';
+  const gate = getNativeHydrationGate();
+  if (!gate.owned || gate.status !== 'ready') {
+    if (remoteIntentBuffer?.hasPendingStop()
+      || !remoteNavigationBuffer?.submit(() => handleRemoteNavigationIntent(direction))) logBlockedRemoteAction(action);
+    return;
+  }
+  requestNativeTrackNavigation(direction).catch(error => logRemotePlaybackError(action, error));
 };
 
 const handleRemoteSeek = (action: string, run: () => Promise<void>): void => {
@@ -90,7 +104,9 @@ const normalizeJumpInterval = (interval: unknown): number =>
 export const PlaybackService = async (): Promise<void> => {
   remoteSubscriptions.splice(0).forEach(subscription => subscription.remove());
   remoteIntentBuffer?.dispose();
+  remoteNavigationBuffer?.dispose();
   remoteIntentBuffer = createRemotePlaybackIntentBuffer();
+  remoteNavigationBuffer = createRemoteNavigationIntentBuffer();
   void restorePersistedSleepTimer().catch(error => {
     console.warn('[PlaybackService] Sleep timer restore failed', error);
   });
@@ -104,14 +120,10 @@ export const PlaybackService = async (): Promise<void> => {
     handleRemoteTransportIntent('stopped');
   });
   registerRemoteListener(Event.RemoteNext, () => {
-    if (getNativeHydrationGate().status === 'ready') {
-      requestNativeTrackNavigation(1).catch(error => logRemotePlaybackError('next', error));
-    } else logBlockedRemoteAction('next');
+    handleRemoteNavigationIntent(1);
   });
   registerRemoteListener(Event.RemotePrevious, () => {
-    if (getNativeHydrationGate().status === 'ready') {
-      requestNativeTrackNavigation(-1).catch(error => logRemotePlaybackError('previous', error));
-    } else logBlockedRemoteAction('previous');
+    handleRemoteNavigationIntent(-1);
   });
   registerRemoteListener(Event.RemoteSeek, ({ position }) => {
     if (typeof position !== 'number' || !Number.isFinite(position) || position < 0) {

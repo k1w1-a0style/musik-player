@@ -5,7 +5,7 @@ import { runPlaySongQueueAction, runShuffleQueueAction } from '../../contexts/pl
 import { skipToNextSafely, skipToPreviousOrRestart, skipToPreviousTrackSafely, toggleTrackPlayerPlayback } from '../../contexts/playbackControlHelpers';
 import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../nativeHydrationGate';
 import { resetNativeQueueMutationLockForTests, runExclusiveNativePlaybackControl, runExclusiveNativeQueueReplacement } from '../nativeQueueMutationLock';
-import { acknowledgeNativePlaybackRecovery, getNativePlaybackWatchdogSnapshot, NativePlaybackTimeoutError } from '../nativePlaybackWatchdog';
+import { acknowledgeNativePlaybackRecovery, getNativePlaybackWatchdogSnapshot, NativePlaybackTimeoutError, NATIVE_QUEUE_DEADLINE_MS } from '../nativePlaybackWatchdog';
 import { requestLatestSeek, resetSeekControllerForTests, isSeekDrainingForTests } from '../seekController';
 import { enqueuePlaybackIntent } from '../playbackIntentScheduler';
 
@@ -75,7 +75,7 @@ test('a late add after timeout cannot play or commit the old target', async () =
   });
   const operation = runPlaySongQueueAction({ ...args, song: songs[3] });
   await started.promise;
-  await jest.advanceTimersByTimeAsync(8000);
+  await jest.advanceTimersByTimeAsync(NATIVE_QUEUE_DEADLINE_MS);
   await expect(operation).resolves.toMatchObject({ status: 'failed', error: { name: 'NativePlaybackTimeoutError' } });
   expect(getNativePlaybackWatchdogSnapshot().status).toBe('quarantined');
   release.resolve();
@@ -94,7 +94,7 @@ test('a late reset does not overwrite the last confirmed JS queue after timeout'
   });
   const operation = runPlaySongQueueAction({ ...args, song: songs[3] });
   await started.promise;
-  await jest.advanceTimersByTimeAsync(8000);
+  await jest.advanceTimersByTimeAsync(NATIVE_QUEUE_DEADLINE_MS);
   await expect(operation).resolves.toMatchObject({ status: 'failed' });
   release.resolve(); await jest.advanceTimersByTimeAsync(0);
   expect(args.nativeQueueRef.current).toEqual(songs.slice(0, 2));

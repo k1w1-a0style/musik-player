@@ -1,4 +1,6 @@
 export const NATIVE_PLAYBACK_DEADLINE_MS = 8_000;
+export const NATIVE_QUEUE_DEADLINE_MS = 30_000;
+export const NATIVE_NAVIGATION_DEADLINE_MS = 12_000;
 export type NativePlaybackLane = 'queue' | 'control' | 'seek';
 export interface NativePlaybackWatchdogSnapshot {
   status: 'idle' | 'quarantined' | 'retry-required';
@@ -52,30 +54,38 @@ export const acknowledgeNativePlaybackRecovery = (): boolean => {
  * The public result has a deadline, the settlement promise does not. Locks
  * MUST use settlement rather than result: a JS timeout cannot cancel RNTP.
  */
-export const createNativePlaybackWatchdog = (lane: NativePlaybackLane, timeoutMs = NATIVE_PLAYBACK_DEADLINE_MS) => {
+export const createNativePlaybackWatchdog = (lane: NativePlaybackLane,
+  timeoutMs = lane === 'queue' ? NATIVE_QUEUE_DEADLINE_MS : NATIVE_PLAYBACK_DEADLINE_MS) => {
   assertNativePlaybackNotQuarantined();
   const flight: ExpiredFlight = { lane, settled: false };
   const capturedEpoch = epoch;
   let started = false;
   let expired = false;
+  let settled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   let rejectTimeout!: (error: Error) => void;
   const timeout = new Promise<never>((_, reject) => { rejectTimeout = reject; });
-  // observe installs a rejection handler synchronously before the timer fires.
-  const timer = setTimeout(() => {
-    expired = true;
-    if (started && capturedEpoch === epoch) { expiredFlights.add(flight); publish(); }
-    rejectTimeout(new NativePlaybackTimeoutError(lane));
-  }, timeoutMs);
   const assertCurrent = (): void => {
     if (expired) throw new NativePlaybackTimeoutError(lane);
   };
   return {
     isCurrent: () => !expired,
     assertCurrent,
-    start: () => { assertCurrent(); started = true; },
+    start: () => {
+      assertCurrent();
+      if (started || settled) return;
+      started = true;
+      // Waiting in a mutation chain or for another lane is not native work.
+      timer = setTimeout(() => {
+        expired = true;
+        if (capturedEpoch === epoch) { expiredFlights.add(flight); publish(); }
+        rejectTimeout(new NativePlaybackTimeoutError(lane));
+      }, timeoutMs);
+    },
     observe: <T>(settlement: Promise<T>): Promise<T> => {
       const observed = settlement.finally(() => {
         clearTimeout(timer);
+        settled = true;
         flight.settled = true;
         if (expiredFlights.has(flight)) publish();
       });

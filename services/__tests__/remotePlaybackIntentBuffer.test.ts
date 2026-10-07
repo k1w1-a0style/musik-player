@@ -19,6 +19,18 @@ test('startup stop has priority over buffered play', () => {
   expect(buffer.submit('playing', play)).toBe(false);
   publishNativeHydrationGate(owner, 'ready');
   expect(stop).toHaveBeenCalledTimes(1); expect(play).not.toHaveBeenCalled();
+  expect(buffer.hasPendingStop()).toBe(false);
+  buffer.dispose();
+});
+
+test('pending stop blocks startup navigation only within its lifetime', () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+  acquireNativeHydrationGate();
+  const buffer = createRemotePlaybackIntentBuffer();
+  buffer.submit('stopped', jest.fn());
+  expect(buffer.hasPendingStop()).toBe(true);
+  now.mockReturnValue(11_001);
+  expect(buffer.hasPendingStop()).toBe(false);
   buffer.dispose();
 });
 

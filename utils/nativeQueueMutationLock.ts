@@ -69,8 +69,8 @@ export const runExclusiveNativeQueueReplacement = async <T>(
   const run = nativeMutationChain
     .catch(() => undefined)
     .then(async () => {
-      watchdog.start();
       await seekBarrier.waitForDrain;
+      watchdog.start();
       watchdog.assertCurrent();
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();
       // Explicitly protected queue intents use two phases. Legacy/internal
@@ -114,8 +114,8 @@ export const runExclusiveNativePlaybackControl = async <T>(
     ? blockSeekLaneForNativeMutation()
     : null;
   const run = nativeMutationChain.catch(() => undefined).then(async () => {
-    watchdog.start();
     await seekBarrier?.waitForDrain;
+    watchdog.start();
     const assertHydrationCurrent = (): void => {
       watchdog.assertCurrent();
       if (!isCapturedHydrationGateCurrent(hydrationGate)) throw new NativeMutationHydrationStaleError();

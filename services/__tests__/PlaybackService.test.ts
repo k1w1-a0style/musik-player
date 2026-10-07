@@ -4,7 +4,9 @@ import { waitFor } from '@testing-library/react-native';
 import { PlaybackService } from '../PlaybackService';
 import { resetSleepTimerForTests, startSleepTimer } from '../sleepTimerController';
 import { resetNativeQueueMutationLockForTests, runExclusiveNativeQueueReplacement } from '../../utils/nativeQueueMutationLock';
-import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, releaseNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
+import { resetNativeTrackNavigationForTests } from '../../utils/nativeTrackNavigation';
+import { enqueuePlaybackIntent } from '../../utils/playbackIntentScheduler';
 
 type TrackPlayerTestApi = typeof TrackPlayer & {
   __reset: () => void;
@@ -17,6 +19,7 @@ const trackPlayerTestApi = TrackPlayer as unknown as TrackPlayerTestApi;
 describe('PlaybackService', () => {
   beforeEach(() => {
     resetNativeQueueMutationLockForTests();
+    resetNativeTrackNavigationForTests();
     resetNativeHydrationGateForTests();
     publishNativeHydrationGate(acquireNativeHydrationGate(), 'ready');
     trackPlayerTestApi.__reset();
@@ -65,7 +68,6 @@ describe('PlaybackService', () => {
   });
 
   test.each([
-    ['loading', Event.RemotePrevious, TrackPlayer.skipToPrevious, undefined],
     ['degraded', Event.RemoteNext, TrackPlayer.skipToNext, undefined],
     ['retry-required', Event.RemoteSeek, TrackPlayer.seekTo, { position: 12 }],
     ['degraded', Event.RemotePlay, TrackPlayer.play, undefined],
@@ -101,6 +103,113 @@ describe('PlaybackService', () => {
     publishNativeHydrationGate(owner, 'ready');
     await waitFor(() => expect(TrackPlayer.pause).toHaveBeenCalledTimes(1));
     expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
+  test('retains ordered headset navigation during cold-start hydration', async () => {
+    const owner = acquireNativeHydrationGate();
+    await TrackPlayer.add([
+      { id: 'one', url: 'file:///one.mp3' },
+      { id: 'two', url: 'file:///two.mp3' },
+      { id: 'three', url: 'file:///three.mp3' },
+    ]);
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    trackPlayerTestApi.__trigger(Event.RemotePrevious);
+    expect(TrackPlayer.skip).not.toHaveBeenCalled();
+
+    publishNativeHydrationGate(owner, 'ready');
+
+    await waitFor(() => expect(TrackPlayer.skip).toHaveBeenCalledWith(1));
+    expect((await TrackPlayer.getActiveTrack())?.id).toBe('two');
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+  });
+
+  test('limits startup navigation to five presses', async () => {
+    const owner = acquireNativeHydrationGate();
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await TrackPlayer.add(Array.from({ length: 8 }, (_, index) => ({ id: `${index}`, url: `file:///${index}.mp3` })));
+    await PlaybackService();
+    for (let index = 0; index < 8; index += 1) trackPlayerTestApi.__trigger(Event.RemoteNext);
+    expect(warn).toHaveBeenCalledTimes(3);
+    publishNativeHydrationGate(owner, 'ready');
+    await enqueuePlaybackIntent(async () => undefined);
+    expect(TrackPlayer.skip).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(5);
+  });
+
+  test.each(['degraded', 'retry-required', 'released', 'new-owner', 'expired'] as const)(
+    'discards startup navigation after %s', async reason => {
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      const owner = acquireNativeHydrationGate();
+      await PlaybackService();
+      trackPlayerTestApi.__trigger(Event.RemoteNext);
+      if (reason === 'released') releaseNativeHydrationGate(owner);
+      else if (reason === 'new-owner') publishNativeHydrationGate(acquireNativeHydrationGate(), 'ready');
+      else if (reason === 'expired') now.mockReturnValue(6001);
+      else publishNativeHydrationGate(owner, reason);
+      publishNativeHydrationGate(owner, 'ready');
+      await enqueuePlaybackIntent(async () => undefined);
+      expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
+      expect(TrackPlayer.skipToNext).not.toHaveBeenCalled();
+    },
+  );
+
+  test('startup stop cancels navigation and blocks subsequent presses before ready', async () => {
+    const owner = acquireNativeHydrationGate();
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    trackPlayerTestApi.__trigger(Event.RemotePrevious);
+    trackPlayerTestApi.__trigger(Event.RemoteStop);
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    trackPlayerTestApi.__trigger(Event.RemotePlay);
+    publishNativeHydrationGate(owner, 'ready');
+    await enqueuePlaybackIntent(async () => undefined);
+    expect(TrackPlayer.stop).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.play).not.toHaveBeenCalled();
+    expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
+  });
+
+  test('service restart cancels old startup presses and keeps one navigation listener', async () => {
+    const owner = acquireNativeHydrationGate();
+    await TrackPlayer.add([
+      { id: 'one', url: 'file:///one.mp3' },
+      { id: 'two', url: 'file:///two.mp3' },
+      { id: 'three', url: 'file:///three.mp3' },
+    ]);
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    publishNativeHydrationGate(owner, 'ready');
+    await enqueuePlaybackIntent(async () => undefined);
+    expect(trackPlayerTestApi.__getListeners(Event.RemoteNext)).toHaveLength(1);
+    expect(trackPlayerTestApi.__getListeners(Event.RemotePrevious)).toHaveLength(1);
+    expect(TrackPlayer.skip).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(1);
+  });
+
+  test('cold-start navigation is invalidated if the ready gate changes while waiting for the native lock', async () => {
+    const owner = acquireNativeHydrationGate();
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let release!: () => void;
+    let started!: () => void;
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const blocker = runExclusiveNativeQueueReplacement(async () => {
+      started();
+      await new Promise<void>(resolve => { release = resolve; });
+    });
+    await began;
+    await PlaybackService();
+    trackPlayerTestApi.__trigger(Event.RemoteNext);
+    publishNativeHydrationGate(owner, 'ready');
+    publishNativeHydrationGate(acquireNativeHydrationGate(), 'ready');
+    release();
+    await blocker;
+    await enqueuePlaybackIntent(async () => undefined);
+    expect(TrackPlayer.getQueue).not.toHaveBeenCalled();
+    expect(TrackPlayer.skipToNext).not.toHaveBeenCalled();
   });
 
   test('does not apply a queued remote seek to a different track', async () => {
@@ -170,6 +279,7 @@ describe('PlaybackService', () => {
   });
 
   test('rechecks hydration gate inside the lock before a queued remote action', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     let release!: () => void; let started!: () => void;
     const startedPromise = new Promise<void>(resolve => { started = resolve; });
     const blocker = runExclusiveNativeQueueReplacement(async () => {
@@ -181,7 +291,8 @@ describe('PlaybackService', () => {
     const owner = acquireNativeHydrationGate();
     publishNativeHydrationGate(owner, 'degraded');
     release(); await blocker;
-    await waitFor(() => expect(TrackPlayer.skipToNext).not.toHaveBeenCalled());
+    await enqueuePlaybackIntent(async () => undefined);
+    expect(TrackPlayer.skipToNext).not.toHaveBeenCalled();
   });
 
   test('logs remote action failures', async () => {

@@ -28,6 +28,8 @@ export const createRemotePlaybackIntentBuffer = () => {
       if (gate.owned) onGate(gate);
       return true;
     },
+    hasPendingStop: (): boolean => pending?.desired === 'stopped'
+      && Date.now() - pending.createdAt <= REMOTE_INTENT_LIFETIME_MS,
     dispose: () => { pending = null; unsubscribe(); },
   };
 };

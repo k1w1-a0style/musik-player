@@ -3,6 +3,7 @@ import { getNativeHydrationGate } from './nativeHydrationGate';
 import { runExclusiveNativePlaybackControl, type NativePlaybackControlContext } from './nativeQueueMutationLock';
 import { enqueuePlaybackIntent, getPlaybackIntentBoundary } from './playbackIntentScheduler';
 import { beginPlaybackSelection, finishPlaybackSelection } from './playbackSelectionStatus';
+import { NATIVE_NAVIGATION_DEADLINE_MS } from './nativePlaybackWatchdog';
 
 interface NavigationIntent { direction: 1 | -1; restartAfterThreshold: boolean }
 interface NavigationBatch { boundary: number; intents: NavigationIntent[]; promise: Promise<void>; closed: boolean }
@@ -87,7 +88,8 @@ export const requestNativeTrackNavigation = (direction: 1 | -1, restartAfterThre
   const pending: NavigationBatch = { boundary, intents: [intent], promise: Promise.resolve(), closed: false };
   pending.promise = enqueuePlaybackIntent(() => runExclusiveNativePlaybackControl(
     context => drainNavigation(pending, context),
-    { hydrationCapture: gate.owned ? gate.status === 'ready' ? gate : null : undefined, invalidatesPendingSeek: true },
+    { hydrationCapture: gate.owned ? gate.status === 'ready' ? gate : null : undefined,
+      invalidatesPendingSeek: true, timeoutMs: NATIVE_NAVIGATION_DEADLINE_MS },
   ), 'navigation').finally(() => { pending.closed = true; if (batch === pending) batch = null; });
   batch = pending;
   return pending.promise;
