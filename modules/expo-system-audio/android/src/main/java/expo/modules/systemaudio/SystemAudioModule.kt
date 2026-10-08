@@ -27,10 +27,6 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.SynchronousQueue
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.RejectedExecutionException
 
 /**
  * Bridges Android's Equalizer API and the androidx.palette color extraction
@@ -41,10 +37,17 @@ import java.util.concurrent.RejectedExecutionException
  * Requires MODIFY_AUDIO_SETTINGS.
  */
 class SystemAudioModule : Module() {
-  // Slow/cloud provider queries must not occupy JS, main, or Expo's shared
-  // module queue. No backlog: at most two actual provider stats can run.
-  private val importStatExecutor = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS,
-    SynchronousQueue<Runnable>(), { task -> Thread(task, "import-file-stat").apply { isDaemon = true } })
+  // Every bridge body only hands work off. A stuck provider must not occupy
+  // Expo's shared AsyncFunctionQueue or prevent independent native services.
+  private val mediaReadExecutor = BoundedNativeTaskExecutor("media-read", 2)
+  private val paletteExecutor = BoundedNativeTaskExecutor("artwork-palette", 2)
+  private val thumbnailExecutor = BoundedNativeTaskExecutor("artwork-thumbnail", 2)
+  private val importStatExecutor = BoundedNativeTaskExecutor("import-file-stat", 2)
+  // Two accepted writes in total, matching the JS module's write capacity.
+  // Status/recovery/ack use this same lane so durable projections stay ordered.
+  private val tagExecutor = BoundedNativeTaskExecutor("audio-tag-transaction", 1, 1)
+  private val equalizerExecutor = BoundedNativeTaskExecutor("audio-equalizer", 1, 1)
+  private val artworkCleanupExecutor = BoundedNativeTaskExecutor("artwork-lease-cleanup", 2, 2)
   private val artworkLeaseOwner = ArtworkCacheLeaseOwner()
   private var thumbnailCache: ArtworkThumbnailCache? = null
   private val equalizerLifecycle = SerializedSessionEffect(
@@ -70,23 +73,25 @@ class SystemAudioModule : Module() {
 
     // ---------- Equalizer ----------
 
-    AsyncFunction("eqInit") { audioSessionId: Int ->
-      equalizerLifecycle.initialize(audioSessionId) { eq ->
-        val range = eq.bandLevelRange
-        val bands = (0 until eq.numberOfBands).map { i ->
-          val freq = try { eq.getCenterFreq(i.toShort()) } catch (_: Throwable) { 0 }
+    AsyncFunction("eqInit") { audioSessionId: Int, promise: Promise ->
+      submitNativeRead(equalizerExecutor, promise) {
+        equalizerLifecycle.initialize(audioSessionId) { eq ->
+          val range = eq.bandLevelRange
+          val bands = (0 until eq.numberOfBands).map { i ->
+            val freq = try { eq.getCenterFreq(i.toShort()) } catch (_: Throwable) { 0 }
+            mapOf(
+              "index" to i,
+              "centerFreqHz" to freq / 1000, // millihertz → Hz
+            )
+          }
           mapOf(
-            "index" to i,
-            "centerFreqHz" to freq / 1000, // millihertz → Hz
+            "available" to true,
+            "enabled" to eq.enabled,
+            "bands" to bands,
+            "minMillibel" to range[0].toInt(),
+            "maxMillibel" to range[1].toInt(),
           )
         }
-        mapOf(
-          "available" to true,
-          "enabled" to eq.enabled,
-          "bands" to bands,
-          "minMillibel" to range[0].toInt(),
-          "maxMillibel" to range[1].toInt(),
-        )
       }
     }
 
@@ -112,111 +117,119 @@ class SystemAudioModule : Module() {
 
     // ---------- Palette / artwork extraction ----------
 
-    AsyncFunction("createArtworkThumbnail") { uri: String, size: Int, revision: String ->
-      try {
+    AsyncFunction("createArtworkThumbnail") { uri: String, size: Int, revision: String, promise: Promise ->
+      submitNativeRead(thumbnailExecutor, promise) {
         val parsed = Uri.parse(uri)
-        val ctx = appContext.reactContext ?: return@AsyncFunction null
+        val ctx = appContext.reactContext ?: return@submitNativeRead null
         // Managed original covers are local files. Other sources keep their
         // normal image fallback rather than acquiring network/provider access.
-        if (parsed.scheme != "file") return@AsyncFunction null
-        val source = File(parsed.path ?: return@AsyncFunction null)
-        val cache = thumbnailCache ?: ArtworkThumbnailCache(
-          File(ctx.cacheDir, "artwork-thumbnails-v1"),
-          atomicReplace = { from, to -> Os.rename(from.absolutePath, to.absolutePath) },
-        ).also { thumbnailCache = it }
+        if (parsed.scheme != "file") return@submitNativeRead null
+        val source = File(parsed.path ?: return@submitNativeRead null)
+        val cache = synchronized(this@SystemAudioModule) {
+          thumbnailCache ?: ArtworkThumbnailCache(
+            File(ctx.cacheDir, "artwork-thumbnails-v1"),
+            atomicReplace = { from, to -> Os.rename(from.absolutePath, to.absolutePath) },
+          ).also { thumbnailCache = it }
+        }
         cache.get(source, size, revision)?.let { Uri.fromFile(it).toString() }
-      } catch (_: Throwable) {
-        null
       }
     }
 
-    AsyncFunction("extractPalette") { uri: String ->
-      val bitmap = loadBitmap(uri) ?: return@AsyncFunction null
-      val palette = withBitmapRecycled(bitmap) { source ->
-        Palette.from(source).generate()
+    AsyncFunction("extractPalette") { uri: String, promise: Promise ->
+      submitNativeRead(paletteExecutor, promise) {
+        val bitmap = loadBitmap(uri) ?: return@submitNativeRead null
+        val palette = withBitmapRecycled(bitmap) { source -> Palette.from(source).generate() }
+        mapOf(
+          "dominant" to palette.dominantSwatch?.rgb?.let(::hex),
+          "vibrant" to palette.vibrantSwatch?.rgb?.let(::hex),
+          "lightVibrant" to palette.lightVibrantSwatch?.rgb?.let(::hex),
+          "darkVibrant" to palette.darkVibrantSwatch?.rgb?.let(::hex),
+          "muted" to palette.mutedSwatch?.rgb?.let(::hex),
+          "lightMuted" to palette.lightMutedSwatch?.rgb?.let(::hex),
+          "darkMuted" to palette.darkMutedSwatch?.rgb?.let(::hex),
+        )
       }
-      val result = mutableMapOf<String, Any?>()
-      result["dominant"] = palette.dominantSwatch?.rgb?.let(::hex)
-      result["vibrant"] = palette.vibrantSwatch?.rgb?.let(::hex)
-      result["lightVibrant"] = palette.lightVibrantSwatch?.rgb?.let(::hex)
-      result["darkVibrant"] = palette.darkVibrantSwatch?.rgb?.let(::hex)
-      result["muted"] = palette.mutedSwatch?.rgb?.let(::hex)
-      result["lightMuted"] = palette.lightMutedSwatch?.rgb?.let(::hex)
-      result["darkMuted"] = palette.darkMutedSwatch?.rgb?.let(::hex)
-      result
     }
 
-    AsyncFunction("extractAudioInfo") { uri: String ->
-      extractAudioInfo(uri)
+    AsyncFunction("extractAudioInfo") { uri: String, promise: Promise ->
+      submitNativeRead(mediaReadExecutor, promise) { extractAudioInfo(uri) }
     }
 
     AsyncFunction("readImportFileStat") { uri: String, promise: Promise ->
-      val resolver = appContext.reactContext?.contentResolver
-      if (resolver == null) {
-        promise.resolve(null)
-      } else {
-        try {
-          importStatExecutor.execute {
-            promise.resolve(readProviderFileStat(uri) { parsed, columns ->
-              resolver.query(parsed, columns, null, null, null)
-            })
-          }
-        } catch (_: RejectedExecutionException) { promise.resolve(null) }
+      submitNativeRead(importStatExecutor, promise) {
+        val resolver = appContext.reactContext?.contentResolver ?: return@submitNativeRead null
+        readProviderFileStat(uri) { parsed, columns -> resolver.query(parsed, columns, null, null, null) }
       }
     }
 
-    AsyncFunction("extractMetadataFast") { uri: String ->
-      extractFastMetadata(uri)
-    }
-AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
-      writeAudioTags(uri, request)
+    AsyncFunction("extractMetadataFast") { uri: String, promise: Promise ->
+      submitNativeRead(mediaReadExecutor, promise) { extractFastMetadata(uri) }
     }
 
-    AsyncFunction("verifyAudioTagDeletion") { uri: String, request: Map<String, Any?> ->
-      verifyAudioTagDeletion(uri, request)
+    AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?>, promise: Promise ->
+      submitNativeControl(tagExecutor, promise,
+        failure = { reason -> tagWriteDispatchFailure(uri, request, reason) },
+      ) { writeAudioTags(uri, request) }
     }
 
-    AsyncFunction("getAudioTagRecoveryStatus") {
-      getAudioTagRecoveryStatus()
+    AsyncFunction("verifyAudioTagDeletion") { uri: String, request: Map<String, Any?>, promise: Promise ->
+      submitNativeControl(tagExecutor, promise, failure = { false }) { verifyAudioTagDeletion(uri, request) }
     }
 
-    AsyncFunction("recoverPendingAudioTagTransactions") { uri: String? ->
-      recoverPendingAudioTagTransactions(uri)
-    }
-
-    AsyncFunction("acknowledgeAudioTagRecoveryOutcomes") { operationIds: List<String> ->
-      val ctx = appContext.reactContext ?: return@AsyncFunction false
-      audioTagTransactionManager(ctx).acknowledgeRecoveryOutcomes(operationIds)
-      true
-    }
-
-    AsyncFunction("extractEmbeddedArtwork") { uri: String ->
-      val bytes = readEmbeddedArtwork(uri) ?: return@AsyncFunction null
-      if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
-        Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogReference()}")
-        return@AsyncFunction null
+    AsyncFunction("getAudioTagRecoveryStatus") { promise: Promise ->
+      submitNativeControl(tagExecutor, promise, failure = { unavailableTagRecoveryStatus() }) {
+        getAudioTagRecoveryStatus()
       }
-      val mimeType = detectImageMime(bytes) ?: run {
-        Log.d(TAG, "embedded artwork has unknown mime; bytes=${bytes.size} uri=${uri.safeLogReference()}")
-        return@AsyncFunction null
-      }
-      val artwork = cacheArtworkBytes(bytes, extensionForMime(mimeType)) ?: return@AsyncFunction null
-      val fileUri = Uri.fromFile(artwork.file).toString()
-      Log.d(TAG, "embedded artwork cached bytes=${bytes.size} mime=$mimeType file=${fileUri.safeLogReference()}")
-      mapOf(
-        "uri" to fileUri,
-        "mimeType" to mimeType,
-        "byteLength" to bytes.size,
-        "leaseId" to artwork.leaseId,
-      )
     }
 
-    AsyncFunction("releaseEmbeddedArtworkLease") { leaseId: String ->
-      AtomicArtworkCache.releaseLease(artworkLeaseOwner, leaseId)
+    AsyncFunction("recoverPendingAudioTagTransactions") { uri: String?, promise: Promise ->
+      submitNativeControl(tagExecutor, promise, failure = { unavailableTagRecoveryResult() }) {
+        recoverPendingAudioTagTransactions(uri)
+      }
+    }
+
+    AsyncFunction("acknowledgeAudioTagRecoveryOutcomes") { operationIds: List<String>, promise: Promise ->
+      submitNativeControl(tagExecutor, promise, failure = { false }) {
+        val ctx = appContext.reactContext ?: return@submitNativeControl false
+        audioTagTransactionManager(ctx).acknowledgeRecoveryOutcomes(operationIds)
+        true
+      }
+    }
+
+    AsyncFunction("extractEmbeddedArtwork") { uri: String, promise: Promise ->
+      submitNativeRead(mediaReadExecutor, promise) {
+        val bytes = readEmbeddedArtwork(uri) ?: return@submitNativeRead null
+        if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
+          Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogReference()}")
+          return@submitNativeRead null
+        }
+        val mimeType = detectImageMime(bytes) ?: return@submitNativeRead null
+        val artwork = checkNotNull(cacheArtworkBytes(bytes, extensionForMime(mimeType))) {
+          "Embedded artwork could not be cached"
+        }
+        mapOf(
+          "uri" to Uri.fromFile(artwork.file).toString(),
+          "mimeType" to mimeType,
+          "byteLength" to bytes.size,
+          "leaseId" to artwork.leaseId,
+        )
+      }
+    }
+
+    AsyncFunction("releaseEmbeddedArtworkLease") { leaseId: String, promise: Promise ->
+      submitNativeRead(artworkCleanupExecutor, promise) {
+        AtomicArtworkCache.releaseLease(artworkLeaseOwner, leaseId)
+      }
     }
 
     OnDestroy {
-      importStatExecutor.shutdownNow()
+      mediaReadExecutor.close()
+      paletteExecutor.close()
+      thumbnailExecutor.close()
+      importStatExecutor.close()
+      tagExecutor.close()
+      equalizerExecutor.close()
+      artworkCleanupExecutor.close()
       try {
         AtomicArtworkCache.closeOwner(artworkLeaseOwner)
       } finally {
@@ -224,6 +237,64 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       }
     }
   }
+
+
+  private fun <T> submitNativeRead(executor: BoundedNativeTaskExecutor, promise: Promise, operation: () -> T) {
+    executor.submit(operation, onSuccess = { promise.resolve(it) }, onFailure = { reason, error ->
+      if (error != null) Log.d(TAG, "native read failed ${error.safeLogType()}")
+      val code = when (reason) {
+        NativeTaskFailure.CAPACITY -> "NativeReadCapacity"
+        NativeTaskFailure.CLOSED -> "NativeReadClosed"
+        NativeTaskFailure.OPERATION -> "NativeReadError"
+      }
+      // Capacity and failure are not authoritative evidence that artwork or
+      // metadata is absent. Importers can leave the item unchecked and retry.
+      promise.reject(code, "Native read could not complete; retry when capacity is available.", null)
+    })
+  }
+
+  private fun <T> submitNativeControl(
+    executor: BoundedNativeTaskExecutor,
+    promise: Promise,
+    failure: (NativeTaskFailure) -> T,
+    operation: () -> T,
+  ) {
+    executor.submit(operation, onSuccess = { promise.resolve(it) }, onFailure = { reason, error ->
+      if (error != null) Log.d(TAG, "native control failed ${error.safeLogType()}")
+      promise.resolve(failure(reason))
+    })
+  }
+
+  private fun tagWriteDispatchFailure(uri: String, request: Map<String, Any?>, reason: NativeTaskFailure): Map<String, Any?> {
+    val unknownOutcome = reason == NativeTaskFailure.OPERATION
+    return mapOf(
+      "success" to false,
+      "uri" to uri,
+      "changedFields" to emptyList<String>(),
+      "failedFields" to ((request["changedFields"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()),
+      "errorCode" to if (unknownOutcome) "RecoveryPending" else "TransactionConflict",
+      "message" to if (unknownOutcome) "Native write outcome must be recovered." else "Native tag-write capacity is unavailable; retry later.",
+      "verified" to false,
+      "operationId" to request["operationId"],
+      "phase" to if (unknownOutcome) "PENDING_NATIVE_RESULT" else "FAILED",
+      "terminal" to !unknownOutcome,
+      "retryable" to !unknownOutcome,
+      "recoveryPending" to unknownOutcome,
+    )
+  }
+
+  private fun unavailableTagRecoveryStatus(): Map<String, Any?> = mapOf(
+    "available" to false, "pendingCount" to 0, "retainedOutcomeCount" to 0,
+    "transactions" to emptyList<Map<String, Any?>>(),
+  )
+
+  private fun unavailableTagRecoveryResult(): Map<String, Any?> = mapOf(
+    "success" to false, "errorCode" to "RecoveryPending",
+    "message" to "Native tag recovery is unavailable; retry when its active work completes.",
+    "recoveryPending" to true, "recovered" to false,
+    "recoveredCount" to 0, "cleanedCount" to 0, "pendingCount" to 0, "failedCount" to 0,
+    "transactions" to emptyList<Map<String, Any?>>(),
+  )
 
 
   private fun writeAudioTags(uri: String, request: Map<String, Any?>): Map<String, Any?> {
@@ -618,7 +689,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
   }
 
   private fun readEmbeddedArtwork(uri: String): ByteArray? {
-    val ctx = appContext.reactContext ?: return null
+    val ctx = checkNotNull(appContext.reactContext) { "Android context unavailable" }
     val retriever = MediaMetadataRetriever()
     return try {
       val parsed = Uri.parse(uri)
@@ -628,13 +699,13 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
           val path = parsed.path
           if (path.isNullOrBlank()) {
             Log.d(TAG, "file uri has no path: ${uri.safeLogReference()}")
-            return null
+            error("Embedded artwork source has no local path")
           }
           retriever.setDataSource(path)
         }
         uri.startsWith("http://") || uri.startsWith("https://") -> {
           Log.d(TAG, "remote embedded artwork extraction blocked uri=${uri.safeLogReference()}")
-          return null
+          error("Remote embedded artwork source is unsupported")
         }
         else -> retriever.setDataSource(uri)
       }
@@ -644,7 +715,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
       artwork
     } catch (e: Throwable) {
       Log.d(TAG, "embedded artwork failed ${e.safeLogType()} uri=${uri.safeLogReference()}")
-      null
+      throw e
     } finally {
       try {
         retriever.release()

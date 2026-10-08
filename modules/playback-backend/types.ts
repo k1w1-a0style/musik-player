@@ -44,6 +44,16 @@ export interface Track {
   [key: string]: unknown;
 }
 
+/** Null clears a display field; undefined leaves a partial update unchanged. */
+export interface TrackMetadata {
+  id?: string;
+  title?: string;
+  artist?: string;
+  album?: string | null;
+  artwork?: string | null;
+  [key: string]: unknown;
+}
+
 /** Navigation needs identities, not artwork, URLs, headers or arbitrary extras. */
 export interface NavigationSnapshot {
   queue: { id?: string; title?: string }[];

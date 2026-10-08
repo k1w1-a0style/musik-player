@@ -1,7 +1,7 @@
 import Player, { PlaybackState as NativeState } from '@rntp/player';
 import { acknowledge, mutate, nativePlayer, read } from './native';
 import { fromMediaItem, fromNativeRepeatMode, omitUndefined, toCommands, toMediaItem, toNativeRepeatMode, toProgress } from './conversions';
-import { AppKilledPlaybackBehavior, State, type NavigationSnapshot, type PlaybackError, type PlaybackState, type PlayerOptions, type Progress, type RepeatMode, type Track, type UpdateOptions } from './types';
+import { AppKilledPlaybackBehavior, State, type NavigationSnapshot, type PlaybackError, type PlaybackState, type PlayerOptions, type Progress, type RepeatMode, type Track, type TrackMetadata, type UpdateOptions } from './types';
 
 let setupAttempt: Promise<void> | undefined;
 let configured = false;
@@ -134,11 +134,21 @@ export const move = (fromIndex: number, toIndex: number): Promise<void> => mutat
   await acknowledge(() => Player.moveMediaItem(fromIndex, toIndex));
 });
 
-export const updateMetadataForTrack = (index: number, track: Partial<Track>): Promise<void> => mutate(async () => {
-  validQueueIndex(index, Player.getQueue().length);
-  await acknowledge(() => Player.updateMetadata(index, omitUndefined({
+export const updateMetadataForTrack = (index: number, track: TrackMetadata): Promise<void> => mutate(async () => {
+  const queue = Player.getQueue();
+  const currentIndex = track.id === undefined || queue[index]?.mediaId === track.id
+    ? index : queue.findIndex(item => item.mediaId === track.id);
+  if (track.id !== undefined && currentIndex < 0) throw new Error('Song is no longer in the native queue.');
+  validQueueIndex(currentIndex, queue.length);
+  const metadata = omitUndefined({
     title: track.title, artist: track.artist, albumTitle: track.album, artworkUrl: track.artwork,
-  })));
+    // The pinned Android bridge checks this again on the owning controller
+    // thread, closing the gap between the JS read and the native mutation.
+    expectedMediaId: track.id,
+  });
+  // V5's TS surface omits nullable fields; its native hasKey/getString contract
+  // and JS resolver both preserve null as an explicit deletion.
+  await acknowledge(() => Player.updateMetadata(currentIndex, metadata as Parameters<typeof Player.updateMetadata>[1]));
 });
 
 export const setRepeatMode = (mode: RepeatMode): Promise<RepeatMode> => mutate(async () => {

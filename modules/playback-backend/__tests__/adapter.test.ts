@@ -39,6 +39,7 @@ type HeadlessData = { event: string; payload?: Record<string, unknown>; rntpTask
 let adapter: Adapter;
 let controls: typeof import('../../../contexts/playbackControlHelpers');
 let watchdog: typeof import('../../../utils/nativePlaybackWatchdog');
+let libraryHelpers: typeof import('../../../contexts/libraryActionHelpers');
 let native: ReturnType<typeof createNative>;
 let headlessTask: (data: HeadlessData) => Promise<void>;
 
@@ -67,6 +68,7 @@ beforeEach(() => {
     jest.doMock('react-native-track-player', () => adapter);
     controls = jest.requireActual<typeof controls>('../../../contexts/playbackControlHelpers');
     watchdog = jest.requireActual<typeof watchdog>('../../../utils/nativePlaybackWatchdog');
+    libraryHelpers = jest.requireActual<typeof libraryHelpers>('../../../contexts/libraryActionHelpers');
   });
 });
 
@@ -368,6 +370,43 @@ test('omits undefined native fields and leaves unspecified metadata intact', asy
   native.getQueue.mockReturnValue([{ mediaId: 'minimal', url: 'content://minimal' }]);
   await adapter.default.updateMetadataForTrack(0, { title: 'Edited', artist: undefined });
   expect(native.updateMetadata).toHaveBeenCalledWith(0, { title: 'Edited' });
+});
+
+test('forwards explicit album and artwork deletions through the real V5 JS bridge', async () => {
+  native.getQueue.mockReturnValue([{ mediaId: 'edited', url: 'content://edited' }]);
+  await adapter.default.updateMetadataForTrack(0, { album: null, artwork: null });
+  expect(native.updateMetadata).toHaveBeenCalledWith(0, { albumTitle: null, artworkUrl: null });
+  expect(native.awaitPlaybackCommands).toHaveBeenCalledTimes(1);
+});
+
+test('a library metadata refresh follows its song ID when a queued move overtakes the old index', async () => {
+  const queue: MediaItem[] = [{ mediaId: 'a', url: 'file:///a.mp3' }, { mediaId: 'b', url: 'file:///b.mp3' }];
+  const writtenIds: string[] = [];
+  native.getQueue.mockImplementation(() => queue.slice());
+  native.moveMediaItem.mockImplementation((from: number, to: number) => {
+    queue.splice(to, 0, ...queue.splice(from, 1));
+  });
+  native.updateMetadata.mockImplementation((index: number) => writtenIds.push(queue[index].mediaId!));
+  expect((await adapter.default.getQueue()).map(item => item.id)).toEqual(['a', 'b']);
+  void adapter.default.move(0, 1);
+
+  libraryHelpers.updateNativeMetadataForSong('a', { current: [
+    { id: 'a', title: 'Edited A', artist: 'A', uri: 'file:///a.mp3' },
+    { id: 'b', title: 'B', artist: 'B', uri: 'file:///b.mp3' },
+  ] }, { current: [] });
+  await flush();
+  await flush();
+
+  expect(queue.map(item => item.mediaId)).toEqual(['b', 'a']);
+  expect(writtenIds).toEqual(['a']);
+  expect(native.updateMetadata).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Edited A' }));
+});
+
+test('a stale metadata index cannot overwrite a replacement queue item with a different song ID', async () => {
+  native.getQueue.mockReturnValue([{ mediaId: 'replacement', url: 'file:///replacement.mp3' }]);
+  await expect(adapter.default.updateMetadataForTrack(0, { id: 'removed', title: 'Old edited title' }))
+    .rejects.toThrow('no longer in the native queue');
+  expect(native.updateMetadata).not.toHaveBeenCalled();
 });
 
 test('maps real V5 item transitions and removes subscriptions', () => {

@@ -10,7 +10,7 @@ import {
   buildScanImportResult,
   getScanImportProgressCopy,
 } from '../utils/libraryImportFlow';
-import { isTimeoutError } from '../utils/withTimeout';
+import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
 import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
@@ -29,9 +29,14 @@ const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string 
 };
 
 const persistScanFolderUpdates = async (persist: (updates: ScanFolder[] | undefined) => Promise<void>,
-  updates: ScanFolder[] | undefined): Promise<void> => {
-  try { await persist(updates); }
-  catch (error) { console.warn('[Import] Failed to persist scan folder updates after import.', error); }
+  updates: ScanFolder[] | undefined, generation: ImportGeneration, timeoutMs: number): Promise<void> => {
+  try { await withTimeout(() => persist(updates), timeoutMs,
+    'Ordnerdaten werden noch gespeichert. Bitte nach Abschluss erneut versuchen.',
+    { signal: generation.controller.signal }); }
+  catch (error) {
+    if (isAbortError(error) || isTimeoutError(error)) throw error;
+    console.warn('[Import] Failed to persist scan folder updates after import.', error);
+  }
 };
 
 const createSafProgressPublisher = (publish: (status: string) => void, isActive: () => boolean, activity: () => void) => {
@@ -124,7 +129,7 @@ export const useLibraryScanFolderImportFlow = ({
     const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
-      await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates);
+      await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates, generation, importTimeoutMs);
       ensureCurrentImport(generation);
       if (verificationAlert) showAlert(verificationAlert);
       else if (!result.reusedCount || result.errors?.length) showAlert(scanResult.alert);
@@ -134,7 +139,7 @@ export const useLibraryScanFolderImportFlow = ({
     else if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
     const acceptedSongs = await applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
-    await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates);
+    await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates, generation, importTimeoutMs);
     ensureCurrentImport(generation);
     if (result.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, acceptedSongs),
       { signal: generation.controller.signal });

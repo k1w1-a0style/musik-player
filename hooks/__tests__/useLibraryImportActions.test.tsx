@@ -13,6 +13,8 @@ import {
 } from '../../utils/libraryImportFlow';
 import { TimeoutError, withTimeout } from '../../utils/withTimeout';
 import { prepareLibraryWaveforms } from '../../utils/libraryWaveformPreparation';
+import { isMetadataRefreshActive, resetMetadataRefreshActivityForTests } from '../../utils/metadataRefreshActivity';
+import { getLibraryScanOperation } from '../../utils/libraryScanOperation';
 
 jest.mock('../../utils/libraryWaveformPreparation', () => ({
   clearWaveformPreparation: jest.fn(), prepareLibraryWaveforms: jest.fn().mockResolvedValue(undefined),
@@ -104,6 +106,7 @@ const HookHarness = ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetMetadataRefreshActivityForTests();
   persistChangedFolderUpdates.mockResolvedValue(undefined);
 });
 
@@ -292,6 +295,52 @@ test('keeps scan import results when folder update persistence rejects', async (
   expect(showAlert).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Import gestoppt' }));
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+test.each([false, true])('a stalled folder write ends the scan wait and coordination flag (empty result: %s)', async empty => {
+  jest.useFakeTimers();
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let release!: () => void;
+  persistChangedFolderUpdates.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({
+    songs: empty ? [] : [song('accepted')], errors: [], folderUpdates: [folder('music')],
+  });
+  const screen = render(<HookHarness scanFolders={[folder('music')]} importTimeoutMs={100}
+    importSongsFromSourcesImpl={importSongsFromSourcesImpl} withTimeoutImpl={withTimeout} />);
+  try {
+    fireEvent.press(screen.getByText('import'));
+    await act(async () => { await jest.advanceTimersByTimeAsync(101); });
+    const stalled = { loading: setLoading.mock.calls.at(-1)?.[0], busy: isMetadataRefreshActive(),
+      scan: getLibraryScanOperation().status };
+    await act(async () => { release(); await jest.advanceTimersByTimeAsync(1); });
+    expect(stalled).toEqual({ loading: false, busy: false, scan: 'failed' });
+    expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ title: 'Import gestoppt' }));
+  } finally { screen.unmount(); jest.useRealTimers(); }
+});
+
+test('a timed-out final library write retains its real barrier and never publishes a false success', async () => {
+  jest.useFakeTimers();
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let release!: () => void;
+  const rawWrite = new Promise<void>(resolve => { release = resolve; });
+  const state = createSongLibraryState([]);
+  state.configurePersistence(async read => { const snapshot = read(); await rawWrite; return snapshot; });
+  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('late-durable')], errors: [] });
+  const screen = render(<HookHarness scanFolders={[folder('music')]} songImport={state}
+    importTimeoutMs={100} importSongsFromSourcesImpl={importSongsFromSourcesImpl} withTimeoutImpl={withTimeout} />);
+  try {
+    fireEvent.press(screen.getByText('import'));
+    await act(async () => { await jest.advanceTimersByTimeAsync(101); });
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+    expect(setSongs).not.toHaveBeenCalled();
+    expect(isMetadataRefreshActive()).toBe(false);
+    fireEvent.press(screen.getByText('import'));
+    await act(async () => { await jest.advanceTimersByTimeAsync(0); });
+    expect(importSongsFromSourcesImpl).toHaveBeenCalledTimes(1);
+    await act(async () => { release(); await jest.advanceTimersByTimeAsync(1); });
+    expect(importSongsFromSourcesImpl).toHaveBeenCalledTimes(2);
+    expect(importSongsFromSourcesImpl.mock.calls[1][0].existingSongs).toEqual([song('late-durable')]);
+  } finally { release(); screen.unmount(); jest.useRealTimers(); }
 });
 
 test('cancels stale overlapping import and lets the latest import finish', async () => {

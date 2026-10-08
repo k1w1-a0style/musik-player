@@ -16,12 +16,6 @@ import java.nio.ByteOrder
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.Executors
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 
 internal class WaveformCancellationRegistry {
   private val requests = ConcurrentHashMap<String, AtomicBoolean>()
@@ -54,13 +48,11 @@ class SystemAudioWaveformModule : Module() {
   private val cancellationRegistry = WaveformCancellationRegistry()
   // Decode away from Expo's shared module queue and below playback priority.
   // One worker also bounds native CPU use when obsolete JS waiters detach.
-  private val dispatcher = Executors.newSingleThreadExecutor { task ->
-    Thread({
+  private val analysisExecutor = BoundedNativeTaskExecutor("waveform-analysis", 1, 2,
+    onThreadStart = {
       Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
-      task.run()
-    }, "waveform-analysis").apply { isDaemon = true }
-  }.asCoroutineDispatcher()
-  private val analysisScope = CoroutineScope(SupervisorJob() + dispatcher)
+    },
+  )
 
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudioWaveform")
@@ -70,19 +62,25 @@ class SystemAudioWaveformModule : Module() {
     AsyncFunction("extractWaveformPeaks") { uri: String, requestedPoints: Int?, requestId: String?, promise: Promise ->
       val cancellation = cancellationRegistry.register(requestId)
       // Register before dispatch, so queued obsolete work can be cancelled too.
-      analysisScope.launch {
-        try {
-          promise.resolve(extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation, requestId))
-        } finally {
+      analysisExecutor.submit(
+        operation = { extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation, requestId) },
+        onSuccess = { value ->
           cancellationRegistry.complete(requestId, cancellation)
-        }
-      }
+          promise.resolve(value)
+        },
+        onFailure = { reason, error ->
+          cancellationRegistry.complete(requestId, cancellation)
+          if (reason == NativeTaskFailure.OPERATION) {
+            Log.d(TAG, "waveform worker failed ${error?.safeLogType()}")
+            promise.resolve(null)
+          } else promise.reject("WaveformCapacity", "Waveform worker is unavailable; retry later.", null)
+        },
+      )
     }
 
     OnDestroy {
       cancellationRegistry.cancelAll()
-      analysisScope.cancel()
-      dispatcher.close()
+      analysisExecutor.close()
     }
 
     Function("cancelWaveformExtraction") { requestId: String ->

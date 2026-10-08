@@ -55,6 +55,24 @@ test('playback aborts the active analysis and prevents the next file from starti
   hook.unmount();
 });
 
+test('a cache read failure stops idle preparation instead of decoding against failed storage', async () => {
+  (getCachedWaveformForSong as jest.Mock).mockRejectedValueOnce(new Error('Storage unavailable'));
+  const hook = renderHook(() => useLibraryWaveformPreload(songs, true));
+  await flush();
+  expect(extractNativeWaveform).not.toHaveBeenCalled();
+  expect(getCachedWaveformForSong).toHaveBeenCalledTimes(1);
+  hook.unmount();
+});
+
+test('a persistent write failure stops the idle batch before preparing the next file', async () => {
+  (setCachedWaveform as jest.Mock).mockRejectedValueOnce(new Error('Disk full'));
+  const hook = renderHook(() => useLibraryWaveformPreload(songs, true));
+  await flush();
+  expect(extractNativeWaveform).toHaveBeenCalledTimes(1);
+  expect(setCachedWaveform).toHaveBeenCalledTimes(1);
+  hook.unmount();
+});
+
 test.each([500, 2000, 5000])('disabled preloading does not visit any of %i songs on mount or metadata edits', count => {
   let songReads = 0;
   const watched = (values: Song[]) => new Proxy(values, {

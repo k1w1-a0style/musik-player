@@ -60,7 +60,7 @@
   {
     "path": "android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt",
     "upstreamSha256": "c22508b15f49e0b50ff505faeb43f1dd85d14940eec2f8e135104dd3153a7e8c",
-    "patchedSha256": "5f7af3c9ece96b6fa4621a4c4eef3cc4aabaf9d816c7f88a5e1c1106a153f842",
+    "patchedSha256": "d143a0c0052ee6f4233952084d67c7121d2d93f1012bccaea9aa643848e21c3f",
     "edits": [
       {
         "from": "import com.facebook.react.bridge.ReactMethod\n",
@@ -141,6 +141,10 @@
       {
         "from": "      if (idx !in 0 until mc.mediaItemCount) return@enqueue",
         "to": "      require(index.isFinite() && index == idx.toDouble() && idx in 0 until mc.mediaItemCount) {\n        \"Metadata queue index is out of range\"\n      }"
+      },
+      {
+        "from": "      val existing = mc.getMediaItemAt(idx)\n      val oldMeta = existing.mediaMetadata",
+        "to": "      val existing = mc.getMediaItemAt(idx)\n      if (metadata.hasKey(\"expectedMediaId\")) {\n        require(metadata.getString(\"expectedMediaId\") == existing.mediaId) {\n          \"Metadata song is no longer in the native queue\"\n        }\n      }\n      val oldMeta = existing.mediaMetadata"
       }
     ]
   },

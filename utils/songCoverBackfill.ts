@@ -5,6 +5,7 @@ import type { CoverCacheProtection } from './coverCacheCleanup';
 import { getSongArtworkUri } from './songArtwork';
 import { runNativeReadWithTimeout } from './nativeReadTimeout';
 import { isAbortError, throwIfAborted } from './withTimeout';
+import { inspectEmbeddedArtwork } from './embeddedArtworkInspection';
 
 export interface SongCoverBackfillResult {
   songs: Song[];
@@ -87,14 +88,15 @@ const readAndCacheEmbeddedCover = async (
   options: SongCoverBackfillOptions,
 ): Promise<EmbeddedCoverReadResult> => {
   const nativeRead = await runNativeReadWithTimeout(
-    () => SystemAudio.extractEmbeddedArtwork(uri),
+    () => inspectEmbeddedArtwork(uri),
     { timeoutMs: options.nativeReadTimeoutMs, signal: options.signal, label: 'Embedded artwork extraction',
-      onDiscard: releaseNativeArtwork },
+      onDiscard: inspection => releaseNativeArtwork(inspection.artwork) },
   );
   if (nativeRead.kind !== 'success') return nativeRead;
+  if (!nativeRead.value.checked) return { kind: 'failure' };
   try {
     throwIfAborted(options.signal);
-    const extractedUri = nativeRead.value?.uri;
+    const extractedUri = nativeRead.value.artwork?.uri;
     if (!extractedUri || isRemoteUri(extractedUri)) return { kind: 'success' };
     const artworkUri = await cacheLocalCoverFile(song.id, extractedUri, options.coverCacheProtection);
     throwIfAborted(options.signal);
@@ -103,7 +105,7 @@ const readAndCacheEmbeddedCover = async (
     throwIfAborted(options.signal);
     return { kind: 'failure' };
   } finally {
-    releaseNativeArtwork(nativeRead.value);
+    releaseNativeArtwork(nativeRead.value.artwork);
   }
 };
 

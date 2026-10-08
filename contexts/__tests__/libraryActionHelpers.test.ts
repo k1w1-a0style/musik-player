@@ -209,7 +209,19 @@ describe('libraryActionHelpers', () => {
       id: 's1',
       title: 'Retagged One',
       album: 'New Album',
-      artwork: undefined,
+      artwork: null,
+    }));
+  });
+
+  test('clears deleted album and cover from a complete queued song snapshot', async () => {
+    const nativeQueueRef = createSongRef([{ ...songs[0], album: undefined, cover: undefined, coverInfo: undefined }]);
+    mockNativeQueue(['s1']);
+
+    updateNativeMetadataForSong('s1', nativeQueueRef, createSongRef());
+    await flushPromises();
+
+    expect(TrackPlayer.updateMetadataForTrack).toHaveBeenCalledWith(0, expect.objectContaining({
+      id: 's1', album: null, artwork: null,
     }));
   });
 });

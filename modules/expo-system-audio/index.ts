@@ -33,6 +33,11 @@ export interface EmbeddedArtworkResult {
   leaseId?: string;
 }
 
+/** A missing cover is final only after the native inspection actually ran. */
+export type EmbeddedArtworkInspection =
+  | { checked: true; artwork: EmbeddedArtworkResult | null }
+  | { checked: false; artwork: null };
+
 export interface AudioTagWriteRequest {
   operationId?: string;
   tags?: Record<string, string | null | undefined>;
@@ -264,6 +269,8 @@ const NATIVE_READ_SAFETY_TIMEOUT_MS = 20_000;
 const MAX_NATIVE_READS_IN_FLIGHT = 2;
 const mediaReadPool = { inFlight: 0 };
 const thumbnailReadPool = { inFlight: 0 };
+const paletteReadPool = { inFlight: 0 };
+const importStatReadPool = { inFlight: 0 };
 
 type NativeReadSettlement<T> =
   | { kind: 'value'; value: T }
@@ -341,7 +348,7 @@ export const SystemAudio = {
   },
 
   async extractPalette(uri: string): Promise<PaletteResult | null> {
-    return native ? runBoundedNativeRead(() => native.extractPalette(uri)) : null;
+    return native ? runBoundedNativeRead(() => native.extractPalette(uri), undefined, paletteReadPool) : null;
   },
 
   async createArtworkThumbnail(uri: string, size: number, revision = ''): Promise<string | null> {
@@ -358,6 +365,24 @@ export const SystemAudio = {
     ) : null;
   },
 
+  async inspectEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkInspection> {
+    const extract = native?.extractEmbeddedArtwork?.bind(native);
+    if (!extract) return { checked: false, artwork: null };
+    try {
+      // A fulfilled wrapper remains distinct from the safety boundary's null
+      // for capacity/timeouts. Late staging receipts retain their cleanup path.
+      const inspected = await runBoundedNativeRead(
+        async () => ({ artwork: await extract(uri) }),
+        value => { void releaseNativeArtworkLease(value.artwork?.leaseId); },
+      );
+      return inspected && inspected.artwork !== undefined
+        ? { checked: true, artwork: inspected.artwork }
+        : { checked: false, artwork: null };
+    } catch {
+      return { checked: false, artwork: null };
+    }
+  },
+
   releaseEmbeddedArtworkLease(leaseId?: string): Promise<boolean> {
     return releaseNativeArtworkLease(leaseId);
   },
@@ -369,7 +394,7 @@ export const SystemAudio = {
   async readImportFileStat(uri: string): Promise<ImportFileStat | null> {
     const read = native?.readImportFileStat?.bind(native);
     if (!read) return null;
-    try { return await runBoundedNativeRead(() => read(uri)); }
+    try { return await runBoundedNativeRead(() => read(uri), undefined, importStatReadPool); }
     catch { return null; }
   },
 

@@ -9,6 +9,8 @@ import { getCachedWaveformForSong } from '../utils/waveformSourceCache';
 import { extractNativeWaveform } from '../utils/waveformExtraction';
 import { MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS } from '../utils/waveformPreload';
 import { LibraryWaveformPreloadIndex } from '../utils/libraryWaveformPreloadIndex';
+import { waitForPreparationStorage } from '../utils/preparationStorage';
+import { isAbortError } from '../utils/withTimeout';
 
 const IDLE_PRELOAD_DELAY_MS = 1500;
 
@@ -36,7 +38,7 @@ const prepareIdleWaveforms = async (
     if (signal.aborted) break;
     const fingerprint = candidate.sourceFingerprint;
     if (!index.isPending(fingerprint)) continue;
-    const cached = await getCachedWaveformForSong(candidate.song).catch(() => null);
+    const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(candidate.song), signal);
     if (signal.aborted) break;
     if (!index.isPending(fingerprint)) continue;
     if (cached?.source === 'native') { index.markAttempted(fingerprint); continue; }
@@ -49,7 +51,7 @@ const prepareIdleWaveforms = async (
     if (signal.aborted) break;
     if (deferred && await waitForIdleRetry(fingerprint, contention, signal)) return true;
     index.markAttempted(fingerprint); contention.delete(fingerprint);
-    if (waveform) await setCachedWaveform(waveform).catch(() => undefined);
+    if (waveform) await waitForPreparationStorage(() => setCachedWaveform(waveform), signal);
   }
   return false;
 };
@@ -75,6 +77,12 @@ export const useLibraryWaveformPreload = (songs: Song[], enabled: boolean): void
     const run = async (): Promise<void> => {
       running = true;
       try { wakeRequested = await prepareIdleWaveforms(index, contention, signal) || wakeRequested; }
+      catch (error) {
+        if (!isAbortError(error) && !signal.aborted) console.warn('[WaveformPreload] Storage unavailable; idle preparation stopped.');
+        // Stop this pass, including already requested wakes. Actual cache IO
+        // retains its ordered lifetime; it must not accumulate speculative work.
+        controller.abort();
+      }
       finally {
         running = false;
         if (wakeRequested) { wakeRequested = false; schedule(); }

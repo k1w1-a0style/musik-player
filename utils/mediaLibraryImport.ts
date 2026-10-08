@@ -1,6 +1,6 @@
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
-import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
+import SystemAudio, { type AudioInfoResult, type EmbeddedArtworkInspection } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import { parseFilename, resolveDisplayArtist, resolveDisplayTitle, normalizeMetadataText } from './musicParser';
@@ -17,6 +17,7 @@ import { createImportFileProgressReporter, type ImportFileProgress } from './lib
 import { runImportFileWorkers, withImportFileBudget } from './libraryImportBudget';
 import { createImportCheckpointReporter, type ImportCheckpointHandler } from './libraryImportCheckpoint';
 import type { ImportScanStatistics, ImportSourceDecision } from './libraryImportStatistics';
+import { inspectEmbeddedArtwork } from './embeddedArtworkInspection';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -283,14 +284,6 @@ const mergeAudioInfoIntoSource = (source: BuildSongSource, audioInfo: AudioInfoR
   channels: preferPositiveNumber(source.channels, audioInfo?.channels),
 });
 
-const getNativeEmbeddedCover = async (uri: string) => {
-  try {
-    return await SystemAudio.extractEmbeddedArtwork(uri);
-  } catch {
-    return null;
-  }
-};
-
 const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal, hints: Pick<ParseId3Options, 'filename' | 'mimeType' | 'extension'> = {}): Promise<Id3Tags> => {
   if (!enabled) return {};
   try {
@@ -306,11 +299,16 @@ const bitrateFromSizeAndDuration = (size?: number, durationMs?: number): number 
   return Math.round((size * 8) / (durationMs / 1000) / 1000);
 };
 
+const artworkInspectionCompleted = (parsedCover: string | undefined,
+  inspection: EmbeddedArtworkInspection | null, permanentCover: string | undefined): boolean =>
+  Boolean(parsedCover || (inspection?.checked && (!inspection.artwork?.uri || permanentCover)));
+
 const readImportArtwork = async (source: BuildSongSource, cover: string | undefined, options: BuildSongOptions) => {
   const cachedCover = await cacheBase64Cover(source.id, cover, options.coverCacheProtection);
   throwIfAborted(options.signal);
   const parsedCover = cachedCover ?? (cover && !isBase64ImageDataUri(cover) ? cover : undefined);
-  const nativeArtwork = parsedCover || options.loadNativeCover === false ? null : await getNativeEmbeddedCover(source.uri);
+  const inspection = parsedCover || options.loadNativeCover === false ? null : await inspectEmbeddedArtwork(source.uri);
+  const nativeArtwork = inspection?.artwork;
   try {
     throwIfAborted(options.signal);
     // The native receipt keeps staging pinned even if permanent-cache cleanup
@@ -320,7 +318,8 @@ const readImportArtwork = async (source: BuildSongSource, cover: string | undefi
     throwIfAborted(options.signal);
     const artwork = parsedCover ?? permanentCover;
     const status = artwork ? (cachedCover || permanentCover ? 'cached' : 'external') : 'none';
-    const embeddedArtworkChecked = options.loadNativeCover !== false && (!nativeCover || Boolean(permanentCover));
+    const embeddedArtworkChecked = options.loadNativeCover !== false
+      && artworkInspectionCompleted(parsedCover, inspection, permanentCover);
     return { cover: artwork, status, embeddedArtworkChecked } as const;
   } finally {
     if (nativeArtwork?.leaseId) void SystemAudio.releaseEmbeddedArtworkLease(nativeArtwork.leaseId);

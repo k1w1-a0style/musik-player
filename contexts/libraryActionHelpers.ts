@@ -148,16 +148,19 @@ export const updateNativeMetadataForSong = (
       const nativeQueue = await getNativeQueueSnapshot();
       const nativeTrack = nativeQueue?.[queueIndex];
       const nativeTrackId = normalizeSongIdForLibrary(String(nativeTrack?.id ?? ''));
-      if (nativeQueue && (!nativeTrack || nativeTrackId !== targetSongId)) {
+      const currentIndex = nativeQueue
+        ? nativeQueue.findIndex(track => normalizeSongIdForLibrary(String(track.id ?? '')) === targetSongId) : queueIndex;
+      if (currentIndex < 0) {
         console.warn('[TrackPlayer] Skipping stale native metadata update.', {
           songId: targetSongId,
           queueIndex,
-          nativeQueueLength: nativeQueue.length,
+          nativeQueueLength: nativeQueue?.length ?? 0,
           nativeTrackId,
         });
         return;
       }
-      await TrackPlayer.updateMetadataForTrack(queueIndex, toTrackPlayerTrack(playableQueuedSong));
+      const track = toTrackPlayerTrack(playableQueuedSong);
+      await TrackPlayer.updateMetadataForTrack(currentIndex, { ...track, album: track.album ?? null, artwork: track.artwork ?? null });
     } catch (error) {
       console.warn('[TrackPlayer] Failed to update native track metadata.', {
         songId: targetSongId,

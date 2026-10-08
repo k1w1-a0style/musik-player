@@ -1,4 +1,4 @@
-describe('shared bounded native read lane', () => {
+describe('independent bounded native read lanes', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.resetModules();
@@ -46,8 +46,8 @@ describe('shared bounded native read lane', () => {
 
     await expect(SystemAudio.extractMetadataFast('content://song-3')).resolves.toBeNull();
     expect(extractMetadataFast).not.toHaveBeenCalled();
-    await expect(SystemAudio.readImportFileStat('content://song-3')).resolves.toBeNull();
-    expect(readImportFileStat).not.toHaveBeenCalled();
+    await expect(SystemAudio.readImportFileStat('content://song-3')).resolves.toEqual({ size: 100, modificationTime: 200 });
+    expect(readImportFileStat).toHaveBeenCalledTimes(1);
 
     finishAudioInfo(null);
     await jest.advanceTimersByTimeAsync(0);
@@ -59,7 +59,7 @@ describe('shared bounded native read lane', () => {
     await jest.advanceTimersByTimeAsync(0);
   });
 
-  test('keeps palette extraction on the shared detached-read lane', async () => {
+  test('a detached palette never consumes the media inspection lane', async () => {
     jest.useFakeTimers();
     jest.resetModules();
 
@@ -95,8 +95,10 @@ describe('shared bounded native read lane', () => {
     await expect(palette).resolves.toBeNull();
     await expect(audioInfo).resolves.toBeNull();
 
-    await expect(SystemAudio.extractEmbeddedArtwork('content://song-3')).resolves.toBeNull();
-    expect(extractEmbeddedArtwork).not.toHaveBeenCalled();
+    await expect(SystemAudio.extractEmbeddedArtwork('content://song-3')).resolves.toEqual({
+      uri: 'file:///bounded.jpg', mimeType: 'image/jpeg',
+    });
+    expect(extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
 
     finishPalette(null);
     await jest.advanceTimersByTimeAsync(0);

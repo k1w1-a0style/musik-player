@@ -85,7 +85,7 @@ export const useLibraryImportActions = ({
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
   const { startImport, isCurrentImport, ensureCurrentImport, finishImport, cancelImport } =
     useLibraryImportLifecycle({ setLoading, setImportStatus });
-  const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport });
+  const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport, timeoutMs: importTimeoutMs });
   const { importFromScanFolders } = useLibraryScanFolderImportFlow({
     songs,
     setImportStatus,

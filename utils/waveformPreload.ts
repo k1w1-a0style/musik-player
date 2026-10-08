@@ -10,6 +10,7 @@ import { getWaveformSourceIdentity } from './waveformGenerator';
 import { logWaveformDecision } from './waveformTelemetry';
 import { WAVEFORM_CACHE_POINT_COUNT, type SongWaveform } from './waveformTypes';
 import type { WaveformSourceDiagnostics } from './waveformDecision';
+import { waitForPreparationStorage } from './preparationStorage';
 
 const MAX_IN_FLIGHT_WAVEFORM_PRELOADS = 4;
 export const MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS = 20 * 60 * 1000;
@@ -79,7 +80,7 @@ const loadPreloadedWaveform = async (
   signal: AbortSignal,
 ): Promise<SongWaveform | null> => {
   const identity = getWaveformSourceIdentity(song);
-  const cached = await getCachedWaveformForSong(song).catch(() => null);
+  const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(song), signal);
   if (signal.aborted) return null;
   if (cached?.source === 'native') return cached;
 
@@ -99,7 +100,7 @@ const loadPreloadedWaveform = async (
 
   // Native decoder work is shared, but persistence remains independently
   // retryable: a failed foreground write must not suppress this background one.
-  await setCachedWaveform(waveform);
+  await waitForPreparationStorage(() => setCachedWaveform(waveform), signal);
   return waveform;
 };
 

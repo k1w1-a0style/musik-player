@@ -12,7 +12,7 @@ import { getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests, WAVEFORM_EXTRACTION_DEBOUNCE_MS } from '../waveformExtractionLifecycle';
 import type { NativeWaveformResult } from '../waveformTypes';
 import { logWaveformTiming } from '../waveformTelemetry';
-import { getWaveformProgress } from '../waveformStatus';
+import { getWaveformProgress, getWaveformStatus } from '../waveformStatus';
 
 jest.mock('../waveformTelemetry', () => ({ logWaveformTiming: jest.fn() }));
 
@@ -105,6 +105,24 @@ describe('waveformExtraction', () => {
   });
 
   describe('extractNativeWaveform', () => {
+    test('native capacity rejection remains pending and can retry without a source failure backoff', async () => {
+      jest.useFakeTimers();
+      mockedSystemAudio.extractWaveformPeaks = jest.fn()
+        .mockRejectedValueOnce({ code: 'WaveformCapacity' })
+        .mockResolvedValueOnce({ points: dynamicPeaks, analysis: 'decoded-pcm-v1' });
+      const onDecision = jest.fn();
+      const first = extractNativeWaveform(baseSong, 123_000, { onDecision });
+      await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+      await first;
+      const beforeRetry = getWaveformStatus(getWaveformSourceIdentity(baseSong).sourceFingerprint);
+      const second = extractNativeWaveform(baseSong, 123_000);
+      await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS);
+      const retried = await second;
+      expect(beforeRetry).toBe('pending');
+      expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-scheduler-unavailable' }));
+      expect(retried?.source).toBe('native');
+      expect(mockedSystemAudio.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+    });
     test('only the current native request updates progress and its listener is removed on completion', async () => {
       jest.useFakeTimers();
       const remove = jest.fn();

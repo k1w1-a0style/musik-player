@@ -18,9 +18,11 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
 const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPreparationState }) => {
   const { theme } = useAppTheme();
   const running = preparation.status === 'running';
-  const resumable = preparation.status === 'cancelled' || preparation.failed > 0;
+  const resumable = preparation.status === 'cancelled' || preparation.status === 'failed' || preparation.failed > 0;
   const label = running ? 'Medien-Scan läuft' : preparation.status === 'cancelled'
-    ? 'Medien-Scan angehalten' : 'Nicht alle Titel konnten gescannt werden';
+    ? 'Medien-Scan angehalten' : preparation.status === 'failed'
+      ? preparation.failure === 'storage' ? 'Vorbereitung angehalten – Speicherzugriff fehlgeschlagen'
+        : 'Vorbereitung angehalten – Analyse fehlgeschlagen' : 'Nicht alle Titel konnten gescannt werden';
   const action = running ? cancelWaveformPreparation : () => { void resumeWaveformPreparation(); };
   return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass,
     borderColor: theme.palette.border }]} testID="library-waveform-preparation">

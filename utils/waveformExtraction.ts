@@ -100,6 +100,11 @@ const runScheduledNativeExtraction = (
         if (nativeSignal.aborted) { cancel(); return null; }
         return recordNativeAnalysis(await (requestId
           ? extractor(uri, pointCount, requestId) : extractor(uri, pointCount)));
+      } catch (error) {
+        // Preserve the bridge's capacity classification before the scheduler
+        // normalizes arbitrary rejection values to Error instances.
+        if (isWaveformCapacityError(error)) throw new WaveformSchedulerUnavailableError();
+        throw error;
       } finally {
         progressSubscription?.remove();
         nativeSignal.removeEventListener('abort', cancel);
@@ -161,6 +166,10 @@ const acceptDecodedNativeResult = ({
   return waveform;
 };
 
+const isWaveformCapacityError = (error: unknown): boolean =>
+  error instanceof WaveformSchedulerUnavailableError
+  || (error !== null && typeof error === 'object' && 'code' in error && error.code === 'WaveformCapacity');
+
 const handleNativeExtractionError = (
   error: unknown,
   extractionKey: string,
@@ -168,7 +177,7 @@ const handleNativeExtractionError = (
   recordFailures: boolean,
 ): null => {
   if (isAbortError(error)) return null;
-  if (error instanceof WaveformSchedulerUnavailableError) {
+  if (isWaveformCapacityError(error)) {
     // Global capacity pressure is transient; do not create source backoff.
     report('native-scheduler-unavailable', 0);
     return null;
@@ -243,8 +252,7 @@ export const extractNativeWaveform = async (
       report('native-scheduler-preempted', 0);
       return null;
     }
-    if (!isAbortError(error) && !(error instanceof WaveformSchedulerUnavailableError))
-      setWaveformStatus(extractionKey, 'unavailable');
+    if (!isAbortError(error)) setWaveformStatus(extractionKey, isWaveformCapacityError(error) ? 'pending' : 'unavailable');
     return handleNativeExtractionError(error, extractionKey, report, recordFailures);
   }
 };

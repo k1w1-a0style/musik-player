@@ -91,6 +91,7 @@ describe('pinned RNTP V5 native acknowledgement patch', () => {
     expect(module).toContain('controller.enqueueResult("play")');
     expect(module).toContain('controller.enqueueResult("setCommands")');
     expect(module).toContain('if (mc.playerError != null) return@sync "error"');
+    expect(module).toContain('require(metadata.getString("expectedMediaId") == existing.mediaId)');
     expect(service).toContain('currentPlaybackRoute() == PlaybackRoute.LOCAL');
     expect(service).toContain('audioSessionId?.takeIf { it > 0 }');
     expect(service).toContain('IsPlayingChangedEvent(activePlayer.isPlaying)');

@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolated native filesystem test double.
 jest.mock('expo-file-system/legacy', () => require('./waveformFileSystemMock'));
-import { resetWaveformFileSystem } from './waveformFileSystemMock';
+import { makeDirectoryAsync, resetWaveformFileSystem } from './waveformFileSystemMock';
 beforeEach(() => resetWaveformFileSystem());
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -120,6 +120,21 @@ describe('waveformPreload', () => {
   test('does nothing for a song without a playable URI', async () => {
     await expect(preloadSongWaveform({ id: 'no-uri', title: 'No URI', artist: 'Nobody' }))
       .resolves.toBeNull();
+    expect(extractor.extractWaveformPeaks).not.toHaveBeenCalled();
+  });
+
+  test('a blocked cache read releases the preload waiter after the storage deadline', async () => {
+    let release!: () => void;
+    makeDirectoryAsync.mockImplementationOnce(() => new Promise<undefined>(resolve => { release = () => resolve(undefined); }));
+    const pending = preloadSongWaveform(song);
+    let outcome = 'pending';
+    void pending.then(() => { outcome = 'resolved'; }, () => { outcome = 'failed'; });
+    await jest.advanceTimersByTimeAsync(10_001);
+    const beforeRawReadSettles = outcome;
+    release();
+    await jest.advanceTimersByTimeAsync(1000);
+    await pending.catch(() => null);
+    expect(beforeRawReadSettles).toBe('failed');
     expect(extractor.extractWaveformPeaks).not.toHaveBeenCalled();
   });
 

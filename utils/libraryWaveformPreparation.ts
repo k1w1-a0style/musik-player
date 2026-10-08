@@ -10,9 +10,11 @@ import { setWaveformStatus } from './waveformStatus';
 import { OperationAbortError, isAbortError, throwIfAborted } from './withTimeout';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from './metadataRefreshActivity';
 import { loadPreparedSources, markSongPrepared } from './songPreparationStore';
+import { PreparationStorageError, waitForPreparationStorage } from './preparationStorage';
 
 export interface WaveformPreparationState {
-  status: 'idle' | 'running' | 'cancelled' | 'completed';
+  status: 'idle' | 'running' | 'cancelled' | 'completed' | 'failed';
+  failure?: 'storage' | 'analysis';
   total: number;
   processed: number;
   ready: number;
@@ -45,7 +47,7 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
   const deadline = Date.now() + WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS;
   for (let attempts = 0; attempts < MAX_WAVEFORM_CONTENTION_RETRIES; attempts += 1) {
     throwIfAborted(signal);
-    const cached = await getCachedWaveformForSong(song);
+    const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(song), signal);
     throwIfAborted(signal);
     if (cached?.source === 'native') return true;
     let deferred = false;
@@ -57,7 +59,7 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
     });
     throwIfAborted(signal);
     if (waveform) {
-      await setCachedWaveform(waveform);
+      await waitForPreparationStorage(() => setCachedWaveform(waveform), signal);
       return true;
     }
     if (!deferred) {
@@ -76,13 +78,13 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
 const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<boolean> => {
   try {
     const ready = await prepareSong(song, signal);
-    if (ready) await markSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint).catch(error => {
+    if (ready) void markSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint).catch(error => {
       console.warn('[Preparation] Completion could not be persisted.', error);
     });
     return ready;
   }
   catch (error) {
-    if (isAbortError(error) || signal.aborted) throw error;
+    if (isAbortError(error) || signal.aborted || error instanceof PreparationStorageError) throw error;
     setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'unavailable');
     return false;
   }
@@ -104,14 +106,17 @@ export const prepareLibraryWaveforms = async (
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
   beginMetadataRefreshActivity();
+  publish({ ...idle, status: 'running', total: songs.length });
   try {
-    await loadPreparedSources();
+    // History is optional. Actual cache data, rather than this hydration, is
+    // what decides whether a decoder is needed.
+    void loadPreparedSources().catch(() => undefined);
     throwIfAborted(controller.signal);
     // Validate actual durable data once. An old completion marker alone must
     // never skip a missing/corrupt waveform after restart or eviction.
     const pendingSongs: Song[] = [];
     for (const song of songs) {
-      const cached = await getCachedWaveformForSong(song);
+      const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(song), controller.signal);
       throwIfAborted(controller.signal);
       if (cached?.source !== 'native') pendingSongs.push(song);
     }
@@ -126,8 +131,9 @@ export const prepareLibraryWaveforms = async (
     }
     publish({ ...state, status: 'completed', currentTitle: '' });
   } catch (error) {
-    if (!isAbortError(error) && !controller.signal.aborted) throw error;
-    if (active === controller) publish({ ...state, status: 'cancelled', currentTitle: '' });
+    if (active === controller) publish({ ...state, currentTitle: '',
+      status: isAbortError(error) || controller.signal.aborted ? 'cancelled' : 'failed',
+      failure: error instanceof PreparationStorageError ? 'storage' : 'analysis' });
   } finally {
     endMetadataRefreshActivity();
     signal?.removeEventListener('abort', abort);
