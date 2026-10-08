@@ -9,6 +9,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import expo.modules.kotlin.Promise
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.nio.ByteBuffer
@@ -61,6 +62,8 @@ class SystemAudioWaveformModule : Module() {
 
     AsyncFunction("extractWaveformPeaks") { uri: String, requestedPoints: Int?, requestId: String?, promise: Promise ->
       val cancellation = cancellationRegistry.register(requestId)
+      // MAIN ingress remains available even when legacy Expo FS blocks the
+      // default module queue. Only registration/submission happens here.
       // Register before dispatch, so queued obsolete work can be cancelled too.
       analysisExecutor.submit(
         operation = { extractWaveformPeaks(uri, requestedPoints ?: DEFAULT_WAVEFORM_POINTS, cancellation, requestId) },
@@ -76,7 +79,7 @@ class SystemAudioWaveformModule : Module() {
           } else promise.reject("WaveformCapacity", "Waveform worker is unavailable; retry later.", null)
         },
       )
-    }
+    }.runOnQueue(Queues.MAIN)
 
     OnDestroy {
       cancellationRegistry.cancelAll()

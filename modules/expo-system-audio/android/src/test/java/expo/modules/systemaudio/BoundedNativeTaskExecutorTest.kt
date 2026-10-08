@@ -13,16 +13,18 @@ class BoundedNativeTaskExecutorTest {
 
   @Test fun aBlockedReadDoesNotBlockBridgeDispatchOrIndependentServices() {
     val bridge = Executors.newSingleThreadExecutor()
+    val legacyFileSystemQueue = Executors.newSingleThreadExecutor()
     val reads = BoundedNativeTaskExecutor("test-media", 2)
     val stats = BoundedNativeTaskExecutor("test-stat", 2)
     val thumbnails = BoundedNativeTaskExecutor("test-thumbnail", 2)
     val waveforms = BoundedNativeTaskExecutor("test-waveform", 1, 2)
-    val entered = CountDownLatch(2)
+    val entered = CountDownLatch(3)
     val release = CountDownLatch(1)
     val done = CountDownLatch(2)
     val independent = CountDownLatch(3)
     val results = CopyOnWriteArrayList<Int>()
     try {
+      legacyFileSystemQueue.execute { entered.countDown(); release.await() }
       repeat(2) { bridge.execute { reads.submit({ entered.countDown(); release.await(); 0 },
         { done.countDown() }, { _, _ -> done.countDown() }) } }
       await(entered)
@@ -34,7 +36,7 @@ class BoundedNativeTaskExecutorTest {
       assertEquals(2L, done.count)
     } finally {
       release.countDown(); await(done)
-      reads.close(); stats.close(); thumbnails.close(); waveforms.close(); bridge.shutdown()
+      reads.close(); stats.close(); thumbnails.close(); waveforms.close(); bridge.shutdown(); legacyFileSystemQueue.shutdown()
     }
   }
 

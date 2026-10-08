@@ -25,6 +25,7 @@ import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.Promise
+import expo.modules.kotlin.functions.Queues
 import java.io.File
 import java.util.UUID
 
@@ -37,8 +38,9 @@ import java.util.UUID
  * Requires MODIFY_AUDIO_SETTINGS.
  */
 class SystemAudioModule : Module() {
-  // Every bridge body only hands work off. A stuck provider must not occupy
-  // Expo's shared AsyncFunctionQueue or prevent independent native services.
+  // MAIN is ingress only: every AsyncFunction body immediately hands work off.
+  // Legacy Expo filesystem provider calls can block its shared default queue;
+  // they must neither delay this dispatch nor run any provider work on MAIN.
   private val mediaReadExecutor = BoundedNativeTaskExecutor("media-read", 2)
   private val paletteExecutor = BoundedNativeTaskExecutor("artwork-palette", 2)
   private val thumbnailExecutor = BoundedNativeTaskExecutor("artwork-thumbnail", 2)
@@ -93,7 +95,7 @@ class SystemAudioModule : Module() {
           )
         }
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     Function("eqSetEnabled") { enabled: Boolean ->
       equalizerLifecycle.use { eq ->
@@ -133,7 +135,7 @@ class SystemAudioModule : Module() {
         }
         cache.get(source, size, revision)?.let { Uri.fromFile(it).toString() }
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("extractPalette") { uri: String, promise: Promise ->
       submitNativeRead(paletteExecutor, promise) {
@@ -149,44 +151,44 @@ class SystemAudioModule : Module() {
           "darkMuted" to palette.darkMutedSwatch?.rgb?.let(::hex),
         )
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("extractAudioInfo") { uri: String, promise: Promise ->
       submitNativeRead(mediaReadExecutor, promise) { extractAudioInfo(uri) }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("readImportFileStat") { uri: String, promise: Promise ->
       submitNativeRead(importStatExecutor, promise) {
         val resolver = appContext.reactContext?.contentResolver ?: return@submitNativeRead null
         readProviderFileStat(uri) { parsed, columns -> resolver.query(parsed, columns, null, null, null) }
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("extractMetadataFast") { uri: String, promise: Promise ->
       submitNativeRead(mediaReadExecutor, promise) { extractFastMetadata(uri) }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?>, promise: Promise ->
       submitNativeControl(tagExecutor, promise,
         failure = { reason -> tagWriteDispatchFailure(uri, request, reason) },
       ) { writeAudioTags(uri, request) }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("verifyAudioTagDeletion") { uri: String, request: Map<String, Any?>, promise: Promise ->
       submitNativeControl(tagExecutor, promise, failure = { false }) { verifyAudioTagDeletion(uri, request) }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("getAudioTagRecoveryStatus") { promise: Promise ->
       submitNativeControl(tagExecutor, promise, failure = { unavailableTagRecoveryStatus() }) {
         getAudioTagRecoveryStatus()
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("recoverPendingAudioTagTransactions") { uri: String?, promise: Promise ->
       submitNativeControl(tagExecutor, promise, failure = { unavailableTagRecoveryResult() }) {
         recoverPendingAudioTagTransactions(uri)
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("acknowledgeAudioTagRecoveryOutcomes") { operationIds: List<String>, promise: Promise ->
       submitNativeControl(tagExecutor, promise, failure = { false }) {
@@ -194,7 +196,7 @@ class SystemAudioModule : Module() {
         audioTagTransactionManager(ctx).acknowledgeRecoveryOutcomes(operationIds)
         true
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String, promise: Promise ->
       submitNativeRead(mediaReadExecutor, promise) {
@@ -214,13 +216,13 @@ class SystemAudioModule : Module() {
           "leaseId" to artwork.leaseId,
         )
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("releaseEmbeddedArtworkLease") { leaseId: String, promise: Promise ->
       submitNativeRead(artworkCleanupExecutor, promise) {
         AtomicArtworkCache.releaseLease(artworkLeaseOwner, leaseId)
       }
-    }
+    }.runOnQueue(Queues.MAIN)
 
     OnDestroy {
       mediaReadExecutor.close()
