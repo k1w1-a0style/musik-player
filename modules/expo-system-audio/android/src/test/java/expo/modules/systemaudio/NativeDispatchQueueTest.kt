@@ -13,9 +13,15 @@ import org.robolectric.annotation.Config
 class NativeDispatchQueueTest {
   @Test fun bridgeIngressDoesNotDependOnLegacyFileSystemsBlockedDefaultQueue() {
     val queue = BaseAsyncFunctionComponent::class.java.getDeclaredField("queue").apply { isAccessible = true }
-    val audio = SystemAudioModule().definition().asyncFunctions
-    val waveform = SystemAudioWaveformModule().definition().asyncFunctions
-    assertEquals(13, audio.size)
+    // Expo adds these two SDK observers even to modules without events. They
+    // contain no provider work and are not part of the owned audio API.
+    val sdkObservers = setOf("startObserving", "stopObserving")
+    val audio = SystemAudioModule().definition().asyncFunctions.filterKeys { it !in sdkObservers }
+    val waveform = SystemAudioWaveformModule().definition().asyncFunctions.filterKeys { it !in sdkObservers }
+    assertEquals(setOf("eqInit", "createArtworkThumbnail", "extractPalette", "extractAudioInfo",
+      "readImportFileStat", "extractMetadataFast", "writeAudioTags", "verifyAudioTagDeletion",
+      "getAudioTagRecoveryStatus", "recoverPendingAudioTagTransactions", "acknowledgeAudioTagRecoveryOutcomes",
+      "extractEmbeddedArtwork", "releaseEmbeddedArtworkLease"), audio.keys)
     assertEquals(setOf("extractWaveformPeaks"), waveform.keys)
     (audio + waveform).forEach { (name, function) ->
       // Each body only submits to the bounded worker. Actual provider/codec
