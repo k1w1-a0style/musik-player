@@ -58,10 +58,19 @@ export const appendPlaylist = (playlists: Playlist[], playlist: Playlist): Playl
   playlist,
 ];
 
-export const buildPlaylistQueue = (playlist: Playlist, songs: Song[]): Song[] =>
-  playlist.songIds
-    .map(id => songs.find(song => song.id === id))
-    .filter((song): song is Song => !!song);
+export const buildPlaylistQueue = (playlist: Playlist, songs: Song[]): Song[] => {
+  const songsById = new Map<string, Song>();
+  // Preserve Array.find's first-match contract even for duplicate library IDs.
+  for (const song of songs) {
+    if (!songsById.has(song.id)) songsById.set(song.id, song);
+  }
+  const queue: Song[] = [];
+  for (const id of playlist.songIds) {
+    const song = songsById.get(id);
+    if (song) queue.push(song);
+  }
+  return queue;
+};
 
 export const runPlayPlaylistAction = async ({
   playlistId,

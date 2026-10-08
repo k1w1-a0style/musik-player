@@ -6,7 +6,7 @@ export * from './hooks';
 export {
   setupPlayer, updateOptions, play, pause, stop, reset, seekTo, seekBy, add,
   skip, skipToNext, skipToPrevious, move, updateMetadataForTrack,
-  setRepeatMode, setVolume, getQueue, getActiveTrack, getActiveTrackIndex,
+  setRepeatMode, setVolume, getQueue, getNavigationSnapshot, getActiveTrack, getActiveTrackIndex,
   getProgress, getPlayWhenReady, getPlaybackState, getRepeatMode, getAudioSessionId,
 } from './player';
 export { addEventListener, registerPlaybackService, setRemoteCommandGuard };

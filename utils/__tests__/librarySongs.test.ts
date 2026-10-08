@@ -55,3 +55,13 @@ test('filterFavoriteSongs uses only stored favorite ids', () => {
 
   expect(filterFavoriteSongs(songs, ['c']).map(item => item.id)).toEqual(['c']);
 });
+
+test('matches Polish and German diacritics consistently in metadata and queries', () => {
+  const entries = [song({ id: 'polish', title: 'Łódź', artist: 'Żółć' }),
+    song({ id: 'german', title: 'Straße', artist: 'MÜLLER' })];
+  expect(filterLibrarySongs(entries, 'LODZ').map(item => item.id)).toEqual(['polish']);
+  expect(filterLibrarySongs(entries, 'zolc').map(item => item.id)).toEqual(['polish']);
+  expect(filterLibrarySongs(entries, 'strasse').map(item => item.id)).toEqual(['german']);
+  expect(filterLibrarySongs(entries, 'muller').map(item => item.id)).toEqual(['german']);
+  expect(filterLibrarySongs(entries, 'MÜLLER').map(item => item.id)).toEqual(['german']);
+});

@@ -37,6 +37,8 @@ const createNative = () => ({
 type Adapter = typeof import('../index');
 type HeadlessData = { event: string; payload?: Record<string, unknown>; rntpTaskToken?: string };
 let adapter: Adapter;
+let controls: typeof import('../../../contexts/playbackControlHelpers');
+let watchdog: typeof import('../../../utils/nativePlaybackWatchdog');
 let native: ReturnType<typeof createNative>;
 let headlessTask: (data: HeadlessData) => Promise<void>;
 
@@ -60,13 +62,67 @@ beforeEach(() => {
   };
   jest.doMock('react', () => React);
   jest.doMock('react-native', () => nativeExports);
-  jest.isolateModules(() => { adapter = jest.requireActual<Adapter>('../index'); });
+  jest.isolateModules(() => {
+    adapter = jest.requireActual<Adapter>('../index');
+    jest.doMock('react-native-track-player', () => adapter);
+    controls = jest.requireActual<typeof controls>('../../../contexts/playbackControlHelpers');
+    watchdog = jest.requireActual<typeof watchdog>('../../../utils/nativePlaybackWatchdog');
+  });
 });
 
 afterEach(() => {
   ReactNative.DeviceEventEmitter.removeAllListeners();
   jest.useRealTimers();
   jest.restoreAllMocks();
+  jest.dontMock('react-native-track-player');
+});
+
+test.each(['volume', 'repeat'] as const)('%s bounds a hung native startup without releasing its adapter writer', async setting => {
+  jest.useFakeTimers();
+  const ready = deferred();
+  native.awaitReady.mockReturnValueOnce(ready.promise);
+  const apply = () => setting === 'volume' ? controls.applyVolumeToTrackPlayer(0.3) : controls.applyRepeatModeToTrackPlayer('all');
+  const outcome = apply().catch(error => error);
+  await flush();
+  await jest.advanceTimersByTimeAsync(watchdog.NATIVE_PLAYBACK_DEADLINE_MS);
+  expect(await outcome).toMatchObject({ name: 'NativePlaybackTimeoutError' });
+  expect(watchdog.getNativePlaybackWatchdogSnapshot()).toMatchObject({ status: 'quarantined', lane: 'control' });
+  expect(native.setVolume).not.toHaveBeenCalled();
+  expect(native.setRepeatMode).not.toHaveBeenCalled();
+  const pause = adapter.default.pause();
+  await flush();
+  expect(native.pause).not.toHaveBeenCalled();
+  ready.resolve();
+  await pause;
+  await flush();
+  expect(native.pause).toHaveBeenCalledTimes(1);
+  expect(watchdog.getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
+});
+
+test.each([false, true])('volume timeout retains native settlement and reports recovery after late failure %s', async fails => {
+  jest.useFakeTimers();
+  const acknowledgement = deferred();
+  native.awaitPlaybackCommands.mockReturnValueOnce(acknowledgement.promise);
+  const outcome = controls.applyVolumeToTrackPlayer(0.3).catch(error => error);
+  await flush();
+  expect(native.setVolume).toHaveBeenCalledWith(0.3);
+  await jest.advanceTimersByTimeAsync(watchdog.NATIVE_PLAYBACK_DEADLINE_MS);
+  expect(await outcome).toMatchObject({ name: 'NativePlaybackTimeoutError' });
+  await expect(controls.applyVolumeToTrackPlayer(0.6)).rejects.toMatchObject({ name: 'NativePlaybackQuarantinedError' });
+  const pause = adapter.default.pause();
+  const readback = adapter.default.getQueue();
+  await flush();
+  expect(native.pause).not.toHaveBeenCalled();
+  expect(native.getQueue).not.toHaveBeenCalled();
+  if (fails) acknowledgement.reject(new Error('late native failure'));
+  else acknowledgement.resolve();
+  await Promise.all([pause, readback]);
+  expect(native.pause).toHaveBeenCalledTimes(1);
+  expect(native.getQueue).toHaveBeenCalledTimes(1);
+  expect(watchdog.getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
+  expect(watchdog.acknowledgeNativePlaybackRecovery()).toBe(true);
+  await controls.applyVolumeToTrackPlayer(0.6);
+  expect(native.setVolume.mock.calls).toEqual([[0.3], [0.6]]);
 });
 
 test('waits for actual native startup and preserves the current service defaults', async () => {
@@ -94,6 +150,55 @@ test('does not expose the empty startup defaults while a real queue is connectin
   expect(native.getQueue).not.toHaveBeenCalled();
   ready.resolve();
   await expect(queue).resolves.toEqual([expect.objectContaining({ id: 'song', url: 'content://music/song' })]);
+});
+
+test('navigation avoids full compatibility conversions across 2000 tracks while preserving every rapid tap', async () => {
+  const convertMetadata = jest.fn(() => { throw new Error('Full metadata conversion is unnecessary for navigation.'); });
+  const items = Array.from({ length: 2000 }, (_, index) => Object.defineProperties({
+    mediaId: `s${index}`, title: `Song ${index}`,
+  }, { url: { get: convertMetadata }, extras: { get: convertMetadata } }) as MediaItem);
+  native.getQueue.mockReturnValue(items);
+  native.getActiveMediaItemIndex.mockReturnValue(0);
+  native.getActiveMediaItem.mockReturnValue(items[0]);
+  await Promise.all(Array.from({ length: 30 }, () => controls.skipToNextSafely()));
+  expect(native.skipToIndex.mock.calls).toEqual([[30]]);
+  expect(convertMetadata).not.toHaveBeenCalled();
+  expect(native.getQueue).toHaveBeenCalledTimes(2); // snapshot + bounds validation at the native write
+});
+
+test('compact snapshots await native settlement and reflect external queue changes without a cache', async () => {
+  const acknowledgement = deferred();
+  const original = [{ mediaId: 'a', title: 'A', url: 'file:///a' }];
+  native.getQueue.mockReturnValue(original);
+  native.getActiveMediaItemIndex.mockReturnValue(0);
+  native.getActiveMediaItem.mockReturnValue(original[0]);
+  native.awaitPlaybackCommands.mockReturnValueOnce(acknowledgement.promise);
+  const play = adapter.default.play();
+  const snapshot = adapter.default.getNavigationSnapshot();
+  await flush();
+  expect(native.getQueue).not.toHaveBeenCalled();
+  acknowledgement.resolve();
+  await play;
+  await expect(snapshot).resolves.toEqual({
+    queue: [{ id: 'a', title: 'A' }], index: 0, activeTrackId: 'a', repeatMode: adapter.RepeatMode.Off,
+  });
+  const external = [{ mediaId: 'b', title: 'B', url: 'file:///b' }];
+  native.getQueue.mockReturnValue(external);
+  native.getActiveMediaItem.mockReturnValue(external[0]);
+  native.getRepeatMode.mockReturnValue('all');
+  await expect(adapter.default.getNavigationSnapshot()).resolves.toEqual({
+    queue: [{ id: 'b', title: 'B' }], index: 0, activeTrackId: 'b', repeatMode: adapter.RepeatMode.Queue,
+  });
+});
+
+test('navigation retries inconsistent external track transitions before resolving its target', async () => {
+  const items = Array.from({ length: 3 }, (_, index) => ({ mediaId: `s${index}`, url: `file:///s${index}` }));
+  native.getQueue.mockReturnValue(items);
+  native.getActiveMediaItemIndex.mockReturnValue(0);
+  native.getActiveMediaItem.mockReturnValueOnce(items[1]).mockReturnValue(items[0]);
+  await controls.skipToNextSafely();
+  expect(native.getActiveMediaItem).toHaveBeenCalledTimes(2);
+  expect(native.skipToIndex.mock.calls).toEqual([[1]]);
 });
 
 test('coalesces startup and retries after a genuine connection failure', async () => {

@@ -30,12 +30,92 @@ export class SongLibraryStorageError extends Error {
   }
 }
 
+// An ID anchor averages one boundary per 64 records. Unlike byte offsets or
+// groups of a fixed number of songs, it survives edits and earlier insertions.
+const SONG_CHUNK_ANCHOR_MASK = 63;
+const LEADING_SONG_ID = /\{"id":("(?:\\.|[^"\\])*")/y;
+
+const songIdAnchorHash = (id: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = Math.imul(hash ^ id.charCodeAt(index), 16777619);
+  }
+  return hash;
+};
+
+const isSongChunkAnchor = (serialized: string, start: number, end: number): boolean => {
+  try {
+    // Normalized songs put id first. Read only that small JSON string, without
+    // allocating/parsing a second copy of every title and artwork field.
+    LEADING_SONG_ID.lastIndex = start;
+    const leading = LEADING_SONG_ID.exec(serialized);
+    const value: unknown = leading ? { id: JSON.parse(leading[1]) } : JSON.parse(serialized.slice(start, end));
+    if (!value || typeof value !== 'object' || !('id' in value) || typeof value.id !== 'string') return false;
+    // Anchors only partition bytes; identity and corruption protection still
+    // use the original IDs and the unchanged 128-bit chunk/manifest checksum.
+    return (songIdAnchorHash(value.id) & SONG_CHUNK_ANCHOR_MASK) === 0;
+  } catch {
+    return false;
+  }
+};
+
+const boundedChunkEnd = (serialized: string, offset: number, end: number): number => {
+  const chunkEnd = Math.min(end, offset + MAX_SONG_LIBRARY_CHUNK_CODE_UNITS);
+  // AsyncStorage crosses an UTF-8 boundary: either surrogate half must not be
+  // replaced before reconstruction, so keep the pair in one stored value.
+  return chunkEnd < end
+    && /[\uD800-\uDBFF]/.test(serialized[chunkEnd - 1])
+    && /[\uDC00-\uDFFF]/.test(serialized[chunkEnd])
+    ? chunkEnd - 1 : chunkEnd;
+};
+
+const jsonStringEnd = (serialized: string, start: number): number => {
+  let end = serialized.indexOf('"', start + 1);
+  while (end >= 0) {
+    let beforeEscape = end - 1;
+    while (serialized[beforeEscape] === '\\') beforeEscape -= 1;
+    if ((end - beforeEscape) % 2 === 1) return end;
+    end = serialized.indexOf('"', end + 1);
+  }
+  return serialized.length;
+};
+
+const visitSongChunkAnchors = (serialized: string, onAnchor: (end: number) => void): void => {
+  if (serialized[0] !== '[') return;
+  let depth = 1;
+  let recordStart = 1;
+  for (let index = 1; index < serialized.length; index += 1) {
+    const character = serialized[index];
+    // Skip long title/artwork values with the native string search instead of
+    // visiting every code unit in JS; escaped quotes still stay inside strings.
+    if (character === '"') index = jsonStringEnd(serialized, index);
+    else if ('[{'.includes(character)) depth += 1;
+    else if (']}'.includes(character)) depth -= 1;
+    else if (character === ',' && depth === 1) {
+      if (isSongChunkAnchor(serialized, recordStart, index)) onAnchor(index + 1);
+      recordStart = index + 1;
+    }
+  }
+};
+
 const splitSerializedLibrary = (serialized: string): string[] => {
   if (serialized.length === 0) return [''];
   const chunks: string[] = [];
-  for (let offset = 0; offset < serialized.length; offset += MAX_SONG_LIBRARY_CHUNK_CODE_UNITS) {
-    chunks.push(serialized.slice(offset, offset + MAX_SONG_LIBRARY_CHUNK_CODE_UNITS));
-  }
+  let offset = 0;
+  const emitThrough = (end: number): void => {
+    while (offset < end) {
+      const chunkEnd = boundedChunkEnd(serialized, offset, end);
+      chunks.push(serialized.slice(offset, chunkEnd));
+      offset = chunkEnd;
+    }
+  };
+
+  // Scan only the outer array separators; strings and nested JSON values can
+  // contain commas and brackets. Keep slices verbatim for v2 compatibility.
+  visitSongChunkAnchors(serialized, emitThrough);
+  // Huge records, non-array legacy values and malformed JSON remain bounded
+  // and exactly reproducible. Their interpretation belongs to storage.ts.
+  emitThrough(serialized.length);
   return chunks;
 };
 
@@ -136,7 +216,7 @@ const cleanupUnreferencedChunks = async (activeKeys: ReadonlySet<string>): Promi
   try {
     const keys = await AsyncStorage.getAllKeys();
     const stale = keys.filter(key => key.startsWith(SONG_LIBRARY_CHUNK_PREFIX) && !activeKeys.has(key));
-    if (stale.length > 0) await Promise.all(stale.map(key => AsyncStorage.removeItem(key)));
+    if (stale.length > 0) await AsyncStorage.multiRemove(stale);
   } catch {
     // The committed manifest remains valid. Orphans are retried after a later successful write.
   }
@@ -169,8 +249,12 @@ export const writeStoredSongLibrary = async (
     );
     if (missingOrInvalid.length > 0) await AsyncStorage.multiSet(missingOrInvalid);
 
-    const verified = new Map(await AsyncStorage.multiGet([...uniqueWrites.keys()]));
-    const failedVerification = [...uniqueWrites.entries()].some(([key, value]) => verified.get(key) !== value);
+    // Existing content was already read and compared byte for byte. Only new
+    // writes need a readback; all manifest references stay verified at commit.
+    const verified = missingOrInvalid.length > 0
+      ? new Map(await AsyncStorage.multiGet(missingOrInvalid.map(([key]) => key)))
+      : existing;
+    const failedVerification = missingOrInvalid.some(([key, value]) => verified.get(key) !== value);
     if (failedVerification) throw new SongLibraryStorageError('Song library chunks could not be verified before commit.');
 
     const manifest: SongLibraryManifest = {
@@ -198,7 +282,7 @@ export const removeStoredSongLibrary = async (legacyKey: string): Promise<void> 
       || key.startsWith(SONG_LIBRARY_CHUNK_PREFIX),
     );
     if (libraryKeys.length > 0) {
-      await Promise.all(libraryKeys.map(key => AsyncStorage.removeItem(key)));
+      await AsyncStorage.multiRemove(libraryKeys);
     }
   });
 

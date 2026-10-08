@@ -4,7 +4,7 @@ import { resetWaveformFileSystem } from '../../utils/__tests__/waveformFileSyste
 beforeEach(() => resetWaveformFileSystem());
 
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import PlaylistDetail from '../PlaylistDetail';
 import type { Playlist, Song } from '../../types/Song';
@@ -44,6 +44,10 @@ const mockAppTheme = {
     },
   },
 };
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ bottom: 28, top: 24, left: 0, right: 0 }),
+}));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, navigate: mockNavigate }),
@@ -465,4 +469,29 @@ test('shows not found state for an unknown playlist id', () => {
   expect(queryByTestId('playlist-detail-delete-button')).toBeNull();
   expect(queryByTestId('playlist-detail-drag-handle-song-a')).toBeNull();
   expect(queryByTestId('playlist-detail-remove-song-song-a')).toBeNull();
+});
+
+test('does not enumerate add candidates while the panel is closed and responds to library edits while open', () => {
+  const filter = jest.spyOn(mockSongs, 'filter');
+  const view = render(<PlaylistDetail />);
+  expect(filter).not.toHaveBeenCalled();
+  expect(view.queryByTestId('playlist-detail-add-panel')).toBeNull();
+  fireEvent.press(view.getByTestId('playlist-detail-add-button'));
+  expect(filter).toHaveBeenCalledTimes(1);
+  expect(view.getByTestId('playlist-detail-add-candidate-song-c')).toBeTruthy();
+  mockPlaylists = [playlist('playlist-1', ['song-b', 'song-a', 'song-c'])];
+  view.rerender(<PlaylistDetail />);
+  expect(view.queryByTestId('playlist-detail-add-candidate-song-c')).toBeNull();
+  fireEvent.press(view.getByTestId('playlist-detail-add-close'));
+  expect(view.queryByTestId('playlist-detail-add-panel')).toBeNull();
+});
+
+test('finds add candidates without diacritics and accommodates safe areas and keyboard', () => {
+  mockSongs.push(song('lodz', { title: 'Łódź', artist: 'Żółć' }));
+  const view = render(<PlaylistDetail />);
+  fireEvent.press(view.getByTestId('playlist-detail-add-button'));
+  fireEvent.changeText(view.getByTestId('playlist-detail-add-search'), 'lodz');
+  expect(view.getByTestId('playlist-detail-add-candidate-lodz')).toBeTruthy();
+  expect(StyleSheet.flatten(view.getByTestId('playlist-detail-add-keyboard').props.style).paddingTop).toBe(24);
+  expect(StyleSheet.flatten(view.getByTestId('playlist-detail-add-panel').props.style).paddingBottom).toBe(28);
 });

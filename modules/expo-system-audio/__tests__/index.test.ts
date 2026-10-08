@@ -1,4 +1,21 @@
 describe('expo-system-audio wrapper', () => {
+  test('thumbnail variants are optional, bounded and restricted to local source covers', async () => {
+    jest.resetModules();
+    const create = jest.fn().mockResolvedValue('file://small.png');
+    jest.doMock('expo', () => ({
+      NativeModule: class {},
+      requireNativeModule: jest.fn(() => ({ createArtworkThumbnail: create })),
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { SystemAudio } = require('../index');
+    await expect(SystemAudio.createArtworkThumbnail('https://cover', 128)).resolves.toBeNull();
+    await expect(SystemAudio.createArtworkThumbnail('content://cover', 128)).resolves.toBeNull();
+    await expect(SystemAudio.createArtworkThumbnail('file://cover', Number.NaN)).resolves.toBeNull();
+    expect(create).not.toHaveBeenCalled();
+    await expect(SystemAudio.createArtworkThumbnail('file://cover', 2048, 'revision')).resolves.toBe('file://small.png');
+    expect(create).toHaveBeenCalledWith('file://cover', 512, 'revision');
+  });
+
   test('extractAudioInfo returns null when native module is unavailable', async () => {
     jest.resetModules();
     jest.doMock('expo', () => ({
@@ -25,6 +42,7 @@ describe('expo-system-audio wrapper', () => {
       success: false, errorCode: 'WriteNotImplemented', recoveryPending: false,
     });
     expect(SystemAudio.isAvailable).toBe(false);
+    await expect(SystemAudio.createArtworkThumbnail('file://cover', 128)).resolves.toBeNull();
   });
 });
 

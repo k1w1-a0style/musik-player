@@ -22,6 +22,11 @@ import {
   skipToPreviousTrackSafely,
   toggleTrackPlayerPlayback,
 } from '../playbackControlHelpers';
+import {
+  acknowledgeNativePlaybackRecovery,
+  getNativePlaybackWatchdogSnapshot,
+  NATIVE_PLAYBACK_DEADLINE_MS,
+} from '../../utils/nativePlaybackWatchdog';
 
 const trackPlayer = TrackPlayer as typeof TrackPlayer & { __reset: () => void };
 const deferred = <T,>() => {
@@ -42,6 +47,35 @@ describe('playbackControlHelpers', () => {
     resetNativeHydrationGateForTests();
     trackPlayer.__reset();
     jest.clearAllMocks();
+  });
+
+  afterEach(() => { jest.useRealTimers(); });
+
+  test.each(['volume', 'repeat'] as const)('%s reports a deadline while retaining the real writer and permitting verified recovery', async setting => {
+    jest.useFakeTimers();
+    const pending = deferred<void>();
+    const started = deferred<void>();
+    const nativeWrite = setting === 'volume' ? TrackPlayer.setVolume : TrackPlayer.setRepeatMode;
+    (nativeWrite as jest.Mock).mockImplementationOnce(() => { started.resolve(); return pending.promise; });
+    const apply = () => setting === 'volume' ? applyVolumeToTrackPlayer(0.4) : applyRepeatModeToTrackPlayer('all');
+    const first = apply().catch(error => error);
+    await started.promise;
+    const nextWrite = jest.fn(async () => undefined);
+    const queued = runExclusiveNativePlaybackControl(nextWrite);
+    await jest.advanceTimersByTimeAsync(NATIVE_PLAYBACK_DEADLINE_MS);
+    expect(getNativePlaybackWatchdogSnapshot()).toEqual({ status: 'quarantined', lane: 'control' });
+    expect(await first).toMatchObject({ name: 'NativePlaybackTimeoutError' });
+    expect(nextWrite).not.toHaveBeenCalled();
+    expect(acknowledgeNativePlaybackRecovery()).toBe(false);
+    await expect(apply()).rejects.toMatchObject({ name: 'NativePlaybackQuarantinedError' });
+    expect(nativeWrite).toHaveBeenCalledTimes(1);
+    pending.resolve();
+    await queued;
+    expect(nextWrite).toHaveBeenCalledTimes(1);
+    expect(getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
+    expect(acknowledgeNativePlaybackRecovery()).toBe(true);
+    await apply();
+    expect(nativeWrite).toHaveBeenCalledTimes(2);
   });
 
   test('clamps volume values', () => {

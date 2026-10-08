@@ -214,3 +214,19 @@ describe('useLibrarySongRenderer performance guarantees', () => {
     );
   });
 });
+
+test('captured play and info callbacks resolve the latest metadata by ID', () => {
+  const playSong = jest.fn();
+  const onOpenTrackInfo = jest.fn();
+  const initial = makeSong('a', { genre: 'Old', fileInfo: { modificationTime: 1 } });
+  const view = render(<Harness filteredSongs={[initial]} playSong={playSong}
+    onOpenTrackInfo={onOpenTrackInfo} itemsToRender={[initial]} />);
+  const row = capturedProps[0];
+  const latest = { ...initial, genre: 'New', fileInfo: { modificationTime: 2 } };
+  view.rerender(<Harness filteredSongs={[latest]} playSong={playSong}
+    onOpenTrackInfo={onOpenTrackInfo} itemsToRender={[initial]} />);
+  row.onPressSong(row.song);
+  row.onInfoSong?.(row.song);
+  expect(playSong).toHaveBeenLastCalledWith(latest, [latest]);
+  expect(onOpenTrackInfo).toHaveBeenLastCalledWith(latest);
+});

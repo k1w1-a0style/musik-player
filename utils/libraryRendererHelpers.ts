@@ -3,14 +3,21 @@ import { isDemoSong } from './libraryDemoSongs';
 import { buildSongKey, displayAlbum, displayArtist, displayTitle, normalizeLibraryText } from './libraryPresentation';
 
 // Includes the individual card's bottom gap; keep FlatList offsets accurate.
-export const SONG_ROW_HEIGHT = 76;
+export const SONG_ROW_GAP = 6;
+export const getSongCardHeight = (fontScale = 1, banner = false): number => {
+  const scale = Number.isFinite(fontScale) ? Math.max(1, fontScale) : 1;
+  // Explicit title/artist/metadata line heights plus margins and vertical padding.
+  return Math.max(banner ? 88 : 70, Math.ceil((banner ? 55 : 51) * scale + 18));
+};
+export const SONG_ROW_HEIGHT = getSongCardHeight() + SONG_ROW_GAP;
 
 export const getLibrarySongItemLayout = (
   _: ArrayLike<Song> | null | undefined,
   index: number,
+  fontScale = 1,
 ): { length: number; offset: number; index: number } => ({
-  length: SONG_ROW_HEIGHT,
-  offset: SONG_ROW_HEIGHT * index,
+  length: getSongCardHeight(fontScale) + SONG_ROW_GAP,
+  offset: (getSongCardHeight(fontScale) + SONG_ROW_GAP) * index,
   index,
 });
 

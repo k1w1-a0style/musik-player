@@ -5,12 +5,20 @@ import type {
   MiniPlayerMusicContextValue,
   MusicContextValue,
   NowPlayingMusicContextValue,
+  EqualizerMusicContextValue,
 } from './musicContextTypes';
 
 export const MusicContext = createContext<MusicContextValue | null>(null);
 export const LibraryMusicContext = createContext<LibraryMusicContextValue | null>(null);
 export const MiniPlayerMusicContext = createContext<MiniPlayerMusicContextValue | null>(null);
 export const NowPlayingMusicContext = createContext<NowPlayingMusicContextValue | null>(null);
+export const EqualizerMusicContext = createContext<EqualizerMusicContextValue | null>(null);
+
+export const useEqualizerMusicContext = createRequiredContextHook(
+  EqualizerMusicContext,
+  'useEqualizerMusicContext',
+  'MusicProvider',
+);
 
 export const useMusicContext = createRequiredContextHook(
   MusicContext,

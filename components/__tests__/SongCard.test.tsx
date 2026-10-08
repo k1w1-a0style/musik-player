@@ -1,9 +1,14 @@
 import React from 'react';
-import { Image } from 'react-native';
+import * as ReactNative from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import SongCard from '../SongCard';
+import { useArtworkThumbnail } from '../../hooks/useArtworkThumbnail';
+import { getLibrarySongItemLayout } from '../../utils/libraryRendererHelpers';
 import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
+
+jest.mock('../../hooks/useArtworkThumbnail', () => ({ useArtworkThumbnail: jest.fn((uri: string | undefined) => uri) }));
 
 // These layout/cover tests render already prepared library entries.
 jest.mock('../../hooks/useSongPreparation', () => ({ useSongPreparation: () => 'ready' }));
@@ -178,4 +183,44 @@ test('does not trigger native embedded-artwork extraction from rows', () => {
   );
 
   expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
+});
+
+test('keeps card heights and FlatList offsets aligned at large system fonts', () => {
+  const dimensions = jest.spyOn(ReactNative, 'useWindowDimensions').mockReturnValue({
+    width: 320, height: 640, scale: 2, fontScale: 2,
+  });
+  const row = { id: 'large', title: 'Sehr langer Titel', artist: 'Łódź', duration: 60_000 };
+  const view = render(<SongCard song={row} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />);
+  const cardHeight = StyleSheet.flatten(view.getByTestId('song-card-slot-large').props.style).height;
+  expect(cardHeight).toBeGreaterThanOrEqual(51 * 2 + 18);
+  expect(getLibrarySongItemLayout(null, 2, 2)).toEqual({ length: Number(cardHeight) + 6,
+    offset: (Number(cardHeight) + 6) * 2, index: 2 });
+  view.rerender(<SongCard song={row} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} variant="banner" />);
+  expect(StyleSheet.flatten(view.getByTestId('song-card-slot-large').props.style).height).toBeGreaterThanOrEqual(55 * 2 + 18);
+  dimensions.mockRestore();
+});
+
+test('refreshes full-song action payloads after invisible tag edits', () => {
+  const onPressSong = jest.fn();
+  const onInfoSong = jest.fn();
+  const row = { id: 'tags', title: 'Track', artist: 'Artist', genre: 'Techno', comment: 'Old' };
+  const view = render(<SongCard song={row} onPressSong={onPressSong} onInfoSong={onInfoSong} isCurrent={false} isPlaying={false} />);
+  const edited = { ...row, genre: 'Hard Techno', comment: 'New', audioInfo: { sampleRate: 48000 } };
+  view.rerender(<SongCard song={edited} onPressSong={onPressSong} onInfoSong={onInfoSong} isCurrent={false} isPlaying={false} />);
+  fireEvent.press(view.getByTestId('song-card-tags'));
+  fireEvent.press(view.getByTestId('song-card-info-tags'));
+  expect(onPressSong).toHaveBeenLastCalledWith(edited);
+  expect(onInfoSong).toHaveBeenLastCalledWith(edited);
+});
+
+test('retries the original cover after a derived thumbnail fails', () => {
+  jest.mocked(useArtworkThumbnail).mockReturnValue('file:///thumbnail.jpg');
+  const row = { id: 'thumbnail', title: 'Track', artist: 'Artist', cover: 'file:///original.jpg' };
+  const view = render(<SongCard song={row} onPressSong={jest.fn()} isCurrent={false} isPlaying={false} />);
+  expect(view.UNSAFE_getByType(Image).props.source.uri).toBe('file:///thumbnail.jpg');
+  fireEvent(view.UNSAFE_getByType(Image), 'error');
+  expect(view.UNSAFE_getByType(Image).props.source.uri).toBe('file:///original.jpg');
+  fireEvent(view.UNSAFE_getByType(Image), 'error');
+  expect(view.UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
+  jest.mocked(useArtworkThumbnail).mockImplementation(uri => uri);
 });

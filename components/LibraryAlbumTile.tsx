@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
+import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 
 interface LibraryAlbumTileProps {
   album: LibraryGroupItem;
@@ -15,10 +16,14 @@ export const getAlbumTileFallbackLetter = (title: string): string =>
 const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
-  const coverSource = useMemo(() => album.cover ? { uri: album.cover } : null, [album.cover]);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const thumbnailUri = useArtworkThumbnail(album.cover, 256);
+  const displayUri = thumbnailFailed ? album.cover : thumbnailUri;
+  const coverSource = useMemo(() => displayUri ? { uri: displayUri } : null, [displayUri]);
 
   useEffect(() => {
     setCoverFailed(false);
+    setThumbnailFailed(false);
   }, [album.cover, album.id]);
 
   const handlePress = useCallback(() => {
@@ -26,8 +31,9 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
   }, [album, onPress]);
 
   const handleCoverError = useCallback(() => {
-    setCoverFailed(true);
-  }, []);
+    if (displayUri !== album.cover) setThumbnailFailed(true);
+    else setCoverFailed(true);
+  }, [album.cover, displayUri]);
 
   const showCover = coverSource !== null && !coverFailed;
 

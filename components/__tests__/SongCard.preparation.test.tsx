@@ -81,3 +81,20 @@ test('reports known preparation failure even if historical completion is recorde
   expect(view.getByTestId('song-card-pending').props.accessibilityState.disabled).not.toBe(true);
   expect(view.getByLabelText('Vorbereitung für New track erneut versuchen')).toBeTruthy();
 });
+
+test.each(['modificationTime', 'contentHash'] as const)('replaces the waveform subscription when only %s changes', field => {
+  const base = { ...song, fileInfo: { uri: song.uri, size: 100, modificationTime: 1, contentHash: 'old' } };
+  const replacement = { ...base, fileInfo: { ...base.fileInfo, [field]: field === 'modificationTime' ? 2 : 'new' } };
+  const oldFingerprint = getWaveformSourceIdentity(base).sourceFingerprint;
+  const newFingerprint = getWaveformSourceIdentity(replacement).sourceFingerprint;
+  expect(newFingerprint).not.toBe(oldFingerprint);
+  setWaveformStatus(oldFingerprint, 'ready');
+  setWaveformStatus(newFingerprint, 'analyzing');
+  const onPressSong = jest.fn();
+  const view = render(<SongCard song={base} onPressSong={onPressSong} isCurrent={false} isPlaying={false} />);
+  expect(view.queryByTestId('song-scan-animation-pending')).toBeNull();
+  view.rerender(<SongCard song={replacement} onPressSong={onPressSong} isCurrent={false} isPlaying={false} />);
+  expect(view.getByTestId('song-scan-animation-pending')).toBeTruthy();
+  fireEvent.press(view.getByTestId('song-card-pending'));
+  expect(onPressSong).toHaveBeenLastCalledWith(replacement);
+});

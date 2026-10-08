@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useMusicContext } from '../contexts/MusicContext';
+import { useEqualizerMusicContext } from '../contexts/MusicContext';
 import { buildEqualizerCurvePath } from './equalizerHelpers';
 
 export const useEqualizerScreenState = () => {
@@ -11,7 +11,7 @@ export const useEqualizerScreenState = () => {
     eqPreset,
     applyEqPreset,
     eqNative,
-  } = useMusicContext();
+  } = useEqualizerMusicContext();
 
   const curvePath = useMemo(() => buildEqualizerCurvePath(eqBands), [eqBands]);
 

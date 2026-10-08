@@ -41,7 +41,7 @@ jest.mock('../../hooks/useMiniPlayerProgress', () => {
   const actual = jest.requireActual('../../hooks/useMiniPlayerProgress');
   return {
     ...actual,
-    useMiniPlayerProgress: () => mockUseMiniPlayerProgress(),
+    useMiniPlayerProgressSnapshot: () => ({ progress: mockUseMiniPlayerProgress(), duration: 100_000, isAdvancing: false }),
   };
 });
 
@@ -199,7 +199,8 @@ describe('MiniPlayer', () => {
 
     expect(getByTestId('mini-player-progress')).toBeTruthy();
     expect(getByTestId('mini-player-progress-color-transition')).toBeTruthy();
-    expect(fillStyle).toContain('42%');
+    expect(fillStyle).toContain('100%');
+    expect(getByTestId('mini-player-progress-motion')).toBeTruthy();
     expect(fillStyle).not.toContain('undefined');
   });
 

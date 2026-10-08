@@ -45,14 +45,10 @@ const resolveNavigationTarget = (
 
 const readNavigationSnapshot = async (assertCurrent: () => void) => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const [queue, index, repeatMode] = await Promise.all([
-      TrackPlayer.getQueue(), TrackPlayer.getActiveTrackIndex(), TrackPlayer.getRepeatMode(),
-    ]);
+    const { queue, index, repeatMode, activeTrackId } = await TrackPlayer.getNavigationSnapshot();
     assertCurrent();
     if (queue.length === 0 || index === undefined) return { queue, index, repeatMode };
-    const active = await TrackPlayer.getActiveTrack();
-    assertCurrent();
-    if (queue[index]?.id === active?.id) return { queue, index, repeatMode };
+    if (index < queue.length && queue[index]?.id === activeTrackId) return { queue, index, repeatMode };
   }
   throw new Error('Native track remained unstable while resolving navigation target.');
 };

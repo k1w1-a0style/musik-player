@@ -1,8 +1,8 @@
 import type { Song } from '../types/Song';
-import { searchableSongText } from './librarySearch';
+import { normalizeLibrarySearchText, searchableSongText } from './librarySearch';
 
 export const filterLibrarySongs = (songs: Song[], query: string): Song[] => {
-  const q = query.trim().toLowerCase();
+  const q = normalizeLibrarySearchText(query);
   if (!q) return songs;
   return songs.filter(song => searchableSongText(song).includes(q));
 };

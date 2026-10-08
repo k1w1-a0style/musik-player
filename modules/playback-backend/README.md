@@ -15,6 +15,9 @@ used by this app rather than all of the upstream V4 API.
 - Song IDs, album names, artwork and repeat modes are translated at this boundary.
   Position/duration values remain seconds; the `useProgress` interval remains
   milliseconds for the existing app callers.
+- Navigation reads fresh native queue identities and titles through a compact
+  snapshot after acknowledged writes. It avoids per-track compatibility metadata
+  conversion; it does not cache native queue order or claim an atomic native read.
 - Remote transports use V5's `registerRemoteHandlers`. The app's returned
   promises keep the V5 headless task active while it waits for the operation.
   `setRemoteCommandGuard` delegates playback ownership to the domain: cold native

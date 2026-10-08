@@ -1,7 +1,7 @@
 import Player, { PlaybackState as NativeState } from '@rntp/player';
 import { acknowledge, mutate, nativePlayer, read } from './native';
 import { fromMediaItem, fromNativeRepeatMode, omitUndefined, toCommands, toMediaItem, toNativeRepeatMode, toProgress } from './conversions';
-import { AppKilledPlaybackBehavior, State, type PlaybackError, type PlaybackState, type PlayerOptions, type Progress, type RepeatMode, type Track, type UpdateOptions } from './types';
+import { AppKilledPlaybackBehavior, State, type NavigationSnapshot, type PlaybackError, type PlaybackState, type PlayerOptions, type Progress, type RepeatMode, type Track, type UpdateOptions } from './types';
 
 let setupAttempt: Promise<void> | undefined;
 let configured = false;
@@ -154,6 +154,18 @@ export const setVolume = (volume: number): Promise<void> => mutate(async () => {
 });
 
 export const getQueue = (): Promise<Track[]> => read(() => Player.getQueue().map(fromMediaItem));
+export const getNavigationSnapshot = (): Promise<NavigationSnapshot> => read(() => {
+  // Read fresh native truth after all acknowledged mutations. Native/remote
+  // track transitions can still occur between getters: the caller compares the
+  // active ID with queue[index] and retries instead of trusting a JS cache.
+  const queue = Player.getQueue().map(item => ({ id: item.mediaId, title: item.title }));
+  const index = Player.getActiveMediaItemIndex();
+  return {
+    queue, index: index != null && index >= 0 ? index : undefined,
+    repeatMode: fromNativeRepeatMode(Player.getRepeatMode()),
+    activeTrackId: Player.getActiveMediaItem()?.mediaId,
+  };
+});
 export const getActiveTrack = (): Promise<Track | undefined> => read(() => {
   const item = Player.getActiveMediaItem();
   return item ? fromMediaItem(item) : undefined;

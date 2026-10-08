@@ -745,8 +745,11 @@ describe('musicHydrationHelpers', () => {
 
   test('does not commit playback state until stored native writes finish', async () => {
     let resolveVolume!: () => void;
+    let signalVolumeStarted!: () => void;
+    const volumeStarted = new Promise<void>(resolve => { signalVolumeStarted = resolve; });
     (TrackPlayer.setVolume as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => {
       resolveVolume = resolve;
+      signalVolumeStarted();
     }));
     const setVolumeState = jest.fn();
     const setRepeatMode = jest.fn();
@@ -771,7 +774,7 @@ describe('musicHydrationHelpers', () => {
       setShuffle: jest.fn(),
     });
 
-    await Promise.resolve();
+    await volumeStarted;
     expect(setVolumeState).not.toHaveBeenCalled();
     expect(setRepeatMode).not.toHaveBeenCalled();
 

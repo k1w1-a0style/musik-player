@@ -1,7 +1,17 @@
-import type { ColorValue } from 'react-native';
+import { processColor, type ColorValue } from 'react-native';
 import type { AppAppearance } from './appTheme';
 
 export type AppThemeOverlayGradient = readonly [ColorValue, ColorValue, ColorValue];
+
+/** Composite retargeted backdrop palettes without retaining old image layers. */
+export const blendBackdropColor = (left: ColorValue, right: ColorValue, fraction: number): ColorValue => {
+  const leftColor = processColor(left);
+  const rightColor = processColor(right);
+  if (typeof leftColor !== 'number' || typeof rightColor !== 'number') return fraction < 0.5 ? left : right;
+  const channel = (shift: number): number => Math.round(
+    ((leftColor >>> shift) & 255) * (1 - fraction) + ((rightColor >>> shift) & 255) * fraction);
+  return `rgba(${channel(16)},${channel(8)},${channel(0)},${channel(24) / 255})`;
+};
 
 interface AppThemeBoxOverlayColors {
   backgroundColor: string;

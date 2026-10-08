@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View,
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View,
   type ListRenderItem } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, Search, X } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { getPlaylistModalBackdropColor } from '../utils/appThemeOverlays';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
-import { searchableSongText } from '../utils/librarySearch';
+import { normalizeLibrarySearchText, searchableSongText } from '../utils/librarySearch';
 
 interface PlaylistAddSongsModalProps {
   visible: boolean;
@@ -17,10 +18,8 @@ interface PlaylistAddSongsModalProps {
   onClose: () => void;
 }
 
-const normalizeSearchText = (value: string): string => value.trim().toLocaleLowerCase('de-DE');
-
 export const filterPlaylistAddSongs = (songs: Song[], query: string): Song[] => {
-  const normalizedQuery = normalizeSearchText(query);
+  const normalizedQuery = normalizeLibrarySearchText(query);
   if (!normalizedQuery) return songs;
   return songs.filter(song => searchableSongText(song).includes(normalizedQuery));
 };
@@ -29,10 +28,12 @@ const PlaylistAddSongsModal = ({ visible, playlistName, songs,
   onAddSong, onClose }: PlaylistAddSongsModalProps) => {
   const { appearance, theme } = useAppTheme();
   const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
+  const insets = useSafeAreaInsets();
   useEffect(() => {
     if (!visible) setQuery('');
   }, [visible]);
-  const filteredSongs = useMemo(() => filterPlaylistAddSongs(songs, query), [query, songs]);
+  const filteredSongs = useMemo(() => visible ? filterPlaylistAddSongs(songs, deferredQuery) : [], [deferredQuery, songs, visible]);
   const renderSong = useCallback<ListRenderItem<Song>>(({ item }) => (
     <View style={[styles.songRow, { borderBottomColor: theme.palette.border }]}
       testID={`playlist-detail-add-candidate-${item.id}`}>
@@ -61,9 +62,12 @@ const PlaylistAddSongsModal = ({ visible, playlistName, songs,
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}
       statusBarTranslucent testID="playlist-detail-add-modal">
-      <View style={[styles.backdrop, { backgroundColor: getPlaylistModalBackdropColor(appearance) }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.backdrop, { backgroundColor: getPlaylistModalBackdropColor(appearance),
+          paddingTop: insets.top }]} testID="playlist-detail-add-keyboard">
         <View style={[styles.panel, { backgroundColor: theme.palette.background,
-          borderColor: theme.palette.borderStrong }]} testID="playlist-detail-add-panel">
+          borderColor: theme.palette.borderStrong, paddingBottom: insets.bottom,
+          paddingLeft: insets.left, paddingRight: insets.right }]} testID="playlist-detail-add-panel">
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={[styles.eyebrow, { color: theme.palette.primary }]}>PLAYLIST</Text>
@@ -96,7 +100,7 @@ const PlaylistAddSongsModal = ({ visible, playlistName, songs,
               testID="playlist-detail-add-empty">{emptyMessage}</Text>}
             testID="playlist-detail-add-list" />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

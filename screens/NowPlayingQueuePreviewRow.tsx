@@ -6,6 +6,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { useAnimatedQueuePreview, useQueueRowDrag } from '../hooks/useQueueRowDrag';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { getArtworkSource } from '../utils/songArtwork';
+import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 
 export { resolveQueueReorderTargetIndex } from '../utils/soundCloudPlayer';
 
@@ -42,9 +43,13 @@ interface NowPlayingQueuePreviewRowProps {
 const getZeroScrollOffset = (): number => 0;
 
 const QueueArtwork = ({ id, artworkUri }: { id: string; artworkUri?: string }) => {
-  const artworkSource = React.useMemo(() => getArtworkSource(artworkUri), [artworkUri]);
+  const thumbnailUri = useArtworkThumbnail(artworkUri, 128);
+  const [failedUri, setFailedUri] = React.useState<string>();
+  const displayUri = failedUri === thumbnailUri ? artworkUri : thumbnailUri;
+  const artworkSource = React.useMemo(() => getArtworkSource(displayUri), [displayUri]);
   return <Image source={artworkSource} style={styles.queueArtwork} resizeMode="cover"
     resizeMethod="resize" fadeDuration={0} accessible={false}
+    onError={displayUri && displayUri !== artworkUri ? () => setFailedUri(displayUri) : undefined}
     testID={artworkUri ? `queue-artwork-${id}` : `queue-artwork-fallback-${id}`} />;
 };
 

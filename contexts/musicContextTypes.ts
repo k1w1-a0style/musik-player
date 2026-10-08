@@ -80,6 +80,9 @@ export interface LibraryMusicContextValue {
   playPlaylist: (playlistId: string) => Promise<void>;
 }
 
+export type EqualizerMusicContextValue = Pick<MusicContextValue,
+  'eqEnabled' | 'setEqEnabled' | 'eqBands' | 'setEqBand' | 'eqPreset' | 'applyEqPreset' | 'eqNative'>;
+
 export interface MiniPlayerMusicContextValue {
   hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
   retryHydration?: () => void;

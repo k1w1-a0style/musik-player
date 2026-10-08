@@ -164,6 +164,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   eqSetBandLevel(band: number, millibel: number): boolean;
   eqRelease(): void;
   extractPalette(uri: string): Promise<PaletteResult | null>;
+  createArtworkThumbnail?(uri: string, size: number, revision: string): Promise<string | null>;
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
   releaseEmbeddedArtworkLease?(leaseId: string): Promise<boolean>;
   extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
@@ -261,7 +262,8 @@ const tagWriteCapacityConflict = (
 // actually settle, so detached work can never grow with the library size.
 const NATIVE_READ_SAFETY_TIMEOUT_MS = 20_000;
 const MAX_NATIVE_READS_IN_FLIGHT = 2;
-let nativeReadsInFlight = 0;
+const mediaReadPool = { inFlight: 0 };
+const thumbnailReadPool = { inFlight: 0 };
 
 type NativeReadSettlement<T> =
   | { kind: 'value'; value: T }
@@ -281,9 +283,10 @@ const releaseNativeArtworkLease = async (leaseId?: string): Promise<boolean> => 
 const runBoundedNativeRead = async <T>(
   operation: () => Promise<T>,
   onDiscard?: (value: T) => void,
+  pool = mediaReadPool,
 ): Promise<T | null> => {
-  if (nativeReadsInFlight >= MAX_NATIVE_READS_IN_FLIGHT) return null;
-  nativeReadsInFlight += 1;
+  if (pool.inFlight >= MAX_NATIVE_READS_IN_FLIGHT) return null;
+  pool.inFlight += 1;
   const raw = Promise.resolve().then(operation);
   const settled: Promise<NativeReadSettlement<T>> = raw.then(
     value => ({ kind: 'value', value }),
@@ -296,13 +299,13 @@ const runBoundedNativeRead = async <T>(
   const first = await Promise.race([settled, timeout]);
   if (first.kind === 'timeout') {
     void settled.then(outcome => {
-      nativeReadsInFlight = Math.max(0, nativeReadsInFlight - 1);
+      pool.inFlight = Math.max(0, pool.inFlight - 1);
       if (outcome.kind === 'value') onDiscard?.(outcome.value);
     });
     return null;
   }
   if (timer) clearTimeout(timer);
-  nativeReadsInFlight = Math.max(0, nativeReadsInFlight - 1);
+  pool.inFlight = Math.max(0, pool.inFlight - 1);
   if (first.kind === 'error') throw first.error;
   return first.value;
 };
@@ -339,6 +342,13 @@ export const SystemAudio = {
 
   async extractPalette(uri: string): Promise<PaletteResult | null> {
     return native ? runBoundedNativeRead(() => native.extractPalette(uri)) : null;
+  },
+
+  async createArtworkThumbnail(uri: string, size: number, revision = ''): Promise<string | null> {
+    const create = native?.createArtworkThumbnail?.bind(native);
+    if (!create || !uri.startsWith('file://') || !Number.isFinite(size)) return null;
+    try { return await runBoundedNativeRead(() => create(uri, Math.max(32, Math.min(512, Math.round(size))), revision), undefined, thumbnailReadPool); }
+    catch { return null; }
   },
 
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {

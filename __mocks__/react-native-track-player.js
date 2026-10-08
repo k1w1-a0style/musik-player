@@ -135,6 +135,14 @@ const TrackPlayer = {
   getQueue: jest.fn(async () => queue),
   getActiveTrack: jest.fn(async () => queue[currentIdx]),
   getActiveTrackIndex: jest.fn(async () => currentIdx >= 0 ? currentIdx : undefined),
+  getNavigationSnapshot: jest.fn(async () => {
+    const [tracks, index, mode] = await Promise.all([
+      TrackPlayer.getQueue(), TrackPlayer.getActiveTrackIndex(), TrackPlayer.getRepeatMode(),
+    ]);
+    const active = await TrackPlayer.getActiveTrack();
+    return { queue: tracks.map(track => ({ id: track.id, title: track.title })),
+      index, repeatMode: mode, activeTrackId: active?.id };
+  }),
   getProgress: jest.fn(async () => ({ position: 0, duration: 0, buffered: 0 })),
   getPlaybackState: jest.fn(async () => ({ state })),
   getPlayWhenReady: jest.fn(async () => playWhenReady),

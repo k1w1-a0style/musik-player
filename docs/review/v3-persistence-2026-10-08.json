@@ -1,0 +1,269 @@
+{
+  "node": "v24.19.0",
+  "rows": [
+    {
+      "count": 500,
+      "implementation": "old",
+      "change": "identical",
+      "totalUnits": 287171,
+      "writeUnits": 0,
+      "readUnits": 574342,
+      "writeChunks": 0,
+      "readChunks": 6,
+      "cpuMockMs": 1.4
+    },
+    {
+      "count": 500,
+      "implementation": "old",
+      "change": "edit",
+      "totalUnits": 287251,
+      "writeUnits": 287251,
+      "readUnits": 287251,
+      "writeChunks": 3,
+      "readChunks": 6,
+      "cpuMockMs": 1.46
+    },
+    {
+      "count": 500,
+      "implementation": "old",
+      "change": "insert",
+      "totalUnits": 287255,
+      "writeUnits": 287255,
+      "readUnits": 287255,
+      "writeChunks": 3,
+      "readChunks": 6,
+      "cpuMockMs": 1.94
+    },
+    {
+      "count": 500,
+      "implementation": "old",
+      "change": "delete",
+      "totalUnits": 286602,
+      "writeUnits": 286602,
+      "readUnits": 286602,
+      "writeChunks": 3,
+      "readChunks": 6,
+      "cpuMockMs": 1.93
+    },
+    {
+      "count": 500,
+      "implementation": "current",
+      "change": "identical",
+      "totalUnits": 287171,
+      "writeUnits": 0,
+      "readUnits": 287171,
+      "writeChunks": 0,
+      "readChunks": 10,
+      "cpuMockMs": 7
+    },
+    {
+      "count": 500,
+      "implementation": "current",
+      "change": "edit",
+      "totalUnits": 287251,
+      "writeUnits": 38947,
+      "readUnits": 287251,
+      "writeChunks": 1,
+      "readChunks": 11,
+      "cpuMockMs": 3.36
+    },
+    {
+      "count": 500,
+      "implementation": "current",
+      "change": "insert",
+      "totalUnits": 287255,
+      "writeUnits": 38951,
+      "readUnits": 287255,
+      "writeChunks": 1,
+      "readChunks": 11,
+      "cpuMockMs": 2.88
+    },
+    {
+      "count": 500,
+      "implementation": "current",
+      "change": "delete",
+      "totalUnits": 286602,
+      "writeUnits": 38298,
+      "readUnits": 286602,
+      "writeChunks": 1,
+      "readChunks": 11,
+      "cpuMockMs": 3.01
+    },
+    {
+      "count": 2000,
+      "implementation": "old",
+      "change": "identical",
+      "totalUnits": 1152671,
+      "writeUnits": 0,
+      "readUnits": 2305342,
+      "writeChunks": 0,
+      "readChunks": 18,
+      "cpuMockMs": 9.17
+    },
+    {
+      "count": 2000,
+      "implementation": "old",
+      "change": "edit",
+      "totalUnits": 1152751,
+      "writeUnits": 1152751,
+      "readUnits": 1152751,
+      "writeChunks": 9,
+      "readChunks": 18,
+      "cpuMockMs": 7.32
+    },
+    {
+      "count": 2000,
+      "implementation": "old",
+      "change": "insert",
+      "totalUnits": 1152755,
+      "writeUnits": 1152755,
+      "readUnits": 1152755,
+      "writeChunks": 9,
+      "readChunks": 18,
+      "cpuMockMs": 7.08
+    },
+    {
+      "count": 2000,
+      "implementation": "old",
+      "change": "delete",
+      "totalUnits": 1152102,
+      "writeUnits": 1152102,
+      "readUnits": 1152102,
+      "writeChunks": 9,
+      "readChunks": 18,
+      "cpuMockMs": 5.33
+    },
+    {
+      "count": 2000,
+      "implementation": "current",
+      "change": "identical",
+      "totalUnits": 1152671,
+      "writeUnits": 0,
+      "readUnits": 1152671,
+      "writeChunks": 0,
+      "readChunks": 38,
+      "cpuMockMs": 7.06
+    },
+    {
+      "count": 2000,
+      "implementation": "current",
+      "change": "edit",
+      "totalUnits": 1152751,
+      "writeUnits": 38947,
+      "readUnits": 1152751,
+      "writeChunks": 1,
+      "readChunks": 39,
+      "cpuMockMs": 8.28
+    },
+    {
+      "count": 2000,
+      "implementation": "current",
+      "change": "insert",
+      "totalUnits": 1152755,
+      "writeUnits": 38951,
+      "readUnits": 1152755,
+      "writeChunks": 1,
+      "readChunks": 39,
+      "cpuMockMs": 7.16
+    },
+    {
+      "count": 2000,
+      "implementation": "current",
+      "change": "delete",
+      "totalUnits": 1152102,
+      "writeUnits": 38298,
+      "readUnits": 1152102,
+      "writeChunks": 1,
+      "readChunks": 39,
+      "cpuMockMs": 7.33
+    },
+    {
+      "count": 5000,
+      "implementation": "old",
+      "change": "identical",
+      "totalUnits": 2886671,
+      "writeUnits": 0,
+      "readUnits": 5773342,
+      "writeChunks": 0,
+      "readChunks": 46,
+      "cpuMockMs": 13.69
+    },
+    {
+      "count": 5000,
+      "implementation": "old",
+      "change": "edit",
+      "totalUnits": 2886751,
+      "writeUnits": 2886751,
+      "readUnits": 2886751,
+      "writeChunks": 23,
+      "readChunks": 46,
+      "cpuMockMs": 13.24
+    },
+    {
+      "count": 5000,
+      "implementation": "old",
+      "change": "insert",
+      "totalUnits": 2886755,
+      "writeUnits": 2886755,
+      "readUnits": 2886755,
+      "writeChunks": 23,
+      "readChunks": 46,
+      "cpuMockMs": 14.49
+    },
+    {
+      "count": 5000,
+      "implementation": "old",
+      "change": "delete",
+      "totalUnits": 2886102,
+      "writeUnits": 2886102,
+      "readUnits": 2886102,
+      "writeChunks": 23,
+      "readChunks": 46,
+      "cpuMockMs": 13.3
+    },
+    {
+      "count": 5000,
+      "implementation": "current",
+      "change": "identical",
+      "totalUnits": 2886671,
+      "writeUnits": 0,
+      "readUnits": 2886671,
+      "writeChunks": 0,
+      "readChunks": 80,
+      "cpuMockMs": 18.84
+    },
+    {
+      "count": 5000,
+      "implementation": "current",
+      "change": "edit",
+      "totalUnits": 2886751,
+      "writeUnits": 38947,
+      "readUnits": 2886751,
+      "writeChunks": 1,
+      "readChunks": 81,
+      "cpuMockMs": 18.97
+    },
+    {
+      "count": 5000,
+      "implementation": "current",
+      "change": "insert",
+      "totalUnits": 2886755,
+      "writeUnits": 38951,
+      "readUnits": 2886755,
+      "writeChunks": 1,
+      "readChunks": 81,
+      "cpuMockMs": 19.72
+    },
+    {
+      "count": 5000,
+      "implementation": "current",
+      "change": "delete",
+      "totalUnits": 2886102,
+      "writeUnits": 38298,
+      "readUnits": 2886102,
+      "writeChunks": 1,
+      "readChunks": 81,
+      "cpuMockMs": 18.92
+    }
+  ]
+}

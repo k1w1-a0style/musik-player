@@ -64,20 +64,20 @@ const PlaylistDetail: React.FC = () => {
     if (!renameOpen && playlist) setDraftName(playlist.name);
   }, [playlist, renameOpen]);
 
-  const playlistSongIds = useMemo(() => new Set(playlist?.songIds ?? []), [playlist]);
+  const playlistSongIds = useMemo(() => new Set(playlist?.songIds ?? []), [playlist?.songIds]);
 
+  const songsById = useMemo(() => new Map(songs.map(song => [song.id, song])), [songs]);
   const playlistSongs = useMemo(() => {
     if (!playlist) return [];
-    const songsById = new Map(songs.map(song => [song.id, song]));
     return playlist.songIds.flatMap(songId => {
       const song = songsById.get(songId);
       return song ? [song] : [];
     });
-  }, [playlist, songs]);
+  }, [playlist, songsById]);
 
   const addableSongs = useMemo(
-    () => (playlist ? songs.filter(song => !playlistSongIds.has(song.id)) : []),
-    [playlist, playlistSongIds, songs],
+    () => (addOpen && playlist ? songs.filter(song => !playlistSongIds.has(song.id)) : []),
+    [addOpen, playlist, playlistSongIds, songs],
   );
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;

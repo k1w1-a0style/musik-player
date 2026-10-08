@@ -9,6 +9,7 @@ const SystemAudio = {
   eqSetBandLevel: jest.fn().mockReturnValue(false),
   eqRelease: jest.fn(),
   extractPalette: jest.fn(() => new Promise(() => {})),
+  createArtworkThumbnail: jest.fn().mockResolvedValue(null),
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
   releaseEmbeddedArtworkLease: jest.fn().mockResolvedValue(false),
   extractAudioInfo: jest.fn().mockResolvedValue(null),

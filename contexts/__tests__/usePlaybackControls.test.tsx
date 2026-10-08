@@ -9,6 +9,7 @@ import {
 } from '../usePlaybackControls';
 import { resetSeekControllerForTests } from '../../utils/seekController';
 import { resetNativeQueueMutationLockForTests } from '../../utils/nativeQueueMutationLock';
+import { acknowledgeNativePlaybackRecovery, getNativePlaybackWatchdogSnapshot, NATIVE_PLAYBACK_DEADLINE_MS } from '../../utils/nativePlaybackWatchdog';
 
 
 const deferred = <T,>() => {
@@ -157,6 +158,80 @@ describe('usePlaybackControls', () => {
     });
 
     expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.repeatMode).toBe('one');
+    hook.unmount();
+  });
+
+  test('applies a submitted repeat tap before the following navigation boundary', async () => {
+    await TrackPlayer.reset();
+    await TrackPlayer.add([{ id: 'a', url: 'file:///a' }, { id: 'b', url: 'file:///b' }]);
+    await TrackPlayer.skip(1);
+    jest.mocked(TrackPlayer.skip).mockClear();
+    const hook = renderHook(() => usePlaybackControls());
+    await act(async () => {
+      const repeat = hook.result.current.cycleRepeatMode();
+      const next = hook.result.current.next();
+      await Promise.all([repeat, next]);
+    });
+    expect(TrackPlayer.skip).toHaveBeenCalledWith(0);
+    expect(hook.result.current.repeatMode).toBe('all');
+    hook.unmount();
+    await TrackPlayer.reset();
+  });
+
+  test('rolls back an unconfirmed volume preview at the deadline and ignores late acknowledgement', async () => {
+    jest.useFakeTimers();
+    const pending = deferred<void>();
+    const started = deferred<void>();
+    const hook = renderHook(() => usePlaybackControls());
+    await act(async () => { await hook.result.current.setVolume(0.4); });
+    jest.mocked(TrackPlayer.setVolume).mockImplementationOnce(() => { started.resolve(); return pending.promise; });
+    let outcome!: Promise<unknown>;
+    await act(async () => {
+      outcome = hook.result.current.setVolume(0.8).catch(error => error);
+      await started.promise;
+    });
+    expect(hook.result.current.volume).toBe(0.8);
+    await act(async () => { await jest.advanceTimersByTimeAsync(NATIVE_PLAYBACK_DEADLINE_MS); });
+    expect(await outcome).toMatchObject({ name: 'NativePlaybackTimeoutError' });
+    expect(hook.result.current.volume).toBe(0.4);
+    await act(async () => { pending.resolve(); await jest.advanceTimersByTimeAsync(0); });
+    expect(hook.result.current.volume).toBe(0.4);
+    expect(getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
+    acknowledgeNativePlaybackRecovery();
+    jest.mocked(TrackPlayer.setVolume).mockRejectedValueOnce(new Error('new write failed'));
+    await act(async () => { await expect(hook.result.current.setVolume(0.7)).rejects.toThrow('new write failed'); });
+    expect(hook.result.current.volume).toBe(0.4);
+    hook.unmount();
+  });
+
+  test('keeps repeat state confirmed after timeout and drains all successful rapid tap intents', async () => {
+    jest.useFakeTimers();
+    const pending = deferred<void>();
+    const started = deferred<void>();
+    jest.mocked(TrackPlayer.setRepeatMode).mockImplementationOnce(async mode => {
+      started.resolve();
+      await pending.promise;
+      return mode;
+    });
+    const hook = renderHook(() => usePlaybackControls());
+    let outcome!: Promise<unknown>;
+    await act(async () => {
+      outcome = hook.result.current.cycleRepeatMode().catch(error => error);
+      await started.promise;
+    });
+    await act(async () => { await jest.advanceTimersByTimeAsync(NATIVE_PLAYBACK_DEADLINE_MS); });
+    expect(await outcome).toMatchObject({ name: 'NativePlaybackTimeoutError' });
+    expect(hook.result.current.repeatMode).toBe('off');
+    await act(async () => { pending.resolve(); await jest.advanceTimersByTimeAsync(0); });
+    expect(hook.result.current.repeatMode).toBe('off');
+    acknowledgeNativePlaybackRecovery();
+    jest.mocked(TrackPlayer.setRepeatMode).mockClear();
+    await act(async () => {
+      await Promise.all(Array.from({ length: 5 }, () => hook.result.current.cycleRepeatMode()));
+    });
+    expect(TrackPlayer.setRepeatMode).toHaveBeenCalledTimes(5);
+    expect(jest.mocked(TrackPlayer.setRepeatMode).mock.calls.map(([mode]) => mode)).toEqual([2, 1, 0, 2, 1]);
     expect(hook.result.current.repeatMode).toBe('one');
     hook.unmount();
   });

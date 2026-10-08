@@ -44,6 +44,14 @@ export interface Track {
   [key: string]: unknown;
 }
 
+/** Navigation needs identities, not artwork, URLs, headers or arbitrary extras. */
+export interface NavigationSnapshot {
+  queue: { id?: string; title?: string }[];
+  index?: number;
+  activeTrackId?: string;
+  repeatMode: RepeatMode;
+}
+
 /** Positions and durations remain seconds at this boundary, as in V4. */
 export interface Progress { position: number; duration: number; buffered: number }
 export interface PlaybackError { code: string; message: string }

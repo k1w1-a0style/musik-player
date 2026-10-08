@@ -1,3 +1,4 @@
+import { State, usePlaybackState } from 'react-native-track-player';
 import { usePlaybackProgress } from '../contexts/PlaybackProgressContext';
 
 export const clampMiniPlayerProgress = (progress: number): number => {
@@ -13,4 +14,11 @@ export const getMiniPlayerProgressRatio = (position: number, duration: number): 
 export const useMiniPlayerProgress = (): number => {
   const { position, duration } = usePlaybackProgress();
   return getMiniPlayerProgressRatio(position, duration);
+};
+
+export const useMiniPlayerProgressSnapshot = () => {
+  const { position, duration } = usePlaybackProgress();
+  const { state } = usePlaybackState();
+  return { progress: getMiniPlayerProgressRatio(position, duration), duration,
+    isAdvancing: state === State.Playing };
 };

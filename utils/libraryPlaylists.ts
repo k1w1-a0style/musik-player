@@ -1,5 +1,5 @@
 import type { Playlist, Song } from '../types/Song';
-import { searchableSongText } from './librarySearch';
+import { normalizeLibrarySearchText, searchableSongText } from './librarySearch';
 
 export type LibraryPlaylistItem = {
   id: string;
@@ -15,7 +15,7 @@ export const buildLibraryPlaylistItems = (
   query = '',
 ): LibraryPlaylistItem[] => {
   const songsById = new Map(songs.map(song => [song.id, song]));
-  const q = query.trim().toLowerCase();
+  const q = normalizeLibrarySearchText(query);
 
   return playlists
     .map(playlist => {
@@ -32,7 +32,7 @@ export const buildLibraryPlaylistItems = (
     })
     .filter(item =>
       !q ||
-      item.name.toLowerCase().includes(q) ||
+      normalizeLibrarySearchText(item.name).includes(q) ||
       item.songs.some(song => searchableSongText(song).includes(q)),
     )
     .sort((a, b) => a.name.localeCompare(b.name));

@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
+import { useWindowDimensions } from 'react-native';
 import SongCard from '../components/SongCard';
 import type { Song } from '../types/Song';
 import {
@@ -51,6 +52,14 @@ export const useLibrarySongRenderer = ({
   // renders. Without this every filter/search/favorite tick would rebuild the
   // press handlers and defeat SongCard's React.memo, causing every visible row
   // to re-render even when only playback progress or currentSongId changed.
+  const { fontScale } = useWindowDimensions();
+  const songsById = useMemo(() => new Map(filteredSongs.map(song => [getLibrarySongKey(song), song])), [filteredSongs]);
+  const songsByIdRef = useRef(songsById);
+  songsByIdRef.current = songsById;
+  const infoActionRef = useRef(onOpenSongActions ?? onOpenTrackInfo);
+  infoActionRef.current = onOpenSongActions ?? onOpenTrackInfo;
+  const resolveSong = useCallback((song: Song) => songsByIdRef.current.get(getLibrarySongKey(song)) ?? song, []);
+  const handleInfoPress = useCallback((song: Song) => { infoActionRef.current(resolveSong(song)); }, [resolveSong]);
   const filteredSongsRef = useRef(filteredSongs);
   filteredSongsRef.current = filteredSongs;
   const playSongRef = useRef(playSong);
@@ -61,14 +70,15 @@ export const useLibrarySongRenderer = ({
     // changes between the row render and the actual tap (e.g. active search).
     void runPlaybackUiAction(
       `library-play-song-${song.id}`,
-      () => playSongRef.current(song, queue ?? filteredSongsRef.current),
+      () => playSongRef.current(resolveSong(song), queue ?? filteredSongsRef.current),
       { dropIfPending: false },
     );
-  }, []);
+  }, [resolveSong]);
 
   const songKeyExtractor = useCallback(getLibrarySongKey, []);
 
-  const getSongItemLayout = useCallback(getLibrarySongItemLayout, []);
+  const getSongItemLayout = useCallback((data: ArrayLike<Song> | null | undefined, index: number) =>
+    getLibrarySongItemLayout(data, index, fontScale), [fontScale]);
 
   const variant = getLibrarySongCardVariant(songViewMode);
 
@@ -81,9 +91,9 @@ export const useLibrarySongRenderer = ({
       isPlaying={currentSongId === item.id && isPlaying}
       variant={variant}
       onPressSong={handleSongPress}
-      onInfoSong={shouldShowTrackInfoAction(item) ? (onOpenSongActions ?? onOpenTrackInfo) : undefined}
+      onInfoSong={shouldShowTrackInfoAction(item) ? handleInfoPress : undefined}
     />
-  ), [currentSongId, handleSongPress, isPlaying, onOpenSongActions, onOpenTrackInfo, variant]);
+  ), [currentSongId, handleInfoPress, handleSongPress, isPlaying, variant]);
 
   return {
     getSongItemLayout,

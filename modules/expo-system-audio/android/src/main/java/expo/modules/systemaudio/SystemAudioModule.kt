@@ -46,6 +46,7 @@ class SystemAudioModule : Module() {
   private val importStatExecutor = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS,
     SynchronousQueue<Runnable>(), { task -> Thread(task, "import-file-stat").apply { isDaemon = true } })
   private val artworkLeaseOwner = ArtworkCacheLeaseOwner()
+  private var thumbnailCache: ArtworkThumbnailCache? = null
   private val equalizerLifecycle = SerializedSessionEffect(
     create = { sessionId: Int ->
       Equalizer(0, sessionId).also { created ->
@@ -110,6 +111,24 @@ class SystemAudioModule : Module() {
     }
 
     // ---------- Palette / artwork extraction ----------
+
+    AsyncFunction("createArtworkThumbnail") { uri: String, size: Int, revision: String ->
+      try {
+        val parsed = Uri.parse(uri)
+        val ctx = appContext.reactContext ?: return@AsyncFunction null
+        // Managed original covers are local files. Other sources keep their
+        // normal image fallback rather than acquiring network/provider access.
+        if (parsed.scheme != "file") return@AsyncFunction null
+        val source = File(parsed.path ?: return@AsyncFunction null)
+        val cache = thumbnailCache ?: ArtworkThumbnailCache(
+          File(ctx.cacheDir, "artwork-thumbnails-v1"),
+          atomicReplace = { from, to -> Os.rename(from.absolutePath, to.absolutePath) },
+        ).also { thumbnailCache = it }
+        cache.get(source, size, revision)?.let { Uri.fromFile(it).toString() }
+      } catch (_: Throwable) {
+        null
+      }
+    }
 
     AsyncFunction("extractPalette") { uri: String ->
       val bitmap = loadBitmap(uri) ?: return@AsyncFunction null

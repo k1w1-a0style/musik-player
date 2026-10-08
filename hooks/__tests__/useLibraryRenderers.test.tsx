@@ -1,12 +1,12 @@
 import mockReact from 'react';
-import { Button as mockButton, Text } from 'react-native';
+import { Button as mockButton, Dimensions, Text } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import { useLibraryRenderers, type UseLibraryRenderersOptions } from '../useLibraryRenderers';
 import type { Song } from '../../types/Song';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../../utils/libraryPlaylists';
-import { buildSongCardSong } from '../../utils/libraryRendererHelpers';
+import { buildSongCardSong, getLibrarySongItemLayout } from '../../utils/libraryRendererHelpers';
 
 // Renderer routing fixtures represent prepared entries; gating is exercised separately.
 jest.mock('../../utils/songPreparation', () => ({
@@ -180,7 +180,7 @@ beforeEach(() => {
 test('returns stable song layout and key extractor helpers', () => {
   const screen = render(<HookHarness />);
 
-  expect(screen.getByTestId('layout').props.children).toBe(JSON.stringify({ length: 76, offset: 152, index: 2 }));
+  expect(screen.getByTestId('layout').props.children).toBe(JSON.stringify(getLibrarySongItemLayout(null, 2, Dimensions.get('window').fontScale)));
   expect(screen.getByTestId('key').props.children).toBe('key-song');
 });
 
@@ -227,7 +227,8 @@ test('renderSongItem only provides onInfoSong when the track info action should 
   const onOpenTrackInfo = jest.fn();
   const { rerender } = render(<HookHarness onOpenTrackInfo={onOpenTrackInfo} songItem={song('real-song')} />);
 
-  expect(mockSongCardProps[0].onInfoSong).toBe(onOpenTrackInfo);
+  mockSongCardProps[0].onInfoSong?.(song('real-song'));
+  expect(onOpenTrackInfo).toHaveBeenCalledWith(song('real-song'));
 
   mockSongCardProps.length = 0;
   rerender(<HookHarness onOpenTrackInfo={onOpenTrackInfo} songItem={song('demo-1')} />);

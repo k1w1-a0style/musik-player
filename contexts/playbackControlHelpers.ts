@@ -123,11 +123,31 @@ export const skipToPreviousOrRestart = async (): Promise<void> => {
 };
 
 export const applyRepeatModeToTrackPlayer = async (repeatMode: RepeatMode | unknown): Promise<void> => {
-  await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(normalizeRepeatMode(repeatMode)));
+  await runOrderedPlaybackControl(() => TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(normalizeRepeatMode(repeatMode))));
 };
 
-export const applyVolumeToTrackPlayer = async (volume: number): Promise<number> => {
+export const cycleTrackPlayerRepeatMode = (
+  getConfirmedMode: () => RepeatMode, commit: (mode: RepeatMode) => void,
+): Promise<void> => runOrderedPlaybackControl(async ({ assertHydrationCurrent }) => {
+  const next = getNextRepeatMode(getConfirmedMode());
+  await TrackPlayer.setRepeatMode(toTrackPlayerRepeatMode(next));
+  assertHydrationCurrent();
+  commit(next);
+});
+
+export const applyVolumeToTrackPlayer = async (volume: number, options?: {
+  isCurrent: () => boolean;
+  onConfirmed: (volume: number) => void;
+}): Promise<number> => {
   const clampedVolume = clampVolume(volume);
-  await TrackPlayer.setVolume(clampedVolume);
+  // The public response is bounded, while the exclusive lane and adapter tail
+  // retain the actual native write until acknowledgement. Stored settings also
+  // use this path during hydration, before a ready gate exists.
+  await runOrderedPlaybackControl(async ({ assertHydrationCurrent }) => {
+    if (options && !options.isCurrent()) return;
+    await TrackPlayer.setVolume(clampedVolume);
+    assertHydrationCurrent();
+    options?.onConfirmed(clampedVolume);
+  });
   return clampedVolume;
 };

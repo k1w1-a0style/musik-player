@@ -1,15 +1,17 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, type GestureResponderEvent } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { AudioLines, CircleEllipsis } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { Song } from '../types/Song';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { buildSongKey } from '../utils/libraryPresentation';
-import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
+import { getArtworkSource, getSongArtworkUri, getSongArtworkRevision } from '../utils/songArtwork';
 import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
 import SongWaveformStatus from './SongWaveformStatus';
+import { getSongCardHeight } from '../utils/libraryRendererHelpers';
+import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 import { useSongPreparation } from '../hooks/useSongPreparation';
 
 interface SongCardProps {
@@ -21,10 +23,24 @@ interface SongCardProps {
   variant?: LibrarySongCardVariant;
 }
 
-const sameWaveformSource = (left: Song, right: Song): boolean =>
-  left.uri === right.uri && left.fileInfo?.uri === right.fileInfo?.uri
-  && left.fileInfo?.size === right.fileInfo?.size && left.fileInfo?.importedAt === right.fileInfo?.importedAt
-  && left.duration === right.duration && left.audioInfo?.durationMs === right.audioInfo?.durationMs;
+const sameFields = (left: object | undefined, right: object | undefined): boolean => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  const fields = Object.keys(left);
+  const leftFields = left as Record<string, unknown>;
+  const rightFields = right as Record<string, unknown>;
+  return fields.length === Object.keys(right).length && fields.every(field => leftFields[field] === rightFields[field]);
+};
+
+// Compare the whole immutable Song contract, including physical revisions and
+// metadata used by action callbacks, without forcing equal display copies to rerender.
+const sameSong = (left: Song, right: Song): boolean => {
+  if (left === right) return true;
+  const { fileInfo: leftFile, audioInfo: leftAudio, coverInfo: leftCover, ...leftFields } = left;
+  const { fileInfo: rightFile, audioInfo: rightAudio, coverInfo: rightCover, ...rightFields } = right;
+  return sameFields(leftFields, rightFields) && sameFields(leftFile, rightFile)
+    && sameFields(leftAudio, rightAudio) && sameFields(leftCover, rightCover);
+};
 
 const SongMetadata = ({ song, label, color, tile = false }: {
   song: Song; label: string | null; color: string; tile?: boolean;
@@ -37,12 +53,31 @@ const SongMetadata = ({ song, label, color, tile = false }: {
 const EmptySongInfoSlot = ({ variant }: { variant: LibrarySongCardVariant }) =>
   <View style={[styles.infoButton, variant === 'tile' && styles.tileInfoButton]} />;
 
+const useSongCardArtwork = (song: Song, variant: LibrarySongCardVariant) => {
+  const [coverFailed, setCoverFailed] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const artworkUri = getSongArtworkUri(song);
+  const thumbnailUri = useArtworkThumbnail(artworkUri, variant === 'tile' ? 256 : 128, getSongArtworkRevision(song));
+  const visibleArtworkUri = thumbnailFailed ? artworkUri : thumbnailUri;
+  const artworkSource = useMemo(
+    () => getArtworkSource(coverFailed ? undefined : visibleArtworkUri), [visibleArtworkUri, coverFailed]);
+  useEffect(() => {
+    setCoverFailed(false);
+    setThumbnailFailed(false);
+  }, [song.id, thumbnailUri, artworkUri]);
+
+  const onArtworkError = useCallback(() => {
+    if (visibleArtworkUri !== artworkUri) setThumbnailFailed(true);
+    else setCoverFailed(true);
+  }, [artworkUri, visibleArtworkUri]);
+  return { artworkSource, onArtworkError: artworkUri && !coverFailed ? onArtworkError : undefined };
+};
+
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
   const preparation = useSongPreparation(song);
-  const [coverFailed, setCoverFailed] = useState(false);
-  const artworkUri = getSongArtworkUri(song); const artworkSource = useMemo(
-    () => getArtworkSource(coverFailed ? undefined : artworkUri), [artworkUri, coverFailed]);
+  const { fontScale } = useWindowDimensions();
+  const { artworkSource, onArtworkError } = useSongCardArtwork(song, variant);
   const songTestId = song.id.trim() || buildSongKey(song); const metadataLabel = getSongCardMetadataLabel(song);
   const selectedColors = useMemo(() => ({
     accent: theme.palette.primary,
@@ -50,10 +85,6 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     background: theme.palette.primaryGlow,
     rail: theme.palette.borderStrong,
   }), [theme.palette.borderStrong, theme.palette.primary, theme.palette.primaryGlow, theme.palette.text.primary]);
-
-  useEffect(() => {
-    setCoverFailed(false);
-  }, [song.id, song.cover, song.coverInfo?.uri]);
 
   const handlePress = useCallback(() => { onPressSong(song); }, [onPressSong, song]);
 
@@ -76,7 +107,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       testID={`song-card-cover-${songTestId}`}
     >
       <Image source={artworkSource} style={styles.coverImage}
-        onError={artworkUri && !coverFailed ? () => setCoverFailed(true) : undefined}
+        onError={onArtworkError}
         resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false} />
       {isPlaying ? <View style={[styles.playingBadge, { backgroundColor: theme.palette.primary }]}>
         <AudioLines size={11} color={theme.palette.surface} />
@@ -147,7 +178,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   const isBanner = variant === 'banner';
 
   return (
-    <View style={[styles.slot, isBanner && styles.bannerSlot]} testID={`song-card-slot-${songTestId}`}>
+    <View style={[styles.slot, { height: getSongCardHeight(fontScale, isBanner) }]} testID={`song-card-slot-${songTestId}`}>
     <Pressable
       testID={`song-card-${songTestId}`}
       accessibilityRole="button"
@@ -201,17 +232,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
 const SongCard = memo(
   SongCardComponent,
   (prev, next) =>
-    prev.song.id === next.song.id
-    && prev.song.title === next.song.title
-    && prev.song.artist === next.song.artist
-    && prev.song.album === next.song.album
-    && sameWaveformSource(prev.song, next.song)
-    && prev.song.audioInfo?.codec === next.song.audioInfo?.codec
-    && prev.song.audioInfo?.bitrate === next.song.audioInfo?.bitrate
-    && prev.song.fileInfo?.extension === next.song.fileInfo?.extension
-    && prev.song.fileInfo?.container === next.song.fileInfo?.container
-    && prev.song.fileInfo?.mimeType === next.song.fileInfo?.mimeType
-    && getSongArtworkUri(prev.song) === getSongArtworkUri(next.song)
+    sameSong(prev.song, next.song)
     && prev.isCurrent === next.isCurrent
     && prev.isPlaying === next.isPlaying
     && prev.variant === next.variant
@@ -221,7 +242,6 @@ const SongCard = memo(
 
 const styles = StyleSheet.create({
   slot: { height: 70, marginBottom: 6 },
-  bannerSlot: { height: 88 },
   tileSlot: { flex: 1, maxWidth: '50%', marginBottom: 10 },
   container: {
     flex: 1,
@@ -252,10 +272,10 @@ const styles = StyleSheet.create({
   tileCover: { width: '100%', height: undefined, aspectRatio: 1, borderRadius: 12 },
   coverImage: { width: '100%', height: '100%' },
   infoContainer: { flex: 1, minWidth: 0 },
-  title: { fontSize: 15, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
-  bannerTitle: { fontSize: 17, fontFamily: staticTokens.fonts.heading, letterSpacing: -0.2 },
-  artist: { fontSize: 12, marginTop: 2, fontFamily: staticTokens.fonts.body },
-  metadata: { fontSize: 11, marginTop: 2, fontFamily: staticTokens.fonts.mono, letterSpacing: 0.2 },
+  title: { fontSize: 15, lineHeight: 20, fontFamily: staticTokens.fonts.body, letterSpacing: -0.1 },
+  bannerTitle: { fontSize: 17, lineHeight: 24, fontFamily: staticTokens.fonts.heading, letterSpacing: -0.2 },
+  artist: { fontSize: 12, lineHeight: 16, marginTop: 2, fontFamily: staticTokens.fonts.body },
+  metadata: { fontSize: 11, lineHeight: 15, marginTop: 2, fontFamily: staticTokens.fonts.mono, letterSpacing: 0.2 },
   infoButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
   tileInfoButton: {
     position: 'absolute',

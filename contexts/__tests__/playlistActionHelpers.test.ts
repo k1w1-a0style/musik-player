@@ -83,6 +83,31 @@ describe('playlistActionHelpers', () => {
     expect(buildPlaylistQueue(playlist, songs)).toEqual([songs[1], songs[0]]);
   });
 
+  test('preserves repeated positions, first duplicate match, and song object identity', () => {
+    const replacement = { ...songs[0], title: 'Second copy' };
+    const queue = buildPlaylistQueue(
+      { ...playlist, songIds: ['s1', 'missing', 's2', 's1'] },
+      [songs[0], replacement, songs[1]],
+    );
+    expect(queue).toEqual([songs[0], songs[1], songs[0]]);
+    expect(queue[0]).toBe(songs[0]);
+    expect(queue[2]).toBe(songs[0]);
+  });
+
+  test('resolves a large reversed playlist without repeated library scans', () => {
+    let idReads = 0;
+    const largeLibrary: Song[] = Array.from({ length: 5000 }, (_, index) => ({
+      get id() { idReads += 1; return `song-${index}`; },
+      title: `Song ${index}`, artist: 'Artist', uri: `file:///${index}.mp3`,
+    }));
+    const songIds = Array.from({ length: 5000 }, (_, index) => `song-${4999 - index}`);
+    const queue = buildPlaylistQueue({ ...playlist, songIds }, largeLibrary);
+    expect(queue).toHaveLength(5000);
+    expect(queue[0]).toBe(largeLibrary[4999]);
+    expect(queue[4999]).toBe(largeLibrary[0]);
+    expect(idReads).toBeLessThanOrEqual(largeLibrary.length * 3);
+  });
+
   test('plays playlist queue from first song', async () => {
     const playSong = jest.fn(async () => undefined);
 

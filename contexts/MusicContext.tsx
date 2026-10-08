@@ -5,6 +5,7 @@ import { useMusicProviderController } from './useMusicProviderController';
 import AppLoading from '../components/AppLoading';
 import PlaybackRecoveryBanner from '../components/PlaybackRecoveryBanner';
 export {
+  useEqualizerMusicContext,
   useLibraryMusicContext,
   useMiniPlayerMusicContext,
   useMusicContext,

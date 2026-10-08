@@ -18,6 +18,9 @@ const AsyncStorage = {
   multiSet: jest.fn(async pairs => {
     pairs.forEach(([k, v]) => store.set(k, v));
   }),
+  multiRemove: jest.fn(async keys => {
+    keys.forEach(key => store.delete(key));
+  }),
   getAllKeys: jest.fn(async () => [...store.keys()]),
   __reset: () => {
     store = new Map();

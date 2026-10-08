@@ -6,10 +6,11 @@ import { useMiniPlayerMusicContext } from '../contexts/MusicContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { displayArtist, displayTitle } from '../utils/libraryPresentation';
-import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
+import { getArtworkSource, getSongArtworkUri, getSongArtworkRevision } from '../utils/songArtwork';
+import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 import MiniPlayerProgress from './MiniPlayerProgress';
-import { useMiniPlayerProgress } from '../hooks/useMiniPlayerProgress';
+import { useMiniPlayerProgressSnapshot } from '../hooks/useMiniPlayerProgress';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useWaveformPreload } from '../hooks/useWaveformPreload';
 import type { Song } from '../types/Song';
@@ -65,9 +66,9 @@ const MiniPlayerControls = memo(({ color, isPlaying, canSkipNext, canSkipPreviou
 
 MiniPlayerControls.displayName = 'MiniPlayerControls';
 
-const MiniPlayerPlaybackProgress = memo(({ accent }: { accent: string }) => {
-  const progress = useMiniPlayerProgress();
-  return <MiniPlayerProgress progress={progress} accent={accent} />;
+const MiniPlayerPlaybackProgress = memo(({ accent, songId }: { accent: string; songId: string }) => {
+  const progress = useMiniPlayerProgressSnapshot();
+  return <MiniPlayerProgress {...progress} songId={songId} accent={accent} />;
 });
 
 MiniPlayerPlaybackProgress.displayName = 'MiniPlayerPlaybackProgress';
@@ -91,9 +92,12 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { width } = useWindowDimensions();
   const showSecondaryControls = shouldShowMiniPlayerSecondaryControls(width);
   const [coverFailed, setCoverFailed] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const artworkUri = getSongArtworkUri(currentSong);
-  const artworkSource = useMemo(() => getArtworkSource(coverFailed ? undefined : artworkUri),
-    [artworkUri, coverFailed]);
+  const thumbnailUri = useArtworkThumbnail(artworkUri, 128, getSongArtworkRevision(currentSong));
+  const displayArtworkUri = thumbnailFailed ? artworkUri : thumbnailUri;
+  const artworkSource = useMemo(() => getArtworkSource(coverFailed ? undefined : displayArtworkUri),
+    [displayArtworkUri, coverFailed]);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
   const selection = useSyncExternalStore(subscribeToPlaybackSelection, getPlaybackSelectionSnapshot);
   const displayArtistName = selection.target ? `Wechsel zu „${selection.target.title}“ …`
@@ -107,6 +111,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
 
   useEffect(() => {
     setCoverFailed(false);
+    setThumbnailFailed(false);
   }, [currentSong?.id, artworkUri]);
 
   const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
@@ -138,7 +143,10 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
           borderColor: appTheme.palette.border }]}>
           <Image source={artworkSource} style={styles.thumbImage} accessible={false}
             resizeMethod="resize" fadeDuration={0}
-            onError={artworkUri && !coverFailed ? () => setCoverFailed(true) : undefined} />
+            onError={artworkUri && !coverFailed ? () => {
+              if (displayArtworkUri !== artworkUri) setThumbnailFailed(true);
+              else setCoverFailed(true);
+            } : undefined} />
           <MiniPlayerAccentBorder color={coverAccentMuted} radius={10} testID="mini-player-thumb-accent-border" />
         </View>
 
@@ -154,7 +162,7 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
         <MiniPlayerControls color={appTheme.palette.text.primary} isPlaying={isPlaying}
           canSkipNext={canSkipNext} canSkipPrevious={canSkipPrevious} showSecondary={showSecondaryControls}
           onPrevious={handlePrevious} onToggle={handleTogglePlayPause} onNext={handleNext} onOpen={onOpen} />
-        <MiniPlayerPlaybackProgress accent={coverAccent} />
+        <MiniPlayerPlaybackProgress accent={coverAccent} songId={currentSong.id} />
         <MiniPlayerAccentBorder color={coverAccentMuted} radius={20} testID="mini-player-accent-border" />
       </Pressable>
     </View>

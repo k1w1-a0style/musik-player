@@ -2,9 +2,8 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { State, usePlaybackState, usePlayWhenReady } from 'react-native-track-player';
 import type { RepeatMode, Song } from '../types/Song';
 import {
-  applyRepeatModeToTrackPlayer,
   applyVolumeToTrackPlayer,
-  getNextRepeatMode,
+  cycleTrackPlayerRepeatMode,
   seekToMillis,
   skipToNextSafely,
   skipToPreviousOrRestart,
@@ -50,10 +49,8 @@ export const usePlaybackControls = (currentSong?: Song | null): PlaybackControls
   const { isPlaying, isBuffering } = usePlaybackStatus();
   const isMountedRef = useRef(false);
   const repeatModeRef = useRef<RepeatMode>('off');
-  const repeatWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const confirmedVolumeRef = useRef(1);
   const volumeRequestIdRef = useRef(0);
-  const volumeWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     // React may replay effects in development. Re-arm the lifecycle guard on
@@ -99,18 +96,13 @@ export const usePlaybackControls = (currentSong?: Song | null): PlaybackControls
   }, []);
 
   const cycleRepeatMode = useCallback((): Promise<void> => {
-    // Every tap is intentional, so serialize rather than coalesce. The next
-    // mode is calculated when its turn begins, not from a stale render closure.
-    const operation = repeatWriteQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        const nextRepeatMode = getNextRepeatMode(repeatModeRef.current);
-        await applyRepeatModeToTrackPlayer(nextRepeatMode);
-        repeatModeRef.current = nextRepeatMode;
-        if (isMountedRef.current) setRepeatModeValue(nextRepeatMode);
-      });
-    repeatWriteQueueRef.current = operation;
-    return operation;
+    // Submit every tap directly to the shared intent lane so navigation cannot
+    // overtake it. Calculate and confirm the mode in that turn, without a stale
+    // render closure or a separate queue which delays the intent boundary.
+    return cycleTrackPlayerRepeatMode(() => repeatModeRef.current, nextRepeatMode => {
+      repeatModeRef.current = nextRepeatMode;
+      if (isMountedRef.current) setRepeatModeValue(nextRepeatMode);
+    });
   }, []);
 
   const setVolume = useCallback((nextVolume: number): Promise<void> => {
@@ -123,23 +115,17 @@ export const usePlaybackControls = (currentSong?: Song | null): PlaybackControls
     // one and overwrite it.
     if (isMountedRef.current) setVolumeValue(clampedVolume);
 
-    const operation = volumeWriteQueueRef.current
-      .catch(() => undefined)
-      .then(async () => {
-        // Collapse all queued intermediate slider positions to the latest one.
-        if (requestId !== volumeRequestIdRef.current) return;
-        const appliedVolume = await applyVolumeToTrackPlayer(clampedVolume);
-        confirmedVolumeRef.current = appliedVolume;
-      });
-
-    const guardedOperation = operation.catch(error => {
+    // The shared lane preserves submission order and writer settlement. Check
+    // the request ID when that turn starts to discard queued slider positions.
+    return applyVolumeToTrackPlayer(clampedVolume, {
+      isCurrent: () => requestId === volumeRequestIdRef.current,
+      onConfirmed: appliedVolume => { confirmedVolumeRef.current = appliedVolume; },
+    }).then(() => undefined).catch(error => {
       if (requestId === volumeRequestIdRef.current && isMountedRef.current) {
         setVolumeValue(confirmedVolumeRef.current);
       }
       throw error;
     });
-    volumeWriteQueueRef.current = guardedOperation;
-    return guardedOperation;
   }, []);
 
   return {
