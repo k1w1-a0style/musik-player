@@ -152,7 +152,7 @@ jobs:
   native-gates:
     name: Android native build and tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -251,6 +251,51 @@ jobs:
             if (tests === 0 || failures > 0 || errors > 0) process.exit(1);
           }
           NODE
+
+      # Explicit trusted-branch opt-in. Matches the existing credential-free EAS
+      # preview signing identity; production signing remains in its own workflow.
+      - name: Build requested preview APK
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
+        shell: bash
+        env:
+          EAS_BUILD_PROFILE: preview
+        run: |
+          set -euo pipefail
+          cd android
+          ./gradlew :app:assembleRelease --no-daemon --console=plain 2>&1 | tee ../preview-gradle.log
+
+      - name: Inspect requested preview APK and signing identity
+        id: preview_apk
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools_dir="$(find "${ANDROID_HOME}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+          test -x "$tools_dir/apksigner"
+          export PATH="$tools_dir:$PATH"
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          node scripts/ci/inspectAndroidApk.cjs "$APK" \
+            --expected-package com.k1w1a0style.musikplayer \
+            --expected-label k1w1-Musik \
+            --min-size-bytes 10000001 --require-badging --require-signature \
+            --enforce-permission-policy | tee preview-apk-inspection.log
+          apksigner verify --verbose --print-certs "$APK" > preview-apk-signature.log
+          # Certificate from the successful preview APK in run 37595180459.
+          rg -qi '^Signer #1 certificate SHA-256 digest: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c$' preview-apk-signature.log
+          mkdir -p preview-apk
+          cp "$APK" preview-apk/musik-player-preview.apk
+          printf '%s\n' "$GITHUB_SHA" > preview-apk/source-commit.txt
+          sha256sum preview-apk/musik-player-preview.apk > preview-apk/apk-sha256.txt
+          cp preview-apk-inspection.log preview-apk-signature.log preview-apk/
+
+      - name: Upload inspected preview APK
+        if: ${{ steps.preview_apk.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: musik-player-preview-${{ github.sha }}
+          path: preview-apk/
+          if-no-files-found: error
+          retention-days: 30
 
   release-ready:
     name: Required release checks

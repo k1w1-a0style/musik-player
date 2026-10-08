@@ -283,6 +283,28 @@ describe('GitHub workflow CI strategy', () => {
     expect(ciWorkflow).toContain('push:\n    branches: [main, codex, "fix/**", "refactor/**", "review/**"]');
     expect(ciWorkflow).not.toContain('Emergent');
   });
+
+  it('publishes requested preview APKs only from codex pushes after inspection and signature matching', () => {
+    const workflow = parseWorkflow('ci.yml');
+    const native = workflow.jobs['native-gates'];
+    const build = native.steps.find((step: any) => step.name === 'Build requested preview APK');
+    const inspect = native.steps.find((step: any) => step.id === 'preview_apk');
+    const upload = native.steps.find((step: any) => step.name === 'Upload inspected preview APK');
+    for (const step of [build, inspect]) {
+      expect(step.if).toContain("github.event_name == 'push'");
+      expect(step.if).toContain("github.ref == 'refs/heads/codex'");
+      expect(step.if).toContain("contains(github.event.head_commit.message, '[preview apk]')");
+      expect(step['continue-on-error']).toBeUndefined();
+    }
+    expect(build.run).toContain(':app:assembleRelease');
+    expect(inspect.run).toContain('--enforce-permission-policy');
+    expect(inspect.run).toContain('--require-signature');
+    expect(inspect.run).toContain('fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c');
+    expect(inspect.run).toContain('source-commit.txt');
+    expect(upload.if).toBe("${{ steps.preview_apk.outcome == 'success' }}");
+    expect(upload.with['if-no-files-found']).toBe('error');
+    expect(workflow.permissions).toEqual({ contents: 'read' });
+  });
   it('fails closed when an EAS Android download does not produce an artifact', () => {
     const easWorkflow = readWorkflow('eas-build.yml');
     const buildStep = namedStep(easWorkflow, 'Run EAS Build (WAIT)');
