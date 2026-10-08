@@ -14,6 +14,7 @@ describe('shared bounded native read lane', () => {
     const extractAudioInfo = jest.fn(() => new Promise<null>(resolve => { finishAudioInfo = resolve; }));
     const extractEmbeddedArtwork = jest.fn(() => new Promise<null>(resolve => { finishArtwork = resolve; }));
     const extractMetadataFast = jest.fn().mockResolvedValue({ title: 'bounded' });
+    const readImportFileStat = jest.fn().mockResolvedValue({ size: 100, modificationTime: 200 });
 
     jest.doMock('expo', () => ({
       NativeModule: class {},
@@ -27,6 +28,7 @@ describe('shared bounded native read lane', () => {
           extractAudioInfo,
           extractEmbeddedArtwork,
           extractMetadataFast,
+          readImportFileStat,
         };
         throw new Error('missing optional module');
       }),
@@ -44,11 +46,14 @@ describe('shared bounded native read lane', () => {
 
     await expect(SystemAudio.extractMetadataFast('content://song-3')).resolves.toBeNull();
     expect(extractMetadataFast).not.toHaveBeenCalled();
+    await expect(SystemAudio.readImportFileStat('content://song-3')).resolves.toBeNull();
+    expect(readImportFileStat).not.toHaveBeenCalled();
 
     finishAudioInfo(null);
     await jest.advanceTimersByTimeAsync(0);
     await expect(SystemAudio.extractMetadataFast('content://song-4')).resolves.toEqual({ title: 'bounded' });
     expect(extractMetadataFast).toHaveBeenCalledTimes(1);
+    await expect(SystemAudio.readImportFileStat('content://song-4')).resolves.toEqual({ size: 100, modificationTime: 200 });
 
     finishArtwork(null);
     await jest.advanceTimersByTimeAsync(0);

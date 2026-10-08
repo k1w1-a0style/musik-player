@@ -1,5 +1,5 @@
 import { getInfoAsync } from 'expo-file-system/legacy';
-import { File } from 'expo-file-system';
+import { SystemAudio } from 'expo-system-audio';
 import type { SongFileInfo } from '../types/Song';
 import { throwIfAborted } from './withTimeout';
 
@@ -8,13 +8,13 @@ const positive = (value: unknown): value is number => typeof value === 'number' 
 
 interface RevisionReadOptions { previous?: SongFileInfo; verifyContent?: boolean }
 
-const readProviderStat = (uri: string, hints: ImportFileRevision): ImportFileRevision => {
+const readProviderStat = async (uri: string, hints: ImportFileRevision): Promise<ImportFileRevision> => {
   if (positive(hints.size) && positive(hints.modificationTime)) return hints;
   try {
-    // The current File API queries DocumentFile size/lastModified for SAF. The
-    // legacy API opens the stream and cannot report its modification time.
-    const stat = new File(uri).info();
-    if (!stat.exists) return hints;
+    // Query provider columns off the JS/Expo module queues. File.info() is
+    // synchronous; a stalled SAF query prevents JS deadlines and cancellation.
+    const stat = await SystemAudio.readImportFileStat(uri);
+    if (!stat) return hints;
     return { size: positive(stat.size) ? stat.size : hints.size,
       modificationTime: positive(hints.modificationTime) ? hints.modificationTime
         : positive(stat.modificationTime) ? stat.modificationTime : undefined };
@@ -27,7 +27,7 @@ const readProviderStat = (uri: string, hints: ImportFileRevision): ImportFileRev
 export const readImportFileRevision = async (uri: string, hints: ImportFileRevision = {},
   signal?: AbortSignal, options: RevisionReadOptions = {}): Promise<ImportFileRevision> => {
   throwIfAborted(signal);
-  const stat = readProviderStat(uri, hints);
+  const stat = await readProviderStat(uri, hints);
   throwIfAborted(signal);
   const previous = options.previous;
   if (!options.verifyContent) {

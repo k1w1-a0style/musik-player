@@ -12,6 +12,7 @@ const SystemAudio = {
   extractEmbeddedArtwork: jest.fn().mockResolvedValue(null),
   releaseEmbeddedArtworkLease: jest.fn().mockResolvedValue(false),
   extractAudioInfo: jest.fn().mockResolvedValue(null),
+  readImportFileStat: jest.fn().mockResolvedValue(null),
   extractMetadataFast: jest.fn().mockResolvedValue(null),
   extractWaveformPeaks: jest.fn().mockResolvedValue(null),
   cancelWaveformExtraction: jest.fn().mockReturnValue(false),

@@ -24,8 +24,13 @@ import android.util.Log
 import androidx.palette.graphics.Palette
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.Promise
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Bridges Android's Equalizer API and the androidx.palette color extraction
@@ -36,6 +41,10 @@ import java.util.UUID
  * Requires MODIFY_AUDIO_SETTINGS.
  */
 class SystemAudioModule : Module() {
+  // Slow/cloud provider queries must not occupy JS, main, or Expo's shared
+  // module queue. No backlog: at most two actual provider stats can run.
+  private val importStatExecutor = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS,
+    SynchronousQueue<Runnable>(), { task -> Thread(task, "import-file-stat").apply { isDaemon = true } })
   private val artworkLeaseOwner = ArtworkCacheLeaseOwner()
   private val equalizerLifecycle = SerializedSessionEffect(
     create = { sessionId: Int ->
@@ -122,6 +131,21 @@ class SystemAudioModule : Module() {
       extractAudioInfo(uri)
     }
 
+    AsyncFunction("readImportFileStat") { uri: String, promise: Promise ->
+      val resolver = appContext.reactContext?.contentResolver
+      if (resolver == null) {
+        promise.resolve(null)
+      } else {
+        try {
+          importStatExecutor.execute {
+            promise.resolve(readProviderFileStat(uri) { parsed, columns ->
+              resolver.query(parsed, columns, null, null, null)
+            })
+          }
+        } catch (_: RejectedExecutionException) { promise.resolve(null) }
+      }
+    }
+
     AsyncFunction("extractMetadataFast") { uri: String ->
       extractFastMetadata(uri)
     }
@@ -173,6 +197,7 @@ AsyncFunction("writeAudioTags") { uri: String, request: Map<String, Any?> ->
     }
 
     OnDestroy {
+      importStatExecutor.shutdownNow()
       try {
         AtomicArtworkCache.closeOwner(artworkLeaseOwner)
       } finally {

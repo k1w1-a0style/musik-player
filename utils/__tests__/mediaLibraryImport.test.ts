@@ -6,8 +6,7 @@ import * as mediaImport from '../mediaLibraryImport';
 import { AUDIO_EXTENSIONS, EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from '../audioExtensions';
 import { getWaveformSourceIdentity } from '../waveformGenerator';
 
-const mockFileInfo = jest.fn();
-jest.mock('expo-file-system', () => ({ File: jest.fn().mockImplementation(() => ({ info: mockFileInfo })) }));
+const mockFileInfo = SystemAudio.readImportFileStat as jest.Mock;
 
 jest.mock('expo-file-system/legacy', () => ({
   getInfoAsync: jest.fn(async () => ({ exists: true, size: 123, md5: 'stable-file-hash' })),
@@ -26,7 +25,7 @@ describe('mediaLibraryImport', () => {
     const uri = 'content://music/known.mp3';
     const previous = { id: 'known', title: 'Known', artist: 'Artist', uri, duration: 200_000,
       fileInfo: { uri, size: 20_000_000, contentHash: 'stable-file-hash', importedAt: 2000 } };
-    mockFileInfo.mockReturnValue({ exists: true, size: 20_000_000, modificationTime: 1500 });
+    mockFileInfo.mockResolvedValue({ size: 20_000_000, modificationTime: 1500 });
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([uri]);
     const options = { platformOs: 'android',
       scanFolders: [{ id: 'music', name: 'Music', uri: 'content://music', enabled: true, addedAt: 2 }],
@@ -50,7 +49,7 @@ describe('mediaLibraryImport', () => {
     const uri = 'content://music/changed.mp3';
     const previous = { id: 'changed', title: 'Old title', artist: 'Artist', uri, duration: 200_000,
       fileInfo: { uri, size: 20_000_000, contentHash: 'stable-file-hash', importedAt: 2000, modificationTime: 1500 } };
-    mockFileInfo.mockReturnValue({ exists: true, size: 20_000_000, modificationTime: 3000 });
+    mockFileInfo.mockResolvedValue({ size: 20_000_000, modificationTime: 3000 });
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([uri]);
     (parseId3FromUri as jest.Mock).mockResolvedValueOnce({ title: 'New title' });
     const result = await mediaImport.importSongsFromSources({ platformOs: 'android',
@@ -93,6 +92,7 @@ describe('mediaLibraryImport', () => {
   });
   beforeEach(() => {
     mockFileInfo.mockReset();
+    mockFileInfo.mockResolvedValue(null);
     (getInfoAsync as jest.Mock).mockClear();
     (parseId3FromUri as jest.Mock).mockClear();
     (getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, size: 123, md5: 'stable-file-hash' });

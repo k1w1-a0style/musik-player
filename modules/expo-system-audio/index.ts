@@ -84,6 +84,12 @@ export interface AudioInfoResult {
   displayName?: string;
 }
 
+export interface ImportFileStat {
+  size?: number;
+  /** Provider and filesystem modification dates in milliseconds. */
+  modificationTime?: number;
+}
+
 /**
  * Native waveform result. `points` are normalized 0..1 envelope values and are
  * downsampled natively so rendering never has to inspect audio bytes.
@@ -161,6 +167,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
   releaseEmbeddedArtworkLease?(leaseId: string): Promise<boolean>;
   extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
+  readImportFileStat?(uri: string): Promise<ImportFileStat | null>;
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
   verifyAudioTagDeletion?(uri: string, request: AudioTagWriteRequest): Promise<boolean>;
@@ -347,6 +354,13 @@ export const SystemAudio = {
 
   async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {
     return native ? runBoundedNativeRead(() => native.extractAudioInfo(uri)) : null;
+  },
+
+  async readImportFileStat(uri: string): Promise<ImportFileStat | null> {
+    const read = native?.readImportFileStat?.bind(native);
+    if (!read) return null;
+    try { return await runBoundedNativeRead(() => read(uri)); }
+    catch { return null; }
   },
 
   /**
