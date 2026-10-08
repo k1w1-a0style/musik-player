@@ -14,6 +14,10 @@ const workflowFiles = fs
 const readWorkflow = (file: string) =>
   fs.readFileSync(path.join(workflowDir, file), 'utf8');
 const parseWorkflow = (file: string) => YAML.parse(readWorkflow(file));
+const previewCertificate = fs.readFileSync(path.join(__dirname, 'fixtures/previewSigningCertificate.pem'), 'utf8');
+const otherCertificateBytes = Buffer.from(previewCertificate.replace(/-----[^\n]+-----|\s/g, ''), 'base64');
+otherCertificateBytes[otherCertificateBytes.length - 1] ^= 1;
+const otherCertificate = `-----BEGIN CERTIFICATE-----\n${otherCertificateBytes.toString('base64')}\n-----END CERTIFICATE-----\n`;
 const parsedNamedStep = (file: string, name: string): any =>
   Object.values(parseWorkflow(file).jobs).flatMap((job: any) => job.steps ?? []).find((step: any) => step.name === name);
 const parsedNamedStepFromSource = (source: string, name: string): any =>
@@ -287,16 +291,17 @@ describe('GitHub workflow CI strategy', () => {
   });
 
   it.each([
-    ['matching', 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c', true],
-    ['different', '0'.repeat(64), false],
+    ['matching', previewCertificate, true],
+    ['different', otherCertificate, false],
     ['missing', undefined, false],
-  ] as const)('checks the %s preview signing certificate without optional runner tools', (_name, fingerprint, accepted) => {
+    ['multiple', previewCertificate + previewCertificate, false],
+  ] as const)('checks the %s preview signing certificate without optional runner tools', (_name, certificate, accepted) => {
     const inspect = parseWorkflow('ci.yml').jobs['native-gates'].steps.find((step: any) => step.id === 'preview_apk');
     const command = inspect.run.split('# Certificate from the successful preview APK in run 37595180459.')[1].split('mkdir -p preview-apk')[0];
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'preview-certificate-'));
     try {
-      fs.writeFileSync(path.join(directory, 'preview-apk-signature.log'), fingerprint
-        ? `Signer #1 certificate SHA-256 digest: ${fingerprint}\n` : 'Verifies\n');
+      fs.writeFileSync(path.join(directory, 'preview-apk-signature.log'), certificate
+        ? `Verifies\n${certificate}` : 'Verifies\n');
       const result = spawnSync('/bin/bash', ['-c', command], {
         cwd: directory,
         env: { PATH: path.dirname(process.execPath), NODE_ENV: 'test' },
@@ -329,10 +334,11 @@ describe('GitHub workflow CI strategy', () => {
   it('publishes requested preview APKs only from codex pushes after inspection and signature matching', () => {
     const workflow = parseWorkflow('ci.yml');
     const native = workflow.jobs['native-gates'];
+    const prepare = native.steps.find((step: any) => step.name === 'Prepare requested preview signing certificate');
     const build = native.steps.find((step: any) => step.name === 'Android native build and unit tests');
     const inspect = native.steps.find((step: any) => step.id === 'preview_apk');
     const upload = native.steps.find((step: any) => step.name === 'Upload inspected preview APK');
-    for (const expression of [build.env.PREVIEW_APK_REQUESTED, inspect.if]) {
+    for (const expression of [prepare.if, build.env.PREVIEW_APK_REQUESTED, inspect.if]) {
       expect(expression).toContain("github.event_name == 'push'");
       expect(expression).toContain("github.ref == 'refs/heads/codex'");
       expect(expression).toContain("contains(github.event.head_commit.message, '[preview apk]')");
@@ -342,8 +348,14 @@ describe('GitHub workflow CI strategy', () => {
     expect(build.if).toBeUndefined();
     expect(build.env.EAS_BUILD_PROFILE).toContain("&& 'preview' || 'production'");
     expect(build.run).toContain(':app:assembleRelease');
+    expect(native.steps.indexOf(prepare)).toBeLessThan(native.steps.indexOf(build));
+    expect(prepare.run).toContain('react-native-community/template/6d0f1c9228d1190047b569168084eeeb24914ae3/');
+    expect(prepare.run).toContain('221e0a3106aa4c3ccc154e0a418b55020b3f9ea6e84f92e8749cd9e2f39f5e58');
+    expect(prepare.run).toContain('keytool -exportcert');
     expect(inspect.run).toContain('--enforce-permission-policy');
     expect(inspect.run).toContain('--require-signature');
+    expect(inspect.run).toContain('--print-certs-pem');
+    expect(inspect.run).toContain('crypto.X509Certificate');
     expect(inspect.run).toContain('fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c');
     expect(inspect.run).toContain('source-commit.txt');
     expect(upload.if).toBe("${{ steps.preview_apk.outcome == 'success' }}");

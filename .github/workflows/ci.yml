@@ -183,6 +183,33 @@ jobs:
           java -version
           npx --no-install expo prebuild --platform android --no-install --clean
 
+      - name: Prepare requested preview signing certificate
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Public React Native template debug key, pinned by commit and bytes.
+          curl --fail --location --retry 3 --retry-delay 1 \
+            --output android/app/debug.keystore \
+            https://raw.githubusercontent.com/react-native-community/template/6d0f1c9228d1190047b569168084eeeb24914ae3/template/android/app/debug.keystore
+          node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const expected = '221e0a3106aa4c3ccc154e0a418b55020b3f9ea6e84f92e8749cd9e2f39f5e58';
+          const actual = crypto.createHash('sha256').update(fs.readFileSync('android/app/debug.keystore')).digest('hex');
+          if (actual !== expected) throw new Error(`Public preview keystore checksum mismatch: ${actual}`);
+          NODE
+          keytool -exportcert -keystore android/app/debug.keystore -storepass android \
+            -alias androiddebugkey -file preview-signing-certificate.der
+          node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const expected = 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c';
+          const actual = crypto.createHash('sha256').update(fs.readFileSync('preview-signing-certificate.der')).digest('hex');
+          console.log(`Preview signing preflight SHA-256: ${actual}`);
+          if (actual !== expected) throw new Error('Public preview certificate does not match the previous preview APK.');
+          NODE
+
       - name: Android native build and unit tests
         shell: bash
         env:
@@ -276,20 +303,36 @@ jobs:
             --expected-label k1w1-Musik \
             --min-size-bytes 10000001 --require-badging --require-signature \
             --enforce-permission-policy | tee preview-apk-inspection.log
-          apksigner verify --verbose --print-certs "$APK" > preview-apk-signature.log
+          apksigner verify --verbose --print-certs-pem "$APK" | tee preview-apk-signature.log
           # Certificate from the successful preview APK in run 37595180459.
           node <<'NODE'
           const fs = require('fs');
+          const crypto = require('crypto');
           const expected = 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c';
           const log = fs.readFileSync('preview-apk-signature.log', 'utf8');
-          const certificate = log.match(/^Signer #1 certificate SHA-256 digest: ([a-f0-9]{64})\r?$/im)?.[1]?.toLowerCase();
-          if (certificate !== expected) throw new Error('Preview signing certificate does not match the previous preview APK.');
+          const certificates = [...log.matchAll(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)];
+          const actual = certificates.length === 1
+            ? new crypto.X509Certificate(certificates[0][0]).fingerprint256.replace(/:/g, '').toLowerCase() : undefined;
+          console.log(`Preview APK certificate SHA-256: ${actual ?? `unavailable (${certificates.length} certificates)`}`);
+          if (actual !== expected) throw new Error(`Preview certificate mismatch: expected ${expected}, observed ${actual ?? 'missing or multiple certificates'}`);
           NODE
           mkdir -p preview-apk
           cp "$APK" preview-apk/musik-player-preview.apk
           printf '%s\n' "$GITHUB_SHA" > preview-apk/source-commit.txt
           sha256sum preview-apk/musik-player-preview.apk > preview-apk/apk-sha256.txt
           cp preview-apk-inspection.log preview-apk-signature.log preview-apk/
+
+      - name: Upload preview signing diagnostic evidence
+        if: ${{ always() && hashFiles('preview-signing-certificate.der') != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-signing-evidence
+          path: |
+            preview-signing-certificate.der
+            preview-apk-inspection.log
+            preview-apk-signature.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload inspected preview APK
         if: ${{ steps.preview_apk.outcome == 'success' }}
