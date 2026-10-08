@@ -61,6 +61,7 @@ const mockAlerts: UseLibraryAlertsResult = {
 
 const mockImportActions: UseLibraryImportActionsResult = {
   importFromDevice: asyncFn,
+  cancelImport: jest.fn(() => false),
 };
 
 const mockMenuActions: UseLibraryMenuActionsResult = {

@@ -11,7 +11,7 @@ import {
   getMediaLibraryPermissionDeniedAlert,
   getPartialScanImportAlert,
 } from '../../utils/libraryImportFlow';
-import { TimeoutError } from '../../utils/withTimeout';
+import { TimeoutError, withTimeout } from '../../utils/withTimeout';
 import { prepareLibraryWaveforms } from '../../utils/libraryWaveformPreparation';
 
 jest.mock('../../utils/libraryWaveformPreparation', () => ({
@@ -96,7 +96,10 @@ const HookHarness = ({
     withTimeoutImpl,
   });
 
-  return <Button title="import" onPress={() => void actions.importFromDevice()} />;
+  return <>
+    <Button title="import" onPress={() => void actions.importFromDevice()} />
+    <Button title="cancel import" onPress={() => actions.cancelImport()} />
+  </>;
 };
 
 beforeEach(() => {
@@ -106,6 +109,75 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+test('user cancellation stops a stalled scan immediately and rejects late checkpoints and results', async () => {
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let resolveScan!: (result: { songs: Song[]; errors: string[] }) => void;
+  let scanOptions!: Parameters<typeof import('../../utils/mediaLibraryImport').importSongsFromSources>[0];
+  const state = createSongLibraryState([song('existing')]);
+  state.configurePersistence(async read => read());
+  const importSongsFromSourcesImpl = jest.fn().mockImplementationOnce(async options => {
+    scanOptions = options;
+    await options.onCheckpoint({ songs: [song('confirmed')], processed: 1, total: 3 });
+    return new Promise(resolve => { resolveScan = resolve; });
+  }).mockResolvedValueOnce({ songs: [song('new-scan')], errors: [] });
+  const screen = render(<HookHarness scanFolders={[folder('music')]} songs={[song('existing')]}
+    songImport={state} importSongsFromSourcesImpl={importSongsFromSourcesImpl} withTimeoutImpl={withTimeout} />);
+
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setSongs).toHaveBeenCalledWith([song('confirmed'), song('existing')]));
+  fireEvent.press(screen.getByText('cancel import'));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(setImportStatus).toHaveBeenLastCalledWith(null);
+  await waitFor(() => expect(scanOptions?.signal?.aborted).toBe(true));
+  await act(async () => {
+    await scanOptions?.onCheckpoint?.({ songs: [song('late-checkpoint')], processed: 2, total: 3 });
+  });
+
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(state.getCurrent().map(item => item.id).sort()).toEqual(['confirmed', 'existing', 'new-scan']));
+  await act(async () => { resolveScan({ songs: [song('late-result')], errors: [] }); });
+  expect(state.getCurrent().map(item => item.id).sort()).toEqual(['confirmed', 'existing', 'new-scan']);
+  expect(showAlert).not.toHaveBeenCalled();
+  expect(persistChangedFolderUpdates).toHaveBeenCalledTimes(1);
+});
+
+test('user cancellation retains the real storage barrier before a following scan', async () => {
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let resolveWrite!: () => void;
+  const writing = new Promise<void>(resolve => { resolveWrite = resolve; });
+  const state = createSongLibraryState([]);
+  const persist = jest.fn().mockImplementationOnce(async (read: () => Song[]) => {
+    const snapshot = read();
+    await writing;
+    return snapshot;
+  }).mockImplementation(async (read: () => Song[]) => read());
+  state.configurePersistence(persist);
+  const importSongsFromSourcesImpl = jest.fn().mockImplementationOnce(async options => {
+    await options.onCheckpoint({ songs: [song('stored-after-cancel')], processed: 1, total: 1 });
+    return { songs: [song('stored-after-cancel')], errors: [] };
+  }).mockResolvedValueOnce({ songs: [song('next-scan')], errors: [] });
+  const screen = render(<HookHarness scanFolders={[folder('music')]} songImport={state}
+    importSongsFromSourcesImpl={importSongsFromSourcesImpl} withTimeoutImpl={withTimeout} />);
+
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(persist).toHaveBeenCalledTimes(1));
+  fireEvent.press(screen.getByText('cancel import'));
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  fireEvent.press(screen.getByText('import'));
+  await act(async () => { await Promise.resolve(); });
+  expect(importSongsFromSourcesImpl).toHaveBeenCalledTimes(1);
+  expect(setLoading).toHaveBeenLastCalledWith(true);
+
+  await act(async () => { resolveWrite(); });
+  await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledTimes(2));
+  expect(importSongsFromSourcesImpl.mock.calls[1][0].existingSongs.map((item: Song) => item.id))
+    .toEqual(['stored-after-cancel']);
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(state.getCurrent().map(item => item.id).sort()).toEqual(['next-scan', 'stored-after-cancel']);
+  expect(setSongs).toHaveBeenLastCalledWith([song('next-scan'), song('stored-after-cancel')]);
+  expect(showAlert).not.toHaveBeenCalled();
 });
 
 test('uses scan folder import on android when active scan folders exist', async () => {

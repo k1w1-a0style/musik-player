@@ -12,6 +12,7 @@ import {
 export interface LibraryImportStatusProps {
   status?: string | null;
   scanning?: boolean;
+  onCancelScan?: () => void;
   onCancelRefresh?: () => void;
   onResumeRefresh?: () => void;
 }
@@ -44,7 +45,9 @@ const decodeUriSegment = (uri: string): string => {
 interface RefreshActionProps {
   isRunning: boolean;
   isCancelling: boolean;
+  scanning: boolean;
   showResume: boolean;
+  onCancelScan?: () => void;
   onCancelRefresh?: () => void;
   onResumeRefresh?: () => void;
   cancelColor: string;
@@ -55,7 +58,9 @@ interface RefreshActionProps {
 const RefreshAction = ({
   isRunning,
   isCancelling,
+  scanning,
   showResume,
+  onCancelScan,
   onCancelRefresh,
   onResumeRefresh,
   cancelColor,
@@ -71,7 +76,7 @@ const RefreshAction = ({
     disabled?: boolean;
   } | undefined;
 
-  if (isRunning && onCancelRefresh) {
+  if ((isRunning || isCancelling) && onCancelRefresh) {
     action = {
       accessibilityLabel: 'Aktualisierung abbrechen',
       backgroundColor: cancelColor,
@@ -80,7 +85,15 @@ const RefreshAction = ({
       testID: 'library-import-status-cancel',
       disabled: isCancelling,
     };
-  } else if (!isRunning && showResume && onResumeRefresh) {
+  } else if (scanning && onCancelScan) {
+    action = {
+      accessibilityLabel: 'Scan abbrechen',
+      backgroundColor: cancelColor,
+      label: 'Abbrechen',
+      onPress: onCancelScan,
+      testID: 'library-import-status-scan-cancel',
+    };
+  } else if (!isRunning && !isCancelling && !scanning && showResume && onResumeRefresh) {
     action = {
       accessibilityLabel: 'Aktualisierung fortsetzen',
       backgroundColor: resumeColor,
@@ -136,11 +149,12 @@ const RefreshErrors = ({
   );
 };
 
-const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scanning = false, onCancelRefresh, onResumeRefresh }) => {
+const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scanning = false, onCancelScan, onCancelRefresh, onResumeRefresh }) => {
   const { theme } = useAppTheme();
   const operation = useMetadataRefreshOperation();
   const isRunning = operation.status === 'running';
   const isCancelling = operation.status === 'cancelling';
+  const scanActive = scanning && !isRunning && !isCancelling;
   const showResume = canResumeMetadataRefresh(operation);
   const showSpinner = scanning || isRunning || isCancelling;
   const baseStatus = status ?? (STATUS_LABEL_BY_STATE[operation.status] || libraryImportMessages.importRunning);
@@ -164,7 +178,9 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scann
         <RefreshAction
           isRunning={isRunning}
           isCancelling={isCancelling}
+          scanning={scanActive}
           showResume={showResume}
+          onCancelScan={onCancelScan}
           onCancelRefresh={onCancelRefresh}
           onResumeRefresh={onResumeRefresh}
           cancelColor={theme.palette.error}
@@ -172,7 +188,7 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scann
           labelColor={theme.palette.text.onPrimary}
         />
       </View>
-      <RefreshErrors errorDetails={operation.errorDetails} color={theme.palette.text.secondary} />
+      {!scanActive && <RefreshErrors errorDetails={operation.errorDetails} color={theme.palette.text.secondary} />}
     </View>
   );
 };

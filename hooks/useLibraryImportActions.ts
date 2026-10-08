@@ -81,7 +81,7 @@ export const useLibraryImportActions = ({
   confirmLibraryImportImpl = confirmLibraryImport,
   withTimeoutImpl = withTimeout,
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
-  const { startImport, isCurrentImport, ensureCurrentImport, finishImport } =
+  const { startImport, isCurrentImport, ensureCurrentImport, finishImport, cancelImport } =
     useLibraryImportLifecycle({ setLoading, setImportStatus });
   const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport });
   const { importFromScanFolders } = useLibraryScanFolderImportFlow({
@@ -137,5 +137,5 @@ export const useLibraryImportActions = ({
     }
   }, [ensureCurrentImport, finishImport, importFromMediaLibrary, importFromScanFolders, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, songs, startImport]);
 
-  return { importFromDevice };
+  return { importFromDevice, cancelImport };
 };

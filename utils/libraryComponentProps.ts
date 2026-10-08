@@ -32,6 +32,7 @@ export interface LibrarySearchBarPropsBuilderOptions {
 
 export interface LibraryImportStatusPropsBuilderOptions {
   importStatus: string | null;
+  cancelImport?: () => void;
   cancelMetadataRefresh?: () => void;
   resumeMetadataRefresh?: () => void;
 }
@@ -106,8 +107,9 @@ export const buildLibrarySearchBarProps = ({ query, setQuery }: LibrarySearchBar
   value: query,
 });
 
-export const buildLibraryImportStatusProps = ({ importStatus, cancelMetadataRefresh, resumeMetadataRefresh }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
+export const buildLibraryImportStatusProps = ({ importStatus, cancelImport, cancelMetadataRefresh, resumeMetadataRefresh }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
   status: importStatus,
+  onCancelScan: cancelImport,
   onCancelRefresh: cancelMetadataRefresh,
   onResumeRefresh: resumeMetadataRefresh,
 });

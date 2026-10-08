@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Platform, Pressable, Text } from 'react-native';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Library from '../Library';
 import { APP_STACK_ROUTES } from '../../types/routes';
 import { createSongLibraryState, type SongLibraryState } from '../../contexts/songLibraryState';
@@ -265,6 +265,39 @@ describe('Library', () => {
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1', title: 'Fresh Song' })])));
     expect(mockImportSongs).toHaveBeenCalledTimes(1);
     expect(mockRefreshSongsFromId3).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  test('the library scan button cancels the real import generation and keeps confirmed tracks', async () => {
+    Object.defineProperty(Platform, 'OS', { value: 'android' });
+    mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
+    let resolveScan!: (result: { songs: any[]; errors: string[] }) => void;
+    let scanOptions: any;
+    const confirmed = { id: 'confirmed', title: 'Confirmed', artist: 'Artist', uri: 'content://music/confirmed.mp3' };
+    mockImportSongs.mockImplementationOnce(async options => {
+      scanOptions = options;
+      await options.onCheckpoint({ songs: [confirmed], processed: 1, total: 2 });
+      return new Promise(resolve => { resolveScan = resolve; });
+    });
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const view = render(<Library />);
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+    openOverflowMenu(view.getByLabelText);
+    pressImportMenuItem(view.getByText);
+    await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([confirmed])));
+
+    fireEvent.press(view.getByLabelText('Scan abbrechen'));
+    expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
+    await waitFor(() => expect(scanOptions.signal.aborted).toBe(true));
+    const publications = mockSetSongs.mock.calls.length;
+    await act(async () => {
+      await scanOptions.onCheckpoint({ songs: [{ ...confirmed, id: 'late' }], processed: 2, total: 2 });
+      resolveScan({ songs: [{ ...confirmed, id: 'late-result' }], errors: [] });
+    });
+    expect(mockSetSongs).toHaveBeenCalledTimes(publications);
+    expect(mockSongLibrary.getCurrent().map(song => song.id).sort()).toEqual(['confirmed', 's1']);
+    expect(alert).not.toHaveBeenCalled();
     view.unmount();
   });
 

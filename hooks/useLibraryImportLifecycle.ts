@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { OperationAbortError, throwIfAborted } from '../utils/withTimeout';
+import { clearImportFileProgress } from '../utils/libraryImportProgress';
 import type { ImportGeneration } from './libraryImportActionTypes';
 
 interface UseLibraryImportLifecycleOptions {
@@ -12,6 +13,7 @@ interface UseLibraryImportLifecycleResult {
   isCurrentImport: (generation: ImportGeneration) => boolean;
   ensureCurrentImport: (generation: ImportGeneration) => void;
   finishImport: (generation: ImportGeneration) => void;
+  cancelImport: () => boolean;
 }
 
 export const useLibraryImportLifecycle = ({
@@ -53,5 +55,16 @@ export const useLibraryImportLifecycle = ({
     setImportStatus(null);
   }, [setImportStatus, setLoading]);
 
-  return { startImport, isCurrentImport, ensureCurrentImport, finishImport };
+  const cancelImport = useCallback((): boolean => {
+    const generation = activeImportRef.current;
+    if (!generation) return false;
+    generation.controller.abort(new OperationAbortError('Scan vom Nutzer abgebrochen.'));
+    // Invalidate this UI generation immediately. Native reads/writes retain
+    // their reservations until actual settlement; finish cannot unlock them.
+    finishImport(generation);
+    clearImportFileProgress();
+    return true;
+  }, [finishImport]);
+
+  return { startImport, isCurrentImport, ensureCurrentImport, finishImport, cancelImport };
 };

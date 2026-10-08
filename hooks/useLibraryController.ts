@@ -96,7 +96,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
 
   const {
     closeMenu,
-    importFromDevice,
+    importFromDevice, cancelImport,
     onAddScanFolder,
     openMenu,
     openSettings,
@@ -209,7 +209,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     genreGroups,
     getSongItemLayout,
     importFromDevice,
-    importStatus,
+    importStatus, cancelImport,
     isReady,
     loading,
     menuOpen,

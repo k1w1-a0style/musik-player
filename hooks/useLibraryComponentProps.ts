@@ -39,7 +39,7 @@ export const useLibraryComponentProps = ({
   genreGroups,
   getSongItemLayout,
   importFromDevice,
-  importStatus,
+  importStatus, cancelImport,
   isReady,
   loading,
   menuOpen,
@@ -96,10 +96,10 @@ export const useLibraryComponentProps = ({
   }), [query, setQuery]);
 
   const importStatusProps = useMemo(() => ({ ...buildLibraryImportStatusProps({
-    importStatus,
+    importStatus, cancelImport,
     cancelMetadataRefresh,
     resumeMetadataRefresh,
-  }), scanning: loading }), [importStatus, cancelMetadataRefresh, resumeMetadataRefresh, loading]);
+  }), scanning: loading }), [importStatus, cancelImport, cancelMetadataRefresh, resumeMetadataRefresh, loading]);
 
   const visibilityProps = useMemo(() => buildLibraryScreenVisibilityProps({
     loading,

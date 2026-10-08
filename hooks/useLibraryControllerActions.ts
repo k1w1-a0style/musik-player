@@ -31,6 +31,7 @@ export interface UseLibraryControllerActionsOptions {
 export interface UseLibraryControllerActionsResult {
   closeMenu: () => void;
   importFromDevice: ReturnType<typeof useLibraryImportActions>['importFromDevice'];
+  cancelImport: ReturnType<typeof useLibraryImportActions>['cancelImport'];
   onAddScanFolder: () => Promise<void>;
   openMenu: () => void;
   openSettings: () => void;
@@ -80,7 +81,7 @@ export const useLibraryControllerActions = ({
       onFolderAdded: scanAddedFolder,
     });
 
-  const { importFromDevice } = useLibraryImportActions({
+  const { importFromDevice, cancelImport } = useLibraryImportActions({
     persistChangedFolderUpdates,
     scanFolders,
     setActiveTab,
@@ -106,6 +107,7 @@ export const useLibraryControllerActions = ({
   return {
     closeMenu,
     importFromDevice,
+    cancelImport,
     onAddScanFolder,
     openMenu,
     openSettings,

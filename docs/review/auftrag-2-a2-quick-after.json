@@ -1,0 +1,147 @@
+{
+  "revision": "working-tree",
+  "baseCommit": "606f4496c959c0ab45ca5be9acb8605532d30bf2",
+  "node": "v22.23.3",
+  "samples": 3,
+  "scope": "Flat SAF folder. Real JS import path; immediate provider boundary doubles. No physical I/O, React commits, Android RAM/jank or device speed claim.",
+  "workloads": [
+    {
+      "songs": 500,
+      "providerDates": true,
+      "hostMsMedian": 317.535,
+      "samplesMs": [
+        314.013,
+        317.535,
+        318.024
+      ],
+      "reused": 500,
+      "unverified": 0,
+      "processed": 500,
+      "calls": {
+        "directory": 1,
+        "providerStat": 500,
+        "stream": 0,
+        "tags": 0,
+        "audioInfo": 0,
+        "cover": 0,
+        "coverWrite": 0,
+        "checkpoint": 0
+      }
+    },
+    {
+      "songs": 2000,
+      "providerDates": true,
+      "hostMsMedian": 1264.515,
+      "samplesMs": [
+        1264.515,
+        1272.267,
+        1233.582
+      ],
+      "reused": 2000,
+      "unverified": 0,
+      "processed": 2000,
+      "calls": {
+        "directory": 1,
+        "providerStat": 2000,
+        "stream": 0,
+        "tags": 0,
+        "audioInfo": 0,
+        "cover": 0,
+        "coverWrite": 0,
+        "checkpoint": 0
+      }
+    },
+    {
+      "songs": 5000,
+      "providerDates": true,
+      "hostMsMedian": 3005.683,
+      "samplesMs": [
+        3000.859,
+        3024.374,
+        3005.683
+      ],
+      "reused": 5000,
+      "unverified": 0,
+      "processed": 5000,
+      "calls": {
+        "directory": 1,
+        "providerStat": 5000,
+        "stream": 0,
+        "tags": 0,
+        "audioInfo": 0,
+        "cover": 0,
+        "coverWrite": 0,
+        "checkpoint": 0
+      }
+    },
+    {
+      "songs": 500,
+      "providerDates": false,
+      "hostMsMedian": 310.121,
+      "samplesMs": [
+        310.312,
+        310.121,
+        306.273
+      ],
+      "reused": 500,
+      "unverified": 500,
+      "processed": 500,
+      "calls": {
+        "directory": 1,
+        "providerStat": 500,
+        "stream": 0,
+        "tags": 0,
+        "audioInfo": 0,
+        "cover": 0,
+        "coverWrite": 0,
+        "checkpoint": 0
+      }
+    },
+    {
+      "songs": 2000,
+      "providerDates": false,
+      "hostMsMedian": 1209.834,
+      "samplesMs": [
+        1209.834,
+        1198.172,
+        1234.798
+      ],
+      "reused": 2000,
+      "unverified": 2000,
+      "processed": 2000,
+      "calls": {
+        "directory": 1,
+        "providerStat": 2000,
+        "stream": 0,
+        "tags": 0,
+        "audioInfo": 0,
+        "cover": 0,
+        "coverWrite": 0,
+        "checkpoint": 0
+      }
+    },
+    {
+      "songs": 5000,
+      "providerDates": false,
+      "hostMsMedian": 3035.463,
+      "samplesMs": [
+        3037.961,
+        3035.463,
+        3027.02
+      ],
+      "reused": 5000,
+      "unverified": 5000,
+      "processed": 5000,
+      "calls": {
+        "directory": 1,
+        "providerStat": 5000,
+        "stream": 0,
+        "tags": 0,
+        "audioInfo": 0,
+        "cover": 0,
+        "coverWrite": 0,
+        "checkpoint": 0
+      }
+    }
+  ]
+}
