@@ -16,6 +16,7 @@ type ProviderStateInput = Pick<
   | 'setIsReady'
   | 'setLibraryHydrationReady'
   | 'songs'
+  | 'songLibrary'
   | 'setSongsState'
   | 'currentSongSetter'
   | 'playbackQueueSetter'

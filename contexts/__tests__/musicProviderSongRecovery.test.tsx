@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useSyncExternalStore } from 'react';
 import { Pressable, Text } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMusicProviderEffects } from '../useMusicProviderEffects';
+import { createSongLibraryState } from '../songLibraryState';
 import * as coverCache from '../../utils/coverCache';
 import { StorageKeys, storage } from '../../utils/storage';
 import { EQ_PRESETS, type EqPresetName, type Playlist, type RepeatMode, type Song } from '../../types/Song';
@@ -21,7 +22,9 @@ const RecoveryProbe = () => {
   const [libraryHydrationReady, setLibraryHydrationReady] = useState(false);
   const [hydrationStatus, setHydrationStatus] = useState<'loading' | 'ready' | 'degraded' | 'retry-required'>('loading');
   const [hydrationRetryToken, setRetry] = useState(0);
-  const [songs, setSongsState] = useState<Song[]>([]);
+  const [songLibrary] = useState(createSongLibraryState);
+  const songs = useSyncExternalStore(songLibrary.subscribe, songLibrary.getSnapshot);
+  const setSongsState = songLibrary.setSongs;
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [, currentSongSetter] = useState<Song | null>(null);
   const [, playbackQueueSetter] = useState<Song[]>([]);
@@ -39,7 +42,7 @@ const RecoveryProbe = () => {
     songsRef, queueContextRef, baseQueueContextRef, nativeQueueRef,
     persistCurrentSongId: async () => undefined, isReady, libraryHydrationReady,
     setIsReady, setLibraryHydrationReady, setHydrationStatus, hydrationRetryToken,
-    songs, setSongsState, currentSongSetter, playbackQueueSetter, playlists, setPlaylists,
+    songs, songLibrary, setSongsState, currentSongSetter, playbackQueueSetter, playlists, setPlaylists,
     shuffle, setShuffle, repeatMode, setRepeatMode, volume, setVolumeState,
     eqEnabled, setEqEnabledState, eqBands, setEqBandsState, eqPreset, setEqPreset,
   });

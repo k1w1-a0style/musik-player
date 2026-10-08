@@ -3,6 +3,7 @@ import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import { StorageKeys } from '../utils/storage';
 import { usePersistedSetting } from './usePersistedSetting';
 import { usePersistedSongs } from './usePersistedSongs';
+import type { SongLibraryState } from './songLibraryState';
 import type { PersistQueueIdleResult } from './musicPersistenceHelpers';
 
 interface UseMusicPersistenceArgs {
@@ -16,6 +17,7 @@ interface UseMusicPersistenceArgs {
   eqPreset: EqPresetName | 'custom';
   playlists: Playlist[];
   songs: Song[];
+  songLibrary?: SongLibraryState;
   setSongsState: (songs: Song[]) => void;
   persistedRefs?: MutableRefObject<Record<string, string>>;
 }
@@ -32,7 +34,7 @@ export const useMusicPersistence = ({
   eqBands,
   eqPreset,
   playlists,
-  songs,
+  songs, songLibrary,
   setSongsState,
   persistedRefs: sharedPersistedRefs,
 }: UseMusicPersistenceArgs): (() => Promise<PersistQueueIdleResult>) => {
@@ -52,5 +54,5 @@ export const useMusicPersistence = ({
   // Playlist editing is intentionally available as soon as the safe library
   // snapshot is visible, before native playback hydration finishes.
   usePersistedSetting(libraryHydrationReady, StorageKeys.PLAYLISTS, playlists, persistedRefs);
-  return usePersistedSongs(libraryHydrationReady, songs, setSongsState, persistedRefs);
+  return usePersistedSongs(libraryHydrationReady, songs, setSongsState, persistedRefs, songLibrary);
 };

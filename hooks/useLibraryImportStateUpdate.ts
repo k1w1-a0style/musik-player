@@ -1,42 +1,38 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryTab } from '../utils/libraryTabs';
 import type { ImportedSongsStateUpdate, ImportGeneration } from './libraryImportActionTypes';
-import { createImportSongReconciler } from '../utils/libraryImportReconciliation';
-import { protectAcceptedSongCovers } from '../contexts/songCoverProtectionLifecycle';
+import type { SongImportController } from '../contexts/songLibraryState';
 
 interface UseLibraryImportStateUpdateOptions {
   songs: Song[];
   setSongs: (songs: Song[]) => void;
   setActiveTab: Dispatch<SetStateAction<LibraryTab>>;
   ensureCurrentImport: (generation: ImportGeneration) => void;
+  songImport?: SongImportController;
 }
 
 export const useLibraryImportStateUpdate = ({
-  songs,
-  setSongs,
   setActiveTab,
   ensureCurrentImport,
+  songImport,
 }: UseLibraryImportStateUpdateOptions) => {
-  const confirmedSongsRef = useRef(songs);
-  const reconciliationRef = useRef<{ id: number; merge: ReturnType<typeof createImportSongReconciler> } | null>(null);
-  useEffect(() => { confirmedSongsRef.current = songs; }, [songs]);
-  const applyImportedSongsUpdate = useCallback((update: ImportedSongsStateUpdate, generation: ImportGeneration) => {
+  const publishImportedSongs = useCallback((generation: ImportGeneration): Song[] => {
     ensureCurrentImport(generation);
-    if (reconciliationRef.current?.id !== generation.id) {
-      reconciliationRef.current = { id: generation.id, merge: createImportSongReconciler(update.baselineSongs) };
-    }
-    // Reconcile only this batch against the current library. A producer's full
-    // snapshot may predate unrelated edits, additions or removals.
-    const merged = reconciliationRef.current.merge(confirmedSongsRef.current, update.importedSongs);
-    protectAcceptedSongCovers(merged);
-    setSongs(merged);
-    confirmedSongsRef.current = merged;
+    if (!songImport) throw new Error('Bibliothek ist noch nicht bereit. Bitte den Import erneut starten.');
+    const visible = songImport.publishImport();
+    setActiveTab('tracks');
+    return visible;
+  }, [ensureCurrentImport, setActiveTab, songImport]);
+  const applyImportedSongsUpdate = useCallback(async (update: ImportedSongsStateUpdate,
+    generation: ImportGeneration, publish = true): Promise<Song[]> => {
     ensureCurrentImport(generation);
-    setActiveTab(update.activeTab);
-    return merged;
-  }, [ensureCurrentImport, setActiveTab, setSongs]);
-
-  return { applyImportedSongsUpdate };
+    if (!songImport) throw new Error('Bibliothek ist noch nicht bereit. Bitte den Import erneut starten.');
+    const accepted = await songImport.commitImport(update, generation);
+    ensureCurrentImport(generation);
+    if (publish) publishImportedSongs(generation);
+    return accepted;
+  }, [ensureCurrentImport, publishImportedSongs, songImport]);
+  return { applyImportedSongsUpdate, publishImportedSongs };
 };

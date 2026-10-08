@@ -15,7 +15,7 @@ import { createImportSourceSelection, getImportSourceKey, preserveImportedSource
 import { readImportFileRevision } from './importFileRevision';
 import { createImportFileProgressReporter, type ImportFileProgress } from './libraryImportProgress';
 import { runImportFileWorkers, withImportFileBudget } from './libraryImportBudget';
-import { createImportCheckpointReporter, type ImportCheckpoint } from './libraryImportCheckpoint';
+import { createImportCheckpointReporter, type ImportCheckpointHandler } from './libraryImportCheckpoint';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -89,7 +89,7 @@ export interface ImportSongsOptions {
   existingSongs?: Song[];
   refreshExisting?: boolean;
   perFileTimeoutMs?: number;
-  onCheckpoint?: (checkpoint: ImportCheckpoint) => void;
+  onCheckpoint?: ImportCheckpointHandler;
   coverCacheProtection?: CoverCacheProtection;
 }
 
@@ -122,7 +122,7 @@ interface ImportEnrichmentOptions extends BuildSongOptions {
   refreshExisting?: boolean;
   onFileProgress?: (progress: ImportFileProgress) => void;
   perFileTimeoutMs?: number;
-  onCheckpoint?: (checkpoint: ImportCheckpoint) => void;
+  onCheckpoint?: ImportCheckpointHandler;
 }
 
 interface SafImportOptions extends ImportEnrichmentOptions {
@@ -787,8 +787,7 @@ export const enrichMediaLibraryAssets = async (
       const revisionCount = selection.getRevisionUpdates().length;
       if (!selection.include(asset.uri, revision)) {
         const update = selection.getRevisionUpdates()[revisionCount];
-        if (update) checkpoint.add(update, ++accepted, assets.length, asset.uri);
-        return;
+        return update;
       }
         const assetMimeType = (asset as { mimeType?: string }).mimeType;
         const assetExtension = deriveExtension(asset.filename ?? asset.uri);
@@ -814,18 +813,19 @@ export const enrichMediaLibraryAssets = async (
         const song = preserveImportedSource(imported, previous,
           options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash));
         songs.push(song);
-        checkpoint.add(song, ++accepted, assets.length, asset.uri);
+        return song;
       } finally {
         progress.finish(asset.uri);
       }
     },
+    onResult: async (song, asset) => { if (song) await checkpoint.add(song, ++accepted, assets.length, asset.uri); },
     onFailure: (asset, error) => {
       errors.push(asset.uri);
       addImportErrorDetail(asset.uri, 'songBuild', error, true, errorDetails, seenErrorDetails);
     },
   });
   throwIfAborted(signal);
-  checkpoint.flush(workerResult.processed, assets.length);
+  await checkpoint.flush(workerResult.processed, assets.length);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
   const reusedCount = selection.getReusedCount();
@@ -972,12 +972,13 @@ export const scanFromSafFolders = async (
           processed += 1;
           if (result.song) {
             if (result.imported) songs.push(result.song);
-            checkpoint.add(result.song, processed, total, folder.uri);
+            return result.song;
           }
         } finally {
           progress.finish(uri);
         }
       },
+      onResult: async song => { if (song) await checkpoint.add(song, processed, total, folder.uri); },
       onFailure: (uri, error) => {
         processed += 1;
         recordSafSongBuildError(uri, error, true, recordImportError, errorDetails, seenErrorDetails);
@@ -985,7 +986,7 @@ export const scanFromSafFolders = async (
     });
     remainingCount += workerResult.remaining;
     interrupted ||= workerResult.interrupted;
-    checkpoint.flush(processed, total, folder.uri);
+    await checkpoint.flush(processed, total, folder.uri);
     folderUpdates.push(getScannedFolderUpdate(folder, files, folderErrors, workerResult.interrupted));
   }
 

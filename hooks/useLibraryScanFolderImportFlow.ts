@@ -60,7 +60,8 @@ interface UseLibraryScanFolderImportFlowOptions {
   importSongsFromSourcesImpl: typeof importSongsFromSources;
   withTimeoutImpl: TimeoutRunner;
   ensureCurrentImport: (generation: ImportGeneration) => void;
-  applyImportedSongsUpdate: (update: ImportedSongsStateUpdate, generation: ImportGeneration) => Song[];
+  applyImportedSongsUpdate: (update: ImportedSongsStateUpdate, generation: ImportGeneration, publish?: boolean) => Promise<Song[]>;
+  publishImportedSongs: (generation: ImportGeneration) => Song[];
 }
 
 export const useLibraryScanFolderImportFlow = ({
@@ -73,10 +74,10 @@ export const useLibraryScanFolderImportFlow = ({
   importSongsFromSourcesImpl,
   withTimeoutImpl,
   ensureCurrentImport,
-  applyImportedSongsUpdate,
+  applyImportedSongsUpdate, publishImportedSongs,
 }: UseLibraryScanFolderImportFlowOptions) => {
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[], generation: ImportGeneration,
-    refreshExisting = false): Promise<void> => {
+    refreshExisting = false, baselineSongs = songs): Promise<void> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);
@@ -92,13 +93,14 @@ export const useLibraryScanFolderImportFlow = ({
       result = await withImportInactivityTimeout(
         (signal, reportActivity) => {
           activity = reportActivity;
-          callbacks = createImportProgressCallbacks({ songs, signal, activity: reportActivity,
+          callbacks = createImportProgressCallbacks({ songs: baselineSongs, signal, parentSignal: generation.controller.signal, activity: reportActivity,
             onFileProgress: publishImportFileProgress,
-            onApply: update => applyImportedSongsUpdate(update, generation) });
+            onApply: update => applyImportedSongsUpdate(update, generation, false),
+            onPublish: () => publishImportedSongs(generation) });
           return importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal,
             onSafProgress: progressPublisher.onProgress,
             onFileProgress: callbacks.onFileProgress, onCheckpoint: callbacks.onCheckpoint,
-            existingSongs: songs, refreshExisting, coverCacheProtection: generation.coverCacheProtection });
+            existingSongs: baselineSongs, refreshExisting, coverCacheProtection: generation.coverCacheProtection });
         },
         importTimeoutMs,
         scanProgress.timeoutMessage,
@@ -116,7 +118,7 @@ export const useLibraryScanFolderImportFlow = ({
     ensureCurrentImport(generation);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? songs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors, songs);
+    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? baselineSongs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors, baselineSongs);
     const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
@@ -128,13 +130,13 @@ export const useLibraryScanFolderImportFlow = ({
     }
     if (verificationAlert) showAlert(verificationAlert);
     else if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
-    const acceptedSongs = applyImportedSongsUpdate(scanResult.update, generation);
+    const acceptedSongs = await applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
     await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates);
     ensureCurrentImport(generation);
     if (result.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, acceptedSongs),
       { signal: generation.controller.signal });
-  }, [applyImportedSongsUpdate, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
+  }, [applyImportedSongsUpdate, publishImportedSongs, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromScanFolders };
 };

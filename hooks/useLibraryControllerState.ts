@@ -1,3 +1,4 @@
+import type { SongImportController } from '../contexts/songLibraryState';
 import type { Dispatch, SetStateAction } from 'react';
 import { useLibraryMusicContext } from '../contexts/MusicContext';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
@@ -23,6 +24,7 @@ export interface LibraryControllerMusicState {
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   setSongs: (songs: Song[]) => void;
   songs: Song[];
+  songImport?: SongImportController;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
   applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   songsCount: number;
@@ -54,7 +56,7 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
     addSongToPlaylist,
     removeSongFromPlaylist,
     setSongs,
-    songs,
+    songs, songImport,
     updateSongMetadata,
     applySongMetadataPatches,
   } = useLibraryMusicContext();
@@ -75,7 +77,7 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
       addSongToPlaylist,
       removeSongFromPlaylist,
       setSongs,
-      songs,
+      songs, ...(songImport ? { songImport } : {}),
       updateSongMetadata,
       applySongMetadataPatches,
       songsCount: songs.length,

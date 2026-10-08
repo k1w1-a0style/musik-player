@@ -43,7 +43,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       addSongToPlaylist,
       removeSongFromPlaylist,
       setSongs,
-      songs,
+      songs, songImport,
       songsCount,
       applySongMetadataPatches,
     },
@@ -119,7 +119,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     setQuery,
     setScanFolders,
     setSearchOpen,
-    setSongs,
+    setSongs, songImport,
     applySongMetadataPatches,
     songs,
   });

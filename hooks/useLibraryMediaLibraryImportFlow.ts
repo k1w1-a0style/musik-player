@@ -35,7 +35,8 @@ interface UseLibraryMediaLibraryImportFlowOptions {
   confirmLibraryImportImpl: typeof confirmLibraryImport;
   withTimeoutImpl: TimeoutRunner;
   ensureCurrentImport: (generation: ImportGeneration) => void;
-  applyImportedSongsUpdate: (update: ImportedSongsStateUpdate, generation: ImportGeneration) => Song[];
+  applyImportedSongsUpdate: (update: ImportedSongsStateUpdate, generation: ImportGeneration, publish?: boolean) => Promise<Song[]>;
+  publishImportedSongs: (generation: ImportGeneration) => Song[];
 }
 
 export const useLibraryMediaLibraryImportFlow = ({
@@ -49,10 +50,10 @@ export const useLibraryMediaLibraryImportFlow = ({
   confirmLibraryImportImpl,
   withTimeoutImpl,
   ensureCurrentImport,
-  applyImportedSongsUpdate,
+  applyImportedSongsUpdate, publishImportedSongs,
 }: UseLibraryMediaLibraryImportFlowOptions) => {
   const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy, generation: ImportGeneration,
-    refreshExisting = false): Promise<void> => {
+    refreshExisting = false, baselineSongs = songs): Promise<void> => {
     ensureCurrentImport(generation);
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const { status } = await requestMediaLibraryPermissionsAsync();
@@ -91,10 +92,11 @@ export const useLibraryMediaLibraryImportFlow = ({
     let mediaResult: Awaited<ReturnType<typeof enrichMediaLibraryAssetsImpl>>;
     try {
       mediaResult = await withImportInactivityTimeout((signal, activity) => {
-        callbacks = createImportProgressCallbacks({ songs, signal, activity,
-          onApply: update => applyImportedSongsUpdate(update, generation), onFileProgress: publishImportFileProgress });
+        callbacks = createImportProgressCallbacks({ songs: baselineSongs, signal, parentSignal: generation.controller.signal, activity,
+          onApply: update => applyImportedSongsUpdate(update, generation, false),
+          onPublish: () => publishImportedSongs(generation), onFileProgress: publishImportFileProgress });
         return enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length, {
-          signal, existingSongs: songs, refreshExisting,
+          signal, existingSongs: baselineSongs, refreshExisting,
           coverCacheProtection: generation.coverCacheProtection,
           onFileProgress: callbacks.onFileProgress, onCheckpoint: callbacks.onCheckpoint,
         });
@@ -106,13 +108,13 @@ export const useLibraryMediaLibraryImportFlow = ({
     ensureCurrentImport(generation);
     const mediaProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
     setImportStatus(mediaProgress.savingStatus);
-    const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? songs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs], songs);
-    const acceptedSongs = applyImportedSongsUpdate(result.update, generation);
+    const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? baselineSongs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs], baselineSongs);
+    const acceptedSongs = await applyImportedSongsUpdate(result.update, generation);
     const verificationAlert = getImportVerificationAlert(mediaResult, refreshExisting);
     if (verificationAlert) showAlert(verificationAlert);
     if (mediaResult.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(mediaResult.songs, acceptedSongs),
       { signal: generation.controller.signal });
-  }, [applyImportedSongsUpdate, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
+  }, [applyImportedSongsUpdate, publishImportedSongs, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromMediaLibrary };
 };

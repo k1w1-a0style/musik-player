@@ -73,3 +73,23 @@ test('external cancellation aborts a scan while it waits for progress', async ()
   expect(sourceSignal?.aborted).toBe(true);
   expect(jest.getTimerCount()).toBe(0);
 });
+
+test('slow durable acknowledgement does not consume the native file-read deadline', async () => {
+  const onFailure = jest.fn();
+  const result = runImportFileWorkers([1], {
+    read: async () => 'metadata', perFileTimeoutMs: 10, onFailure,
+    onResult: async () => new Promise(resolve => { setTimeout(resolve, 100); }),
+  });
+  await jest.advanceTimersByTimeAsync(100);
+  await expect(result).resolves.toEqual({ processed: 1, remaining: 0, interrupted: false });
+  expect(onFailure).not.toHaveBeenCalled();
+});
+
+test('durable write failure stops workers instead of recording a damaged-file error', async () => {
+  const onFailure = jest.fn();
+  await expect(runImportFileWorkers([1], {
+    read: async () => 'metadata', onFailure,
+    onResult: async () => { throw new Error('disk full'); },
+  })).rejects.toThrow('disk full');
+  expect(onFailure).not.toHaveBeenCalled();
+});

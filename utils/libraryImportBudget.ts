@@ -40,10 +40,11 @@ export interface ImportWorkerResult { processed: number; remaining: number; inte
 
 /** A timeout retires that worker. The remaining worker may finish healthy files
  * without accumulating detached calls; an unprocessed tail is reported. */
-export const runImportFileWorkers = async <T>(items: T[], options: {
+export const runImportFileWorkers = async <T, R = void>(items: T[], options: {
   signal?: AbortSignal;
   perFileTimeoutMs?: number;
-  read: (item: T, signal: AbortSignal) => Promise<void>;
+  read: (item: T, signal: AbortSignal) => Promise<R>;
+  onResult?: (result: R, item: T) => Promise<void>;
   onFailure: (item: T, error: unknown) => void;
 }): Promise<ImportWorkerResult> => {
   let next = 0;
@@ -53,8 +54,9 @@ export const runImportFileWorkers = async <T>(items: T[], options: {
     while (next < items.length) {
       throwIfAborted(options.signal);
       const item = items[next++];
+      let result: R;
       try {
-        await withImportFileBudget(signal => options.read(item, signal), options.signal, options.perFileTimeoutMs);
+        result = await withImportFileBudget(signal => options.read(item, signal), options.signal, options.perFileTimeoutMs);
       } catch (error) {
         throwIfAborted(options.signal);
         options.onFailure(item, error);
@@ -65,6 +67,9 @@ export const runImportFileWorkers = async <T>(items: T[], options: {
         }
         continue;
       }
+      // Durable storage is outside the native file-read deadline. Its failure
+      // stops the import rather than masquerading as damaged metadata.
+      await options.onResult?.(result, item);
       processed += 1;
     }
   };

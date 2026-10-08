@@ -1,3 +1,4 @@
+import type { SongImportController } from './songLibraryState';
 import type { EqInitResult, PaletteResult } from 'expo-system-audio';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../types/Song';
 import type { SongMetadataPatchesById } from './useLibraryActions';
@@ -10,6 +11,7 @@ export interface MusicContextValue {
   hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
   retryHydration?: () => void;
   songs: Song[];
+  songImport?: SongImportController;
   setSongs: (s: Song[]) => void;
   addSongs: (s: Song[]) => void;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
@@ -58,6 +60,7 @@ export interface LibraryMusicContextValue {
   hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
   retryHydration?: () => void;
   songs: Song[];
+  songImport?: SongImportController;
   setSongs: (s: Song[]) => void;
   currentSong: Song | null;
   playSong: (song: Song, queue?: Song[]) => Promise<NativeQueueActionResult>;

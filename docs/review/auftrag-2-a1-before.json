@@ -1,0 +1,53 @@
+{
+  "source": {
+    "revision": "8ca07752",
+    "baseCommit": "8ca077522e66cd87518d91f1f305a49392ec2ddd"
+  },
+  "node": "v22.23.3",
+  "samples": 3,
+  "fixture": "New tracks, multilingual titles; first checkpoint then batches; logical clock fixed at 0 to measure burst-count cadence. Physical I/O, React commits and Android RAM/scroll are excluded.",
+  "workloads": [
+    {
+      "songs": 500,
+      "bookkeepingMsMedian": 147.049,
+      "samplesMs": [
+        143.962,
+        147.049,
+        151.312
+      ],
+      "transientHostHeapDeltaBytesMedian": 10280056,
+      "publications": 27,
+      "acknowledgements": 0,
+      "finalSongs": 500,
+      "checksum": "48965fe1ba6ef42ff0965ece4b00f8e25f66abeb018930e077ed29838ecc226d"
+    },
+    {
+      "songs": 2000,
+      "bookkeepingMsMedian": 1578.456,
+      "samplesMs": [
+        1576.362,
+        1578.456,
+        1584.094
+      ],
+      "transientHostHeapDeltaBytesMedian": 25260408,
+      "publications": 102,
+      "acknowledgements": 0,
+      "finalSongs": 2000,
+      "checksum": "4d5a5a03f21eea93711cc76f7483758de58aa7678ee82f4208e0d911944d74ba"
+    },
+    {
+      "songs": 5000,
+      "bookkeepingMsMedian": 9021.84,
+      "samplesMs": [
+        8970.631,
+        9021.84,
+        9225.645
+      ],
+      "transientHostHeapDeltaBytesMedian": 26775128,
+      "publications": 252,
+      "acknowledgements": 0,
+      "finalSongs": 5000,
+      "checksum": "2e07670999e90519b0cdc8e8299c8cfd2be8733285c50d7d81883929aee49eb8"
+    }
+  ]
+}

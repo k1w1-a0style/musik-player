@@ -4,42 +4,58 @@ import type { Song } from '../types/Song';
 import { createSongPersistenceTask } from './songPersistenceTask';
 import { waitForPersistQueueIdle, type PersistQueueIdleResult, type PersistResult } from './musicPersistenceHelpers';
 import { StorageKeys } from '../utils/storage';
+import { createSongCheckpointWriter, type AcceptedSongSnapshot, type SongPersistenceTask } from './songCheckpointWriter';
+import type { SongLibraryState } from './songLibraryState';
 
-interface AcceptedSongSnapshot {
-  songs: Song[];
-  setSongsState: (songs: Song[]) => void;
-  persistedRefs: MutableRefObject<Record<string, string>>;
-}
-
-type SongPersistenceTask = ReturnType<typeof createSongPersistenceTask>;
-
-const useSongHydrationFlush = (
-  isReady: boolean,
-  snapshot: AcceptedSongSnapshot,
+const useSongCheckpointPersistence = (
+  isReady: boolean, snapshot: AcceptedSongSnapshot,
   currentTask: MutableRefObject<SongPersistenceTask | null>,
   inFlight: MutableRefObject<Set<Promise<PersistResult>>>,
+  pendingFlush: MutableRefObject<((detached?: boolean) => void) | undefined>,
+  songLibrary?: SongLibraryState,
 ) => {
-  const latestAccepted = useRef<AcceptedSongSnapshot | null>(null);
-  if (isReady) latestAccepted.current = snapshot;
-  return useCallback(async (): Promise<PersistQueueIdleResult> => {
-    const snapshot = latestAccepted.current;
-    if (!snapshot) return { status: 'idle' };
-    // Cancel preparatory work before the durable flush, so no older task can
-    // enqueue a stale snapshot after it. Writes already queued retain their lock.
-    currentTask.current?.cancel();
-    // Background/readiness flushes can still be preparing covers before they
-    // enter the storage queue. Settle those too, then commit the newest snapshot.
-    while (inFlight.current.size) await Promise.all(inFlight.current);
-    const task = createSongPersistenceTask(snapshot.songs, snapshot.setSongsState, snapshot.persistedRefs);
-    const promise = task.start(true);
-    inFlight.current.add(promise);
-    void promise.then(() => { inFlight.current.delete(promise); });
-    const result = await promise;
-    if (result.status !== 'stored' && result.status !== 'unchanged') {
-      return result.status === 'failed' ? result : { status: 'failed' };
+  const accepted = useRef<AcceptedSongSnapshot | null>(null);
+  if (isReady) accepted.current = snapshot;
+  const writerRef = useRef<ReturnType<typeof createSongCheckpointWriter> | null>(null);
+  writerRef.current ??= createSongCheckpointWriter({ accepted: () => accepted.current, currentTask, inFlight,
+    onUnblocked: () => pendingFlush.current?.() });
+  const writer = writerRef.current;
+  songLibrary?.configurePersistence(isReady ? async (readCurrent, onConfirmed) => {
+    const stored = await writer.flush(readCurrent, onConfirmed);
+    if (!stored) throw new Error('Bibliothek ist noch nicht bereit. Bitte erneut versuchen.');
+    return stored;
+  } : undefined);
+  const flushForHydration = useCallback(async (): Promise<PersistQueueIdleResult> => {
+    await songLibrary?.waitForCheckpoints();
+    try { await writer.flush(); }
+    catch (error) { return { status: 'failed', error }; }
+    const refs = accepted.current?.persistedRefs.current;
+    return refs ? waitForPersistQueueIdle(StorageKeys.SONGS, refs) : { status: 'idle' };
+  }, [songLibrary, writer]);
+  return { writer, flushForHydration };
+};
+
+const useSongPersistenceLifecycle = (
+  pendingFlush: MutableRefObject<((detached?: boolean) => void) | undefined>,
+  currentTask: MutableRefObject<SongPersistenceTask | null>,
+  writer: ReturnType<typeof createSongCheckpointWriter>, songLibrary?: SongLibraryState,
+): void => {
+  const flushLatest = useCallback(() => {
+    if (songLibrary) void writer.flush().catch(error => console.warn('[usePersistedSongs] Unmount flush failed:', error));
+    else {
+      pendingFlush.current?.(true);
+      void currentTask.current?.start(true);
     }
-    return waitForPersistQueueIdle(StorageKeys.SONGS, snapshot.persistedRefs.current);
-  }, [currentTask, inFlight]);
+  }, [currentTask, pendingFlush, songLibrary, writer]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') pendingFlush.current?.();
+    });
+    return () => {
+      flushLatest();
+      subscription.remove();
+    };
+  }, [flushLatest, pendingFlush]);
 };
 
 export const usePersistedSongs = (
@@ -47,6 +63,7 @@ export const usePersistedSongs = (
   songs: Song[],
   setSongsState: (songs: Song[]) => void,
   persistedRefs: MutableRefObject<Record<string, string>>,
+  songLibrary?: SongLibraryState,
 ): (() => Promise<PersistQueueIdleResult>) => {
   const pendingFlush = useRef<((detached?: boolean) => void) | undefined>(undefined);
   const firstPendingAt = useRef<number | undefined>(undefined);
@@ -54,24 +71,13 @@ export const usePersistedSongs = (
   const inFlight = useRef(new Set<Promise<PersistResult>>());
   const readyRef = useRef(isReady);
   readyRef.current = isReady;
-  const flushForHydration = useSongHydrationFlush(isReady, { songs, setSongsState, persistedRefs }, currentTask, inFlight);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') pendingFlush.current?.();
-    });
-    return () => {
-      // Start the latest pending snapshot before the snapshot effect releases its owner.
-      pendingFlush.current?.(true);
-      // Preparation may already have started and removed the pending callback.
-      void currentTask.current?.start(true);
-      subscription.remove();
-    };
-  }, []);
+  const { writer, flushForHydration } = useSongCheckpointPersistence(isReady,
+    { songs, setSongsState, persistedRefs, readCurrent: songLibrary?.getCurrent }, currentTask, inFlight, pendingFlush, songLibrary);
+  useSongPersistenceLifecycle(pendingFlush, currentTask, writer, songLibrary);
 
   useEffect(() => {
     if (!isReady) return;
-    const task = createSongPersistenceTask(songs, setSongsState, persistedRefs);
+    let task = createSongPersistenceTask(songs, setSongsState, persistedRefs);
     currentTask.current = task;
     let cancelled = false;
     let started = false;
@@ -82,6 +88,11 @@ export const usePersistedSongs = (
       if (started) {
         if (flushDetached) void task.start(true);
         return;
+      }
+      if (writer.isBlocked()) return;
+      if (songLibrary) {
+        const fresh = createSongPersistenceTask(songLibrary.getCurrent(), setSongsState, persistedRefs);
+        task.cancel(); task = fresh; currentTask.current = fresh;
       }
       started = true;
       clearTimeout(timer);
@@ -110,7 +121,7 @@ export const usePersistedSongs = (
       task.cancel();
       if (currentTask.current === task) currentTask.current = null;
     };
-  }, [isReady, persistedRefs, setSongsState, songs]);
+  }, [isReady, persistedRefs, setSongsState, songLibrary, songs, writer]);
 
   return flushForHydration;
 };

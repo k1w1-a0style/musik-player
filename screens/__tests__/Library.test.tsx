@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, Text } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Library from '../Library';
 import { APP_STACK_ROUTES } from '../../types/routes';
+import { createSongLibraryState, type SongLibraryState } from '../../contexts/songLibraryState';
 
 const mockAppThemeContextValue = {
   appearance: 'dark',
@@ -63,6 +64,7 @@ const mockRemoveSongFromPlaylist = jest.fn();
 let mockPlaylists: Array<{ id: string; name: string; songIds: string[] }> = [];
 const mockNavigate = jest.fn();
 const mockSetSongs = jest.fn();
+let mockSongLibrary: SongLibraryState;
 const mockGetScanFolders = jest.fn<Promise<any[]>, []>(async () => []);
 const mockGetFavoriteSongIds = jest.fn<Promise<string[]>, []>(async () => []);
 const mockUpdateScanFolder = jest.fn(async (_id: string, _patch: any) => []);
@@ -86,6 +88,7 @@ jest.mock('../../contexts/MusicContext', () => ({
 
     return {
       songs: [{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }],
+      songImport: mockSongLibrary,
       setSongs: mockSetSongs,
       currentSong: { id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' },
       playSong: mockPlaySong,
@@ -157,6 +160,9 @@ describe('Library', () => {
     jest.clearAllMocks();
     mockPlaylists = [];
     mockLibraryControllerCrash = false;
+    mockSongLibrary = createSongLibraryState([{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }]);
+    mockSongLibrary.configurePersistence(async read => read());
+    mockSongLibrary.configureImportPublication(songs => { mockSetSongs(songs); mockSongLibrary.setSongs(songs); });
   });
 
   test('renders the screen fallback when the inner controller component throws', () => {

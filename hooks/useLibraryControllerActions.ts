@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import type { SongImportController } from '../contexts/songLibraryState';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
@@ -24,6 +25,7 @@ export interface UseLibraryControllerActionsOptions {
   setSongs: (songs: Song[]) => void;
   applySongMetadataPatches?: (patchesBySongId: SongMetadataPatchesById) => void;
   songs: Song[];
+  songImport?: SongImportController;
 }
 
 export interface UseLibraryControllerActionsResult {
@@ -45,7 +47,7 @@ export interface UseLibraryControllerActionsResult {
 
 export const useLibraryControllerActions = ({
   searchOpen, scanFolders, setActiveTab, setImportStatus, setLoading, setMenuOpen,
-  setQuery, setScanFolders, setSearchOpen, setSongs, applySongMetadataPatches, songs,
+  setQuery, setScanFolders, setSearchOpen, setSongs, applySongMetadataPatches, songs, songImport,
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
   const importActionRef = useRef<ReturnType<typeof useLibraryImportActions>['importFromDevice'] | null>(null);
   const scanAddedFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
@@ -87,7 +89,7 @@ export const useLibraryControllerActions = ({
     setMenuOpen,
     setSongs,
     showAlert,
-    songs,
+    songs, songImport,
   });
   importActionRef.current = importFromDevice;
 

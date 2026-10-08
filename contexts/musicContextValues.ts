@@ -9,6 +9,7 @@ import { canSkipToNextInQueue } from '../utils/playbackQueueGuards';
 type LibraryMusicContextInput = Pick<
   MusicContextValue,
   | 'songs'
+  | 'songImport'
   | 'setSongs'
   | 'currentSong'
   | 'playSong'
@@ -64,7 +65,7 @@ type NowPlayingMusicContextInput = Pick<
 >;
 
 export const buildLibraryMusicContextValue = ({
-  songs,
+  songs, songImport,
   setSongs,
   currentSong,
   playSong,
@@ -85,7 +86,7 @@ export const buildLibraryMusicContextValue = ({
   hydrationStatus,
   retryHydration,
 }: LibraryMusicContextInput): LibraryMusicContextValue => ({
-  songs,
+  songs, ...(songImport ? { songImport } : {}),
   setSongs,
   currentSong,
   playSong,

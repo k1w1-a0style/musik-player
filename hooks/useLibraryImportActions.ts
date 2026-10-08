@@ -30,6 +30,14 @@ export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } fr
 type ImportAlert = UseLibraryImportActionsOptions['showAlert'];
 type IsCurrentImport = (generation: ImportGeneration) => boolean;
 
+const waitForImportPersistence = async (songImport: UseLibraryImportActionsOptions['songImport'],
+  generation: ImportGeneration, timeoutMs: number): Promise<void> => {
+  if (!songImport) return;
+  await withTimeout(() => songImport.waitForCheckpoints(), timeoutMs,
+    'Vorheriger Import speichert noch. Bitte nach Abschluss des Schreibvorgangs erneut versuchen.',
+    { signal: generation.controller.signal });
+};
+
 const beginImportActivities = (generation: ImportGeneration): void => {
   generation.coverCacheProtection = createCoverCacheProtection();
   clearWaveformPreparation();
@@ -56,7 +64,7 @@ const reportLibraryImportFailure = (
 
 export const useLibraryImportActions = ({
   scanFolders,
-  songs,
+  songs, songImport,
   setSongs,
   setActiveTab,
   setMenuOpen,
@@ -73,13 +81,9 @@ export const useLibraryImportActions = ({
   confirmLibraryImportImpl = confirmLibraryImport,
   withTimeoutImpl = withTimeout,
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
-  const {
-    startImport,
-    isCurrentImport,
-    ensureCurrentImport,
-    finishImport,
-  } = useLibraryImportLifecycle({ setLoading, setImportStatus });
-  const { applyImportedSongsUpdate } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport });
+  const { startImport, isCurrentImport, ensureCurrentImport, finishImport } =
+    useLibraryImportLifecycle({ setLoading, setImportStatus });
+  const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport });
   const { importFromScanFolders } = useLibraryScanFolderImportFlow({
     songs,
     setImportStatus,
@@ -90,7 +94,7 @@ export const useLibraryImportActions = ({
     importSongsFromSourcesImpl,
     withTimeoutImpl,
     ensureCurrentImport,
-    applyImportedSongsUpdate,
+    applyImportedSongsUpdate, publishImportedSongs,
   });
   const { importFromMediaLibrary } = useLibraryMediaLibraryImportFlow({
     songs,
@@ -103,7 +107,7 @@ export const useLibraryImportActions = ({
     confirmLibraryImportImpl,
     withTimeoutImpl,
     ensureCurrentImport,
-    applyImportedSongsUpdate,
+    applyImportedSongsUpdate, publishImportedSongs,
   });
 
   const importFromDevice = useCallback(async (options?: { folders?: typeof scanFolders; refreshExisting?: boolean }): Promise<void> => {
@@ -114,11 +118,14 @@ export const useLibraryImportActions = ({
     const importCopy = getLibraryImportFlowCopy();
     try {
       setImportStatus(importCopy.preparingStatus);
+      await waitForImportPersistence(songImport, generation, importTimeoutMs);
+      ensureCurrentImport(generation);
+      const baselineSongs = songImport?.getCurrent() ?? songs;
       const activeFolders = getEnabledScanFolders(options?.folders ?? scanFolders);
       if (shouldImportFromScanFolders(activeFolders, platformOs)) {
-        await importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? false);
+        await importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? false, baselineSongs);
       } else {
-        await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? false);
+        await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? false, baselineSongs);
       }
     } catch (error) {
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
@@ -128,7 +135,7 @@ export const useLibraryImportActions = ({
       if (isCurrentImport(generation)) clearImportFileProgress();
       finishImport(generation);
     }
-  }, [finishImport, importFromMediaLibrary, importFromScanFolders, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, startImport]);
+  }, [ensureCurrentImport, finishImport, importFromMediaLibrary, importFromScanFolders, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, songs, startImport]);
 
   return { importFromDevice };
 };

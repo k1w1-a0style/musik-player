@@ -21,7 +21,7 @@ export interface ProvidedMusicContextValues {
 export const useProvidedMusicContextValues = (input: MusicContextValue): ProvidedMusicContextValues => {
   const value = useMusicContextValue(input);
   const {
-    songs, setSongs,
+    songs, setSongs, songImport,
     currentSong, playSong,
     playSongNext,
     addSongToQueue,
@@ -54,7 +54,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
   const libraryValue = useMemo(
     () =>
       buildLibraryMusicContextValue({
-        songs,
+        songs, songImport,
         setSongs,
         currentSong,
         playSong,
@@ -75,7 +75,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         hydrationStatus, retryHydration,
       }),
     [
-      songs,
+      songs, songImport,
       setSongs,
       currentSong,
       playSong,

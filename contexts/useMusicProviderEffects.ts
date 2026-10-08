@@ -20,6 +20,7 @@ export interface MusicProviderEffectsArgs {
   setHydrationStatus?: Dispatch<SetStateAction<'loading' | 'ready' | 'degraded' | 'retry-required'>>;
   hydrationRetryToken?: number;
   songs: Song[];
+  songLibrary?: import('./songLibraryState').SongLibraryState;
   setSongsState: Dispatch<SetStateAction<Song[]>>;
   currentSongSetter: Dispatch<SetStateAction<Song | null>>;
   playbackQueueSetter: Dispatch<SetStateAction<Song[]>>;
@@ -66,7 +67,7 @@ export const useMusicProviderEffects = ({
   setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
-  songs,
+  songs, songLibrary,
   setSongsState,
   currentSongSetter,
   playbackQueueSetter,
@@ -96,7 +97,7 @@ export const useMusicProviderEffects = ({
     eqBands,
     eqPreset,
     playlists,
-    songs,
+    songs, songLibrary,
     setSongsState,
     persistedRefs,
   });

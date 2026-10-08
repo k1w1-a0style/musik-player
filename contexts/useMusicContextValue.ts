@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { MusicContextValue } from './musicContextTypes';
 export const useMusicContextValue = ({
-  songs,
+  songs, songImport,
   setSongs,
   addSongs,
   updateSongMetadata,
@@ -45,7 +45,7 @@ export const useMusicContextValue = ({
 }: MusicContextValue): MusicContextValue =>
   useMemo<MusicContextValue>(
     () => ({
-      songs,
+      songs, ...(songImport ? { songImport } : {}),
       setSongs,
       addSongs,
       updateSongMetadata,
@@ -88,7 +88,7 @@ export const useMusicContextValue = ({
       isReady, hydrationStatus, retryHydration,
     }),
     [
-      songs,
+      songs, songImport,
       setSongs,
       addSongs,
       updateSongMetadata,

@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useRef, useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
+import { createSongLibraryState, type SongLibraryState } from './songLibraryState';
 import type { Playlist, Song } from '../types/Song';
 import { useNativePlaybackRecovery } from './useNativePlaybackRecovery';
 import { getNativePlaybackWatchdogSnapshot } from '../utils/nativePlaybackWatchdog';
@@ -13,6 +14,7 @@ export interface MusicProviderState {
   libraryHydrationReady: boolean;
   setLibraryHydrationReady: Dispatch<SetStateAction<boolean>>;
   songs: Song[];
+  songLibrary?: SongLibraryState;
   setSongsState: Dispatch<SetStateAction<Song[]>>;
   currentSong: Song | null;
   setCurrentSong: Dispatch<SetStateAction<Song | null>>;
@@ -44,7 +46,9 @@ export const useMusicProviderState = (): MusicProviderState => {
     setHydrationRetryToken(value => value + 1);
   }, [hydrationStatus]);
   useNativePlaybackRecovery(setHydrationStatus);
-  const [songs, setSongsState] = useState<Song[]>([]);
+  const [songLibrary] = useState(createSongLibraryState);
+  const songs = useSyncExternalStore(songLibrary.subscribe, songLibrary.getSnapshot, songLibrary.getSnapshot);
+  const setSongsState = songLibrary.setSongs;
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -59,7 +63,7 @@ export const useMusicProviderState = (): MusicProviderState => {
     setIsReady,
     libraryHydrationReady,
     setLibraryHydrationReady,
-    songs,
+    songs, songLibrary,
     setSongsState,
     currentSong,
     setCurrentSong,

@@ -4,7 +4,7 @@ import type { MusicProviderState } from './useMusicProviderState';
 
 type ContextStateInput = Pick<
   MusicContextValue,
-  'songs' | 'currentSong' | 'playbackQueue' | 'playlists' | 'shuffle' | 'isReady' | 'hydrationStatus' | 'retryHydration'
+  'songs' | 'songImport' | 'currentSong' | 'playbackQueue' | 'playlists' | 'shuffle' | 'isReady' | 'hydrationStatus' | 'retryHydration'
 >;
 
 type EffectsStateInput = Pick<
@@ -16,6 +16,7 @@ type EffectsStateInput = Pick<
   | 'setHydrationStatus'
   | 'hydrationRetryToken'
   | 'songs'
+  | 'songLibrary'
   | 'setSongsState'
   | 'currentSongSetter'
   | 'playbackQueueSetter'
@@ -26,7 +27,7 @@ type EffectsStateInput = Pick<
 >;
 
 export const buildMusicProviderContextStateInput = ({
-  songs,
+  songs, songLibrary,
   currentSong,
   playbackQueue,
   playlists,
@@ -35,7 +36,7 @@ export const buildMusicProviderContextStateInput = ({
   hydrationStatus,
   retryHydration,
 }: MusicProviderState): ContextStateInput => ({
-  songs,
+  songs, ...(songLibrary ? { songImport: songLibrary } : {}),
   currentSong,
   playbackQueue,
   playlists,
@@ -52,7 +53,7 @@ export const buildMusicProviderEffectsStateInput = ({
   setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
-  songs,
+  songs, songLibrary,
   setSongsState,
   setCurrentSong,
   setPlaybackQueue,
@@ -67,7 +68,7 @@ export const buildMusicProviderEffectsStateInput = ({
   setLibraryHydrationReady,
   setHydrationStatus,
   hydrationRetryToken,
-  songs,
+  songs, ...(songLibrary ? { songLibrary } : {}),
   setSongsState,
   currentSongSetter: setCurrentSong,
   playbackQueueSetter: setPlaybackQueue,

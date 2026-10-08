@@ -1,3 +1,4 @@
+import type { SongImportController } from '../contexts/songLibraryState';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
@@ -25,6 +26,7 @@ export type TimeoutRunner = <T>(operation: Promise<T> | CancellableOperation<T>,
 export interface UseLibraryImportActionsOptions {
   scanFolders: ScanFolder[];
   songs: Song[];
+  songImport?: SongImportController;
   setSongs: (songs: Song[]) => void;
   setActiveTab: Dispatch<SetStateAction<LibraryTab>>;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;

@@ -18,5 +18,6 @@ export const useMusicProviderDomainActions = (
       currentSongId: getCurrentSongId(runtime),
     }),
   );
+  runtime.state.songLibrary?.configureImportPublication(actions.setSongs);
   return actions;
 };
