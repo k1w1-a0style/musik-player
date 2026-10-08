@@ -1,4 +1,5 @@
 import type { Song } from '../types/Song';
+import { SongMergeIndex } from './songMergeIndex';
 import type { ScanFolder } from '../types/ScanFolder';
 import { deriveFolderNameFromUri } from './mediaLibraryImport';
 import { normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist, resolveDisplayTitle } from './musicParser';
@@ -167,7 +168,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
 
 export const getSongMergeKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
 const safeTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string => displayTitle(song);
-const byTitle = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
+export const compareSongTitles = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
 const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
 
 export const displayFolderName = (folder: ScanFolder): string => deriveFolderNameFromUri(folder.uri) || folder.name || 'Ordner';
@@ -185,61 +186,13 @@ export const displayArtist = (song: Pick<Song, 'artist'>): string => getDisplayA
 export const displayAlbum = (song: Pick<Song, 'album'>): string => getDisplayAlbumName(song.album);
 export const displayGenre = (song: Pick<Song, 'genre'>): string => normalizeMetadataText(cleanPersonLikeLabel(song.genre)) ?? UNKNOWN_GENRE_LABEL;
 
+export const createSongMergeIndex = (songs: Song[] = []): SongMergeIndex =>
+  new SongMergeIndex({ keys: getSongMergeKeys, merge: mergeSongPreservingRichMetadata, compare: compareSongTitles }, songs);
+
 export const mergeSongs = (existingSongs: Song[], importedSongs: Song[]): Song[] => {
-  interface MergeComponent {
-    parent: number;
-    size: number;
-    song: Song;
-    lastSeen: number;
-  }
-
-  const components: MergeComponent[] = [];
-  const ownerByKey = new Map<string, number>();
-  const findRoot = (index: number): number => {
-    let root = index;
-    while (components[root].parent !== root) root = components[root].parent;
-    let current = index;
-    while (components[current].parent !== current) {
-      const parent = components[current].parent;
-      components[current].parent = root;
-      current = parent;
-    }
-    return root;
-  };
-  const union = (leftIndex: number, rightIndex: number): number => {
-    let left = findRoot(leftIndex);
-    let right = findRoot(rightIndex);
-    if (left === right) return left;
-    if (components[left].size < components[right].size) [left, right] = [right, left];
-    components[right].parent = left;
-    components[left].size += components[right].size;
-    return left;
-  };
-
-  [...existingSongs, ...importedSongs].forEach((song, songIndex) => {
-    const keys = getSongMergeKeys(song);
-    const nodeIndex = components.length;
-    components.push({ parent: nodeIndex, size: 1, song, lastSeen: songIndex });
-    const matchedRoots = [...new Set(keys
-      .map(key => ownerByKey.get(key))
-      .filter((owner): owner is number => owner !== undefined)
-      .map(findRoot))]
-      .sort((left, right) => components[left].lastSeen - components[right].lastSeen);
-
-    const mergedSong = matchedRoots.reduce<Song | undefined>(
-      (merged, root) => mergeSongPreservingRichMetadata(merged, components[root].song),
-      undefined,
-    );
-    let root = nodeIndex;
-    matchedRoots.forEach(matchedRoot => { root = union(root, matchedRoot); });
-    root = findRoot(root);
-    components[root].song = mergeSongPreservingRichMetadata(mergedSong, song);
-    components[root].lastSeen = songIndex;
-    keys.forEach(key => ownerByKey.set(key, root));
-  });
-
-  const roots = new Set(components.map((_, index) => findRoot(index)));
-  return [...roots].map(root => components[root].song).sort(byTitle);
+  const index = createSongMergeIndex(existingSongs);
+  index.addAll(importedSongs);
+  return index.snapshot();
 };
 
 const buildAlbumArtistSummary = (sortedSongs: Song[]): string => {
@@ -256,7 +209,7 @@ const buildGroupSubtitle = (kind: LibraryGroupKind, sortedSongs: Song[]): string
 
 const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, titles: Map<string, string>): LibraryGroupItem[] =>
   Array.from(grouped.entries()).map(([id, list]) => {
-    const sortedSongs = [...list].sort(byTitle);
+    const sortedSongs = [...list].sort(compareSongTitles);
     const title = titles.get(id) ?? (kind === 'album' ? UNKNOWN_ALBUM_LABEL : kind === 'artist' ? UNKNOWN_ARTIST_LABEL : UNKNOWN_GENRE_LABEL);
     return {
       id,

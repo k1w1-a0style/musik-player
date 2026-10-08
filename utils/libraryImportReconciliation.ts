@@ -1,16 +1,9 @@
 import type { Song } from '../types/Song';
-import { getSongMergeKeys, mergeSongs } from './libraryPresentation';
+import { createSongMergeIndex, getSongMergeKeys, mergeSongPreservingRichMetadata } from './libraryPresentation';
+import { sameSongSnapshot } from './songSnapshotEquality';
 
 // Treat absent optional fields and explicit undefined alike. Compare source
 // revisions and nested metadata as well as display fields, without key-order noise.
-const sameSnapshot = (left: unknown, right: unknown): boolean => {
-  if (Object.is(left, right)) return true;
-  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
-  const a = left as Record<string, unknown>;
-  const b = right as Record<string, unknown>;
-  return [...new Set([...Object.keys(a), ...Object.keys(b)])].every(key => sameSnapshot(a[key], b[key]));
-};
-
 const indexSongs = (songs: Song[]): Map<string, Song> => {
   const index = new Map<string, Song>();
   for (const song of songs) for (const key of getSongMergeKeys(song)) index.set(key, song);
@@ -27,32 +20,39 @@ const findSong = (index: Map<string, Song>, song: Song): Song | undefined => {
   return undefined;
 };
 
+const acceptedImportInput = (expected: Map<string, Song>, current: ReturnType<typeof createSongMergeIndex>, incoming: Song): Song | undefined => {
+  const previous = findSong(expected, incoming);
+  const latest = current.find(incoming);
+  if (previous && !latest) return undefined;
+  if (latest && (!previous || !sameSongSnapshot(previous, latest))) return undefined;
+  const canonical = latest ? { ...incoming, id: latest.id } : incoming;
+  return latest && sameSongSnapshot(latest, mergeSongPreservingRichMetadata(latest, canonical)) ? undefined : canonical;
+};
+
 /** An import may advance only the versions it owns. Newer edits or deletions
  * remain authoritative across later checkpoints and final-result replays. */
-export const createImportSongReconciler = (baselineSongs: Song[]) => {
+export const createImportSongReconciler = (baselineSongs: Song[], sorted = true) => {
   const expected = indexSongs(baselineSongs);
+  let currentIndex = createSongMergeIndex();
+  let lastCurrent: Song[] | undefined;
   return (currentSongs: Song[], importedSongs: Song[]): Song[] => {
-    const current = indexSongs(currentSongs);
+    if (currentSongs !== lastCurrent) currentIndex = createSongMergeIndex(currentSongs);
     const acceptedInputs: Song[] = [];
     for (const incoming of importedSongs) {
-      const previous = findSong(expected, incoming);
-      const latest = findSong(current, incoming);
-      if (previous && !latest) continue;
-      if (latest && (!previous || !sameSnapshot(previous, latest))) continue;
-      // Keep playlist references stable when the provider rediscovers a URI
-      // under another ID. The scan supplies metadata, not a new library identity.
-      acceptedInputs.push(latest ? { ...incoming, id: latest.id } : incoming);
+      const canonical = acceptedImportInput(expected, currentIndex, incoming);
+      if (canonical) acceptedInputs.push(canonical);
     }
-    const merged = mergeSongs(currentSongs, acceptedInputs);
-    const resultIndex = indexSongs(merged);
+    currentIndex.addAll(acceptedInputs);
+    const merged = acceptedInputs.length ? currentIndex.snapshot(sorted) : currentSongs;
     for (const incoming of acceptedInputs) {
-      const accepted = findSong(resultIndex, incoming);
+      const accepted = currentIndex.find(incoming);
       if (!accepted) continue;
       const previous = findSong(expected, incoming);
       const keys = new Set([...getSongMergeKeys(incoming), ...getSongMergeKeys(accepted),
         ...(previous ? getSongMergeKeys(previous) : [])]);
       for (const key of keys) expected.set(key, accepted);
     }
+    lastCurrent = merged;
     return merged;
   };
 };
