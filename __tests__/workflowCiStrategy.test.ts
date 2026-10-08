@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { spawnSync } from 'child_process';
 import YAML from '../node_modules/yaml/dist/index';
 
 const repoRoot = path.join(__dirname, '..');
@@ -284,18 +286,61 @@ describe('GitHub workflow CI strategy', () => {
     expect(ciWorkflow).not.toContain('Emergent');
   });
 
+  it.each([
+    ['matching', 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c', true],
+    ['different', '0'.repeat(64), false],
+    ['missing', undefined, false],
+  ] as const)('checks the %s preview signing certificate without optional runner tools', (_name, fingerprint, accepted) => {
+    const inspect = parseWorkflow('ci.yml').jobs['native-gates'].steps.find((step: any) => step.id === 'preview_apk');
+    const command = inspect.run.split('# Certificate from the successful preview APK in run 37595180459.')[1].split('mkdir -p preview-apk')[0];
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'preview-certificate-'));
+    try {
+      fs.writeFileSync(path.join(directory, 'preview-apk-signature.log'), fingerprint
+        ? `Signer #1 certificate SHA-256 digest: ${fingerprint}\n` : 'Verifies\n');
+      const result = spawnSync('/bin/bash', ['-c', command], {
+        cwd: directory,
+        env: { PATH: path.dirname(process.execPath), NODE_ENV: 'test' },
+        encoding: 'utf8',
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status === 0).toBe(accepted);
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  it.each([false, true])('assembles one Android variant and both native test tasks with preview requested=%s', requested => {
+    const build = parseWorkflow('ci.yml').jobs['native-gates'].steps.find((step: any) => step.run?.includes('tee ../native-gradle.log'));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'preview-build-task-'));
+    try {
+      fs.mkdirSync(path.join(directory, 'android'));
+      fs.writeFileSync(path.join(directory, 'android/gradlew'), '#!/bin/bash\nprintf "%s\\n" "$@" > ../gradle-arguments.txt\n', { mode: 0o755 });
+      const result = spawnSync('/bin/bash', ['-c', build.run], {
+        cwd: directory,
+        env: { ...process.env, PREVIEW_APK_REQUESTED: String(requested) },
+        encoding: 'utf8',
+      });
+      expect(result.status).toBe(0);
+      const tasks = fs.readFileSync(path.join(directory, 'gradle-arguments.txt'), 'utf8').trim().split('\n');
+      expect(tasks.filter(task => task.startsWith(':app:assemble'))).toEqual([requested ? ':app:assembleRelease' : ':app:assembleDebug']);
+      expect(tasks).toContain(':expo-system-audio:testDebugUnitTest');
+      expect(tasks).toContain(':rntp_player:testDebugUnitTest');
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  });
+
   it('publishes requested preview APKs only from codex pushes after inspection and signature matching', () => {
     const workflow = parseWorkflow('ci.yml');
     const native = workflow.jobs['native-gates'];
-    const build = native.steps.find((step: any) => step.name === 'Build requested preview APK');
+    const build = native.steps.find((step: any) => step.name === 'Android native build and unit tests');
     const inspect = native.steps.find((step: any) => step.id === 'preview_apk');
     const upload = native.steps.find((step: any) => step.name === 'Upload inspected preview APK');
-    for (const step of [build, inspect]) {
-      expect(step.if).toContain("github.event_name == 'push'");
-      expect(step.if).toContain("github.ref == 'refs/heads/codex'");
-      expect(step.if).toContain("contains(github.event.head_commit.message, '[preview apk]')");
-      expect(step['continue-on-error']).toBeUndefined();
+    for (const expression of [build.env.PREVIEW_APK_REQUESTED, inspect.if]) {
+      expect(expression).toContain("github.event_name == 'push'");
+      expect(expression).toContain("github.ref == 'refs/heads/codex'");
+      expect(expression).toContain("contains(github.event.head_commit.message, '[preview apk]')");
     }
+    expect(build['continue-on-error']).toBeUndefined();
+    expect(inspect['continue-on-error']).toBeUndefined();
+    expect(build.if).toBeUndefined();
+    expect(build.env.EAS_BUILD_PROFILE).toContain("&& 'preview' || 'production'");
     expect(build.run).toContain(':app:assembleRelease');
     expect(inspect.run).toContain('--enforce-permission-policy');
     expect(inspect.run).toContain('--require-signature');

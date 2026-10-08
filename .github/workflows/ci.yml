@@ -179,18 +179,25 @@ jobs:
           EAS_BUILD_PROFILE: production
         run: |
           set -euo pipefail
-          echo "Native debug build and tests only; no EAS build or release signing."
+          echo "Android native build and both module unit-test tasks."
           java -version
           npx --no-install expo prebuild --platform android --no-install --clean
 
-      - name: Android native debug build and unit tests
+      - name: Android native build and unit tests
         shell: bash
+        env:
+          PREVIEW_APK_REQUESTED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
+          EAS_BUILD_PROFILE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') && 'preview' || 'production' }}
         run: |
           set -uo pipefail
+          assemble_task=:app:assembleDebug
+          if [ "$PREVIEW_APK_REQUESTED" = true ]; then
+            assemble_task=:app:assembleRelease
+          fi
           set +e
           cd android
-          echo "Exact native Gradle test task: ./gradlew :app:assembleDebug :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain"
-          ./gradlew :app:assembleDebug :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
+          echo "Exact native Gradle test task: ./gradlew $assemble_task :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain"
+          ./gradlew "$assemble_task" :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
           status=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$status" > ../native-gradle.exit-code
@@ -254,16 +261,6 @@ jobs:
 
       # Explicit trusted-branch opt-in. Matches the existing credential-free EAS
       # preview signing identity; production signing remains in its own workflow.
-      - name: Build requested preview APK
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
-        shell: bash
-        env:
-          EAS_BUILD_PROFILE: preview
-        run: |
-          set -euo pipefail
-          cd android
-          ./gradlew :app:assembleRelease --no-daemon --console=plain 2>&1 | tee ../preview-gradle.log
-
       - name: Inspect requested preview APK and signing identity
         id: preview_apk
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
@@ -281,7 +278,13 @@ jobs:
             --enforce-permission-policy | tee preview-apk-inspection.log
           apksigner verify --verbose --print-certs "$APK" > preview-apk-signature.log
           # Certificate from the successful preview APK in run 37595180459.
-          rg -qi '^Signer #1 certificate SHA-256 digest: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c$' preview-apk-signature.log
+          node <<'NODE'
+          const fs = require('fs');
+          const expected = 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c';
+          const log = fs.readFileSync('preview-apk-signature.log', 'utf8');
+          const certificate = log.match(/^Signer #1 certificate SHA-256 digest: ([a-f0-9]{64})\r?$/im)?.[1]?.toLowerCase();
+          if (certificate !== expected) throw new Error('Preview signing certificate does not match the previous preview APK.');
+          NODE
           mkdir -p preview-apk
           cp "$APK" preview-apk/musik-player-preview.apk
           printf '%s\n' "$GITHUB_SHA" > preview-apk/source-commit.txt
