@@ -9,19 +9,22 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ArtworkThumbnailCacheTest {
   @get:Rule val temporary = TemporaryFolder()
   private fun source(width: Int = 1024, height: Int = 512): File {
     val file = temporary.newFile()
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    file.outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
     bitmap.recycle()
+    assertTrue("Source fixture must contain real encoded PNG bytes", file.length() > 0)
     return file
   }
   private fun cache(directory: File, now: () -> Long = { 1000L }, maxFiles: Int = 256) =
