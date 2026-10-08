@@ -13,6 +13,7 @@ import type { CoverCacheProtection } from '../utils/coverCacheCleanup';
 export type ImportedSongsStateUpdate = ImportedSongsDelta;
 
 export interface ImportGeneration {
+  scanOperationId?: number;
   controller: AbortController;
   id: number;
   coverCacheProtection?: CoverCacheProtection;

@@ -152,7 +152,7 @@ const openOverflowMenu = (getByLabelText: ReturnType<typeof render>['getByLabelT
 };
 
 const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText']) => {
-  fireEvent.press(getByText('Importieren / Rescan'));
+  fireEvent.press(getByText('Schnellscan / Import'));
 };
 
 describe('Library', () => {
@@ -276,7 +276,11 @@ describe('Library', () => {
     const confirmed = { id: 'confirmed', title: 'Confirmed', artist: 'Artist', uri: 'content://music/confirmed.mp3' };
     mockImportSongs.mockImplementationOnce(async options => {
       scanOptions = options;
+      options.onFileProgress({ processed: 0, total: 2, currentTitle: 'Confirmed', statistics:
+        { newCount: 0, changedCount: 0, unchangedCount: 0, unverifiedCount: 0, duplicateCount: 0, errorCount: 0 } });
       await options.onCheckpoint({ songs: [confirmed], processed: 1, total: 2 });
+      options.onFileProgress({ processed: 1, total: 2, currentTitle: 'Pending', statistics:
+        { newCount: 1, changedCount: 0, unchangedCount: 0, unverifiedCount: 0, duplicateCount: 0, errorCount: 0 } });
       return new Promise(resolve => { resolveScan = resolve; });
     });
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -289,15 +293,20 @@ describe('Library', () => {
 
     fireEvent.press(view.getByLabelText('Scan abbrechen'));
     expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
+    expect(view.getByText('Schnellscan – abgebrochen')).toBeTruthy();
+    expect(view.getByText('1 von 2 gefundenen Dateien verarbeitet')).toBeTruthy();
     await waitFor(() => expect(scanOptions.signal.aborted).toBe(true));
     const publications = mockSetSongs.mock.calls.length;
     await act(async () => {
       await scanOptions.onCheckpoint({ songs: [{ ...confirmed, id: 'late' }], processed: 2, total: 2 });
+      scanOptions.onFileProgress({ processed: 2, total: 2, currentTitle: '', statistics:
+        { newCount: 2, changedCount: 0, unchangedCount: 0, unverifiedCount: 0, duplicateCount: 0, errorCount: 0 } });
       resolveScan({ songs: [{ ...confirmed, id: 'late-result' }], errors: [] });
     });
     expect(mockSetSongs).toHaveBeenCalledTimes(publications);
     expect(mockSongLibrary.getCurrent().map(song => song.id).sort()).toEqual(['confirmed', 's1']);
     expect(alert).not.toHaveBeenCalled();
+    expect(view.getByText('1 von 2 gefundenen Dateien verarbeitet')).toBeTruthy();
     view.unmount();
   });
 

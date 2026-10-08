@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
-import { publishImportFileProgress } from '../utils/libraryImportProgress';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryAlertCopy } from './useLibraryAlerts';
@@ -23,6 +22,8 @@ import {
 import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
 import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
 import { createImportProgressCallbacks } from '../utils/libraryImportProgressCallbacks';
+import { recordLibraryScanResult } from '../utils/libraryScanOperation';
+import { createLibraryScanProgressCallbacks } from '../utils/libraryScanProgress';
 
 interface UseLibraryMediaLibraryImportFlowOptions {
   songs: Song[];
@@ -94,7 +95,8 @@ export const useLibraryMediaLibraryImportFlow = ({
       mediaResult = await withImportInactivityTimeout((signal, activity) => {
         callbacks = createImportProgressCallbacks({ songs: baselineSongs, signal, parentSignal: generation.controller.signal, activity,
           onApply: update => applyImportedSongsUpdate(update, generation, false),
-          onPublish: () => publishImportedSongs(generation), onFileProgress: publishImportFileProgress });
+          onPublish: () => publishImportedSongs(generation),
+          ...createLibraryScanProgressCallbacks(generation.scanOperationId) });
         return enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length, {
           signal, existingSongs: baselineSongs, refreshExisting,
           coverCacheProtection: generation.coverCacheProtection,
@@ -106,6 +108,7 @@ export const useLibraryMediaLibraryImportFlow = ({
       callbacks?.close();
     }
     ensureCurrentImport(generation);
+    recordLibraryScanResult(generation.scanOperationId, mediaResult);
     const mediaProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
     setImportStatus(mediaProgress.savingStatus);
     const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? baselineSongs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs], baselineSongs);
@@ -115,6 +118,5 @@ export const useLibraryMediaLibraryImportFlow = ({
     if (mediaResult.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(mediaResult.songs, acceptedSongs),
       { signal: generation.controller.signal });
   }, [applyImportedSongsUpdate, publishImportedSongs, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
-
   return { importFromMediaLibrary };
 };

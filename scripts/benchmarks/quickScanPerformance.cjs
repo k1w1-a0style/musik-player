@@ -59,7 +59,14 @@ const run = async songs => {
     || Object.entries(calls).some(([name, value]) => !['directory', 'providerStat'].includes(name) && value)) {
     throw new Error(`Quick Scan contract failed: ${JSON.stringify({ result, processed, calls })}`);
   }
-  return { reused: result.reusedCount, unverified: result.unverifiedCount ?? 0, processed, calls: { ...calls } };
+  const expectedStatistics = { newCount: 0, changedCount: 0, unchangedCount: dated ? songs.length : 0,
+    unverifiedCount: expectedUnverified, duplicateCount: 0, errorCount: 0 };
+  if ((!revision && !result.statistics) || (result.statistics && Object.entries(expectedStatistics)
+    .some(([name, value]) => result.statistics[name] !== value))) {
+    throw new Error(`Quick Scan statistics failed: ${JSON.stringify(result.statistics)}`);
+  }
+  return { reused: result.reusedCount, unverified: result.unverifiedCount ?? 0, processed, calls: { ...calls },
+    ...(result.statistics ? { statistics: result.statistics } : {}) };
 };
 (async () => {
   const workloads = [];

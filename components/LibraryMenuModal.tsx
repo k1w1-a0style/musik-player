@@ -56,8 +56,10 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
           ]}
           testID="library-menu-card"
         >
-          <LibraryMenuItem icon={Music} label="Importieren / Rescan" onPress={onImport} disabled={loading || !isReady} />
-          {onDeepScan ? <LibraryMenuItem icon={Music} label="Vollständiger Scan" onPress={onDeepScan} disabled={loading || !isReady} /> : null}
+          <LibraryMenuItem icon={Music} label="Schnellscan / Import" description="Neue oder geänderte Dateien einlesen."
+            onPress={onImport} disabled={loading || !isReady} />
+          {onDeepScan ? <LibraryMenuItem icon={Music} label="Vollständiger Scan" description="Alle Dateien und ihren Inhalt erneut prüfen."
+            onPress={onDeepScan} disabled={loading || !isReady} /> : null}
           <LibraryMenuItem icon={FolderPlus} label="Ordner hinzufügen" onPress={onAddFolder} disabled={loading || !isReady} />
           <LibraryMenuItem icon={ListMusic} label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={onShowFolders} muted />
           <View style={[styles.divider, { backgroundColor: theme.palette.border }]} testID="library-menu-section-divider" />

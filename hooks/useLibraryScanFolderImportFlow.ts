@@ -12,10 +12,11 @@ import {
 } from '../utils/libraryImportFlow';
 import { isTimeoutError } from '../utils/withTimeout';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
-import { publishImportFileProgress } from '../utils/libraryImportProgress';
 import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
 import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
 import { createImportProgressCallbacks } from '../utils/libraryImportProgressCallbacks';
+import { recordLibraryScanResult } from '../utils/libraryScanOperation';
+import { createLibraryScanProgressCallbacks } from '../utils/libraryScanProgress';
 
 const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
 
@@ -94,7 +95,7 @@ export const useLibraryScanFolderImportFlow = ({
         (signal, reportActivity) => {
           activity = reportActivity;
           callbacks = createImportProgressCallbacks({ songs: baselineSongs, signal, parentSignal: generation.controller.signal, activity: reportActivity,
-            onFileProgress: publishImportFileProgress,
+            ...createLibraryScanProgressCallbacks(generation.scanOperationId),
             onApply: update => applyImportedSongsUpdate(update, generation, false),
             onPublish: () => publishImportedSongs(generation) });
           return importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal,
@@ -116,6 +117,7 @@ export const useLibraryScanFolderImportFlow = ({
       callbacks?.close();
     }
     ensureCurrentImport(generation);
+    recordLibraryScanResult(generation.scanOperationId, result);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
     const scanResult = buildScanImportResult(callbacks?.getSongs() ?? baselineSongs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors, baselineSongs);

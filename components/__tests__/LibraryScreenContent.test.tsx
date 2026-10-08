@@ -4,6 +4,8 @@ import { render } from '@testing-library/react-native';
 import LibraryScreenContent, { type LibraryScreenContentProps } from '../LibraryScreenContent';
 
 const mockRenderText = (children: string) => <Text>{children}</Text>;
+jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => ({ theme: { palette: {
+  primary: '#eee', surfaceGlass: '#222', border: '#333', text: { primary: '#fff', secondary: '#ccc' } } } }) }));
 
 jest.mock('../LibraryTopBar', () => () => mockRenderText('Top Bar'));
 jest.mock('../LibraryTabs', () => () => mockRenderText('Tabs'));

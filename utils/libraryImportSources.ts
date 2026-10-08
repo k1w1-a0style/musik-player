@@ -1,5 +1,6 @@
 import type { Song, SongFileInfo } from '../types/Song';
-import { compareImportFileRevision, type ImportFileRevision } from './importFileRevision';
+import type { ImportFileRevision } from './importFileRevision';
+import { classifyImportSource, type ImportSourceDecision } from './libraryImportStatistics';
 
 /** SAF tree grants can differ while referring to the same physical document. */
 export const getImportSourceKey = (uri?: string): string | undefined => {
@@ -28,10 +29,6 @@ const recordRevisionMigration = (previous: Song, revision: ImportFileRevision, u
   }
 };
 
-const isNewerThanImport = (previous: Song | undefined, revision?: ImportFileRevision): boolean =>
-  previous?.fileInfo?.modificationTime === undefined
-  && (revision?.modificationTime ?? 0) > (previous?.fileInfo?.importedAt ?? Infinity);
-
 export const createImportSourceSelection = (options: { existingSongs?: Song[]; refreshExisting?: boolean }) => {
   const previousSources = indexImportedSources(options.existingSongs ?? []);
   const seen = new Set<string>();
@@ -39,23 +36,27 @@ export const createImportSourceSelection = (options: { existingSongs?: Song[]; r
   let unverified = 0;
   let duplicates = 0;
   const revisionUpdates: Song[] = [];
-  const include = (uri: string, revision?: ImportFileRevision): boolean => {
+  const fullScan = options.refreshExisting ?? false;
+  const select = (uri: string, revision?: ImportFileRevision): ImportSourceDecision => {
     const key = getImportSourceKey(uri) ?? uri;
-    if (seen.has(key)) { duplicates += 1; return false; }
+    if (seen.has(key)) { duplicates += 1; return { include: false, outcome: 'duplicate', unverified: false }; }
     seen.add(key);
     const previous = previousSources.get(key);
-    const comparison = previous && revision ? compareImportFileRevision(previous.fileInfo ?? {}, revision) : 'unknown';
-    if (options.refreshExisting) {
+    const outcome = classifyImportSource(previous, revision, fullScan);
+    const decision = { include: fullScan || outcome === 'new' || outcome === 'changed', outcome,
+      unverified: outcome === 'unverified' || Boolean(fullScan && !revision?.contentHash) };
+    if (fullScan) {
       if (!revision?.contentHash) unverified += 1;
-      return true;
+      return decision;
     }
-    if (!previous || comparison === 'changed' || (comparison === 'unknown' && isNewerThanImport(previous, revision))) return true;
-    if (comparison === 'unknown') unverified += 1;
-    if (comparison === 'same' && revision) recordRevisionMigration(previous, revision, revisionUpdates);
+    if (decision.include) return decision;
+    if (decision.unverified) unverified += 1;
+    else if (previous && revision) recordRevisionMigration(previous, revision, revisionUpdates);
     reused += 1;
-    return false;
+    return decision;
   };
-  return { previousSources, include, getRevisionUpdates: () => revisionUpdates,
+  return { previousSources, select, include: (uri: string, revision?: ImportFileRevision) => select(uri, revision).include,
+    getRevisionUpdates: () => revisionUpdates,
     getReusedCount: () => reused, getUnverifiedCount: () => unverified, getSkippedCount: () => reused + duplicates };
 };
 

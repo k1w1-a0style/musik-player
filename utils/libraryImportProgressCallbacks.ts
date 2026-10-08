@@ -12,6 +12,7 @@ export const createImportProgressCallbacks = (options: {
   onApply: (update: ImportedSongsDelta) => Song[] | void | Promise<Song[] | void>;
   onPublish?: () => void;
   onFileProgress: (progress: ImportFileProgress) => void;
+  onFileProgressSnapshot?: (progress: ImportFileProgress) => void;
 }) => {
   let confirmedSongs = options.songs;
   let closed = false;
@@ -24,6 +25,7 @@ export const createImportProgressCallbacks = (options: {
     onFileProgress: (progress: ImportFileProgress): void => {
       if (!isActive()) return;
       options.activity();
+      options.onFileProgressSnapshot?.(progress);
       ui.progress(progress);
     },
     onCheckpoint: async (checkpoint: ImportCheckpoint): Promise<void> => {

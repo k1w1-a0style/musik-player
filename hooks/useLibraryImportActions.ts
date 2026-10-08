@@ -24,6 +24,7 @@ import { useLibraryImportStateUpdate } from './useLibraryImportStateUpdate';
 import { useLibraryScanFolderImportFlow } from './useLibraryScanFolderImportFlow';
 import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImportFlow';
 import { createCoverCacheProtection } from '../utils/coverCacheCleanup';
+import { beginLibraryScan, completeLibraryScan, stopLibraryScan } from '../utils/libraryScanOperation';
 
 export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
 
@@ -38,7 +39,8 @@ const waitForImportPersistence = async (songImport: UseLibraryImportActionsOptio
     { signal: generation.controller.signal });
 };
 
-const beginImportActivities = (generation: ImportGeneration): void => {
+const beginImportActivities = (generation: ImportGeneration, fullScan: boolean): void => {
+  generation.scanOperationId = beginLibraryScan(fullScan);
   generation.coverCacheProtection = createCoverCacheProtection();
   clearWaveformPreparation();
   clearImportFileProgress();
@@ -112,7 +114,7 @@ export const useLibraryImportActions = ({
 
   const importFromDevice = useCallback(async (options?: { folders?: typeof scanFolders; refreshExisting?: boolean }): Promise<void> => {
     const generation = startImport();
-    beginImportActivities(generation);
+    beginImportActivities(generation, options?.refreshExisting ?? false);
     setMenuOpen(false);
     setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
@@ -127,7 +129,9 @@ export const useLibraryImportActions = ({
       } else {
         await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? false, baselineSongs);
       }
+      completeLibraryScan(generation.scanOperationId);
     } catch (error) {
+      stopLibraryScan(generation.scanOperationId, isAbortError(error) ? 'cancelled' : 'failed');
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
     } finally {
       generation.coverCacheProtection?.release();

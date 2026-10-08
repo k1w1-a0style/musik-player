@@ -48,7 +48,7 @@ const renderMenu = (patch: Partial<typeof defaultProps> = {}) => render(<Library
 test('renders menu actions', () => {
   const { getByText, queryByText } = renderMenu();
 
-  expect(getByText('Importieren / Rescan')).toBeTruthy();
+  expect(getByText('Schnellscan / Import')).toBeTruthy();
   expect(queryByText('Metadaten aktualisieren')).toBeNull();
   expect(getByText('Ordner hinzufügen')).toBeTruthy();
   expect(getByText('Aktive Scan-Ordner: 2')).toBeTruthy();
@@ -65,7 +65,7 @@ test('calls menu action callbacks', () => {
   const onOpenEqualizer = jest.fn();
   const { getByText } = renderMenu({ onImport, onRefreshMetadata, onAddFolder, onShowFolders, onOpenSettings, onOpenEqualizer });
 
-  fireEvent.press(getByText('Importieren / Rescan'));
+  fireEvent.press(getByText('Schnellscan / Import'));
   fireEvent.press(getByText('Ordner hinzufügen'));
   fireEvent.press(getByText('Aktive Scan-Ordner: 2'));
   fireEvent.press(getByText('Equalizer'));
@@ -82,18 +82,18 @@ test('calls menu action callbacks', () => {
 test('disables import and adding folders while loading', () => {
   const { getByTestId, getByLabelText } = renderMenu({ loading: true });
 
-  expect(getByTestId('library-menu-item-importieren-rescan').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('library-menu-item-schnellscan-import').props.accessibilityState.disabled).toBe(true);
   expect(getByLabelText('Ordner hinzufügen').props.accessibilityState.disabled).toBe(true);
 });
 
 test('allows the combined scan in an empty library', () => {
   const { getByTestId } = renderMenu({ hasSongs: false });
-  expect(getByTestId('library-menu-item-importieren-rescan').props.accessibilityState.disabled).toBe(false);
+  expect(getByTestId('library-menu-item-schnellscan-import').props.accessibilityState.disabled).toBe(false);
 });
 
 test('keeps one scan action even after a legacy metadata refresh was resumable', () => {
   const { getByText, queryByText } = renderMenu({ canResumeRefresh: true });
-  expect(getByText('Importieren / Rescan')).toBeTruthy();
+  expect(getByText('Schnellscan / Import')).toBeTruthy();
   expect(queryByText('Metadaten-Update fortsetzen')).toBeNull();
   expect(queryByText('Metadaten aktualisieren')).toBeNull();
 });
@@ -110,6 +110,8 @@ test('calls onClose when backdrop is pressed', () => {
 test('offers and disables the explicit full scan alongside the normal import', () => {
   const onDeepScan = jest.fn();
   const screen = render(<LibraryMenuModal {...defaultProps} onDeepScan={onDeepScan} />);
+  expect(screen.getByText('Neue oder geänderte Dateien einlesen.')).toBeTruthy();
+  expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityHint).toBe('Alle Dateien und ihren Inhalt erneut prüfen.');
   fireEvent.press(screen.getByText('Vollständiger Scan'));
   expect(onDeepScan).toHaveBeenCalledTimes(1);
   screen.rerender(<LibraryMenuModal {...defaultProps} loading onDeepScan={onDeepScan} />);
@@ -128,7 +130,7 @@ test('uses app theme chrome for the menu card', () => {
 test('renders menu icon slots and section divider', () => {
   const { getByTestId } = renderMenu();
 
-  expect(getByTestId('library-menu-item-icon-importieren-rescan')).toBeTruthy();
+  expect(getByTestId('library-menu-item-icon-schnellscan-import')).toBeTruthy();
   expect(getByTestId('library-menu-item-icon-equalizer')).toBeTruthy();
   expect(JSON.stringify(getByTestId('library-menu-section-divider').props.style)).toContain(mockAppTheme.palette.border);
 });

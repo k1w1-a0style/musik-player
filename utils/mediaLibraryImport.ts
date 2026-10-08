@@ -16,6 +16,7 @@ import { readImportFileRevision } from './importFileRevision';
 import { createImportFileProgressReporter, type ImportFileProgress } from './libraryImportProgress';
 import { runImportFileWorkers, withImportFileBudget } from './libraryImportBudget';
 import { createImportCheckpointReporter, type ImportCheckpointHandler } from './libraryImportCheckpoint';
+import type { ImportScanStatistics, ImportSourceDecision } from './libraryImportStatistics';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -69,6 +70,7 @@ export interface ImportScanResult {
   unverifiedCount?: number;
   completed?: boolean;
   remainingCount?: number;
+  statistics?: ImportScanStatistics;
 }
 
 export interface SafDirectoryScanProgress {
@@ -769,7 +771,7 @@ export const enrichMediaLibraryAssets = async (
   const errorDetails: ImportErrorDetail[] = [];
   const seenErrorDetails = new Set<string>();
   const selection = createImportSourceSelection(options);
-  const progress = createImportFileProgressReporter(options.onFileProgress, signal);
+  const progress = createImportFileProgressReporter(options.onFileProgress, signal, true);
   const checkpoint = createImportCheckpointReporter(options.onCheckpoint, signal);
   let accepted = 0;
   progress.addFiles(assets.length);
@@ -777,7 +779,6 @@ export const enrichMediaLibraryAssets = async (
     signal, perFileTimeoutMs: options.perFileTimeoutMs,
     read: async (asset, childSignal) => {
       progress.start(asset.uri);
-      try {
       const revision = await readImportFileRevision(asset.uri, {
         size: (asset as { fileSize?: number }).fileSize, modificationTime: asset.modificationTime,
       }, childSignal, { previous: selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)?.fileInfo,
@@ -785,55 +786,55 @@ export const enrichMediaLibraryAssets = async (
       await yieldToEventLoop();
       throwIfAborted(childSignal);
       const revisionCount = selection.getRevisionUpdates().length;
-      if (!selection.include(asset.uri, revision)) {
+      const decision = selection.select(asset.uri, revision);
+      if (!decision.include) {
         const update = selection.getRevisionUpdates()[revisionCount];
-        return update;
+        return { song: update, decision };
       }
-        const assetMimeType = (asset as { mimeType?: string }).mimeType;
-        const assetExtension = deriveExtension(asset.filename ?? asset.uri);
-        const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, childSignal, {
-          filename: asset.filename,
-          mimeType: assetMimeType,
-          extension: assetExtension,
-        });
-        throwIfAborted(childSignal);
-        const audioInfo = await getNativeAudioInfo(asset.uri);
-        throwIfAborted(childSignal);
-        const imported = await buildSongFromImportSource(mergeAudioInfoIntoSource({
-          id: asset.id,
-          uri: asset.uri,
-          filename: asset.filename,
-          durationMs: durationSecondsToMs(asset.duration),
-          mimeType: assetMimeType,
-          ...revision,
-          source: 'media-library',
-        }, audioInfo), tags, { loadNativeCover, signal: childSignal, coverCacheProtection: options.coverCacheProtection });
-        throwIfAborted(childSignal);
-        const previous = selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id);
-        const song = preserveImportedSource(imported, previous,
-          options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash));
-        songs.push(song);
-        return song;
-      } finally {
-        progress.finish(asset.uri);
-      }
+      const assetMimeType = (asset as { mimeType?: string }).mimeType;
+      const assetExtension = deriveExtension(asset.filename ?? asset.uri);
+      const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, childSignal, {
+        filename: asset.filename,
+        mimeType: assetMimeType,
+        extension: assetExtension,
+      });
+      throwIfAborted(childSignal);
+      const audioInfo = await getNativeAudioInfo(asset.uri);
+      throwIfAborted(childSignal);
+      const imported = await buildSongFromImportSource(mergeAudioInfoIntoSource({
+        id: asset.id,
+        uri: asset.uri,
+        filename: asset.filename,
+        durationMs: durationSecondsToMs(asset.duration),
+        mimeType: assetMimeType,
+        ...revision,
+        source: 'media-library',
+      }, audioInfo), tags, { loadNativeCover, signal: childSignal, coverCacheProtection: options.coverCacheProtection });
+      throwIfAborted(childSignal);
+      const previous = selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id);
+      const song = preserveImportedSource(imported, previous,
+        options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash));
+      songs.push(song);
+      return { song, decision };
     },
-    onResult: async (song, asset) => { if (song) await checkpoint.add(song, ++accepted, assets.length, asset.uri); },
+    onResult: async (result, asset) => {
+      progress.finish(asset.uri, result.decision);
+      if (result.song) await checkpoint.add(result.song, ++accepted, assets.length, asset.uri);
+    },
     onFailure: (asset, error) => {
       errors.push(asset.uri);
       addImportErrorDetail(asset.uri, 'songBuild', error, true, errorDetails, seenErrorDetails);
+      progress.errors(errors.length);
+      progress.finish(asset.uri);
     },
   });
   throwIfAborted(signal);
   await checkpoint.flush(workerResult.processed, assets.length);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  const reusedCount = selection.getReusedCount();
-  const unverifiedCount = selection.getUnverifiedCount();
-  return { songs: dedupedSongs, skipped, errors, errorDetails, reusedCount,
-    ...(unverifiedCount ? { unverifiedCount } : {}),
+  return { songs: dedupedSongs, skipped, errors, errorDetails, statistics: progress.getStatistics(),
+    ...importReuseSummary(selection),
     ...(workerResult.interrupted || errors.length ? { completed: false, remainingCount: workerResult.remaining } : {}),
-    ...(selection.getRevisionUpdates().length ? { revisionUpdates: selection.getRevisionUpdates() } : {}),
     sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
 
@@ -875,18 +876,19 @@ const importSafFile = async (uri: string, options: SafImportOptions,
 
 const readSafImportSource = async (uri: string, options: SafImportOptions,
   selection: ReturnType<typeof createImportSourceSelection>,
-  recordError: (error: unknown, recoverable: boolean) => void): Promise<{ song?: Song; imported: boolean }> => {
+  recordError: (error: unknown, recoverable: boolean) => void): Promise<{ song?: Song; imported: boolean; decision?: ImportSourceDecision }> => {
   const previous = selection.previousSources.get(getImportSourceKey(uri) ?? uri);
   const revision = await readImportFileRevision(uri, {}, options.signal,
     { previous: previous?.fileInfo, verifyContent: options.refreshExisting });
   await yieldToEventLoop();
   throwIfAborted(options.signal);
   const revisionCount = selection.getRevisionUpdates().length;
-  if (!selection.include(uri, revision)) return { song: selection.getRevisionUpdates()[revisionCount], imported: false };
+  const decision = selection.select(uri, revision);
+  if (!decision.include) return { song: selection.getRevisionUpdates()[revisionCount], imported: false, decision };
   const imported = await importSafFile(uri, options, recordError);
   throwIfAborted(options.signal);
   if (!imported) return { imported: false };
-  return { imported: true, song: preserveImportedSource({ ...imported,
+  return { imported: true, decision, song: preserveImportedSource({ ...imported,
     fileInfo: { ...imported.fileInfo, modificationTime: revision.modificationTime,
       contentHash: revision.contentHash, size: imported.fileInfo?.size ?? revision.size } }, previous,
   options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash)) };
@@ -926,7 +928,7 @@ export const scanFromSafFolders = async (
   const skipped: string[] = [];
   const folderUpdates: ScanFolder[] = [];
   const selection = createImportSourceSelection(options);
-  const progress = createImportFileProgressReporter(options.onFileProgress, signal);
+  const progress = createImportFileProgressReporter(options.onFileProgress, signal, true);
   const checkpoint = createImportCheckpointReporter(options.onCheckpoint, signal);
   let processed = 0;
   let total = 0;
@@ -935,6 +937,7 @@ export const scanFromSafFolders = async (
 
   const recordImportError = (uri: string): void => {
     addNormalizedSafError(uri, errors, seenErrors);
+    progress.errors(errors.length);
   };
 
   for (const folder of folders) {
@@ -945,12 +948,8 @@ export const scanFromSafFolders = async (
       continue;
     }
 
-    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync, {
-      signal,
-      onProgress,
-      readTimeoutMs,
-      timedOutDirectoryUris,
-    });
+    const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync,
+      { signal, onProgress, readTimeoutMs, timedOutDirectoryUris });
     throwIfAborted(signal);
     if (folderErrors.length > 0) {
       folderErrors.forEach(uri => {
@@ -965,23 +964,23 @@ export const scanFromSafFolders = async (
       signal, perFileTimeoutMs: options.perFileTimeoutMs,
       read: async (uri, childSignal) => {
         progress.start(uri);
-        try {
-          const result = await readSafImportSource(uri, { ...options, signal: childSignal }, selection,
-            (error, recoverable) => recordSafSongBuildError(uri, error, recoverable, recordImportError, errorDetails, seenErrorDetails));
-          throwIfAborted(childSignal);
-          processed += 1;
-          if (result.song) {
-            if (result.imported) songs.push(result.song);
-            return result.song;
-          }
-        } finally {
-          progress.finish(uri);
+        const result = await readSafImportSource(uri, { ...options, signal: childSignal }, selection,
+          (error, recoverable) => recordSafSongBuildError(uri, error, recoverable, recordImportError, errorDetails, seenErrorDetails));
+        throwIfAborted(childSignal);
+        processed += 1;
+        if (result.song) {
+          if (result.imported) songs.push(result.song);
         }
+        return result;
       },
-      onResult: async song => { if (song) await checkpoint.add(song, processed, total, folder.uri); },
+      onResult: async (result, uri) => {
+        progress.finish(uri, result.decision);
+        if (result.song) await checkpoint.add(result.song, processed, total, folder.uri);
+      },
       onFailure: (uri, error) => {
         processed += 1;
         recordSafSongBuildError(uri, error, true, recordImportError, errorDetails, seenErrorDetails);
+        progress.finish(uri);
       },
     });
     remainingCount += workerResult.remaining;
@@ -993,7 +992,7 @@ export const scanFromSafFolders = async (
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, errorDetails, ...importReuseSummary(selection),
+  return { songs: dedupedSongs, skipped, errors, errorDetails, ...importReuseSummary(selection), statistics: progress.getStatistics(),
     ...(interrupted || errors.length ? { completed: false, remainingCount } : {}),
     sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };

@@ -4,13 +4,15 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { cancelWaveformPreparation, resumeWaveformPreparation,
   useWaveformPreparation, type WaveformPreparationState } from '../utils/libraryWaveformPreparation';
 import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImportStatus';
+import LibraryScanSummary from './LibraryScanSummary';
 
 const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProps & { visible: boolean }) => {
   const preparation = useWaveformPreparation();
-  if (visible && props.scanning) return <LibraryImportStatus {...props} />;
-  if (preparation.status === 'idle') return visible ? <LibraryImportStatus {...props} /> : null;
-  if (preparation.status === 'completed' && preparation.failed === 0) return null;
-  return <WaveformPreparationPanel preparation={preparation} />;
+  let control: React.ReactNode = null;
+  if (visible && props.scanning) control = <LibraryImportStatus {...props} />;
+  else if (preparation.status === 'idle') control = visible ? <LibraryImportStatus {...props} /> : null;
+  else if (preparation.status !== 'completed' || preparation.failed !== 0) control = <WaveformPreparationPanel preparation={preparation} />;
+  return <>{control}<LibraryScanSummary /></>;
 };
 
 const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPreparationState }) => {

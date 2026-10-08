@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { OperationAbortError, throwIfAborted } from '../utils/withTimeout';
 import { clearImportFileProgress } from '../utils/libraryImportProgress';
 import type { ImportGeneration } from './libraryImportActionTypes';
+import { stopLibraryScan } from '../utils/libraryScanOperation';
 
 interface UseLibraryImportLifecycleOptions {
   setLoading: (loading: boolean) => void;
@@ -24,12 +25,14 @@ export const useLibraryImportLifecycle = ({
   const activeImportRef = useRef<ImportGeneration | null>(null);
 
   useEffect(() => () => {
+    stopLibraryScan(activeImportRef.current?.scanOperationId, 'cancelled');
     activeImportRef.current?.controller.abort(new OperationAbortError('Import screen unmounted'));
     activeImportRef.current = null;
   }, []);
 
   const startImport = useCallback((): ImportGeneration => {
     const previousImport = activeImportRef.current;
+    stopLibraryScan(previousImport?.scanOperationId, 'cancelled');
     previousImport?.controller.abort(new OperationAbortError('Import superseded by a newer import'));
     const generation = { controller: new AbortController(), id: generationRef.current + 1 };
     generationRef.current = generation.id;
@@ -58,6 +61,7 @@ export const useLibraryImportLifecycle = ({
   const cancelImport = useCallback((): boolean => {
     const generation = activeImportRef.current;
     if (!generation) return false;
+    stopLibraryScan(generation.scanOperationId, 'cancelled');
     generation.controller.abort(new OperationAbortError('Scan vom Nutzer abgebrochen.'));
     // Invalidate this UI generation immediately. Native reads/writes retain
     // their reservations until actual settlement; finish cannot unlock them.
