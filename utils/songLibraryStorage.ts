@@ -5,6 +5,11 @@ const SONG_LIBRARY_PREFIX = '@musikplayer:song-library:v2:';
 export const SONG_LIBRARY_MANIFEST_KEY = `${SONG_LIBRARY_PREFIX}manifest`;
 export const SONG_LIBRARY_CHUNK_PREFIX = `${SONG_LIBRARY_PREFIX}chunk:`;
 export const MAX_SONG_LIBRARY_CHUNK_CODE_UNITS = 128 * 1024;
+// UTF-16 code units: the serialized snapshot alone can occupy roughly 32 MiB.
+// Budgets are checked before parsing, chunk allocation, native reads and joins.
+export const MAX_SONG_LIBRARY_SERIALIZED_CODE_UNITS = 16 * 1024 * 1024;
+export const MAX_SONG_LIBRARY_MANIFEST_CODE_UNITS = 512 * 1024;
+export const MAX_SONG_LIBRARY_CHUNK_REFERENCES = 4096;
 
 interface SongLibraryManifest {
   version: 2;
@@ -105,6 +110,9 @@ const splitSerializedLibrary = (serialized: string): string[] => {
   const emitThrough = (end: number): void => {
     while (offset < end) {
       const chunkEnd = boundedChunkEnd(serialized, offset, end);
+      if (chunks.length >= MAX_SONG_LIBRARY_CHUNK_REFERENCES) throw new SongLibraryStorageError(
+        'Die Bibliothek überschreitet das Chunk-Budget. Der gespeicherte Bestand bleibt erhalten.',
+      );
       chunks.push(serialized.slice(offset, chunkEnd));
       offset = chunkEnd;
     }
@@ -119,37 +127,60 @@ const splitSerializedLibrary = (serialized: string): string[] => {
   return chunks;
 };
 
+const hasManifestHeader = (candidate: Partial<SongLibraryManifest>): boolean =>
+  candidate.version === 2
+    && typeof candidate.revision === 'string'
+    && candidate.revision.length <= 128
+    && Number.isSafeInteger(candidate.serializedLength)
+    && (candidate.serializedLength ?? -1) >= 0
+    && (candidate.serializedLength ?? Infinity) <= MAX_SONG_LIBRARY_SERIALIZED_CODE_UNITS
+    && isChecksum(candidate.checksum)
+    && (candidate.legacyFallbackChecksum === undefined
+      || isChecksum(candidate.legacyFallbackChecksum));
+
+const isChunkReference = (chunk: SongLibraryManifest['chunks'][number]): boolean =>
+  Boolean(chunk)
+  && typeof chunk.key === 'string'
+  && chunk.key.startsWith(SONG_LIBRARY_CHUNK_PREFIX)
+  && chunk.key.length <= SONG_LIBRARY_CHUNK_PREFIX.length + 128
+  && Number.isSafeInteger(chunk.length)
+  && chunk.length >= 0
+  && chunk.length <= MAX_SONG_LIBRARY_CHUNK_CODE_UNITS
+  && isChecksum(chunk.checksum);
+
 const isManifest = (value: unknown): value is SongLibraryManifest => {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<SongLibraryManifest>;
-  return candidate.version === 2
-    && typeof candidate.revision === 'string'
-    && Number.isSafeInteger(candidate.serializedLength)
-    && (candidate.serializedLength ?? -1) >= 0
-    && typeof candidate.checksum === 'string'
-    && (candidate.legacyFallbackChecksum === undefined
-      || typeof candidate.legacyFallbackChecksum === 'string')
+  return hasManifestHeader(candidate)
     && Array.isArray(candidate.chunks)
     && candidate.chunks.length > 0
-    && candidate.chunks.every(chunk =>
-      Boolean(chunk)
-      && typeof chunk.key === 'string'
-      && chunk.key.startsWith(SONG_LIBRARY_CHUNK_PREFIX)
-      && Number.isSafeInteger(chunk.length)
-      && chunk.length >= 0
-      && chunk.length <= MAX_SONG_LIBRARY_CHUNK_CODE_UNITS
-      && typeof chunk.checksum === 'string',
-    );
+    && candidate.chunks.length <= MAX_SONG_LIBRARY_CHUNK_REFERENCES
+    && candidate.chunks.every(isChunkReference)
+    && candidate.chunks.reduce((total, chunk) => total + chunk.length, 0) === candidate.serializedLength;
+};
+
+const isChecksum = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+const assertSnapshotBudget = (raw: string): void => {
+  if (raw.length > MAX_SONG_LIBRARY_SERIALIZED_CODE_UNITS) throw new SongLibraryStorageError(
+    'Die Bibliothek ist zu groß für das Speicherbudget (16 Mio. Zeichen). Der gespeicherte Bestand bleibt erhalten.',
+  );
 };
 
 const parseManifest = (raw: string | null): SongLibraryManifest | null => {
   if (!raw) return null;
+  assertManifestBudget(raw);
   try {
     const parsed: unknown = JSON.parse(raw);
     return isManifest(parsed) ? parsed : null;
   } catch {
     return null;
   }
+};
+
+const assertManifestBudget = (raw: string): void => {
+  if (raw.length > MAX_SONG_LIBRARY_MANIFEST_CODE_UNITS) throw new SongLibraryStorageError(
+    'Das Bibliotheksmanifest ist zu groß. Der gespeicherte Bestand bleibt erhalten; bitte Daten prüfen.',
+  );
 };
 
 const readManifestSnapshot = async (manifest: SongLibraryManifest): Promise<string> => {
@@ -183,26 +214,28 @@ export const readStoredSongLibrary = async (
   legacyKey: string,
 ): Promise<StoredSongLibrarySnapshot> =>
   runSerializedMutation(async () => {
-    const [manifestRaw, legacyRaw] = await Promise.all([
-      AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY),
-      AsyncStorage.getItem(legacyKey),
-    ]);
+    const manifestRaw = await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY);
     const manifest = parseManifest(manifestRaw);
     if (manifest) {
       try {
         return { source: 'chunked', serialized: await readManifestSnapshot(manifest) };
       } catch (error) {
+        if (manifest.legacyFallbackChecksum == null) throw error;
+        const legacyRaw = await AsyncStorage.getItem(legacyKey);
         if (legacyRaw != null
           && manifest.legacyFallbackChecksum != null
+          && legacyRaw.length <= MAX_SONG_LIBRARY_SERIALIZED_CODE_UNITS
           && hashString(legacyRaw) === manifest.legacyFallbackChecksum) {
           return { source: 'legacy', serialized: legacyRaw };
         }
         throw error;
       }
     }
-    if (manifestRaw != null && legacyRaw == null) {
-      throw new SongLibraryStorageError('Song library manifest is corrupt and no legacy fallback exists.');
+    if (manifestRaw != null) {
+      throw new SongLibraryStorageError('Das Bibliotheksmanifest ist beschädigt oder überschreitet das Budget. Keine bestätigte Rückfallkopie verfügbar; der Bestand bleibt erhalten.');
     }
+    const legacyRaw = await AsyncStorage.getItem(legacyKey);
+    if (legacyRaw != null) assertSnapshotBudget(legacyRaw);
     return legacyRaw == null
       ? { source: 'missing', serialized: null }
       : { source: 'legacy', serialized: legacyRaw };
@@ -228,9 +261,8 @@ export const writeStoredSongLibrary = async (
   options: { removeLegacy?: boolean } = {},
 ): Promise<void> =>
   runSerializedMutation(async () => {
-    const legacyFallback = options.removeLegacy === false
-      ? await AsyncStorage.getItem(legacyKey)
-      : null;
+    assertSnapshotBudget(serialized);
+    // Build and validate all references before performing any native I/O.
     const chunkValues = splitSerializedLibrary(serialized);
     const chunkReferences = chunkValues.map(value => {
       const checksum = hashString(value);
@@ -242,6 +274,19 @@ export const writeStoredSongLibrary = async (
     });
     const uniqueWrites = new Map<string, string>();
     chunkReferences.forEach((reference, index) => uniqueWrites.set(reference.key, chunkValues[index]));
+
+    const manifest: SongLibraryManifest = {
+      version: 2, revision: nextRevision(), serializedLength: serialized.length,
+      checksum: hashString(serialized), chunks: chunkReferences,
+    };
+    // Reserve the optional fixed-size checksum before reading the rollback copy.
+    assertManifestBudget(JSON.stringify({ ...manifest, legacyFallbackChecksum: '0'.repeat(32) }));
+    const legacyFallback = options.removeLegacy === false ? await AsyncStorage.getItem(legacyKey) : null;
+    if (legacyFallback != null) {
+      assertSnapshotBudget(legacyFallback);
+      manifest.legacyFallbackChecksum = hashString(legacyFallback);
+    }
+    const serializedManifest = JSON.stringify(manifest);
 
     const existing = new Map(await AsyncStorage.multiGet([...uniqueWrites.keys()]));
     const missingOrInvalid = [...uniqueWrites.entries()].filter(([key, value]) =>
@@ -257,15 +302,7 @@ export const writeStoredSongLibrary = async (
     const failedVerification = missingOrInvalid.some(([key, value]) => verified.get(key) !== value);
     if (failedVerification) throw new SongLibraryStorageError('Song library chunks could not be verified before commit.');
 
-    const manifest: SongLibraryManifest = {
-      version: 2,
-      revision: nextRevision(),
-      serializedLength: serialized.length,
-      checksum: hashString(serialized),
-      ...(legacyFallback == null ? {} : { legacyFallbackChecksum: hashString(legacyFallback) }),
-      chunks: chunkReferences,
-    };
-    await AsyncStorage.setItem(SONG_LIBRARY_MANIFEST_KEY, JSON.stringify(manifest));
+    await AsyncStorage.setItem(SONG_LIBRARY_MANIFEST_KEY, serializedManifest);
 
     if (options.removeLegacy !== false) {
       await AsyncStorage.removeItem(legacyKey).catch(() => undefined);

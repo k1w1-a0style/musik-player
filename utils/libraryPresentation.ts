@@ -163,9 +163,18 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
 };
 
 export const getSongMergeKeys = (song: Song): string[] => [normalizedSongUriKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
-const safeTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string => displayTitle(song);
-export const compareSongTitles = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
-const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
+const groupTextOrder = new Intl.Collator('de-DE', { sensitivity: 'base' });
+const songTitleKeys = new WeakMap<Song, { title: string; key: string }>();
+const getSongTitleKeys = (song: Song) => {
+  let keys = songTitleKeys.get(song);
+  if (!keys) { keys = { title: displayTitle(song), key: buildSongKey(song) }; songTitleKeys.set(song, keys); }
+  return keys;
+};
+export const compareSongTitles = (a: Song, b: Song): number => {
+  const left = getSongTitleKeys(a); const right = getSongTitleKeys(b);
+  return groupTextOrder.compare(left.title, right.title) || left.key.localeCompare(right.key);
+};
+const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => groupTextOrder.compare(a.title, b.title) || a.id.localeCompare(b.id);
 
 export const displayFolderName = (folder: ScanFolder): string => deriveFolderNameFromUri(folder.uri) || folder.name || 'Ordner';
 

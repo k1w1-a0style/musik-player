@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { Song } from '../types/Song';
 import { getCompatibleWaveformSourceIdentities } from '../utils/waveformGenerator';
-import { loadPreparedSources, markSongPrepared, subscribeSongPreparation, wasSongPrepared } from '../utils/songPreparationStore';
+import { loadPreparedSources, queueSongPrepared, subscribeSongPreparation, wasSongPrepared } from '../utils/songPreparationStore';
 import { useWaveformStatus } from './useWaveformStatus';
 
 export const useSongPreparation = (song: Song) => {
@@ -17,7 +17,7 @@ export const useSongPreparation = (song: Song) => {
   const prepared = useSyncExternalStore(subscribe, snapshot, snapshot);
   useEffect(() => { void loadPreparedSources().catch(() => undefined); }, []);
   useEffect(() => {
-    if (prepared || waveformStatus === 'ready') void markSongPrepared(sourceFingerprint).catch(() => undefined);
+    if (prepared || waveformStatus === 'ready') queueSongPrepared(sourceFingerprint);
   }, [prepared, sourceFingerprint, waveformStatus]);
   // A durable completion marker records history only. Missing/evicted payloads
   // still need preparation and must not be presented as an available waveform.

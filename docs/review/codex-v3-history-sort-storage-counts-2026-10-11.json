@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "ecf7c1efa9bcf52c6aba6cc9f6565ddb138cd574",
+  "runtime": "Node 22.23.3",
+  "history": {
+    "before": [
+      {
+        "scope": "host serial preparation; immediate cache/decoder/storage doubles; actual history store",
+        "songs": 500,
+        "writes": 500,
+        "serializedCodeUnits": 4885250,
+        "retainedEntries": 500
+      },
+      {
+        "scope": "host serial preparation; immediate cache/decoder/storage doubles; actual history store",
+        "songs": 2000,
+        "writes": 2000,
+        "serializedCodeUnits": 78041000,
+        "retainedEntries": 2000
+      },
+      {
+        "scope": "host serial preparation; immediate cache/decoder/storage doubles; actual history store",
+        "songs": 5000,
+        "writes": 5000,
+        "serializedCodeUnits": 487602500,
+        "retainedEntries": 5000
+      }
+    ],
+    "after": [
+      {
+        "scope": "host serial preparation; immediate cache/decoder/storage doubles; actual history store",
+        "songs": 500,
+        "writes": 16,
+        "serializedCodeUnits": 169276,
+        "retainedEntries": 500
+      },
+      {
+        "scope": "host serial preparation; immediate cache/decoder/storage doubles; actual history store",
+        "songs": 2000,
+        "writes": 63,
+        "serializedCodeUnits": 2515407,
+        "retainedEntries": 2000
+      },
+      {
+        "scope": "host serial preparation; immediate cache/decoder/storage doubles; actual history store",
+        "songs": 5000,
+        "writes": 157,
+        "serializedCodeUnits": 15478165,
+        "retainedEntries": 5000
+      }
+    ]
+  },
+  "inactiveStatusRetention": {
+    "scope": "host execution of original/current status module transpiled by installed TypeScript; no device RAM claim",
+    "baselineCommit": "ecf7c1efa9bcf52c6aba6cc9f6565ddb138cd574",
+    "results": [
+      {
+        "phase": "before",
+        "offeredEntries": 10005,
+        "retainedInactiveEntries": 10005
+      },
+      {
+        "phase": "after",
+        "offeredEntries": 10005,
+        "retainedInactiveEntries": 10000
+      }
+    ]
+  },
+  "sorting": {
+    "before": [
+      {
+        "scope": "host JavaScript seeded collection; real collation; one cold and one warm sort",
+        "songs": 500,
+        "coldMs": 36,
+        "warmMs": 40,
+        "coldTitleCalls": 7610,
+        "warmTitleCalls": 7610,
+        "coldLocaleCalls": 3805,
+        "warmLocaleCalls": 3805
+      },
+      {
+        "scope": "host JavaScript seeded collection; real collation; one cold and one warm sort",
+        "songs": 2000,
+        "coldMs": 157,
+        "warmMs": 168,
+        "coldTitleCalls": 37172,
+        "warmTitleCalls": 37172,
+        "coldLocaleCalls": 18586,
+        "warmLocaleCalls": 18586
+      },
+      {
+        "scope": "host JavaScript seeded collection; real collation; one cold and one warm sort",
+        "songs": 5000,
+        "coldMs": 501,
+        "warmMs": 508,
+        "coldTitleCalls": 109452,
+        "warmTitleCalls": 109452,
+        "coldLocaleCalls": 54726,
+        "warmLocaleCalls": 54726
+      }
+    ],
+    "after": [
+      {
+        "scope": "host JavaScript seeded collection; real collation; one cold and one warm sort",
+        "songs": 500,
+        "coldMs": 4,
+        "warmMs": 1,
+        "coldTitleCalls": 500,
+        "warmTitleCalls": 0,
+        "coldLocaleCalls": 0,
+        "warmLocaleCalls": 0
+      },
+      {
+        "scope": "host JavaScript seeded collection; real collation; one cold and one warm sort",
+        "songs": 2000,
+        "coldMs": 11,
+        "warmMs": 5,
+        "coldTitleCalls": 2000,
+        "warmTitleCalls": 0,
+        "coldLocaleCalls": 0,
+        "warmLocaleCalls": 0
+      },
+      {
+        "scope": "host JavaScript seeded collection; real collation; one cold and one warm sort",
+        "songs": 5000,
+        "coldMs": 25,
+        "warmMs": 14,
+        "coldTitleCalls": 5000,
+        "warmTitleCalls": 0,
+        "coldLocaleCalls": 0,
+        "warmLocaleCalls": 0
+      }
+    ]
+  },
+  "invalidStorageInputs": {
+    "before": [
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "declared-total",
+        "chunkReads": 1,
+        "manifestParses": 1,
+        "rejected": true
+      },
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "reference-count",
+        "chunkReads": 1,
+        "manifestParses": 1,
+        "rejected": true
+      },
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "length-sum",
+        "chunkReads": 1,
+        "manifestParses": 1,
+        "rejected": true
+      },
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "oversized-manifest",
+        "chunkReads": 1,
+        "manifestParses": 1,
+        "rejected": false
+      }
+    ],
+    "after": [
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "declared-total",
+        "chunkReads": 0,
+        "manifestParses": 1,
+        "rejected": true
+      },
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "reference-count",
+        "chunkReads": 0,
+        "manifestParses": 0,
+        "rejected": true
+      },
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "length-sum",
+        "chunkReads": 0,
+        "manifestParses": 1,
+        "rejected": true
+      },
+      {
+        "scope": "host storage boundary; invalid metadata fixture",
+        "kind": "oversized-manifest",
+        "chunkReads": 0,
+        "manifestParses": 0,
+        "rejected": true
+      }
+    ]
+  },
+  "budgets": {
+    "serializedLibraryCodeUnits": 16777216,
+    "manifestCodeUnits": 524288,
+    "chunkReferences": 4096,
+    "preparedHistoryCodeUnits": 1048576,
+    "preparedHistoryEntries": 10000,
+    "inactiveStatusEntries": 10000,
+    "completionBatchSize": 32
+  },
+  "limits": "Host operation counts and serialized UTF-16 volume, not native I/O speed or RAM. Sort times are individual cold/warm host observations, not medians or device timings. Live subscriptions/active analyses retain ownership; payloads/audio are not deleted by history GC. The native getItem transfer itself cannot be size-bounded by this JavaScript API."
+}

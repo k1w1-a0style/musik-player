@@ -11,7 +11,7 @@ import { getCachedWaveformForSong } from '../waveformSourceCache';
 import { getCachedWaveform, peekCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform } from '../waveformCache';
 import { buildNativeWaveform, getWaveformSourceIdentity } from '../waveformGenerator';
 import { getSongAnalysisState, getSongPreparationStatus } from '../songPreparation';
-import { loadPreparedSources, markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
+import { flushPreparedSources, loadPreparedSources, markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 import type { SongWaveform } from '../waveformTypes';
 
 const song: Song = {
@@ -115,6 +115,7 @@ test('retains completion history while reporting a missing waveform accurately',
   expect(hook.result.current).toBe('pending');
   const identity = getWaveformSourceIdentity(song);
   await waitFor(() => expect(wasSongPrepared(identity.sourceFingerprint)).toBe(true));
+  await act(async () => { await flushPreparedSources(); });
   await waitFor(async () => expect(JSON.parse((await AsyncStorage.getItem('@musikplayer:prepared-sources:v1'))!))
     .toContain(identity.sourceFingerprint));
   hook.unmount();

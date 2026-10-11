@@ -9,7 +9,7 @@ import { clearWaveformFailure, MAX_WAVEFORM_CONTENTION_RETRIES,
 import { setWaveformStatus } from './waveformStatus';
 import { OperationAbortError, isAbortError, throwIfAborted } from './withTimeout';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from './metadataRefreshActivity';
-import { loadPreparedSources, markSongPrepared } from './songPreparationStore';
+import { loadPreparedSources, queueSongPrepared } from './songPreparationStore';
 import { PreparationStorageError, waitForPreparationStorage } from './preparationStorage';
 
 export interface WaveformPreparationState {
@@ -80,9 +80,7 @@ const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<boole
   try {
     const result = await prepareSong(song, signal);
     // Reusing durable data must not serialize historical completion again.
-    if (result === 'prepared') void markSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint).catch(error => {
-      console.warn('[Preparation] Completion could not be persisted.', error);
-    });
+    if (result === 'prepared') queueSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint);
     return result !== 'failed';
   }
   catch (error) {

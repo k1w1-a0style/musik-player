@@ -1,13 +1,13 @@
 import { getCachedWaveformForSong } from '../waveformSourceCache';
 import { extractNativeWaveform } from '../waveformExtraction';
 import { prepareLibraryWaveforms, resetWaveformPreparationForTests } from '../libraryWaveformPreparation';
-import { markSongPrepared } from '../songPreparationStore';
+import { queueSongPrepared } from '../songPreparationStore';
 import { waitForWaveformSchedulerAvailability } from '../waveformExtractionLifecycle';
 import { resetWaveformStatusForTests } from '../waveformStatus';
 
 jest.mock('../waveformSourceCache', () => ({ getCachedWaveformForSong: jest.fn().mockResolvedValue(null) }));
 jest.mock('../waveformExtraction', () => ({ extractNativeWaveform: jest.fn().mockResolvedValue(null) }));
-jest.mock('../songPreparationStore', () => ({ loadPreparedSources: jest.fn().mockResolvedValue(undefined), markSongPrepared: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('../songPreparationStore', () => ({ loadPreparedSources: jest.fn().mockResolvedValue(undefined), queueSongPrepared: jest.fn() }));
 jest.mock('../waveformExtractionLifecycle', () => ({
   ...jest.requireActual('../waveformExtractionLifecycle'), waitForWaveformSchedulerAvailability: jest.fn().mockResolvedValue(undefined),
 }));
@@ -33,7 +33,7 @@ test('a durable cache hit requires neither a decoder nor a completion-history wr
   await prepareLibraryWaveforms([{ id: 'cached', title: 'Cached', artist: 'Artist', uri: 'file:///cached.mp3' }]);
   expect(getCachedWaveformForSong).toHaveBeenCalledTimes(1);
   expect(extractNativeWaveform).not.toHaveBeenCalled();
-  expect(markSongPrepared).not.toHaveBeenCalled();
+  expect(queueSongPrepared).not.toHaveBeenCalled();
 });
 
 test('rechecks the cache after real scheduler contention to reuse playback work', async () => {

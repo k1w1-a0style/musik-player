@@ -3,6 +3,7 @@ import { createSongLibraryState, type SongLibraryState } from './songLibraryStat
 import type { Playlist, Song } from '../types/Song';
 import { useNativePlaybackRecovery } from './useNativePlaybackRecovery';
 import { getNativePlaybackWatchdogSnapshot } from '../utils/nativePlaybackWatchdog';
+import { usePreparationRetention } from '../hooks/usePreparationRetention';
 
 export interface MusicProviderState {
   hydrationStatus?: 'loading' | 'ready' | 'degraded' | 'retry-required';
@@ -48,6 +49,7 @@ export const useMusicProviderState = (): MusicProviderState => {
   useNativePlaybackRecovery(setHydrationStatus);
   const [songLibrary] = useState(createSongLibraryState);
   const songs = useSyncExternalStore(songLibrary.subscribe, songLibrary.getSnapshot, songLibrary.getSnapshot);
+  usePreparationRetention(libraryHydrationReady || isReady, songs);
   const setSongsState = songLibrary.setSongs;
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
