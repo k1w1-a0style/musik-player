@@ -254,4 +254,6 @@ Ein eng begrenzter `[retest apk]`-Workflow verwendet erneut genau das bereits ge
 
 20 Python-Diagnose-/Safetytests bestehen. Neue Negativfälle lehnen fremde/fehlende/doppelte/fehlgeschlagene Sourcegates, produktive Quellenänderungen und fremde Dialogaktionen ab. Ein tatsächliches Ergebnis des Retests ist erst mit dessen abgeschlossenem Geräteprotokoll bestätigt.
 
+Der erste Retest weist die unveränderte APKquelle erfolgreich nach, wird jedoch am Start vom bekannten Cold-Boot-ANR des Pixel Launchers blockiert. Der Screenshot zeigt „Pixel Launcher isn't responding“ vor der bereits geöffneten Musik-App. Der Driver behandelt nun höchstens einen genau benannten Systemdialog mit den beobachteten Android-IDs; App-ANRs und andere Dialoge werden nicht geschlossen. Eine neue negative Regression belegt diese Trennung. Alle 21 Python-Prüfungen bestehen; ein erneuter tatsächlicher Retest bleibt erforderlich.
+
 **Noch offen vor Auslieferung:** Der neue Emulatorlauf muss tatsächlich abgeschlossen sein; seine bloße Konfiguration gilt nicht als Erfolg. Kein A50-Ausgangsvergleich und keine echte gesprochene TalkBack-Abnahme verfügbar. Speicher-/Providerfehler und Recovery-Journalphasen bleiben getrennte Host-/Native-Fault-Injection-Nachweise.

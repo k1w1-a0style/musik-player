@@ -16,6 +16,7 @@ PACKAGE = 'com.k1w1a0style.musikplayer'
 OUT = Path('ci-logs/release-interaction')
 CHECKS = []
 DEVICE = None
+LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
 FORMAT_DURATIONS = (90, 120, 150, 1260)
 RETEST_ONLY_PATHS = frozenset({
@@ -59,6 +60,14 @@ def import_confirmation_button(root):
     return button
 
 
+def pixel_launcher_close_button(root):
+    if not any(node.get('resource-id') == 'android:id/alertTitle'
+               and node.get('text') == "Pixel Launcher isn't responding" for node in root.iter('node')):
+        return None
+    return next((node for node in root.iter('node')
+                 if node.get('resource-id') == 'android:id/aerr_close' and node.get('text') == 'Close app'), None)
+
+
 def rect(node):
     values = [int(value) for value in re.findall(r'\d+', node.get('bounds', ''))]
     assert len(values) == 4 and values[2] > values[0] and values[3] > values[1], 'UI element has no touch area'
@@ -90,9 +99,20 @@ def candidate(key, root=None):
 
 
 def find(key, timeout=25):
+    global LAUNCHER_DIALOGS
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        found = candidate(key)
+        frame = tree()
+        launcher = pixel_launcher_close_button(frame)
+        if launcher is not None:
+            assert LAUNCHER_DIALOGS == 0, 'Pixel Launcher repeatedly stopped responding'
+            screenshot('startup-pixel-launcher-dialog')
+            LAUNCHER_DIALOGS += 1
+            print('Closing the recorded Pixel Launcher system ANR dialog only.', flush=True)
+            tap_node(launcher)
+            time.sleep(.6)
+            continue
+        found = candidate(key, frame)
         if found is not None:
             print('UI: ' + key, flush=True)
             return found
@@ -532,8 +552,9 @@ def main():
         print('Stage: font, theme and density matrix', flush=True)
         ui_matrix()
         logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
-        assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.', logs), 'App runtime failure'
+        assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
+                  'pixelLauncherDialogs': LAUNCHER_DIALOGS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',
                              'Provider faults and restore journal interruptions covered separately by host/native tests']}

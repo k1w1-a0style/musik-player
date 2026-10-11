@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from androidReleaseInteractionSmoke import (validate_target, rect, matches,
-    validate_retest_provenance, import_confirmation_button, FORMAT_DURATIONS)
+    validate_retest_provenance, import_confirmation_button, pixel_launcher_close_button, FORMAT_DURATIONS)
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
@@ -67,6 +67,15 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_format_fixtures_exceed_the_enabled_music_filter(self):
         self.assertTrue(all(duration > 45 for duration in FORMAT_DURATIONS))
+
+    def test_closes_only_the_identified_pixel_launcher_system_dialog(self):
+        root = ET.fromstring('<hierarchy><node resource-id="android:id/alertTitle" text="Pixel Launcher isn\'t responding"/>'
+                             '<node resource-id="android:id/aerr_close" text="Close app"/></hierarchy>')
+        self.assertIsNotNone(pixel_launcher_close_button(root))
+        for title in ("k1w1-Musik isn't responding", "System UI isn't responding", 'Musik importieren'):
+            root = ET.fromstring(f'<hierarchy><node resource-id="android:id/alertTitle" text="{title}"/>'
+                                  '<node resource-id="android:id/aerr_close" text="Close app"/></hierarchy>')
+            self.assertIsNone(pixel_launcher_close_button(root))
 
 if __name__ == '__main__':
     unittest.main()
