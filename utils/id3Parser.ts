@@ -13,6 +13,7 @@ import { decodeBase64ToBytes, encodeBytesToBase64 } from './base64';
 import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
 import type { MetadataInspection } from '../types/Song';
 import { hasLegacyTailMetadata, inspectId3MissingFields } from './id3MetadataInspection';
+import { inspectMp4Metadata } from './mp4MetadataInspection';
 
 export interface Id3Tags {
   title?: string;
@@ -1122,7 +1123,8 @@ const mergeBoundedId3TextFrames = async (
 
 const attachMetadataInspection = async (parsed: Id3Tags, head: Uint8Array, context: Id3UriParseContext,
   readRange: ReadRange, knownSize?: number): Promise<Id3Tags> => {
-  if (!context.options.inspectMissingFields || context.isMp4Like()) return parsed;
+  if (!context.options.inspectMissingFields) return parsed;
+  if (context.isMp4Like()) return attachMp4MetadataInspection(parsed, head, context, readRange, knownSize);
   const missing = inspectId3MissingFields(head, context.includeCover);
   if (!missing) return parsed;
   try {
@@ -1133,6 +1135,30 @@ const attachMetadataInspection = async (parsed: Id3Tags, head: Uint8Array, conte
     throwIfParseAborted(context.options.signal);
     if (tail.length !== length || hasLegacyTailMetadata(tail)) return parsed;
     return { ...parsed, metadataInspection: { absentFields: missing.filter(field => !parsed[field]) } };
+  } catch {
+    throwIfParseAborted(context.options.signal);
+    return parsed;
+  }
+};
+
+const attachMp4MetadataInspection = async (parsed: Id3Tags, head: Uint8Array, context: Id3UriParseContext,
+  readRange: ReadRange, knownSize?: number): Promise<Id3Tags> => {
+  try {
+    const info = knownSize === undefined ? await getId3FileInfo(context.normalizedUri) : { exists: true, size: knownSize };
+    if (!info.exists) return parsed;
+    const checkedRead: ReadRange = async (position, length) => {
+      throwIfParseAborted(context.options.signal);
+      const bytes = await readRange(position, length);
+      throwIfParseAborted(context.options.signal);
+      return bytes;
+    };
+    const inspection = await inspectMp4Metadata({ head, size: info.size, readRange: checkedRead,
+      headBudget: context.maxHeadBytes, tailBudget: context.maxTailBytes, includeCover: context.includeCover });
+    throwIfParseAborted(context.options.signal);
+    if (!inspection) return parsed;
+    const tags = mergeMissingOrPlaceholderId3Tags(parsed,
+      parseMp4TagsFromBuffer(inspection.moov, { includeCover: context.includeCover, trustedTopLevel: true }));
+    return { ...tags, metadataInspection: { absentFields: inspection.absentFields.filter(field => !tags[field]) } };
   } catch {
     throwIfParseAborted(context.options.signal);
     return parsed;
@@ -1162,7 +1188,7 @@ const tryParseId3WithLegacyReader = async (
     try {
       const info = await getId3FileInfo(context.normalizedUri);
       if (!info.exists) return parsed;
-      return await context.mergeMp4TailTags(parsed, info.size, async (tailStart, tailReadLength) => {
+      parsed = await context.mergeMp4TailTags(parsed, info.size, async (tailStart, tailReadLength) => {
         const tailBase64 = await readAsStringAsync(context.normalizedUri, {
           encoding: context.encodingBase64,
           length: tailReadLength,
@@ -1170,6 +1196,7 @@ const tryParseId3WithLegacyReader = async (
         });
         return base64ToBytes(tailBase64);
       });
+      return attachMetadataInspection(parsed, headBytes, context, readRange, info.size);
     } catch {
       throwIfParseAborted(context.options.signal);
       return parsed;
@@ -1197,12 +1224,13 @@ const readId3WithOpenFileHandle = async (
     };
     let parsed = context.parseHeadBytes(headBytes);
     parsed = await mergeBoundedId3TextFrames(parsed, headBytes, readRange, context, false);
-    return context.isMp4Like()
-      ? context.mergeMp4TailTags(parsed, size, async (tailStart, tailReadLength) => {
+    if (context.isMp4Like()) {
+      parsed = await context.mergeMp4TailTags(parsed, size, async (tailStart, tailReadLength) => {
         handle.offset = tailStart;
         return handle.readBytes(tailReadLength);
-      })
-      : await attachMetadataInspection(parsed, headBytes, context, readRange, size);
+      });
+    }
+    return await attachMetadataInspection(parsed, headBytes, context, readRange, size);
   } finally {
     handle.close?.();
   }

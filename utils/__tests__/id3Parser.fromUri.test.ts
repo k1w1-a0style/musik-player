@@ -735,3 +735,86 @@ describe('authoritative metadata inspection', () => {
       .rejects.toThrow('cancelled inspection');
   });
 });
+
+describe('authoritative MP4 metadata inspection', () => {
+  const atom = (type: string, payload: Uint8Array = new Uint8Array()): Uint8Array => {
+    const bytes = new Uint8Array(payload.length + 8); new DataView(bytes.buffer).setUint32(0, bytes.length);
+    bytes.set(Array.from(type, char => char.charCodeAt(0)), 4); bytes.set(payload, 8); return bytes;
+  };
+  const concat = (...parts: Uint8Array[]) => Uint8Array.from(parts.flatMap(part => Array.from(part)));
+  const ftyp = atom('ftyp', new TextEncoder().encode('M4A \0\0\0\0isom'));
+  const moov = (items: Uint8Array = new Uint8Array(), extra: Uint8Array = new Uint8Array()) =>
+    atom('moov', atom('udta', atom('meta', concat(new Uint8Array(4), atom('ilst', items), extra))));
+  const file = (metadata = moov()) => concat(ftyp, atom('mdat', new Uint8Array(4096)), metadata);
+  const setup = (bytes: Uint8Array) => {
+    mockGetInfoAsync.mockResolvedValue({ exists: true, size: bytes.length });
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => Buffer.from(
+      bytes.subarray(options.position ?? 0, (options.position ?? 0) + options.length)).toString('base64'));
+  };
+  beforeEach(() => { mockReadAsStringAsync.mockReset(); mockGetInfoAsync.mockReset(); mockOpen.mockReset(); mockFileBytes.mockReset(); });
+
+  test('clears confirmed absent optional tags in a complete tail moov without reading the mdat payload', async () => {
+    const bytes = file(); setup(bytes);
+    const tags = await parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64, maxTailBytes: 256 });
+    expect(tags.metadataInspection?.absentFields).toEqual(['album', 'albumArtist', 'year', 'genre', 'trackNumber', 'discNumber', 'comment', 'cover']);
+    expect(mockReadAsStringAsync.mock.calls.every(([, options]) => options.length <= 256)).toBe(true);
+  });
+
+  test('presence of unsupported value encoding is not mistaken for removal', async () => {
+    const bytes = file(moov(atom('©alb', atom('data', Uint8Array.from([0, 0, 0, 99, 0, 0, 0, 0, 255]))))); setup(bytes);
+    const tags = await parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64, maxTailBytes: 256, includeCover: false });
+    expect(tags.album).toBeUndefined();
+    expect(tags.metadataInspection?.absentFields).not.toContain('album');
+    expect(tags.metadataInspection?.absentFields).not.toContain('cover');
+    expect(tags.metadataInspection?.absentFields).toContain('genre');
+  });
+
+  test.each(['keys', 'uuid', 'ID32'])('retains existing metadata for unsupported %s metadata', async type => {
+    setup(file(moov(new Uint8Array(), atom(type, new Uint8Array(8)))));
+    const tags = await parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64, maxTailBytes: 256 });
+    expect(tags.metadataInspection).toBeUndefined();
+  });
+
+  test('does not emit removal intent after a short range read', async () => {
+    const bytes = file(); setup(bytes);
+    const base = mockReadAsStringAsync.getMockImplementation()!;
+    mockReadAsStringAsync.mockImplementation(async (uri, options) => options.position === ftyp.length + 4104
+      ? Buffer.from(bytes.subarray(options.position, options.position + 6)).toString('base64') : base(uri, options));
+    const tags = await parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64, maxTailBytes: 256 });
+    expect(tags.metadataInspection).toBeUndefined();
+  });
+
+  test('honors a disabled tail budget and rejects a truncated nested atom', async () => {
+    setup(file());
+    expect((await parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64, maxTailBytes: 0 })).metadataInspection).toBeUndefined();
+    const broken = moov(atom('©alb', new Uint8Array([1]))); broken[broken.length - 9] = 255;
+    setup(file(broken));
+    expect((await parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64, maxTailBytes: 256 })).metadataInspection).toBeUndefined();
+  });
+
+  test('keeps the fallback file handle open through the complete M4B inspection', async () => {
+    const bytes = file(); setup(bytes); let closed = false;
+    mockReadAsStringAsync.mockRejectedValue(new Error('legacy unsupported'));
+    const handle = { offset: 0, readBytes: jest.fn((length: number) => {
+      if (closed) throw new Error('read after close');
+      const result = bytes.subarray(handle.offset, handle.offset + length); handle.offset += result.length; return result;
+    }), close: jest.fn(() => { closed = true; }) };
+    mockOpen.mockReturnValue(handle);
+    const tags = await parseId3FromUri('content://provider/document/123', { filename: 'mix.m4b', inspectMissingFields: true,
+      maxHeadBytes: 64, maxTailBytes: 256 });
+    expect(tags.metadataInspection?.absentFields).toContain('album');
+    expect(handle.close).toHaveBeenCalledTimes(1);
+    expect(mockFileBytes).not.toHaveBeenCalled();
+  });
+
+  test('cancellation during the additional container check never becomes a deletion receipt', async () => {
+    const bytes = file(); setup(bytes); const controller = new AbortController();
+    const base = mockReadAsStringAsync.getMockImplementation()!;
+    mockReadAsStringAsync.mockImplementation(async (uri, options) => {
+      if (options.position === ftyp.length + 4104) controller.abort(new Error('cancelled MP4 inspection'));
+      return base(uri, options);
+    });
+    await expect(parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64,
+      maxTailBytes: 256, signal: controller.signal })).rejects.toThrow('cancelled MP4 inspection');
+  });
+});
