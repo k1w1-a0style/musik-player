@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- React Navigation getComponent intentionally defers non-initial screen evaluation. */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../types/navigation';
@@ -7,6 +7,7 @@ import { APP_STACK_ROUTES } from '../types/routes';
 import { createAppNavigationTheme } from './appNavigationTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import MainShell from './MainShell';
+import { setPlaybackProgressVisible } from '../utils/playbackProgressVisibility';
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
@@ -26,9 +27,13 @@ const getNowPlayingScreen = (): typeof import('../screens/NowPlaying').default =
 const RootNavigator: React.FC = () => {
   const { theme } = useAppTheme();
   const navigationTheme = useMemo(() => createAppNavigationTheme(theme), [theme]);
+  useEffect(() => { setPlaybackProgressVisible(true); return () => setPlaybackProgressVisible(false); }, []);
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer theme={navigationTheme} onStateChange={state => {
+      const route = state?.routes[state.index]?.name;
+      setPlaybackProgressVisible(route === undefined || route === APP_STACK_ROUTES.MAIN_TABS || route === APP_STACK_ROUTES.NOW_PLAYING);
+    }}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

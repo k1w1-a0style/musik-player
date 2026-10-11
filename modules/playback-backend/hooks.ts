@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { addEventListener } from './events';
-import { getPlaybackState, getPlayWhenReady, getProgress } from './player';
-import { Event, type PlaybackState, type Progress } from './types';
+import { getPlaybackState, getPlayWhenReady } from './player';
+import { Event, State, type PlaybackState, type Progress } from './types';
+import { observeProgress } from './progressObserver';
 
 export const usePlaybackState = (): PlaybackState | { state: undefined } => {
   const [state, setState] = useState<PlaybackState | { state: undefined }>({ state: undefined });
@@ -50,26 +51,26 @@ export const usePlayWhenReady = (): boolean | undefined => {
   return value;
 };
 
-/** V4 callers pass milliseconds; V5's hook takes seconds, so own this poll. */
-export const useProgress = (updateInterval = 1000): Progress => {
-  const [progress, setProgress] = useState<Progress>({ position: 0, duration: 0, buffered: 0 });
+const useForeground = (): boolean => {
+  const [foreground, setForeground] = useState(() => AppState.currentState == null
+    || AppState.currentState === 'active' || AppState.currentState === 'unknown');
   useEffect(() => {
-    let active = true;
-    let reading = false;
-    const refresh = async () => {
-      if (reading || !active) return;
-      reading = true;
-      try {
-        const next = await getProgress();
-        if (active) setProgress(next);
-      } catch { /* Ignore the initial pre-setup read; recovery is handled above. */ }
-      finally { reading = false; }
-    };
+    const subscription = AppState.addEventListener('change', value => { setForeground(value === 'active'); });
+    return () => subscription.remove();
+  }, []);
+  return foreground;
+};
+
+/** Milliseconds, as in V4. Periodic reads belong only to a visible, playing UI. */
+export const useProgress = (updateInterval = 1000, options: { enabled?: boolean } = {}): Progress => {
+  const [progress, setProgress] = useState<Progress>({ position: 0, duration: 0, buffered: 0 });
+  const { state } = usePlaybackState();
+  const foreground = useForeground(); const enabled = options.enabled !== false;
+  useEffect(() => {
+    if (!enabled || !foreground || state === undefined) return undefined;
     const intervalMs = Number.isFinite(updateInterval) && updateInterval > 0 ? updateInterval : 1000;
-    const timer = setInterval(() => { void refresh(); }, intervalMs);
-    const appState = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
-    void refresh();
-    return () => { active = false; clearInterval(timer); appState.remove(); };
-  }, [updateInterval]);
+    return observeProgress(next => setProgress(previous => previous.position === next.position
+      && previous.duration === next.duration && previous.buffered === next.buffered ? previous : next), intervalMs, state === State.Playing);
+  }, [enabled, foreground, state, updateInterval]);
   return progress;
 };

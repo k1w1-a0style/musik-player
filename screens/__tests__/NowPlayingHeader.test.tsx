@@ -60,7 +60,7 @@ test('shows sleep timer countdown only when active', () => {
     <NowPlayingHeader
       albumTitle="Mein Album"
       sleepTimerActive
-      sleepTimerRemainingSeconds={14 * 60 + 59}
+      sleepTimerDeadlineMs={Date.now() + (14 * 60 + 59) * 1000}
       onClose={jest.fn()}
       onMore={jest.fn()}
     />,

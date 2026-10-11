@@ -2,6 +2,7 @@ import Player, { PlaybackState as NativeState } from '@rntp/player';
 import { acknowledge, mutate, nativePlayer, read } from './native';
 import { fromMediaItem, fromNativeRepeatMode, omitUndefined, toCommands, toMediaItem, toNativeRepeatMode, toProgress } from './conversions';
 import { AppKilledPlaybackBehavior, State, type NavigationSnapshot, type PlaybackError, type PlaybackState, type PlayerOptions, type Progress, type RepeatMode, type Track, type TrackMetadata, type UpdateOptions } from './types';
+import { notifyProgressMutation } from './progressMutations';
 
 let setupAttempt: Promise<void> | undefined;
 let configured = false;
@@ -79,11 +80,13 @@ export const seekTo = (position: number): Promise<void> => mutate(async () => {
   requireFinite(position, 'Seek position');
   if (position < 0) throw new Error('Seek position cannot be negative.');
   await acknowledge(() => Player.seekTo(position));
+  notifyProgressMutation();
 });
 
 export const seekBy = (offset: number): Promise<void> => mutate(async () => {
   requireFinite(offset, 'Seek offset');
   await acknowledge(() => Player.seekBy(offset));
+  notifyProgressMutation();
 });
 
 const validQueueIndex = (index: number, length: number, allowEnd = false): void => {

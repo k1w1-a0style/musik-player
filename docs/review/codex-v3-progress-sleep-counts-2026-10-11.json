@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "9705dcc3bbbcd259f85c92d181642c9ecd6a7324",
+  "runtime": "Node 22.23.3",
+  "scope": "Host React and real RNTP v5 JavaScript adapter; native I/O boundary and storage doubles; fake clock advanced in separate one-second React acts",
+  "observationSeconds": 30,
+  "progressIntervalMs": 500,
+  "measurements": [
+    { "case": "paused periodic progress reads after initial snapshot", "before": 60, "after": 0 },
+    { "case": "background periodic progress reads after transition", "before": 60, "after": 0 },
+    { "case": "foreground return snapshot reads", "before": 1, "after": 1 },
+    { "case": "NowPlaying provider renders from countdown only", "before": 30, "after": 0 }
+  ],
+  "regressionChecks": [
+    "Visible playing cadence still 60 periodic reads in 30 seconds",
+    "Disabled hidden observer has no reads and refreshes once when re-enabled",
+    "Acknowledged paused seek immediately refreshes position",
+    "Native progress heartbeat publishes without another native read",
+    "Pending old read cannot overwrite a newer heartbeat",
+    "In-flight reads do not overlap or accumulate periodic work",
+    "Hidden/background sleep labels stop their clock and resume from the actual deadline",
+    "Unmounted observers do not publish late reads or retain timers"
+  ],
+  "limits": "No device CPU, battery, frame-time or wall-clock speed claim. Native remote service and expiry controller retain ownership. APK and device validation for this package are pending."
+}

@@ -4,6 +4,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { getNowPlayingMenuBackdropColor } from '../utils/appThemeOverlays';
 import NowPlayingMenuItem from './NowPlayingMenuItem';
 import { formatSleepTimerRemaining } from './useSleepTimer';
+import { useSleepTimerCountdown } from '../hooks/useSleepTimerCountdown';
 
 interface NowPlayingMenuModalProps {
   visible: boolean;
@@ -14,7 +15,7 @@ interface NowPlayingMenuModalProps {
   onToggleFavorite: () => void;
   onSaveQueueAsPlaylist: () => void;
   sleepTimerActive: boolean;
-  sleepTimerRemainingSeconds?: number | null;
+  sleepTimerDeadlineMs?: number | null;
   onStartSleepTimer: (minutes: number) => void;
   onCancelSleepTimer: () => void;
 }
@@ -23,11 +24,12 @@ const SLEEP_TIMER_OPTIONS_MINUTES = [1, 15, 30, 45, 60];
 
 const NowPlayingMenuModal: React.FC<NowPlayingMenuModalProps> = ({
   visible, favorite, onClose, onOpenTrackInfo, onOpenEqualizer, onToggleFavorite,
-  onSaveQueueAsPlaylist, sleepTimerActive, sleepTimerRemainingSeconds = null,
+  onSaveQueueAsPlaylist, sleepTimerActive, sleepTimerDeadlineMs = null,
   onStartSleepTimer, onCancelSleepTimer,
 }) => {
   const { appearance, theme } = useAppTheme();
-  const formattedSleepTimer = sleepTimerActive ? formatSleepTimerRemaining(sleepTimerRemainingSeconds) : null;
+  const remaining = useSleepTimerCountdown(sleepTimerActive ? sleepTimerDeadlineMs : null, visible);
+  const formattedSleepTimer = sleepTimerActive ? formatSleepTimerRemaining(remaining) : null;
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>

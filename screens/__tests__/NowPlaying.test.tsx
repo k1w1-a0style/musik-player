@@ -108,7 +108,7 @@ const mockNowPlayingContext = {
   isPlaying: false,
   togglePlayPause: jest.fn(async () => undefined),
   sleepTimerActive: false,
-  sleepTimerRemainingSeconds: null as number | null,
+  sleepTimerDeadlineMs: null as number | null,
   startSleepTimer: jest.fn(),
   cancelSleepTimer: jest.fn(),
   volume: 1,
@@ -193,7 +193,7 @@ describe('NowPlaying cover fallback', () => {
     mockNowPlayingContext.cancelSleepTimer.mockClear();
     mockNowPlayingContext.isPlaying = false;
     mockNowPlayingContext.sleepTimerActive = false;
-    mockNowPlayingContext.sleepTimerRemainingSeconds = null;
+    mockNowPlayingContext.sleepTimerDeadlineMs = null;
     mockIsFavoriteSongId.mockImplementation(pendingFavoriteLookup);
   });
 
@@ -310,7 +310,7 @@ describe('NowPlaying cover fallback', () => {
     expect(mockNowPlayingContext.startSleepTimer).toHaveBeenCalledWith(1);
 
     mockNowPlayingContext.sleepTimerActive = true;
-    mockNowPlayingContext.sleepTimerRemainingSeconds = 14 * 60 + 59;
+    mockNowPlayingContext.sleepTimerDeadlineMs = Date.now() + (14 * 60 + 59) * 1000;
     rerender(<NowPlaying />);
     fireEvent.press(getByTestId('now-playing-more'));
     await waitFor(() => expect(getByText('Sleep-Timer aktiv · 14:59')).toBeTruthy());

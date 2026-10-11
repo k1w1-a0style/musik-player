@@ -92,6 +92,21 @@ describe('useProvidedMusicContextValues', () => {
     jest.clearAllMocks();
   });
 
+  test('does not replace or rerender the full NowPlaying context each sleep-timer second', async () => {
+    jest.useFakeTimers(); let renders = 0;
+    const hook = renderHook(() => { renders += 1; return useProvidedMusicContextValues(baseValue); });
+    act(() => { hook.result.current.nowPlayingValue.startSleepTimer(15); });
+    const value = hook.result.current.nowPlayingValue; const before = renders;
+    for (let second = 0; second < 30; second += 1) {
+      await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+    }
+    const countdownRenders = renders - before; const unchanged = hook.result.current.nowPlayingValue === value;
+    hook.unmount(); resetSleepTimerForTests(); jest.useRealTimers();
+    // eslint-disable-next-line no-console -- Comparable provider-render count; timer deadline changes are excluded.
+    console.info(JSON.stringify({ scope: 'host React provider with native/storage doubles', seconds: 30, countdownRenders, contextUnchanged: unchanged }));
+    expect(countdownRenders).toBe(0); expect(unchanged).toBe(true);
+  });
+
   test('forwards queue reordering through the provider and refreshes its callback', async () => {
     const reorderQueue = jest.fn(async () => ({ status: 'noop' as const }));
     const replacement = jest.fn(async () => ({ status: 'noop' as const }));

@@ -39,7 +39,7 @@ const NowPlayingMenu = ({ state }: { state: NowPlayingState }) => (
     onToggleFavorite={state.toggleFavorite}
     onSaveQueueAsPlaylist={state.saveCurrentQueueAsPlaylist}
     sleepTimerActive={state.sleepTimerActive}
-    sleepTimerRemainingSeconds={state.sleepTimerRemainingSeconds}
+    sleepTimerDeadlineMs={state.sleepTimerDeadlineMs}
     onStartSleepTimer={state.startSleepTimer}
     onCancelSleepTimer={state.cancelSleepTimer}
   />
@@ -126,7 +126,7 @@ const ClassicNowPlayingContent = ({ state }: { state: NowPlayingState }) => {
         glowLeft={layout.glowLeft} artworkUri={state.artworkUri}
         paletteLoading={state.paletteLoading} />
       <NowPlayingHeader albumTitle={state.albumTitle} sleepTimerActive={state.sleepTimerActive}
-        sleepTimerRemainingSeconds={state.sleepTimerRemainingSeconds} onClose={state.handleClose} onMore={state.openMenu} />
+        sleepTimerDeadlineMs={state.sleepTimerDeadlineMs} onClose={state.handleClose} onMore={state.openMenu} />
       <View style={styles.pagerSlot} onLayout={handlePagerLayout} testID="now-playing-pager-slot">
         <NowPlayingSnapPager pageHeight={layout.snapPageHeight} renderPlayerPage={renderPlayer} renderDetailsPage={renderDetails} />
       </View>

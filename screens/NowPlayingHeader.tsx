@@ -4,11 +4,13 @@ import { ChevronDown, MoreHorizontal } from 'lucide-react-native';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { formatSleepTimerRemaining } from './useSleepTimer';
+import { useSleepTimerCountdown } from '../hooks/useSleepTimerCountdown';
+import { usePlaybackProgressVisible } from '../utils/playbackProgressVisibility';
 
 interface NowPlayingHeaderProps {
   albumTitle: string;
   sleepTimerActive?: boolean;
-  sleepTimerRemainingSeconds?: number | null;
+  sleepTimerDeadlineMs?: number | null;
   onClose: () => void;
   onMore: () => void;
 }
@@ -16,13 +18,15 @@ interface NowPlayingHeaderProps {
 const NowPlayingHeader = React.memo(({
   albumTitle,
   sleepTimerActive = false,
-  sleepTimerRemainingSeconds = null,
+  sleepTimerDeadlineMs = null,
   onClose,
   onMore,
 }: NowPlayingHeaderProps) => {
   const { theme } = useAppTheme();
+  const visible = usePlaybackProgressVisible();
+  const remaining = useSleepTimerCountdown(sleepTimerActive ? sleepTimerDeadlineMs : null, visible);
   const formattedSleepTimer = sleepTimerActive
-    ? formatSleepTimerRemaining(sleepTimerRemainingSeconds)
+    ? formatSleepTimerRemaining(remaining)
     : null;
   const eyebrowLabel = formattedSleepTimer ? `JETZT LÄUFT · TIMER ${formattedSleepTimer}` : 'JETZT LÄUFT';
 

@@ -14,7 +14,11 @@ used by this app rather than all of the upstream V4 API.
   its place in the mutation chain.
 - Song IDs, album names, artwork and repeat modes are translated at this boundary.
   Position/duration values remain seconds; the `useProgress` interval remains
-  milliseconds for the existing app callers.
+  milliseconds for the existing app callers. Periodic reads run only during
+  foreground playback in a visible progress view. Pause uses event/seek snapshots;
+  background and hidden views suspend their UI observer. Return, track change and
+  confirmed seek refresh immediately. Native heartbeats publish progress without
+  another native read. The remote service and native playback retain ownership.
 - Navigation reads fresh native queue identities and titles through a compact
   snapshot after acknowledged writes. It avoids per-track compatibility metadata
   conversion; it does not cache native queue order or claim an atomic native read.

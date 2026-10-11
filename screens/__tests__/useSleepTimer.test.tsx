@@ -1,12 +1,15 @@
 import React from 'react';
-import { Pressable, Text } from 'react-native';
+import { AppState, Pressable, Text } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import TrackPlayer from 'react-native-track-player';
 import { formatSleepTimerRemaining, useSleepTimer } from '../useSleepTimer';
 import { isSleepTimerActive, resetSleepTimerForTests } from '../../services/sleepTimerController';
+import { useSleepTimerCountdown } from '../../hooks/useSleepTimerCountdown';
+const appStateDescriptor = Object.getOwnPropertyDescriptor(AppState, 'currentState')!;
 
 const SleepTimerProbe = () => {
-  const { sleepTimerActive, sleepTimerRemainingSeconds, startSleepTimer, cancelSleepTimer } = useSleepTimer();
+  const { sleepTimerActive, sleepTimerDeadlineMs, startSleepTimer, cancelSleepTimer } = useSleepTimer();
+  const sleepTimerRemainingSeconds = useSleepTimerCountdown(sleepTimerDeadlineMs);
 
   return (
     <>
@@ -21,6 +24,7 @@ const SleepTimerProbe = () => {
 
 describe('useSleepTimer', () => {
   beforeEach(() => {
+    Object.defineProperty(AppState, 'currentState', { value: 'active', configurable: true, writable: true });
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     resetSleepTimerForTests();
@@ -28,7 +32,9 @@ describe('useSleepTimer', () => {
   });
 
   afterEach(() => {
+    Object.defineProperty(AppState, 'currentState', appStateDescriptor);
     resetSleepTimerForTests();
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 

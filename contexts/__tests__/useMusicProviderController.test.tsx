@@ -190,7 +190,7 @@ describe('useMusicProviderController', () => {
         isPlaying: value.isPlaying,
         togglePlayPause: value.togglePlayPause,
         sleepTimerActive: false,
-        sleepTimerRemainingSeconds: null,
+        sleepTimerDeadlineMs: null,
         startSleepTimer: jest.fn(),
         cancelSleepTimer: jest.fn(),
         volume: value.volume,

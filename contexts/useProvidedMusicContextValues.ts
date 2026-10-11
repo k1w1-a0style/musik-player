@@ -119,7 +119,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       hydrationStatus, retryHydration,
     ],
   );
-  const { sleepTimerActive, sleepTimerRemainingSeconds,
+  const { sleepTimerActive, sleepTimerDeadlineMs,
     startSleepTimer, cancelSleepTimer } = useSleepTimer();
   const nowPlayingValue = useMemo(
     () =>
@@ -130,7 +130,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
         isPlaying,
         togglePlayPause,
         sleepTimerActive,
-        sleepTimerRemainingSeconds,
+        sleepTimerDeadlineMs,
         startSleepTimer,
         cancelSleepTimer,
         volume,
@@ -153,7 +153,7 @@ export const useProvidedMusicContextValues = (input: MusicContextValue): Provide
       isPlaying,
       togglePlayPause,
       sleepTimerActive,
-      sleepTimerRemainingSeconds,
+      sleepTimerDeadlineMs,
       startSleepTimer,
       cancelSleepTimer,
       volume,

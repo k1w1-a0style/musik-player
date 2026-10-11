@@ -49,7 +49,7 @@ test('drives the complete native bass curve between clock samples and resets on 
   const view = renderHook(({ playing }: { playing: boolean }) => useCoverBassPulse(song, playing), { initialProps: { playing: true } });
   await waitFor(() => expect(valueOf(view.result.current)).toBeGreaterThan(1.03));
   expect(decode).not.toHaveBeenCalled();
-  expect(useProgress).toHaveBeenCalledWith(500);
+  expect(useProgress).toHaveBeenCalledWith(500, { enabled: true });
   expect(useProgress).toHaveBeenCalledTimes(1);
   expect(Animated.timing).toHaveBeenCalledWith(expect.any(Animated.Value), expect.objectContaining({
     useNativeDriver: true, isInteraction: false,

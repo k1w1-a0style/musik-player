@@ -61,7 +61,7 @@ type NowPlayingMusicContextInput = Pick<
   | 'retryHydration'
 > & Pick<
   NowPlayingMusicContextValue,
-  'sleepTimerActive' | 'sleepTimerRemainingSeconds' | 'startSleepTimer' | 'cancelSleepTimer'
+  'sleepTimerActive' | 'sleepTimerDeadlineMs' | 'startSleepTimer' | 'cancelSleepTimer'
 >;
 
 export const buildLibraryMusicContextValue = ({
@@ -139,7 +139,7 @@ export const buildNowPlayingMusicContextValue = ({
   isPlaying,
   togglePlayPause,
   sleepTimerActive,
-  sleepTimerRemainingSeconds,
+  sleepTimerDeadlineMs,
   startSleepTimer,
   cancelSleepTimer,
   volume,
@@ -164,7 +164,7 @@ export const buildNowPlayingMusicContextValue = ({
   isPlaying,
   togglePlayPause,
   sleepTimerActive,
-  sleepTimerRemainingSeconds,
+  sleepTimerDeadlineMs,
   startSleepTimer,
   cancelSleepTimer,
   volume,

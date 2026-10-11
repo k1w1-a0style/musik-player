@@ -9,7 +9,6 @@ import {
 
 interface SleepTimerState {
   sleepTimerActive: boolean;
-  sleepTimerRemainingSeconds: number | null;
   sleepTimerDeadlineMs: number | null;
   startSleepTimer: (minutes: number) => void;
   cancelSleepTimer: () => void;
@@ -36,30 +35,15 @@ export const formatSleepTimerRemaining = (remainingSeconds: number | null): stri
 export const useSleepTimer = (): SleepTimerState => {
   const [sleepTimerActive, setSleepTimerActive] = useState(isSleepTimerActive);
   const [sleepTimerDeadlineMs, setSleepTimerDeadlineMs] = useState(getSleepTimerDeadlineMs);
-  const [sleepTimerRemainingSeconds, setSleepTimerRemainingSeconds] = useState(() => (
-    getSleepTimerRemainingSeconds(getSleepTimerDeadlineMs())
-  ));
 
   const refreshSleepTimerState = useCallback((active: boolean = isSleepTimerActive()) => {
     const deadlineMs = active ? getSleepTimerDeadlineMs() : null;
     setSleepTimerActive(active);
     setSleepTimerDeadlineMs(deadlineMs);
-    setSleepTimerRemainingSeconds(getSleepTimerRemainingSeconds(deadlineMs));
   }, []);
 
   useEffect(() => subscribeToSleepTimer(refreshSleepTimerState), [refreshSleepTimerState]);
 
-  useEffect(() => {
-    if (!sleepTimerActive) return undefined;
-
-    const interval = setInterval(() => {
-      refreshSleepTimerState();
-    }, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [refreshSleepTimerState, sleepTimerActive]);
 
   const startSleepTimer = useCallback((minutes: number) => {
     startSharedSleepTimer(minutes);
@@ -71,9 +55,8 @@ export const useSleepTimer = (): SleepTimerState => {
 
   return useMemo(() => ({
     sleepTimerActive,
-    sleepTimerRemainingSeconds,
     sleepTimerDeadlineMs,
     startSleepTimer,
     cancelSleepTimer,
-  }), [cancelSleepTimer, sleepTimerActive, sleepTimerDeadlineMs, sleepTimerRemainingSeconds, startSleepTimer]);
+  }), [cancelSleepTimer, sleepTimerActive, sleepTimerDeadlineMs, startSleepTimer]);
 };

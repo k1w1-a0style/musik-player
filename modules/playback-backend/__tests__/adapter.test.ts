@@ -42,11 +42,13 @@ let watchdog: typeof import('../../../utils/nativePlaybackWatchdog');
 let libraryHelpers: typeof import('../../../contexts/libraryActionHelpers');
 let native: ReturnType<typeof createNative>;
 let headlessTask: (data: HeadlessData) => Promise<void>;
+const appStateDescriptor = Object.getOwnPropertyDescriptor(ReactNative.AppState, 'currentState')!;
 
 const flush = async () => { for (let count = 0; count < 12; count += 1) await Promise.resolve(); };
 
 beforeEach(() => {
   native = createNative();
+  Object.defineProperty(ReactNative.AppState, 'currentState', { value: 'active', configurable: true, writable: true });
   jest.replaceProperty(ReactNative.Platform, 'OS', 'android');
   const getEnforcing = ReactNative.TurboModuleRegistry.getEnforcing;
   jest.spyOn(ReactNative.TurboModuleRegistry, 'getEnforcing').mockImplementation(name =>
@@ -73,6 +75,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Object.defineProperty(ReactNative.AppState, 'currentState', appStateDescriptor);
   ReactNative.DeviceEventEmitter.removeAllListeners();
   jest.useRealTimers();
   jest.restoreAllMocks();
@@ -490,7 +493,9 @@ test('gets the current native EQ session after startup', async () => {
 
 test('useProgress retains a 500 ms poll, reports seconds, and disposes timers', async () => {
   jest.useFakeTimers();
+  native.getPlaybackState.mockReturnValue('ready'); native.isPlaying.mockReturnValue(true);
   const hook = renderHook(() => adapter.useProgress(500));
+  await act(async () => { await flush(); });
   await act(async () => { await flush(); });
   expect(hook.result.current).toEqual({ position: 12.5, duration: 120, buffered: 30 });
   expect(native.getProgress).toHaveBeenCalledTimes(1);
@@ -503,6 +508,84 @@ test('useProgress retains a 500 ms poll, reports seconds, and disposes timers', 
   await flush();
   expect(native.getProgress).toHaveBeenCalledTimes(2);
   expect(jest.getTimerCount()).toBe(0);
+});
+
+test('stops periodic progress reads during a 30-second pause', async () => {
+  jest.useFakeTimers();
+  native.getPlaybackState.mockReturnValue('ready');
+  const hook = renderHook(() => adapter.useProgress(500));
+  await act(async () => { await flush(); });
+  native.getProgress.mockClear();
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); await flush(); });
+  const reads = native.getProgress.mock.calls.length; hook.unmount();
+  // eslint-disable-next-line no-console -- Comparable aggregate native-boundary call count, not a device speed claim.
+  console.info(JSON.stringify({ scope: 'host adapter with native boundary double', state: 'paused', seconds: 30, periodicReads: reads }));
+  expect(reads).toBe(0);
+});
+
+test('stops progress polling in background and refreshes immediately on return', async () => {
+  jest.useFakeTimers();
+  native.getPlaybackState.mockReturnValue('ready'); native.isPlaying.mockReturnValue(true);
+  let onChange!: (state: ReactNative.AppStateStatus) => void;
+  jest.spyOn(ReactNative.AppState, 'addEventListener').mockImplementation((_event, listener) => {
+    onChange = listener; return { remove: jest.fn() };
+  });
+  const hook = renderHook(() => adapter.useProgress(500));
+  await act(async () => { await flush(); });
+  await act(async () => { onChange('background'); await flush(); });
+  native.getProgress.mockClear();
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); await flush(); });
+  const reads = native.getProgress.mock.calls.length;
+  await act(async () => { onChange('active'); await flush(); });
+  const returnReads = native.getProgress.mock.calls.length - reads;
+  hook.unmount();
+  // eslint-disable-next-line no-console -- Comparable aggregate native-boundary call count, not a device speed claim.
+  console.info(JSON.stringify({ scope: 'host adapter with native boundary double', state: 'background', seconds: 30, periodicReads: reads, returnReads }));
+  expect(reads).toBe(0); expect(returnReads).toBe(1);
+});
+
+test('a hidden progress consumer performs no polling and refreshes when made visible', async () => {
+  jest.useFakeTimers(); native.getPlaybackState.mockReturnValue('ready'); native.isPlaying.mockReturnValue(true);
+  const hook = renderHook(({ enabled }: { enabled: boolean }) => adapter.useProgress(500, { enabled }), { initialProps: { enabled: false } });
+  await act(async () => { await flush(); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); await flush(); });
+  expect(native.getProgress).not.toHaveBeenCalled();
+  hook.rerender({ enabled: true });
+  await act(async () => { await flush(); });
+  expect(native.getProgress).toHaveBeenCalledTimes(1);
+  expect(hook.result.current.position).toBe(12.5); hook.unmount();
+});
+
+test('keeps the visible playing cadence at 60 periodic reads over 30 seconds', async () => {
+  jest.useFakeTimers(); native.getPlaybackState.mockReturnValue('ready'); native.isPlaying.mockReturnValue(true);
+  const hook = renderHook(() => adapter.useProgress(500));
+  await act(async () => { await flush(); }); await act(async () => { await flush(); }); native.getProgress.mockClear();
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); });
+  expect(native.getProgress).toHaveBeenCalledTimes(60); hook.unmount();
+});
+
+test('confirmed seeks refresh a paused progress consumer without starting a periodic poll', async () => {
+  jest.useFakeTimers(); native.getPlaybackState.mockReturnValue('ready');
+  const hook = renderHook(() => adapter.useProgress(500));
+  await act(async () => { await flush(); }); await act(async () => { await flush(); });
+  native.getProgress.mockReturnValue({ position: 42, duration: 120, buffered: 60 });
+  await act(async () => { await adapter.default.seekTo(42); await flush(); });
+  expect(hook.result.current.position).toBe(42); expect(native.seekTo).toHaveBeenLastCalledWith(42);
+  native.getProgress.mockClear();
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); });
+  expect(native.getProgress).not.toHaveBeenCalled();
+  hook.unmount(); await adapter.default.seekBy(5); await flush();
+  expect(native.getProgress).not.toHaveBeenCalled();
+});
+
+test('native progress heartbeats publish seconds without making another native read', async () => {
+  jest.useFakeTimers(); native.getPlaybackState.mockReturnValue('ready');
+  const hook = renderHook(() => adapter.useProgress(500));
+  await act(async () => { await flush(); }); await act(async () => { await flush(); });
+  native.getProgress.mockClear();
+  act(() => { ReactNative.DeviceEventEmitter.emit('event.playback-progress-updated', { position: 35, duration: 120 }); });
+  expect(hook.result.current).toEqual({ position: 35, duration: 120, buffered: 30 });
+  expect(native.getProgress).not.toHaveBeenCalled(); hook.unmount();
 });
 
 test('refreshes buffering play intent from native signals even while audible state remains false', async () => {

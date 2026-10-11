@@ -33,7 +33,7 @@ const renderMenu = (patch = {}) => render(
     onToggleFavorite={jest.fn()}
     onSaveQueueAsPlaylist={jest.fn()}
     sleepTimerActive={false}
-    sleepTimerRemainingSeconds={null}
+    sleepTimerDeadlineMs={null}
     onStartSleepTimer={jest.fn()}
     onCancelSleepTimer={jest.fn()}
     {...patch}
@@ -104,7 +104,7 @@ test('renders and cancels an active sleep timer', () => {
   const onClose = jest.fn();
   const { getByText } = renderMenu({
     sleepTimerActive: true,
-    sleepTimerRemainingSeconds: 14 * 60 + 59,
+    sleepTimerDeadlineMs: Date.now() + (14 * 60 + 59) * 1000,
     onCancelSleepTimer,
     onClose,
   });
@@ -120,7 +120,7 @@ test('renders and cancels an active sleep timer', () => {
 test('keeps all active timer actions reachable in a constrained scrollable card', () => {
   const { getByTestId, getByText } = renderMenu({
     sleepTimerActive: true,
-    sleepTimerRemainingSeconds: 14 * 60 + 59,
+    sleepTimerDeadlineMs: Date.now() + (14 * 60 + 59) * 1000,
   });
   const card = getByTestId('now-playing-menu-card');
 
