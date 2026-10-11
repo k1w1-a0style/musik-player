@@ -3,7 +3,6 @@ import {
   getLibrarySongItemLayout,
   getLibrarySongKey,
   shouldShowTrackInfoAction,
-  SONG_ROW_HEIGHT,
 } from '../libraryRendererHelpers';
 import type { Song } from '../../types/Song';
 
@@ -17,8 +16,8 @@ const song: Song = {
 describe('libraryRendererHelpers', () => {
   test('builds stable song item layout', () => {
     expect(getLibrarySongItemLayout(null, 3)).toEqual({
-      length: SONG_ROW_HEIGHT,
-      offset: SONG_ROW_HEIGHT * 3,
+      length: 76,
+      offset: 228,
       index: 3,
     });
   });

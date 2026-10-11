@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "2814fc360404f05fb0b36edcc73a7d2d98631f44",
+  "removedFiles": [
+    "components/CoverPagerTrack.tsx",
+    "components/__tests__/CoverPagerTrack.test.tsx",
+    "utils/songPreparation.ts"
+  ],
+  "productionNetRemovedLines": 369,
+  "testNetRemovedLines": 386,
+  "productionFunctionCount": {
+    "before": 3546,
+    "after": 3497
+  },
+  "hermesBytecodeBytes": {
+    "before": 3617016,
+    "after": 3607924
+  },
+  "methodology": "Same Node 22.23.3 production Android export, installed dependencies, EAS profile and Hermes boundary gate. Count only proven unreachable app-local paths and their exclusive tests; preserve active/native/compatibility paths.",
+  "limits": "The bytecode size difference is 9092 bytes in these exact exports; it does not imply a measured device-start, CPU or RAM improvement."
+}

@@ -1,31 +1,10 @@
 import {
   getQueuePreviewOffset,
-  getTrackPageKeys,
   resolveSoundCloudSeekRatio,
-  shouldCommitSoundCloudSwipe,
   shouldCollapseSoundCloudPlayer,
   shouldCloseSoundCloudQueue,
   shouldOpenSoundCloudQueue,
 } from '../soundCloudPlayer';
-
-describe('track page identity', () => {
-  test('keeps the incoming cover mounted when it becomes current', () => {
-    const before = getTrackPageKeys({ previousId: 'a', currentId: 'b', nextId: 'c' });
-    const after = getTrackPageKeys({ previousId: 'b', currentId: 'c', nextId: 'd' });
-    expect(after.current).toBe(before.next);
-    expect(after.previous).toBe(before.current);
-  });
-
-  test('distinguishes the same neighbor shown on both sides of a two-track queue', () => {
-    const keys = getTrackPageKeys({ previousId: 'a', currentId: 'b', nextId: 'a' });
-    expect(new Set(Object.values(keys)).size).toBe(3);
-    expect(keys.next).toBe('a');
-  });
-
-  test('gives empty pages distinct identities', () => {
-    expect(new Set(Object.values(getTrackPageKeys({}))).size).toBe(3);
-  });
-});
 
 describe('SoundCloud player gesture math', () => {
   test('seeking moves the timeline opposite to the waveform drag', () => {
@@ -37,18 +16,6 @@ describe('SoundCloud player gesture math', () => {
     expect(resolveSoundCloudSeekRatio({ startRatio: 0.1, translationX: 400, travelWidth: 800 })).toBe(0);
     expect(resolveSoundCloudSeekRatio({ startRatio: 0.9, translationX: -400, travelWidth: 800 })).toBe(1);
     expect(resolveSoundCloudSeekRatio({ startRatio: Number.NaN, translationX: 10, travelWidth: 0 })).toBe(0);
-  });
-
-  test('track swipe requires horizontal intent and either distance or velocity', () => {
-    expect(shouldCommitSoundCloudSwipe({ translationX: -120, translationY: 8, velocityX: -200, width: 360 })).toBe(true);
-    expect(shouldCommitSoundCloudSwipe({ translationX: -30, translationY: 4, velocityX: -950, width: 360 })).toBe(true);
-    expect(shouldCommitSoundCloudSwipe({ translationX: -40, translationY: 80, velocityX: -1200, width: 360 })).toBe(false);
-    expect(shouldCommitSoundCloudSwipe({ translationX: -40, translationY: 2, velocityX: -200, width: 360 })).toBe(false);
-  });
-
-  test.each([-1, 1])('a short swipe reversed toward the center does not change track (%s)', direction => {
-    expect(shouldCommitSoundCloudSwipe({ translationX: direction * 30, translationY: 2,
-      velocityX: -direction * 1_000, width: 360 })).toBe(false);
   });
 
   test('collapse follows a deliberate downward drag or fling only', () => {

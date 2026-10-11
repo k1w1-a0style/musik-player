@@ -73,15 +73,6 @@ export const applyNativeEqualizerEnabled = (
   SystemAudio.eqSetEnabled(eqEnabled);
 };
 
-export const applyNativeEqualizerBands = (
-  eqNative: EqInitResult | null,
-  eqEnabled: boolean,
-  eqBands: number[],
-): void => {
-  if (!shouldApplyNativeEqBands(eqNative, eqEnabled)) return;
-  applyBandUpdates(eqNative, eqBands);
-};
-
 const applyBandUpdates = (
   eqNative: EqInitResult,
   eqBands: number[],

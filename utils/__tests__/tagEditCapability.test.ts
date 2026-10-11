@@ -1,5 +1,5 @@
 import type { Song } from '../../types/Song';
-import { getSupportedContainer, getTagEditCapability, getUriType, isFileWriteSupportedOnPlatform } from '../tagEditCapability';
+import { getSupportedContainer, getTagEditCapability, getUriType } from '../tagEditCapability';
 
 const song = (overrides: Partial<Song>): Song => ({ id: '1', title: 't', artist: 'a', ...overrides });
 
@@ -69,8 +69,6 @@ describe('tagEditCapability', () => {
     expect(iosCap.reason).toMatch(/dauerhaftes Recovery-Journal/i);
     expect(androidMp4Cap.canWrite).toBe(false);
     expect(androidM4aCap.canWrite).toBe(false);
-    expect(isFileWriteSupportedOnPlatform('android')).toBe(false);
-    expect(isFileWriteSupportedOnPlatform('ios')).toBe(false);
   });
 
   test('content:// m4a/mp4 require a SAF source signal on Android', () => {

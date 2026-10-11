@@ -12,7 +12,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 }));
 jest.mock('../../utils/libraryWaveformPreparation', () => ({
   useWaveformPreparation: jest.fn(), cancelWaveformPreparation: jest.fn(),
-  dismissWaveformPreparation: jest.fn(), resumeWaveformPreparation: jest.fn(),
+  resumeWaveformPreparation: jest.fn(),
 }));
 
 beforeEach(() => { clearImportFileProgress(); resetWaveformStatusForTests(); });

@@ -8,9 +8,9 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { Song } from '../../types/Song';
 import { useSongPreparation } from '../../hooks/useSongPreparation';
 import { getCachedWaveformForSong } from '../waveformSourceCache';
-import { getCachedWaveform, peekCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform } from '../waveformCache';
+import { getCachedWaveform, getCachedWaveformAvailability, peekCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform } from '../waveformCache';
 import { buildNativeWaveform, getWaveformSourceIdentity } from '../waveformGenerator';
-import { getSongAnalysisState, getSongPreparationStatus } from '../songPreparation';
+import { getWaveformStatus } from '../waveformStatus';
 import { flushPreparedSources, loadPreparedSources, markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 import type { SongWaveform } from '../waveformTypes';
 
@@ -108,8 +108,9 @@ test('retains completion history while reporting a missing waveform accurately',
   await markSongPrepared(legacy.sourceFingerprint);
   resetSongPreparationForTests();
   await loadPreparedSources();
-  expect(getSongPreparationStatus(song)).toBe('pending');
-  expect(getSongAnalysisState(song)).toEqual({ analysisCompleted: true, waveformAvailable: false, bassAvailable: false });
+  expect(getWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint)).toBe('pending');
+  expect(wasSongPrepared(legacy.sourceFingerprint)).toBe(true);
+  expect(getCachedWaveformAvailability(getWaveformSourceIdentity(song))).toEqual({ waveformAvailable: false, bassAvailable: false });
   const hook = renderHook(() => useSongPreparation(song));
   await act(async () => { await loadPreparedSources(); });
   expect(hook.result.current).toBe('pending');
@@ -121,5 +122,5 @@ test('retains completion history while reporting a missing waveform accurately',
   hook.unmount();
   resetSongPreparationForTests();
   await loadPreparedSources();
-  expect(getSongPreparationStatus({ ...song, duration: 124000 })).toBe('pending');
+  expect(getWaveformStatus(getWaveformSourceIdentity({ ...song, duration: 124000 }).sourceFingerprint)).toBe('pending');
 });

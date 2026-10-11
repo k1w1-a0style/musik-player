@@ -59,7 +59,6 @@ export const getSupportedContainer = (song: Song): TagEditableContainer => {
   return 'unsupported';
 };
 
-export const isFileWriteSupportedOnPlatform = (_platform: string): boolean => false;
 
 /**
  * Planner/UI capability requires confirmed import provenance. URI shape alone is

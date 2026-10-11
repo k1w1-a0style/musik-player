@@ -1,7 +1,6 @@
 import SystemAudio, { type EqInitResult } from 'expo-system-audio';
 import TrackPlayer from 'react-native-track-player';
 import {
-  applyNativeEqualizerBands,
   applyNativeEqualizerEnabled,
   createNativeEqualizerBandScheduler,
   initNativeEqualizer,
@@ -82,14 +81,6 @@ describe('nativeEqualizerHelpers', () => {
     expect(SystemAudio.eqSetEnabled).toHaveBeenCalledWith(true);
   });
 
-  test('applies band levels only when enabled and available', () => {
-    applyNativeEqualizerBands(eqNative, true, [5, 0, 0, 0, 2, 0, 0, 0, 0, -5]);
-    applyNativeEqualizerBands(eqNative, false, [5, 0, 0, 0, 2, 0, 0, 0, 0, -5]);
-
-    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledTimes(2);
-    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledWith(0, 300);
-    expect(SystemAudio.eqSetBandLevel).toHaveBeenCalledWith(1, 200);
-  });
 });
 
 describe('native equalizer slider scheduling', () => {

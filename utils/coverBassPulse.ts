@@ -1,7 +1,6 @@
 import type { SongWaveform } from './waveformTypes';
 
 export const MAX_COVER_BASS_SCALE = 1.08;
-export const BASS_PULSE_STEP_MS = 50;
 export const MAX_BASS_CURVE_POINTS = 96;
 
 export const hasBassEnvelope = (waveform: SongWaveform | null | undefined): waveform is SongWaveform & { bassPoints: number[] } =>

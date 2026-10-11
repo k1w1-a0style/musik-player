@@ -137,7 +137,6 @@ export const prepareLibraryWaveforms = async (
 
 export const cancelWaveformPreparation = (): void => active?.abort(new OperationAbortError('Preparation cancelled'));
 export const resumeWaveformPreparation = (): Promise<void> => prepareLibraryWaveforms(lastSongs);
-export const dismissWaveformPreparation = (): void => { if (!active) publish(idle); };
 export const clearWaveformPreparation = (): void => {
   active?.abort(new OperationAbortError('New library operation'));
   active = null;

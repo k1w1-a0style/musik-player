@@ -9,7 +9,6 @@ export const getSongCardHeight = (fontScale = 1, banner = false): number => {
   // Explicit title/artist/metadata line heights plus margins and vertical padding.
   return Math.max(banner ? 88 : 70, Math.ceil((banner ? 55 : 51) * scale + 18));
 };
-export const SONG_ROW_HEIGHT = getSongCardHeight() + SONG_ROW_GAP;
 
 export const getLibrarySongItemLayout = (
   _: ArrayLike<Song> | null | undefined,

@@ -3,16 +3,6 @@ import { WAVEFORM_CACHE_POINT_COUNT } from './waveformTypes';
 export const SOUNDCLOUD_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const SOUNDCLOUD_QUEUE_ROW_HEIGHT = 68;
 
-export const getTrackPageKeys = ({ currentId, previousId, nextId }: {
-  currentId?: string;
-  previousId?: string;
-  nextId?: string;
-}): { current: string; previous: string; next: string } => ({
-  current: currentId ?? 'empty-current',
-  previous: previousId === nextId ? `previous:${previousId}` : previousId ?? 'empty-previous',
-  next: nextId ?? 'empty-next',
-});
-
 const clampUnit = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
@@ -30,27 +20,6 @@ export const resolveSoundCloudSeekRatio = ({
   if (!Number.isFinite(travelWidth) || travelWidth <= 0) return clampUnit(startRatio);
   const safeTranslation = Number.isFinite(translationX) ? translationX : 0;
   return clampUnit(clampUnit(startRatio) - safeTranslation / travelWidth);
-};
-
-export const shouldCommitSoundCloudSwipe = ({
-  translationX,
-  translationY,
-  velocityX,
-  width,
-}: {
-  translationX: number;
-  translationY: number;
-  velocityX: number;
-  width: number;
-}): boolean => {
-  if (![translationX, translationY, velocityX, width].every(Number.isFinite) || width <= 0) return false;
-  const horizontalDistance = Math.abs(translationX);
-  const hasHorizontalIntent = horizontalDistance >= 18
-    && horizontalDistance > Math.abs(translationY) * 1.2;
-  const passesDistance = horizontalDistance >= width * 0.26;
-  const passesVelocity = Math.abs(velocityX) >= 850
-    && Math.sign(velocityX) === Math.sign(translationX);
-  return hasHorizontalIntent && (passesDistance || passesVelocity);
 };
 
 export const shouldCollapseSoundCloudPlayer = ({
