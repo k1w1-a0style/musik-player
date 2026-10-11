@@ -18,7 +18,7 @@ class NativeDispatchQueueTest {
     val sdkObservers = setOf("startObserving", "stopObserving")
     val audio = SystemAudioModule().definition().asyncFunctions.filterKeys { it !in sdkObservers }
     val waveform = SystemAudioWaveformModule().definition().asyncFunctions.filterKeys { it !in sdkObservers }
-    assertEquals(setOf("eqInit", "createArtworkThumbnail", "extractPalette", "extractAudioInfo",
+    assertEquals(setOf("eqInit", "createArtworkThumbnail", "extractPalette", "extractAudioInfo", "extractImportSnapshot",
       "readImportFileStat", "extractMetadataFast", "writeAudioTags", "verifyAudioTagDeletion",
       "getAudioTagRecoveryStatus", "recoverPendingAudioTagTransactions", "acknowledgeAudioTagRecoveryOutcomes",
       "extractEmbeddedArtwork", "releaseEmbeddedArtworkLease"), audio.keys)
