@@ -17,6 +17,13 @@ OUT = Path('ci-logs/release-interaction')
 CHECKS = []
 DEVICE = None
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
+FORMAT_DURATIONS = (90, 120, 150, 1260)
+RETEST_ONLY_PATHS = frozenset({
+    'scripts/ci/androidReleaseInteractionSmoke.py',
+    'scripts/ci/androidReleaseInteractionSmoke_test.py',
+    '.github/workflows/android-release-retest.yml',
+    'docs/CODEX-V3-IMPLEMENTATION.md',
+})
 
 
 def adb(*args, check=True):
@@ -28,6 +35,28 @@ def validate_target(apk, expected_sha, reviewed_commit, artifact_commit, emulato
     assert re.fullmatch(r'[0-9a-f]{40}', reviewed_commit), 'Missing immutable reviewed source'
     assert reviewed_commit == artifact_commit.strip(), 'APK artifact belongs to a different source commit'
     assert hashlib.sha256(Path(apk).read_bytes()).hexdigest() == expected_sha, 'APK bytes differ from inspected artifact'
+
+
+def validate_retest_provenance(reviewed_commit, changed_paths, jobs):
+    """Reuse an APK only when app sources are identical and its build gates passed."""
+    assert re.fullmatch(r'[0-9a-f]{40}', reviewed_commit), 'Unpinned APK source'
+    assert set(changed_paths) <= RETEST_ONLY_PATHS, 'App source differs from the existing inspected APK'
+    required = ('Dependency security audit', 'Typecheck, tests, coverage, lint, config gates',
+                'Android native build and tests')
+    for name in required:
+        selected = [job for job in jobs if job.get('name') == name]
+        assert len(selected) == 1, 'Missing or ambiguous source gate: ' + name
+        job = selected[0]
+        assert job.get('head_sha') == reviewed_commit, 'Source gate belongs to another commit'
+        assert job.get('status') == 'completed' and job.get('conclusion') == 'success', 'Source gate failed: ' + name
+
+
+def import_confirmation_button(root):
+    assert any(node.get('text') == 'Musik importieren' for node in root.iter('node')), 'Music import confirmation missing'
+    button = next((node for node in root.iter('node') if matches(node, 'android:id/button1')
+                   and node.get('text', '').lower() == 'importieren'), None)
+    assert button is not None, 'Exact music import confirmation action missing'
+    return button
 
 
 def rect(node):
@@ -173,9 +202,10 @@ def choose_folder(parts):
 def generated_audio():
     fixture = OUT / 'audio'
     fixture.mkdir(exist_ok=True)
-    specifications = [('mp3', 'libmp3lame', 30), ('m4a', 'aac', 45), ('flac', 'flac', 60), ('mp3', 'libmp3lame', 1260)]
+    specifications = [('mp3', 'libmp3lame'), ('m4a', 'aac'), ('flac', 'flac'), ('mp3', 'libmp3lame')]
     adb('shell', 'mkdir', '-p', '/sdcard/Music/V3Proof', '/sdcard/Download/MusikBackup')
-    for index, (extension, codec, duration) in enumerate(specifications):
+    for index, (extension, codec) in enumerate(specifications):
+        duration = FORMAT_DURATIONS[index]
         path = fixture / f'V3-{index}.{extension}'
         command = ['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'sine=frequency={220+index*110}:sample_rate=22050',
                    '-t', str(duration), '-ac', '1', '-c:a', codec, '-metadata', 'title=' + TITLES[index],
@@ -215,10 +245,13 @@ def classic_position(seconds):
 def prepare_collection():
     tap('library-open-menu')
     tap('library-menu-item-schnellscan-import')
+    find('Musik importieren', timeout=60)
+    screenshot('00-public-import-confirmation')
+    tap_node(import_confirmation_button(tree()))
     find(TITLES[0] + ' von V3 Proof', timeout=150)
     screenshot('01-mediastore-import')
     CHECKS.append('MediaStore-import-public-UI')
-    for index, duration in enumerate((30, 45, 60)):
+    for index, duration in enumerate(FORMAT_DURATIONS[:3]):
         play_title(TITLES[index])
         tap('mini-player-open')
         assert_duration(duration)
@@ -229,7 +262,7 @@ def prepare_collection():
     CHECKS.append('MP3-M4A-FLAC-native-duration-and-playback')
     path = OUT / 'audio' / 'V3-SAF.mp3'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=22050',
-                    '-t', '20', '-c:a', 'libmp3lame', '-metadata', 'title=V3 SAF', '-metadata', 'artist=V3 Proof', str(path)], check=True)
+                    '-t', '80', '-c:a', 'libmp3lame', '-metadata', 'title=V3 SAF', '-metadata', 'artist=V3 Proof', str(path)], check=True)
     adb('shell', 'mkdir', '-p', '/sdcard/Music/V3OnlySAF')
     adb('push', str(path), '/sdcard/Music/V3OnlySAF/V3-SAF.mp3')
     tap('library-open-menu')
@@ -238,7 +271,7 @@ def prepare_collection():
     find('V3 SAF von V3 Proof', timeout=150)
     play_title('V3 SAF')
     tap('mini-player-open')
-    assert_duration(20)
+    assert_duration(80)
     tap('controls-play-pause')
     screenshot('01-saf-import-and-playback')
     back()
@@ -353,6 +386,88 @@ def backup_acceptance():
     CHECKS.append('SAF-backup-export-readback-read-only-inspection-preview-restore-preserves-original')
 
 
+def soundcloud_seconds():
+    value = find('soundcloud-waveform-current-time').get('text', '')
+    assert re.fullmatch(r'\d+:\d{2}', value), 'Native progress has no valid time'
+    minutes, seconds = map(int, value.split(':'))
+    return minutes*60+seconds
+
+
+def app_media_session():
+    session = adb('shell', 'dumpsys', 'media_session').decode(errors='replace')
+    blocks = re.split(r'(?=\bSession #\d+:)', session)
+    matching = [block for block in blocks if 'package=' + PACKAGE in block]
+    assert len(matching) == 1, 'Native media session missing or ambiguous'
+    (OUT / 'media-session.txt').write_text(matching[0])
+    return matching[0]
+
+
+def queue_node(root, title):
+    label = title + ' von V3 Proof abspielen'
+    nodes = [node for node in root.iter('node') if
+             node.get('resource-id', '').split(':id/')[-1].startswith('queue-row-')
+             and node.get('content-desc', '').startswith(label) and visible(node)]
+    assert len(nodes) == 1, 'Queue title is absent or ambiguous: ' + title
+    return nodes[0]
+
+
+def background_and_queue_acceptance():
+    # Resume is already OFF. A real playing native position must advance while
+    # the app is offscreen; a metadata-only duration cannot satisfy this check.
+    play_title(TITLES[3])
+    tap('mini-player-open')
+    started = soundcloud_seconds()
+    time.sleep(4)
+    before = soundcloud_seconds()
+    assert before >= started+2, 'Native position did not advance during playback'
+    adb('shell', 'input', 'keyevent', '3')
+    time.sleep(6)
+    session = app_media_session()
+    assert re.search(r'PlaybackState\s*\{state=3\b', session), 'Native playback stopped in background'
+    adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
+    find('soundcloud-waveform-current-time', timeout=30)
+    assert soundcloud_seconds() >= before+3, 'Background playback position did not advance'
+    screenshot('09-background-playback-return')
+    CHECKS.append('native-playing-session-and-position-advance-in-background')
+    before_reorder, start = soundcloud_seconds(), time.monotonic()
+    tap('soundcloud-open-queue')
+    frame = tree()
+    source, target = queue_node(frame, TITLES[0]), queue_node(frame, TITLES[1])
+    source_key = source.get('resource-id').split(':id/')[-1]
+    target_key = target.get('resource-id').split(':id/')[-1]
+    handle = find(source_key.replace('queue-row-', 'queue-drag-handle-', 1))
+    x1, y1, x2, y2 = rect(handle)
+    _, t1, _, t2 = rect(target)
+    adb('shell', 'input', 'swipe', str((x1+x2)//2), str((y1+y2)//2),
+        str((x1+x2)//2), str((t1+t2)//2), '650')
+    deadline = time.monotonic()+12
+    while time.monotonic() < deadline:
+        frame = tree()
+        left, right = queue_node(frame, TITLES[0]), queue_node(frame, TITLES[1])
+        if rect(left)[1] < rect(right)[1] and rect(left)[3] <= rect(right)[1]+1:
+            break
+        time.sleep(.4)
+    else:
+        raise AssertionError('Real queue drag did not publish the requested order')
+    screenshot('10-real-queue-reordered')
+    tap('soundcloud-queue-close')
+    after = soundcloud_seconds()
+    assert before_reorder-1 <= after <= before_reorder+time.monotonic()-start+3, 'Queue reorder reset or jumped the playing track'
+    tap('soundcloud-open-queue')
+    tap(target_key)
+    if candidate('soundcloud-queue-close') is not None:
+        tap('soundcloud-queue-close')
+    assert_duration(FORMAT_DURATIONS[1])
+    time.sleep(3)
+    assert soundcloud_seconds() >= 1, 'Selected queue track is not advancing'
+    assert TITLES[1] in app_media_session(), 'Native session did not select the actual queue track'
+    screenshot('11-native-queue-track-selection')
+    tap('soundcloud-swipe-hitbox')
+    find('soundcloud-play-button')
+    back()
+    CHECKS.append('real-queue-drag-preserves-playing-position-and-selects-native-track')
+
+
 def ui_matrix():
     for scale in ('1.0', '1.3', '2.0'):
         adb('shell', 'settings', 'put', 'system', 'font_scale', scale)
@@ -393,7 +508,9 @@ def main():
     global DEVICE
     apk = Path('preview-input/musik-player-preview.apk')
     sha = (Path('preview-input') / 'apk-sha256.txt').read_text().split()[0]
-    commit = os.environ['GITHUB_SHA']
+    commit = os.environ.get('REVIEWED_APK_SOURCE_COMMIT', os.environ['GITHUB_SHA'])
+    if 'EXPECTED_APK_SHA256' in os.environ:
+        assert sha == os.environ['EXPECTED_APK_SHA256'], 'Inspected artifact digest is not the pinned digest'
     validate_target(apk, sha, commit, Path('preview-input/source-commit.txt').read_text(), adb('shell', 'getprop', 'ro.kernel.qemu').decode())
     import uiautomator2
     OUT.mkdir(parents=True, exist_ok=True)
@@ -408,13 +525,15 @@ def main():
         prepare_collection()
         print('Stage: resume and real process restart', flush=True)
         resume_acceptance()
+        print('Stage: native background playback and real queue gestures', flush=True)
+        background_and_queue_acceptance()
         print('Stage: SAF backup export, inspection and restore', flush=True)
         backup_acceptance()
         print('Stage: font, theme and density matrix', flush=True)
         ui_matrix()
         logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
         assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.', logs), 'App runtime failure'
-        result = {'status': 'passed', 'commit': commit, 'apkSha256': sha, 'checks': CHECKS,
+        result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',
                              'Provider faults and restore journal interruptions covered separately by host/native tests']}

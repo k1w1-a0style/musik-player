@@ -1,0 +1,123 @@
+name: Retest inspected release APK
+
+on:
+  push:
+    branches: [codex]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: inspected-preview-ui-retest
+  cancel-in-progress: true
+
+jobs:
+  retest-inspected-apk:
+    name: Retest same inspected APK with corrected public UI harness
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[retest apk]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PACKAGE_NAME: com.k1w1a0style.musikplayer
+      AVD_NAME: musik-preview-api-35
+      ANDROID_API: '35'
+      REVIEWED_APK_SOURCE_COMMIT: 3b0920188eb3e5b59d9abc83d22d0497f81609c1
+      EXPECTED_APK_SHA256: 041c99444da1817ec0a49dd8bb6f0da037c3fc73814cef320649d30a42d1b3f7
+    steps:
+      - name: Checkout immutable acceptance harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download existing inspected APK without rebuilding it
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: musik-player-preview-3b0920188eb3e5b59d9abc83d22d0497f81609c1
+          run-id: 38177702034
+          github-token: ${{ github.token }}
+          path: preview-input
+
+      - name: Reject changed app sources, failed original gates or altered APK bytes
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, json, os, subprocess, sys, urllib.request
+          from pathlib import Path
+          sys.path.insert(0, str(Path('scripts/ci').resolve()))
+          from androidReleaseInteractionSmoke import validate_retest_provenance
+          source = os.environ['REVIEWED_APK_SOURCE_COMMIT']
+          changed = subprocess.check_output(['git', 'diff', '--name-only', source, os.environ['GITHUB_SHA']], text=True).splitlines()
+          request = urllib.request.Request(
+              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38177702034/jobs?per_page=100',
+              headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'], 'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              jobs = json.load(response)['jobs']
+          validate_retest_provenance(source, changed, jobs)
+          root = Path('preview-input')
+          assert (root / 'source-commit.txt').read_text().strip() == source
+          expected = os.environ['EXPECTED_APK_SHA256']
+          assert (root / 'apk-sha256.txt').read_text().split()[0] == expected
+          assert hashlib.sha256((root / 'musik-player-preview.apk').read_bytes()).hexdigest() == expected
+          print('Original three source gates passed, app sources unchanged, exact inspected APK bytes confirmed.')
+          PYCODE
+
+      - name: Prepare isolated Android emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_AVD_HOME="$RUNNER_TEMP/preview-avd"
+          export ANDROID_AVD_HOME
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          sdk_status=${PIPESTATUS[1]}
+          set -o pipefail
+          test "$sdk_status" -eq 0
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' 'emulator' "system-images;android-${ANDROID_API};google_apis;x86_64"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
+          mkdir -p ci-logs
+          nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
+          echo $! > ci-logs/emulator.pid
+          timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell wm size 480x960
+          adb shell wm density 240
+          adb shell input keyevent 82
+          adb logcat -c
+
+      - name: Exercise release UI, files, native playback, backup and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
+          python3 -m venv "$RUNNER_TEMP/release-ui-venv"
+          "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+          "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/release-ui.log
+
+      - name: Capture diagnostics after any device failure
+        if: always()
+        run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
+
+      - name: Upload release acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: retest-preview-release-acceptance-${{ github.sha }}
+          path: ci-logs/**
+          if-no-files-found: error
+          retention-days: 30
+
