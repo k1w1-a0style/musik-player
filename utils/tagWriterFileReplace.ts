@@ -174,8 +174,9 @@ export const writeTagsToFileOrThrow = async (
   return withUriWriteLock(uri, async () => {
     const container = payload.container;
     const adapter = options?.adapter ?? expoTagFileWriteAdapter;
+    if (adapter === expoTagFileWriteAdapter) ensureTagEditWriteAllowed(song);
     const canReplace = await canAdapterReplaceExistingFile(adapter);
-    ensureTagEditWriteAllowed(song, canReplace ? 'android' : 'web');
+    ensureTagEditWriteAllowed(song, canReplace ? 'android' : 'web', options?.adapter);
     if (!canReplace) {
       throw new TagWriterError(
         'WriteNotImplemented',

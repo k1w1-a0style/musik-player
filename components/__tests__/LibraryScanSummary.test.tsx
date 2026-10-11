@@ -2,7 +2,7 @@ import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import LibraryPreparationStatus from '../LibraryPreparationStatus';
 import { beginLibraryScan, completeLibraryScan, dismissLibraryScan, recordLibraryScanResult,
-  stopLibraryScan, updateLibraryScanProgress } from '../../utils/libraryScanOperation';
+  stopLibraryScan, updateLibraryScanProgress, setLibraryScanFolderWarning } from '../../utils/libraryScanOperation';
 import { emptyImportScanStatistics } from '../../utils/libraryImportStatistics';
 import { beginMetadataRefreshOperation, resetMetadataRefreshOperationForTests } from '../../utils/metadataRefreshOperation';
 
@@ -78,4 +78,20 @@ test('does not dismiss a running scan or duplicate its progress bar', () => {
   expect(view.queryByLabelText('Scan-Ergebnis ausblenden')).toBeNull();
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
   expect(view.queryByText(/Ungeprüft: bekannte/)).toBeNull();
+});
+
+
+test('keeps a folder-state warning visible without fabricated file counters and offers retry', () => {
+  const id = beginLibraryScan(false); const retry = jest.fn().mockResolvedValue(undefined);
+  setLibraryScanFolderWarning(id, { message: 'Ordnerstatus fehlt, Titel bleiben gespeichert.', retrying: false, retry });
+  completeLibraryScan(id);
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  expect(view.getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
+  expect(view.getByText('Ordnerstatus fehlt, Titel bleiben gespeichert.')).toBeTruthy();
+  expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
+  fireEvent.press(view.getByLabelText('Ordnerdaten erneut speichern'));
+  expect(retry).toHaveBeenCalledTimes(1);
+  act(() => setLibraryScanFolderWarning(id, { message: 'Ordnerstatus fehlt, Titel bleiben gespeichert.', retrying: true, retry }));
+  fireEvent.press(view.getByLabelText('Ordnerdaten erneut speichern'));
+  expect(retry).toHaveBeenCalledTimes(1);
 });

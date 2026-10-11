@@ -15,7 +15,7 @@
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/396",
       "expiresOn": "2026-10-21",
-      "reason": "No patched upstream release as of 2026-10-07. Exact Metro/Jest build-tool dependency via micromatch; repository-controlled glob patterns, not player inputs. Android Hermes export source map contains no braces or micromatch. Independent read-only CI jobs have no signing secrets; update/remove before expiry in issue #396."
+      "reason": "No patched upstream release as rechecked on 2026-10-11 against the npm registry and GitHub Advisory Database. Exact Metro/Jest build-tool dependency via micromatch; repository-controlled glob patterns, not player inputs. Android Hermes export source map contains no braces or micromatch. Independent read-only CI jobs have no signing secrets; update/remove before expiry in issue #396."
     },
     {
       "package": "node-forge",
@@ -31,7 +31,7 @@
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/396",
       "expiresOn": "2026-10-21",
-      "reason": "No patched upstream release as of 2026-10-07. Expo CLI/code-signing tooling dependency only; Android Hermes source map contains no node-forge. No remote certificate/signature inputs or signing secrets in quality/native CI. Local tooling must use trusted certificate inputs until compatible upstream replacement; exact advisory/version exception expires and is tracked by issue #396."
+      "reason": "No patched upstream release as rechecked on 2026-10-11 against the npm registry and GitHub Advisory Database. Expo CLI/code-signing tooling dependency only; Android Hermes source map contains no node-forge. No remote certificate/signature inputs or signing secrets in quality/native CI. Local tooling must use trusted certificate inputs until compatible upstream replacement; exact advisory/version exception expires and is tracked by issue #396."
     }
   ]
 }

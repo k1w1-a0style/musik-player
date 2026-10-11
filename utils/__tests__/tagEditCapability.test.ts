@@ -29,7 +29,7 @@ describe('tagEditCapability', () => {
     expect(cap.uriType).toBe('remote');
   });
 
-  test('android file and confirmed SAF content mp3 are readable and writable', () => {
+  test('local files remain readable but only confirmed SAF content is writable', () => {
     const fileCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'android');
     const safContentCap = getTagEditCapability(song({
       uri: 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3',
@@ -42,7 +42,8 @@ describe('tagEditCapability', () => {
     const mediaContentCap = getTagEditCapability(song({ uri: 'content://media/a.mp3', fileInfo: { extension: 'mp3', source: 'media-library' } }), 'android');
 
     expect(fileCap.canRead).toBe(true);
-    expect(fileCap.canWrite).toBe(true);
+    expect(fileCap.canWrite).toBe(false);
+    expect(fileCap.reason).toMatch(/dauerhaftes Recovery-Journal/);
     expect(safContentCap.canRead).toBe(true);
     expect(safContentCap.canWrite).toBe(true);
     expect(ambiguousTreeCap.canRead).toBe(true);
@@ -58,17 +59,17 @@ describe('tagEditCapability', () => {
     expect(getSupportedContainer(song({ fileInfo: { mimeType: 'audio/mpeg' }, uri: 'content://media/1' }))).toBe('mp3');
   });
 
-  test('platform-gated file capability (ios/web blocked)', () => {
+  test('local tag writes remain blocked on every platform and container', () => {
     const iosCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'ios');
     const webCap = getTagEditCapability(song({ uri: 'file:///music/a.mp3', fileInfo: { extension: 'mp3' } }), 'web');
     const androidMp4Cap = getTagEditCapability(song({ uri: 'file:///music/a.mp4', fileInfo: { extension: 'mp4' } }), 'android');
     const androidM4aCap = getTagEditCapability(song({ uri: 'file:///music/a.m4a', fileInfo: { extension: 'm4a' } }), 'android');
     expect(iosCap.canWrite).toBe(false);
     expect(webCap.canWrite).toBe(false);
-    expect(iosCap.reason).toMatch(/Sicheres Ersetzen vorhandener Dateien wird auf dieser Plattform noch nicht unterstützt/i);
-    expect(androidMp4Cap.canWrite).toBe(true);
-    expect(androidM4aCap.canWrite).toBe(true);
-    expect(isFileWriteSupportedOnPlatform('android')).toBe(true);
+    expect(iosCap.reason).toMatch(/dauerhaftes Recovery-Journal/i);
+    expect(androidMp4Cap.canWrite).toBe(false);
+    expect(androidM4aCap.canWrite).toBe(false);
+    expect(isFileWriteSupportedOnPlatform('android')).toBe(false);
     expect(isFileWriteSupportedOnPlatform('ios')).toBe(false);
   });
 

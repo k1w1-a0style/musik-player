@@ -1,7 +1,7 @@
 import type { Song } from '../types/Song';
 import type { TagEditCapability, TagEditUriType, TagEditableContainer } from '../types/TagEdit';
 import { Platform } from 'react-native';
-import { getDefaultReplaceSupportForPlatform } from './tagFileWriteAdapter';
+import { LOCAL_FILE_TAG_WRITE_BLOCKED_REASON } from './tagWriteSafety';
 
 const REMOTE_RE = /^https?:\/\//i;
 
@@ -59,7 +59,7 @@ export const getSupportedContainer = (song: Song): TagEditableContainer => {
   return 'unsupported';
 };
 
-export const isFileWriteSupportedOnPlatform = (platform: string): boolean => getDefaultReplaceSupportForPlatform(platform);
+export const isFileWriteSupportedOnPlatform = (_platform: string): boolean => false;
 
 /**
  * Planner/UI capability requires confirmed import provenance. URI shape alone is
@@ -111,15 +111,12 @@ export const getTagEditCapability = (song: Song, platform: string = Platform.OS)
   }
 
   if (uriType === 'file') {
-    const canReplace = isFileWriteSupportedOnPlatform(platform);
     return {
       canRead: true,
-      canWrite: canReplace,
+      canWrite: false,
       uriType,
       supportedContainer: container,
-      reason: canReplace
-        ? 'Lokale Datei-Schreibvorgänge werden über Backup-, Temp- und Verifikationsschutz unterstützt.'
-        : 'Sicheres Ersetzen vorhandener Dateien wird auf dieser Plattform noch nicht unterstützt.',
+      reason: LOCAL_FILE_TAG_WRITE_BLOCKED_REASON,
     };
   }
 

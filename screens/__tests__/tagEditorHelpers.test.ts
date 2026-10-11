@@ -117,7 +117,7 @@ describe('tagEditorHelpers', () => {
       uriType: 'file',
       container: 'm4a',
       warnings: [],
-    })).toContain('Atomstruktur');
+    })).toContain('dauerhaftes Recovery-Journal');
     expect(blockingReasonMessage(['UnsupportedFormat'], {
       uriType: 'file',
       container: 'mp4',

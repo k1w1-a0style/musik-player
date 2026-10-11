@@ -98,3 +98,22 @@ test.each(['modificationTime', 'contentHash'] as const)('replaces the waveform s
   fireEvent.press(view.getByTestId('song-card-pending'));
   expect(onPressSong).toHaveBeenLastCalledWith(replacement);
 });
+
+
+test.each(['row', 'banner', 'tile'] as const)('reserves separate %s slots for analysis retry and the song menu', variant => {
+  setWaveformStatus(fingerprint, 'unavailable');
+  const onPress = jest.fn(); const onInfo = jest.fn();
+  const view = render(<SongCard song={song} onPressSong={onPress} onInfoSong={onInfo}
+    isCurrent={false} isPlaying={false} variant={variant} />);
+  const status = view.getByTestId('song-waveform-status-pending');
+  const menu = view.getByTestId('song-card-info-pending');
+  expect(StyleSheet.flatten(status.props.style).position).not.toBe('absolute');
+  expect(StyleSheet.flatten(menu.props.style).position).not.toBe('absolute');
+  expect(StyleSheet.flatten(menu.props.style).width).toBeGreaterThanOrEqual(48);
+  expect(StyleSheet.flatten(view.getByLabelText('Vorbereitung für New track erneut versuchen').props.style).minHeight).toBeGreaterThanOrEqual(48);
+  fireEvent.press(menu);
+  expect(onInfo).toHaveBeenCalledWith(song);
+  fireEvent.press(view.getByLabelText('Vorbereitung für New track erneut versuchen'));
+  expect(retrySongPreparation).toHaveBeenCalledWith(song);
+  expect(onPress).not.toHaveBeenCalled();
+});

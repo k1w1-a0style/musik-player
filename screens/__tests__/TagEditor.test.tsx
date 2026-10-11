@@ -242,13 +242,12 @@ test('shows FileTooLarge blocking reason from write plan', () => {
   expect(getByText('Datei ist zu groß für sicheres In-App-Tag-Schreiben.')).toBeTruthy();
 });
 
-test('shows guarded file write safety notice', () => {
+test('shows the local write recovery block', () => {
   const { getByText } = render(<TagEditor />);
-  expect(getByText(/Backup \+ Temp \+ Byteprüfung/)).toBeTruthy();
-  expect(getByText(/nicht OS-atomar/)).toBeTruthy();
+  expect(getByText(/dauerhaftes Recovery-Journal/)).toBeTruthy();
 });
 
-test('shows MP4 limited-layout safety notice', () => {
+test('shows the same recovery block for local MP4', () => {
   mockSongs = [
     {
       ...mockSongs[0],
@@ -257,7 +256,7 @@ test('shows MP4 limited-layout safety notice', () => {
     },
   ];
   const { getByText } = render(<TagEditor />);
-  expect(getByText(/MP4\/M4A wird nur für bekannte, sichere Atom-Layouts/)).toBeTruthy();
+  expect(getByText(/dauerhaftes Recovery-Journal/)).toBeTruthy();
 });
 
 test('shows content URI read-only safety notice', () => {

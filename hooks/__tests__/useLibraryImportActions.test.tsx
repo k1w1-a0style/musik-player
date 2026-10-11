@@ -204,8 +204,7 @@ test('uses scan folder import on android when active scan folders exist', async 
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
   expect(persistChangedFolderUpdates).toHaveBeenCalledWith([folder('music')]);
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
-  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([song('scan-song')],
-    { signal: expect.any(AbortSignal) });
+  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([song('scan-song')]);
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
   expect(setMenuOpen).toHaveBeenCalledWith(false);
   expect(setLoading).toHaveBeenNthCalledWith(1, true);
@@ -297,7 +296,7 @@ test('keeps scan import results when folder update persistence rejects', async (
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
 });
 
-test.each([false, true])('a stalled folder write ends the scan wait and coordination flag (empty result: %s)', async empty => {
+test.each([false, true])('a stalled folder write reports partial success while retaining the write barrier (empty result: %s)', async empty => {
   jest.useFakeTimers();
   jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   let release!: () => void;
@@ -313,8 +312,8 @@ test.each([false, true])('a stalled folder write ends the scan wait and coordina
     const stalled = { loading: setLoading.mock.calls.at(-1)?.[0], busy: isMetadataRefreshActive(),
       scan: getLibraryScanOperation().status };
     await act(async () => { release(); await jest.advanceTimersByTimeAsync(1); });
-    expect(stalled).toEqual({ loading: false, busy: false, scan: 'failed' });
-    expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ title: 'Import gestoppt' }));
+    expect(stalled).toEqual({ loading: false, busy: false, scan: 'partial' });
+    expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ title: 'Bibliothek gespeichert – Ordnerdaten fehlen' }));
   } finally { screen.unmount(); jest.useRealTimers(); }
 });
 
@@ -635,4 +634,43 @@ test('shows stopped alert and clears loading when import throws', async () => {
   }));
   expect(setLoading).toHaveBeenLastCalledWith(false);
   expect(setImportStatus).toHaveBeenLastCalledWith(null);
+});
+
+
+test.each(['saf', 'media'] as const)('finishes the %s scan before optional waveform analysis settles', async source => {
+  let finishAnalysis!: () => void;
+  jest.mocked(prepareLibraryWaveforms).mockImplementationOnce(() => new Promise(resolve => { finishAnalysis = resolve; }));
+  const state = createSongLibraryState([]);
+  state.configurePersistence(async read => read());
+  const imported = song('playable');
+  const statistics = { newCount: 1, changedCount: 0, unchangedCount: 0, unverifiedCount: 0, errorCount: 0 };
+  const result = { songs: [imported], errors: [], statistics, completed: true };
+  const screen = render(<HookHarness songImport={state} scanFolders={source === 'saf' ? [folder('music')] : []}
+    importSongsFromSourcesImpl={jest.fn().mockResolvedValue(result)}
+    enrichMediaLibraryAssetsImpl={jest.fn().mockResolvedValue(result)} />);
+  try {
+    fireEvent.press(screen.getByText('import'));
+    await waitFor(() => expect(prepareLibraryWaveforms).toHaveBeenCalled());
+    expect(setSongs).toHaveBeenCalledWith([imported]);
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+    expect(setImportStatus).toHaveBeenLastCalledWith(null);
+    expect(getLibraryScanOperation().status).toBe('completed');
+    // Scan cancellation after completion must not relabel the committed result.
+    fireEvent.press(screen.getByText('cancel import'));
+    expect(getLibraryScanOperation().status).toBe('completed');
+  } finally {
+    await act(async () => { finishAnalysis?.(); });
+  }
+});
+
+test('reports a folder-state write failure as visible partial success', async () => {
+  persistChangedFolderUpdates.mockRejectedValueOnce(new Error('storage full'));
+  const imported = song('retained');
+  const screen = render(<HookHarness scanFolders={[folder('music')]}
+    importSongsFromSourcesImpl={jest.fn().mockResolvedValue({ songs: [imported], errors: [], folderUpdates: [folder('music')] })} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(setSongs).toHaveBeenCalledWith([imported]);
+  expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ title: 'Bibliothek gespeichert – Ordnerdaten fehlen' }));
+  expect(getLibraryScanOperation().status).toBe('partial');
 });

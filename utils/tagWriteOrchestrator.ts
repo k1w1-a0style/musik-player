@@ -198,7 +198,7 @@ const buildTagWriteWarnings = (
       ? 'SAF/content:// writes require native ContentResolver write permission, provider writable flags, app-private transaction backup, rollback, crash recovery, and post-write verification; they do not provide atomic replacement.'
       : 'SAF/content:// writing is blocked because the loaded native build does not expose the complete durable transaction and recovery contract.');
   }
-  if (context.uriType === 'file') {
+  if (context.uriType === 'file' && context.concreteWriterAvailable) {
     warnings.push(
       'file:// writes use backup + temp + byte verification; the final replace is guarded but not guaranteed OS-atomic.',
     );

@@ -558,9 +558,11 @@ describe('tagWriter mp3 id3v2.3', () => {
     }
   });
 
-  test('ensureTagEditWriteAllowed respects platform-gated file write support', () => {
+  test('ensureTagEditWriteAllowed blocks default local writes on every platform', () => {
     const localMp3 = song({ uri: 'file:///a.mp3', fileInfo: { extension: 'mp3' } });
-    expect(() => ensureTagEditWriteAllowed(localMp3, 'android')).not.toThrow();
+    expect(() => ensureTagEditWriteAllowed(localMp3, 'android')).toThrow(
+      expect.objectContaining({ code: 'WriteNotImplemented' }),
+    );
     expect(() => ensureTagEditWriteAllowed(localMp3, 'ios')).toThrow(
       expect.objectContaining({ code: 'WriteNotImplemented' }),
     );

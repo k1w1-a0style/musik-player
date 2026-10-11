@@ -2,6 +2,7 @@ import type { Song } from '../../types/Song';
 import type { TagFileWriteAdapter } from '../tagFileWriteAdapter';
 import { expoTagFileWriteAdapter } from '../tagFileWriteAdapter';
 import { prepareTagEditPlan, writeTagsToFile } from '../tagWriterPublicApi';
+import { writeTagsToFileOrThrow } from '../tagWriterFileReplace';
 
 const localSong: Song = {
   id: 'local-song',
@@ -24,7 +25,7 @@ describe('public local tag write crash-safety boundary', () => {
 
     expect(plan.permission.canRead).toBe(true);
     expect(plan.permission.canWrite).toBe(false);
-    expect(plan.permission.reason).toMatch(/persistent crash-recovery journal/i);
+    expect(plan.permission.reason).toMatch(/dauerhaftes Recovery-Journal/i);
     expect(plan.blockingReasons).toContain('WriteNotImplemented');
     expect(plan.backup).toEqual({ required: false, strategy: 'none' });
     expect(plan.atomicWrite).toEqual({ required: false, supportsAtomicReplace: false });
@@ -39,7 +40,7 @@ describe('public local tag write crash-safety boundary', () => {
       postWriteVerification: false,
       crashRecovery: false,
     });
-    expect(warnings).toMatch(/persistent crash-recovery journal/i);
+    expect(warnings).toMatch(/dauerhaftes Recovery-Journal/i);
     expect(warnings).not.toMatch(/file:\/\/ writes use .*backup|backup \+ temp \+ byte verification/i);
   });
 
@@ -57,7 +58,7 @@ describe('public local tag write crash-safety boundary', () => {
       status: 'writeFailed',
       sourceUri: localSong.uri,
       errorCode: 'WriteNotImplemented',
-      errorMessage: expect.stringMatching(/persistent crash-recovery journal/i),
+      errorMessage: expect.stringMatching(/dauerhaftes Recovery-Journal/i),
     });
     adapterSpies.forEach(spy => expect(spy).not.toHaveBeenCalled());
   });
@@ -82,5 +83,16 @@ describe('public local tag write crash-safety boundary', () => {
     expect(adapter.copyFile).not.toHaveBeenCalled();
     expect(adapter.writeBytes).not.toHaveBeenCalled();
     expect(adapter.moveOrReplaceFile).not.toHaveBeenCalled();
+  });
+
+  test('explicit injection of the production adapter cannot bypass the local write block', async () => {
+    const read = jest.spyOn(expoTagFileWriteAdapter, 'readBytes');
+    const info = jest.spyOn(expoTagFileWriteAdapter, 'getInfo');
+    await expect(writeTagsToFile(localSong, draft, { adapter: expoTagFileWriteAdapter }))
+      .resolves.toMatchObject({ status: 'writeFailed', errorCode: 'WriteNotImplemented' });
+    await expect(writeTagsToFileOrThrow(localSong, draft))
+      .rejects.toMatchObject({ code: 'WriteNotImplemented' });
+    expect(read).not.toHaveBeenCalled();
+    expect(info).not.toHaveBeenCalled();
   });
 });

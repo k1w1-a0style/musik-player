@@ -6,6 +6,8 @@ import { mergeId3v23TagIntoMp3Buffer } from './tagWriterId3';
 import { applyMp4TagEditToBuffer } from './tagWriterMp4';
 import { resolveWritableFileTagUri } from './tagWriterPayload';
 import { TagWriterError } from './tagWriterError';
+import { Platform } from 'react-native';
+import { expoTagFileWriteAdapter, getDefaultReplaceSupportForPlatform, type TagFileWriteAdapter } from './tagFileWriteAdapter';
 
 export const validateTagWriteDraftOrThrow = (draft: TagEditDraft): void => {
   if (
@@ -37,14 +39,18 @@ export const applyTagEditToBuffer = (
   throw new TagWriterError('UnsupportedFormat', 'Unknown container.');
 };
 
-export const ensureTagEditWriteAllowed = (song: Song, platform?: string): void => {
+export const ensureTagEditWriteAllowed = (song: Song, platform?: string, injectedAdapter?: TagFileWriteAdapter): void => {
   const writableUri = resolveWritableFileTagUri(song);
   if (!writableUri.ok) throw new TagWriterError(writableUri.reason, writableUri.message);
   const capability = getTagEditCapability(song, platform);
   const container = getSupportedContainer(song);
   if (container === 'unsupported')
     throw new TagWriterError('UnsupportedFormat', 'Container not supported for writing.');
-  if (!capability.canWrite)
+  // Keep the explicit fixture adapter path for testing backup/rollback. The
+  // production adapter, including explicit injection of it, remains blocked.
+  const fixtureReplacement = injectedAdapter && injectedAdapter !== expoTagFileWriteAdapter
+    && capability.uriType === 'file' && getDefaultReplaceSupportForPlatform(platform ?? Platform.OS);
+  if (!capability.canWrite && !fixtureReplacement)
     throw new TagWriterError(
       'WriteNotImplemented',
       capability.reason ?? 'Writing is not supported for this target.',

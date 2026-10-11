@@ -31,3 +31,20 @@ Das erneute Produktions-Audit nach der Integration von Expo 57.0.27 / React Nati
 2. Lockfile neu erstellen und `npm ci`, aktuellen Audit, Expo-Kompatibilität, Produktions-Export und alle Quality-/Native-Gates ausführen.
 3. Beide exakten Ausnahmen nach erfolgreicher Auflösung entfernen und Issue #396 mit der Commit-/CI-Evidenz schließen. Keine automatische Verlängerung.
 4. Wenn bis zum Ablauf kein Fix verfügbar ist, explizite Maintainer-Entscheidung über eine neue, begründete Frist einholen. Ohne Entscheidung bleibt der Release blockiert.
+
+
+## Erneute Bewertung zum Arbeitsplan V3 — 2026-10-11 (F25)
+
+Ausgangsbranch `codex`, Commit `9760a811f3c769cc8a6a0c1fd52bbb9d95474ff9`. Das frische Produktions-Audit unter Node 22.23.3 meldet weiterhin **0 Critical, 23 High, 5 Moderate**. Das verbindliche Policy-Gate besteht mit exakt den zwei vorhandenen Ausnahmen; 21 High-Einträge sind transitive Effekte. Die Frist **21.10.2026** und die zugelassenen Versions-/Advisory-IDs wurden nicht erweitert.
+
+Primärquellen und Registryabgleich vom 11.10.2026:
+
+| Paket | Installiert / veröffentlichter Registry-Stand | Advisory / behobene Version | Entscheidung |
+| --- | --- | --- | --- |
+| braces | 3.0.3 / 3.0.3 | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), keine | Befristete bestehende Tooling-Ausnahme bleibt sichtbar. |
+| node-forge | 1.4.0 / 1.4.0 | [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv), keine | Befristete bestehende Tooling-Ausnahme bleibt sichtbar. |
+| sprintf-js | 1.0.3 / 1.1.3 | [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c), keine; betroffen bis einschließlich 1.1.3 | Ein Update auf 1.1.3 behebt den Befund nicht. Keine Scheinbehebung durch ein Override. |
+
+Befehle: `npm audit --omit=dev --json`, `node scripts/ci/checkNpmAudit.cjs <audit.json> security/npm-audit-exceptions.json package-lock.json`, `npm view braces version --json`, `npm view node-forge version --json`, `npm view sprintf-js version --json`. Die aktuelle Android-Hermes-Source-Map mit 1.610 Quellen besteht den Bundle-Boundary-Check; die vier ausgeschlossenen Toolingpakete sind dort nicht enthalten. Das ist weiterhin ausschließlich ein JS-Bundle-Nachweis.
+
+Das Audit empfiehlt zum Teil Expo 44.0.6 beziehungsweise React Native 0.87.1 als graphweite Änderung. Solche Vorschläge sind kein kompatibler Patch des aktuellen Expo-57-/RNTP-5-Vertrags und wurden nicht angewandt. **F25 ist neu bewertet, die drei Upstream-Schwachstellen sind nicht behoben.** Vor Ablauf ist ein kompatibler Fix oder eine ausdrückliche neue Maintainerentscheidung erforderlich; keine automatische Verlängerung.

@@ -19,10 +19,10 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
   const { theme } = useAppTheme();
   const running = preparation.status === 'running';
   const resumable = preparation.status === 'cancelled' || preparation.status === 'failed' || preparation.failed > 0;
-  const label = running ? 'Medien-Scan läuft' : preparation.status === 'cancelled'
-    ? 'Medien-Scan angehalten' : preparation.status === 'failed'
+  const label = running ? 'Scan fertig – Waveforms werden vorbereitet' : preparation.status === 'cancelled'
+    ? 'Waveformanalyse angehalten' : preparation.status === 'failed'
       ? preparation.failure === 'storage' ? 'Vorbereitung angehalten – Speicherzugriff fehlgeschlagen'
-        : 'Vorbereitung angehalten – Analyse fehlgeschlagen' : 'Nicht alle Titel konnten gescannt werden';
+        : 'Vorbereitung angehalten – Analyse fehlgeschlagen' : 'Waveformanalyse teilweise fehlgeschlagen';
   const action = running ? cancelWaveformPreparation : () => { void resumeWaveformPreparation(); };
   return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass,
     borderColor: theme.palette.border }]} testID="library-waveform-preparation">
@@ -33,11 +33,13 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
         <Text style={{ color: theme.palette.primary }}>{running ? 'Abbrechen' : resumable ? 'Fortsetzen' : 'Erneut'}</Text>
       </Pressable>
     </View>
+    <Text style={{ color: theme.palette.text.secondary }}>{`${preparation.processed}/${preparation.total} analysiert · ${preparation.failed} fehlgeschlagen`}</Text>
+    {preparation.currentTitle ? <Text style={{ color: theme.palette.text.secondary }} numberOfLines={1}>{preparation.currentTitle}</Text> : null}
   </View>;
 };
 const styles = StyleSheet.create({
   box: { marginHorizontal: 8, marginBottom: 8, padding: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 }, title: { flex: 1, fontSize: 12 },
-  action: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 6 },
+  action: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 6 },
 });
 export default LibraryPreparationStatus;

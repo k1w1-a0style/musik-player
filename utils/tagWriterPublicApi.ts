@@ -9,53 +9,16 @@ import { getUriType } from './tagEditCapability';
 import { writeTagsToSafContentUri } from './tagWriterSaf';
 import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS } from './tagWriterLimits';
 import { TagWriterError, tagWriterWarn } from './tagWriterError';
-
-const LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE =
-  'Local file tag writing is blocked until a persistent crash-recovery journal is available.';
-
-const isLocalFileWriteSafetyClaim = (warning: string): boolean =>
-  warning.startsWith('MP3/M4A/MP4 file:// writes use ') ||
-  warning.startsWith('file:// writes use backup + temp + byte verification');
-
-const failClosedLocalFilePlan = (plan: TagEditPlan): TagEditPlan => {
-  if (plan.uriType !== 'file') return plan;
-  return {
-    ...plan,
-    permission: {
-      ...plan.permission,
-      canWrite: false,
-      reason: LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE,
-    },
-    backup: { required: false, strategy: 'none' },
-    atomicWrite: { required: false, supportsAtomicReplace: false },
-    rollback: { required: false, supportsRollback: false, steps: [] },
-    requiresBackup: false,
-    requiresTempFile: false,
-    supportsAtomicReplace: false,
-    supportsRollback: false,
-    safetyCapabilities: {
-      durableBackup: false,
-      inMemoryRollback: false,
-      atomicReplace: false,
-      postWriteVerification: false,
-      crashRecovery: false,
-    },
-    warnings: [
-      ...plan.warnings.filter(warning => !isLocalFileWriteSafetyClaim(warning)),
-      LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE,
-    ],
-    blockingReasons: [...new Set([...plan.blockingReasons, 'WriteNotImplemented' as const])],
-  };
-};
+import { LOCAL_FILE_TAG_WRITE_BLOCKED_REASON } from './tagWriteSafety';
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan =>
-  failClosedLocalFilePlan(createTagWriteOperationPlan(
+  createTagWriteOperationPlan(
     song,
     draft,
     undefined,
     undefined,
     { safDurableWriterAvailable: SystemAudio.hasNativeTagWriter },
-  ));
+  );
 
 const tagWriterFailureStatus = (code: TagWriterErrorCode): WriteTagsResult['status'] => {
   if (code === 'UnsupportedUri' || code === 'UnsupportedFormat') return 'unsupportedUri';
@@ -125,7 +88,7 @@ export const writeTagsToFile = async (
   // persistent restart-recovery contract as the native SAF transaction writer.
   if (uriType === 'file' && !options.adapter) {
     return toWriteTagsFailureResult(
-      new TagWriterError('WriteNotImplemented', LOCAL_FILE_CRASH_RECOVERY_UNAVAILABLE),
+      new TagWriterError('WriteNotImplemented', LOCAL_FILE_TAG_WRITE_BLOCKED_REASON),
       rawUri,
     );
   }

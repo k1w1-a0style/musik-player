@@ -9,6 +9,11 @@ export interface LibraryScanOperation {
   status: LibraryScanStatus;
   progress?: ImportFileProgress;
   remainingCount?: number;
+  folderPersistenceWarning?: {
+    message: string;
+    retrying: boolean;
+    retry: () => Promise<void>;
+  };
 }
 let state: LibraryScanOperation = { id: 0, fullScan: false, status: 'idle' };
 let nextId = 0;
@@ -46,7 +51,14 @@ export const recordLibraryScanResult = (id: number | undefined,
 
 export const completeLibraryScan = (id: number | undefined): void => {
   if (!current(id)) return;
-  publish({ ...state, progress: pending, status: resultStatus ?? 'idle' });
+  publish({ ...state, progress: pending, status: state.folderPersistenceWarning ? 'partial' : resultStatus ?? 'idle' });
+};
+
+export const setLibraryScanFolderWarning = (id: number | undefined,
+  warning?: LibraryScanOperation['folderPersistenceWarning']): void => {
+  if (id !== state.id || state.status === 'idle') return;
+  const status = state.status === 'partial' && !warning ? resultStatus ?? 'completed' : state.status;
+  publish({ ...state, status, folderPersistenceWarning: warning });
 };
 
 export const stopLibraryScan = (id: number | undefined, status: 'cancelled' | 'failed'): void => {

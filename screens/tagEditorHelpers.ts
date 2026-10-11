@@ -8,6 +8,7 @@ import type {
   WriteTagsResult,
 } from '../types/TagEdit';
 import { normalizeEditableTags } from '../utils/tagValidation';
+import { LOCAL_FILE_TAG_WRITE_BLOCKED_REASON } from '../utils/tagWriteSafety';
 
 export type FormState = Record<keyof EditableTrackTags, string>;
 
@@ -59,6 +60,7 @@ export const ERROR_MESSAGES: Record<TagWriterErrorCode, string> = {
 
 export const tagWriterErrorMessage = (code: TagWriterErrorCode, message?: string): string => {
   if (code === 'WriteNotImplemented') {
+    if (message === LOCAL_FILE_TAG_WRITE_BLOCKED_REASON) return message;
     if (message?.includes('ID3v2.2')) return ID3V22_UNSUPPORTED_MESSAGE;
     if (message?.includes('ID3v2.4')) return ID3V24_UNSUPPORTED_MESSAGE;
   }
@@ -132,6 +134,7 @@ const isMp4Container = (plan?: BlockingReasonPlan): boolean =>
   plan?.container === 'm4a' || plan?.container === 'mp4';
 
 const writeNotImplementedMessage = (plan?: BlockingReasonPlan): string => {
+  if (plan?.uriType === 'file') return LOCAL_FILE_TAG_WRITE_BLOCKED_REASON;
   const hasUnsupportedCoverWrite = plan?.uriType === 'content'
     && plan.warnings?.some(warning => warning.toLowerCase().includes('cover artwork writes'));
   if (hasUnsupportedCoverWrite) {
@@ -161,10 +164,10 @@ export const blockingReasonMessage = (
 
 export const safetyNotice = (song: Song): string | undefined => {
   const uri = song.fileInfo?.uri ?? song.uri;
+  if (uri?.startsWith('file://')) return LOCAL_FILE_TAG_WRITE_BLOCKED_REASON;
   const container = (song.fileInfo?.extension ?? song.fileInfo?.container ?? '').toLowerCase();
   if (uri?.startsWith('content://')) return SAF_READ_ONLY_MESSAGE;
   if (container === 'm4a' || container === 'mp4') return 'MP4/M4A wird nur für bekannte, sichere Atom-Layouts geschrieben. Manche Dateien bleiben bewusst blockiert.';
-  if (uri?.startsWith('file://')) return 'file:// Schreiben nutzt Backup + Temp + Byteprüfung; der finale Replace ist geschützt, aber nicht OS-atomar.';
   return undefined;
 };
 

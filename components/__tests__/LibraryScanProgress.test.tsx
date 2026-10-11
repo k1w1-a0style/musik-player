@@ -38,7 +38,7 @@ test('keeps only a compact scan control; only unfinished tracks animate', () => 
   (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'running', total: 3,
     processed: 1, ready: 1, failed: 0, currentTitle: 'Current', currentFingerprint: 'current-source' });
   const view = render(<LibraryPreparationStatus visible />);
-  expect(view.getByText('Medien-Scan läuft')).toBeTruthy();
+  expect(view.getByText('Scan fertig – Waveforms werden vorbereitet')).toBeTruthy();
   expect(view.queryByTestId('library-current-track-progress')).toBeNull();
   expect(view.queryByTestId('library-waveform-preparation-counts')).toBeNull();
   fireEvent.press(view.getByText('Abbrechen'));
@@ -50,4 +50,14 @@ test('keeps only a compact scan control; only unfinished tracks animate', () => 
   (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'completed', failed: 0, ready: 3 });
   view.rerender(<LibraryPreparationStatus visible />);
   expect(view.queryByTestId('library-waveform-preparation')).toBeNull();
+});
+
+
+test('shows bounded file progress only while the metadata scan is active', () => {
+  const view = render(<LibraryImportStatus scanning status="Metadaten werden gelesen…" />);
+  act(() => publishImportFileProgress({ currentTitle: 'Älterer Mix.mp3', processed: 4, total: 10 }));
+  expect(view.getByText('Metadaten: 4/10')).toBeTruthy();
+  expect(view.getByText('Älterer Mix.mp3')).toBeTruthy();
+  view.rerender(<LibraryImportStatus scanning={false} status="Bibliothek gespeichert" />);
+  expect(view.queryByText('Älterer Mix.mp3')).toBeNull();
 });

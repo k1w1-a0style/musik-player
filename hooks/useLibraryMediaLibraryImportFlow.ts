@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
@@ -54,7 +53,7 @@ export const useLibraryMediaLibraryImportFlow = ({
   applyImportedSongsUpdate, publishImportedSongs,
 }: UseLibraryMediaLibraryImportFlowOptions) => {
   const importFromMediaLibrary = useCallback(async (importCopy: LibraryImportFlowCopy, generation: ImportGeneration,
-    refreshExisting = false, baselineSongs = songs): Promise<void> => {
+    refreshExisting = false, baselineSongs = songs): Promise<Song[]> => {
     ensureCurrentImport(generation);
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const { status } = await requestMediaLibraryPermissionsAsync();
@@ -62,7 +61,7 @@ export const useLibraryMediaLibraryImportFlow = ({
     const permissionResult = buildMediaLibraryPermissionResult(status);
     if (permissionResult.kind === 'denied') {
       showAlert(permissionResult.alert);
-      return;
+      return [];
     }
     const candidates = await withImportInactivityTimeout(
       (signal, activity) => scanMediaLibraryCandidatesImpl({ signal,
@@ -83,11 +82,11 @@ export const useLibraryMediaLibraryImportFlow = ({
     const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
     if (candidateResult.kind === 'empty') {
       showAlert(candidateResult.alert);
-      return;
+      return [];
     }
     const shouldImport = await confirmLibraryImportImpl(candidates.assets.length, candidates.skipped.length);
     ensureCurrentImport(generation);
-    if (!shouldImport) return;
+    if (!shouldImport) return [];
     setImportStatus(importCopy.importingMetadataAndCoversStatus);
     let callbacks: ReturnType<typeof createImportProgressCallbacks> | undefined;
     let mediaResult: Awaited<ReturnType<typeof enrichMediaLibraryAssetsImpl>>;
@@ -115,8 +114,7 @@ export const useLibraryMediaLibraryImportFlow = ({
     const acceptedSongs = await applyImportedSongsUpdate(result.update, generation);
     const verificationAlert = getImportVerificationAlert(mediaResult, refreshExisting);
     if (verificationAlert) showAlert(verificationAlert);
-    if (mediaResult.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(mediaResult.songs, acceptedSongs),
-      { signal: generation.controller.signal });
+    return getImportedPreparationSongs(mediaResult.songs, acceptedSongs);
   }, [applyImportedSongsUpdate, publishImportedSongs, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
   return { importFromMediaLibrary };
 };

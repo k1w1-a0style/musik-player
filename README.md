@@ -9,9 +9,10 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 ## Features (aktueller Stand)
 
 - Lokale Musikbibliothek via `expo-media-library` und SAF-Ordnerimport inklusive ID3-Auslese.
+- Scanphasen: Dateien suchen → Metadaten lesen → Bibliothek bestätigt speichern → optionale Waveforms. Die gespeicherte Bibliothek ist während der Analyse nutzbar; Ordner-Speicherfehler erscheinen als Teilerfolg mit gezieltem Retry.
 - Native AudioInfo-Ermittlung für lokale und SAF-Quellen beim Import sowie Backfill für bereits gespeicherte Titel.
 - AlbumArtist-Erkennung, Album-Gruppierung und Tag-Editor-Unterstützung.
-- Wiedergabe mit `react-native-track-player` (Lockscreen/Bluetooth/Background).
+- Wiedergabe mit dem gepatchten RNTP-V5-Adapter über `@rntp/player@5.12.1` (Lockscreen/Bluetooth/Background).
 - Playlists, Cover-Ansichten, Tag-Editor, Equalizer-UI.
 - Native Visualizer/FFT-Auswertung ist im Release-Pfad entfernt; Now Playing zeigt keine FFT-Daten an.
 
@@ -19,8 +20,8 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 
 ## Tech-Stack
 
-- Expo SDK 54, React Native 0.81, React 19, TypeScript
-- `react-native-track-player` 4.1
+- Expo ~57.0.27, React Native 0.86.3, React 19.2.3, TypeScript 6; Node 22
+- Lokale Kompatibilitätsschicht `modules/playback-backend` über `@rntp/player@5.12.1`, New Architecture aktiviert
 - Jest + jest-expo, ESLint 10
 
 ## Setup
@@ -64,7 +65,7 @@ npx expo config --json
 - `main` bleibt der Haupt-/Release-Branch.
 - EAS-/Release-Builds und der Supabase-Legacy-Workflow bleiben separate manuelle bzw. gezielte Workflows und werden nicht automatisch auf jeden PR ausgeführt.
 
-V2-Umsetzung und verbleibende Freigabeprüfungen: [`docs/review/v2-implementation-2026-10-07.md`](docs/review/v2-implementation-2026-10-07.md).
+Historischer V2-Bericht (07.10.2026; spätere Änderungen siehe [`docs/CODEX-V3-IMPLEMENTATION.md`](docs/CODEX-V3-IMPLEMENTATION.md)): [`docs/review/v2-implementation-2026-10-07.md`](docs/review/v2-implementation-2026-10-07.md).
 Zeitlich befristete Tooling-Risiken: [`security/npm-audit-risk-2026-10-07.md`](security/npm-audit-risk-2026-10-07.md).
 
 ## Aktuelle Testlage
@@ -88,7 +89,7 @@ npm test -- --runInBand
 - Vor einem Release immer einen **echten Android-/EAS-Build** ausführen (nicht nur Expo Go).
 - Playback benötigt **keinen Mikrofonzugriff**; `RECORD_AUDIO` wird in der App-Konfiguration nicht angefordert.
 - Native Änderungen für AudioInfo und SAF-TagWriter benötigen einen neuen Development Build, bevor sie auf dem Gerät wirksam sind.
-- Der Tag-Editor schreibt lokale MP3/MP4/M4A-Dateien über Backup, Temp-Datei und Byteprüfung.
+- Lokale `file://`-Tagwrites bleiben gesperrt, bis ein dauerhaftes Recovery-Journal verfügbar ist. Lesen und Coverauswahl sind weiterhin möglich; Speichern erfordert eine bestätigte SAF-Quelle und den passenden nativen Writer.
 - SAF/content MP3/M4A/MP4 Texttag- und Cover-Writes sind nur über die native SAF-Schreibroute mit persisted Write-Permission, Provider-Writable-Flags, unterstütztem ID3-/Atom-Layout und erfolgreicher Byte-Verifikation freigegeben.
 - MediaLibrary-`content://` ohne SAF-Grant, source-lose Planner-URIs, alte Native-Builds und nicht unterstützte ID3-/MP4-Layouts bleiben bewusst blockiert.
 - Für große Audio-Dateien ist In-App-Tag-Schreiben begrenzt, um RAM- und Dateikorruptionsrisiken auf Android zu senken.

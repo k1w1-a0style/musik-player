@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
@@ -10,7 +9,8 @@ import {
   buildScanImportResult,
   getScanImportProgressCopy,
 } from '../utils/libraryImportFlow';
-import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout';
+import { isTimeoutError } from '../utils/withTimeout';
+import { persistLibraryScanFolders } from '../utils/libraryScanFolderSave';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
 import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
@@ -26,17 +26,6 @@ const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string 
     return `Scan läuft… ${progress.directoriesVisited} Ordner gelesen, ${progress.filesFound} Titel gefunden`;
   }
   return `Scan läuft… ${progress.filesFound} Titel gefunden`;
-};
-
-const persistScanFolderUpdates = async (persist: (updates: ScanFolder[] | undefined) => Promise<void>,
-  updates: ScanFolder[] | undefined, generation: ImportGeneration, timeoutMs: number): Promise<void> => {
-  try { await withTimeout(() => persist(updates), timeoutMs,
-    'Ordnerdaten werden noch gespeichert. Bitte nach Abschluss erneut versuchen.',
-    { signal: generation.controller.signal }); }
-  catch (error) {
-    if (isAbortError(error) || isTimeoutError(error)) throw error;
-    console.warn('[Import] Failed to persist scan folder updates after import.', error);
-  }
 };
 
 const createSafProgressPublisher = (publish: (status: string) => void, isActive: () => boolean, activity: () => void) => {
@@ -83,7 +72,7 @@ export const useLibraryScanFolderImportFlow = ({
   applyImportedSongsUpdate, publishImportedSongs,
 }: UseLibraryScanFolderImportFlowOptions) => {
   const importFromScanFolders = useCallback(async (activeFolders: ScanFolder[], generation: ImportGeneration,
-    refreshExisting = false, baselineSongs = songs): Promise<void> => {
+    refreshExisting = false, baselineSongs = songs): Promise<Song[]> => {
     const scanProgress = getScanImportProgressCopy(activeFolders.length, 0);
     ensureCurrentImport(generation);
     setImportStatus(scanProgress.readingStatus);
@@ -129,20 +118,21 @@ export const useLibraryScanFolderImportFlow = ({
     const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
-      await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates, generation, importTimeoutMs);
-      ensureCurrentImport(generation);
       if (verificationAlert) showAlert(verificationAlert);
       else if (!result.reusedCount || result.errors?.length) showAlert(scanResult.alert);
-      return;
+      await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,
+        { scanId: generation.scanOperationId, signal: generation.controller.signal, timeoutMs: importTimeoutMs, showAlert });
+      ensureCurrentImport(generation);
+      return [];
     }
     if (verificationAlert) showAlert(verificationAlert);
     else if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
     const acceptedSongs = await applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
-    await persistScanFolderUpdates(persistChangedFolderUpdates, result.folderUpdates, generation, importTimeoutMs);
+    await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,
+      { scanId: generation.scanOperationId, signal: generation.controller.signal, timeoutMs: importTimeoutMs, showAlert });
     ensureCurrentImport(generation);
-    if (result.songs.length) await prepareLibraryWaveforms(getImportedPreparationSongs(result.songs, acceptedSongs),
-      { signal: generation.controller.signal });
+    return getImportedPreparationSongs(result.songs, acceptedSongs);
   }, [applyImportedSongsUpdate, publishImportedSongs, ensureCurrentImport, importSongsFromSourcesImpl, importTimeoutMs, persistChangedFolderUpdates, platformOs, setImportStatus, showAlert, songs, withTimeoutImpl]);
 
   return { importFromScanFolders };

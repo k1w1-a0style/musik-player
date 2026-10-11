@@ -121,7 +121,6 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       accessibilityRole="button"
       accessibilityLabel={`Infos zu ${song.title}`}
       onPress={handleInfoPress}
-      hitSlop={8}
       style={[
         styles.infoButton,
         variant === 'tile' && [
@@ -158,6 +157,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           style={styles.tileContent}>
           <View>
             {cover}
+          </View>
+          <View style={styles.tileActions}>
+            <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
             {infoButton}
           </View>
           <Text style={[styles.tileTitle, { color: isCurrent ? selectedColors.text : theme.palette.text.primary }]} numberOfLines={1}>
@@ -169,7 +171,6 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           <SongMetadata song={song} label={metadataLabel}
             color={theme.palette.text.muted} tile />
         </View>
-        <SongWaveformStatus song={song} status={preparation} />
       </Pressable>
       </View>
     );
@@ -221,9 +222,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           <SongMetadata song={song} label={metadataLabel}
             color={theme.palette.text.muted} />
         </View>
+        <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
         {infoButton}
       </View>
-      <SongWaveformStatus song={song} status={preparation} />
     </Pressable>
     </View>
   );
@@ -252,10 +253,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
   },
-  rowContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusSlot: { width: 48, minHeight: 48 },
+  tileActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' },
   bannerContainer: { paddingVertical: 6 },
   pressed: { opacity: 0.72 },
-  preparing: { opacity: 0.5 },
   activeRail: { position: 'absolute', left: -10, width: 3, height: 34, borderRadius: 3, backgroundColor: 'transparent' },
   cardSheen: { ...StyleSheet.absoluteFill, opacity: 0.42 },
   playingBadge: { position: 'absolute', right: 2, bottom: 2, width: 17, height: 17, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
@@ -276,14 +278,9 @@ const styles = StyleSheet.create({
   bannerTitle: { fontSize: 17, lineHeight: 24, fontFamily: staticTokens.fonts.heading, letterSpacing: -0.2 },
   artist: { fontSize: 12, lineHeight: 16, marginTop: 2, fontFamily: staticTokens.fonts.body },
   metadata: { fontSize: 11, lineHeight: 15, marginTop: 2, fontFamily: staticTokens.fonts.mono, letterSpacing: 0.2 },
-  infoButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
+  infoButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   tileInfoButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
   },
   tileContainer: { position: 'relative', overflow: 'hidden', padding: 8, gap: 6,
