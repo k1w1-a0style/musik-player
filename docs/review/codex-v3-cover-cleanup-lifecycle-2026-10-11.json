@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-11",
+  "baselineCommit": "6940973eaa4af2cbcfd2e1b74398a01b113c8a95",
+  "runtime": "Node 22.23.3",
+  "scope": "Real persistence-task and cover-protection lifecycle; confirmed-persistence and deliberately unresolved cleanup boundary doubles; 20 microtasks to settle immediate work",
+  "measurements": [
+    { "status": "stored", "completedBeforeCleanupBefore": false, "completedBeforeCleanupAfter": true },
+    { "status": "unchanged", "completedBeforeCleanupBefore": false, "completedBeforeCleanupAfter": true }
+  ],
+  "ownershipChecks": [
+    "Cancel after confirmed write leaves in-flight cover protection until actual cleanup settlement",
+    "Newer cleanup settling before older cleanup does not release the older lease prematurely or regress confirmed generation",
+    "Cleanup rejection and synchronous dispatch failure retain the confirmed storage result and finish protection",
+    "Late superseded write does not run stale cleanup; provisional protection transfers to a newer confirmed snapshot"
+  ],
+  "limits": "No device milliseconds, I/O speed or RAM claim. Native cache maintenance retains its existing latest-request coalescing and deletion guards. Real provider, rapid import/cover churn and A50 tests remain pending."
+}

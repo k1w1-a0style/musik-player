@@ -5,13 +5,10 @@ import { StorageKeys } from '../utils/storage';
 import { acquireSongCoverProtection } from './songCoverProtectionLifecycle';
 import { persistIfChanged, prepareSongsForPersistence, type PersistResult } from './musicPersistenceHelpers';
 
-const cleanupPersistedSongCovers = async (songs: Song[]): Promise<void> => {
-  try {
-    await cleanupCoverCache(songs);
-  } catch (error) {
+const cleanupPersistedSongCovers = (songs: Song[]): Promise<void> =>
+  Promise.resolve().then(() => cleanupCoverCache(songs)).catch(error => {
     console.warn('[usePersistedSongs] Cover cache cleanup failed:', error);
-  }
-};
+  });
 
 export const createSongPersistenceTask = (
   songs: Song[],
@@ -47,7 +44,14 @@ export const createSongPersistenceTask = (
           return { status: 'superseded' };
         }
         coverLease.prepareConfirmedCleanup(sanitizedSongs);
-        await cleanupPersistedSongCovers(sanitizedSongs);
+        // The library write is confirmed. Cache maintenance keeps the lease's
+        // in-flight owner until its real settlement, but cannot hold the UI's
+        // save result or the next library checkpoint behind that maintenance.
+        void cleanupPersistedSongCovers(sanitizedSongs).then(() => {
+          coverLease.finishPersistence(persistResult);
+        });
+        persistenceFinished = true;
+        return persistResult;
       }
       coverLease.finishPersistence(persistResult);
       persistenceFinished = true;

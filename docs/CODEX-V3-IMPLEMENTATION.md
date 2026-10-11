@@ -144,3 +144,19 @@ Vorher verursachten vier absichtlich ungültige Metadatafixtures jeweils einen C
 **Prüfung:** Frischer vollständiger Node-22-Lauf: 385 Suiten / 3.818 Tests, Coverage 93,58 % Statements / 85,71 % Branches / 95,34 % Functions / 96,00 % Lines. Ein vorhandener History-Test erwartete zunächst einen unmittelbaren Write; er nutzt jetzt die explizite bestätigte Barrier, während der neue Fakeclocktest die Sekundenbündelung unabhängig prüft. Die Manifestvalidation wurde zum Bestehen des bestehenden Komplexitätslimits in kleine Header-/Referenzprüfungen zerlegt. Typecheck, strenger Lint, Source-NUL und Komplexität (3.543 Funktionen) bestehen. Produktions-Hermes-Export/Boundary: 1.616 Quellen; anschließender separater Prebuild besteht die Manifestpolicy. Dependencies und Lockfile unverändert.
 
 **Offen:** F17/F18/F19, Oberfläche, Backup/Resume sowie echte Geräte-/A50-Messungen und native Abnahme des vollständigen V3-Stands. Keiner dieser Punkte wird durch Hostzähler als erledigt dargestellt.
+
+**CI-Nachtrag Paket 6:** Commit `ecf7c1efa9bcf52c6aba6cc9f6565ddb138cd574` besteht CI-Lauf [38157196683](https://github.com/k1w1-a0style/musik-player/actions/runs/38157196683) vollständig. Dies ist weiterhin keine Emulator-/A50- oder Previewabnahme des Gesamtplans.
+
+## Paket 8: Speicherbestätigung vor optionalem Cover-Cleanup (F19)
+
+Ausgangspunkt: `6940973eaa4af2cbcfd2e1b74398a01b113c8a95`. Kein Daten- oder Cacheformatwechsel.
+
+Ein tatsächlich bestätigter `stored`-/`unchanged`-Snapshot schließt jetzt den sichtbaren Speichervorgang ab, während optionales Cache-Cleanup weiterläuft. Der Cover-Lease behält seinen In-flight-Owner bis zum echten Ende des Cleanup-Promises. Unmount/Cancel eines bereits abgeschlossenen Writes kann diesen Schutz nicht vorher freigeben. Ältere Cleanupabschlüsse senken die zuletzt bestätigte Generation nicht. Unbestätigte oder überholte Writes starten weiter kein Cleanup; ihre bisherigen Provision-/Recovery-Handoffs bleiben erhalten. Der native/Filesystem-Cleanup behält seine vorhandene Zusammenfassung auf die neueste Anforderung und die Prüfungen unmittelbar vor Löschungen.
+
+Cleanupfehler, einschließlich eines synchronen Dispatchfehlers, werden als Wartungsfehler protokolliert und verwandeln keine bestätigte Speicherung in einen Speicherfehler. Es gibt keine frühe Freigabe einer noch laufenden nativen Mutation. Der neue Kontrollfluss entkoppelt den Speicherabschluss, nicht den tatsächlichen Schutzbesitz.
+
+**Vergleichbarer Lifecycle-Nachweis:** gleiche bestätigte Persistenzfixture und ausdrücklich noch ungelöstes Cleanup; nach 20 Microtasks war die Task vorher in beiden Fällen (`stored`, `unchanged`) weiterhin offen. Nachher ist ihr bestätigtes Ergebnis verfügbar, während die Protection unverändert gehalten wird. Die zwei korrekten neuen Solltests scheiterten vor dem Fix. Weitere Tests prüfen Cancel, unterschiedliche Abschlussreihenfolge, synchrone/asynchrone Cleanupfehler und einen verspäteten, überholten Write. Rohbeleg: `docs/review/codex-v3-cover-cleanup-lifecycle-2026-10-11.json`. Es wird daraus kein Gerätezeit-, RAM- oder I/O-Prozentwert abgeleitet.
+
+**Prüfung:** Node 22.23.3, 386 Suiten / 3.824 Tests vollständig grün. Coverage 93,62 % Statements / 85,72 % Branches / 95,34 % Functions / 96,04 % Lines. Die vier betroffenen Lifecycle-/Persistence-/Cleanup-Suiten bestanden vor dem zusätzlichen synchronen Fault-Injectionfall mit 54 Tests; der folgende Gesamtlauf enthält alle sechs neuen Fälle. Typecheck, strenger Lint, Komplexität (3.546 Funktionen) und Source-NUL bestehen. Frischer Produktions-Hermes-Export/Boundary: 1.616 Quellen; anschließend separat erzeugter Android-Prebuild besteht das Manifest-Gate. package.json/Lockfile unverändert.
+
+**Offen:** Echte langsame Provider, rasche Import-/Coveränderungen und Geräte-RAM/Frames müssen in der abschließenden Geräteabnahme geprüft werden. F17/F18 und die folgenden Funktions-/UI-Pakete bleiben in Arbeit.

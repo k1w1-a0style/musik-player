@@ -127,6 +127,11 @@ const prepareEntryForConfirmedCleanup = (entry: ProtectionEntry, songs: Song[]):
 };
 
 const markEntryConfirmedAfterCleanup = (entry: ProtectionEntry): void => {
+  if (entry.generation < latestConfirmedGeneration) {
+    entry.provisionalStored = false;
+    maybeReleaseEntry(entry);
+    return;
+  }
   const previousConfirmed = confirmedEntry;
   confirmedEntry = entry;
   latestConfirmedGeneration = Math.max(latestConfirmedGeneration, entry.generation);
