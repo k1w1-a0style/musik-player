@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 399
+# workflow-version: 400
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
@@ -33,7 +33,7 @@ jobs:
 
     env:
       ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
-      WORKFLOW_VERSION: "399"
+      WORKFLOW_VERSION: "400"
 
     steps:
       - name: Determine target branch
@@ -225,7 +225,7 @@ jobs:
           GH_HAS_LOCKFILE_7F5283: ${{ steps.lock.outputs.has_lockfile }}
           GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
 
-      - name: ESLint --fix (best effort, capture)
+      - name: ESLint --fix (capture)
         id: fix
         shell: bash
         run: |
@@ -237,19 +237,110 @@ jobs:
             npm run lint:fix 2>&1 | tee ci-logs/autofix.log
             FIX=$?
           else
-            npx --yes eslint . --fix 2>&1 | tee ci-logs/autofix.log
+            npx --no-install eslint . --fix 2>&1 | tee ci-logs/autofix.log
             FIX=$?
           fi
 
           echo "eslint_fix_exit=$FIX" >> "$GITHUB_OUTPUT"
+          exit "$FIX"
+
+      - name: Lint + Typecheck + Coverage + Expo gates (capture)
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          mkdir -p ci-logs
+
+          npm run lint:ci 2>&1 | tee ci-logs/lint.log
+          ESL=$?
+
+          npm run typecheck 2>&1 | tee ci-logs/typecheck.log
+          TSC=$?
+
+          npm run test:coverage -- --runInBand 2>&1 | tee ci-logs/coverage.log
+          TESTS=$?
+
+          (
+            npm run check:source-nul &&
+            npm run check:complexity &&
+            npm run check:expo-deps &&
+            npm run check:android-permissions &&
+            npx --no-install expo export --platform android --source-maps --output-dir ci-android-export &&
+            node scripts/ci/checkAndroidBundleDependencies.cjs ci-android-export
+          ) 2>&1 | tee ci-logs/quality.log
+          QUALITY=$?
+
+          (
+            npx --no-install expo config --json > ci-logs/expo-config.json &&
+            node -e '
+              const fs = require("fs");
+              const p = "ci-logs/expo-config.json";
+              const data = JSON.parse(fs.readFileSync(p, "utf8"));
+              const projectId = (data?.expo ?? data)?.extra?.eas?.projectId;
+              if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
+                console.error("Missing expo.extra.eas.projectId");
+                process.exit(1);
+              }
+              console.log(`expo.extra.eas.projectId OK: ${projectId}`);
+            ' &&
+            node scripts/ci/checkExpoReleaseConfig.cjs ci-logs/expo-config.json
+          ) 2>&1 | tee ci-logs/expo-preflight.log
+          EXPO=$?
+
+          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
+          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
+          echo "tests_exit=$TESTS" >> "$GITHUB_OUTPUT"
+          echo "quality_exit=$QUALITY" >> "$GITHUB_OUTPUT"
+
+          cat > ci-logs/ci-lite-autofix-result.json <<JSON
+          {
+            "workflow_version": "${WORKFLOW_VERSION}",
+            "job_id": "${JOB_ID:-}",
+            "ref": "${TARGET_BRANCH:-}",
+            "github_run_id": "${GITHUB_RUN_ID}",
+            "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "${GITHUB_SHA}",
+            "eslint_fix_exit": ${GH_ESLINT_FIX_EXIT_DEA00F},
+            "eslint_exit": $ESL,
+            "tsc_exit": $TSC,
+            "expo_exit": $EXPO,
+            "tests_exit": $TESTS,
+            "quality_exit": $QUALITY,
+            "writeback_changed": "false",
+            "writeback_pushed": "false",
+                "package_manager": "${GH_PACKAGE_MANAGER_9162DF}",
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && [ "$TESTS" -eq 0 ] && [ "$QUALITY" -eq 0 ] && [ "$GH_ESLINT_FIX_EXIT_DEA00F" -eq 0 ] && echo true || echo false)
+          }
+          JSON
+
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ] || [ "$EXPO" -ne 0 ] || [ "$TESTS" -ne 0 ] || [ "$QUALITY" -ne 0 ] || [ "$GH_ESLINT_FIX_EXIT_DEA00F" -ne 0 ]; then
+            echo "::error::Autofix verification failed (eslint=$ESL, tsc=$TSC, expo=$EXPO, tests=$TESTS, quality=$QUALITY)"
+            exit 1
+          fi
           exit 0
+        env:
+          EAS_BUILD_PROFILE: production
+          EXPO_NO_TELEMETRY: "1"
+          GH_ESLINT_FIX_EXIT_DEA00F: ${{ steps.fix.outputs.eslint_fix_exit || '1' }}
+          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
 
       - name: Guarded writeback (commit + push)
         id: writeback
+        if: steps.fix.outcome == 'success' && steps.verify.outcome == 'success'
+        env:
+          AUTOFIX_VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+          AUTOFIX_FIX_EXIT: ${{ steps.fix.outputs.eslint_fix_exit }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ci-logs
+          if [ "${AUTOFIX_VERIFY_OUTCOME:-}" != "success" ] || [ "${AUTOFIX_FIX_EXIT:-}" != "0" ]; then
+            echo "::error::Writeback requires successful autofix and verification."
+            exit 1
+          fi
 
           BR="${TARGET_BRANCH:-}"
           echo "pushed=false" >> "$GITHUB_OUTPUT"
@@ -280,21 +371,31 @@ jobs:
             exit 0
           fi
 
-          if ! git status --porcelain | grep -q .; then
-            echo "ℹ️ No autofix changes." | tee -a ci-logs/autofix.log
+          if ! git diff --cached --quiet; then
+            echo "::error::Unexpected staged changes before autofix writeback."
+            exit 1
+          fi
+          if ! git diff --quiet -- . ':(exclude)*.js' ':(exclude)*.jsx' ':(exclude)*.cjs' ':(exclude)*.mjs' ':(exclude)*.ts' ':(exclude)*.tsx'; then
+            echo "::error::Unexpected tracked changes outside the source autofix scope."
+            exit 1
+          fi
+          if ! git diff --quiet --diff-filter=DR; then
+            echo "::error::Autofix must not delete or rename tracked files."
+            exit 1
+          fi
+          mapfile -d '' -t files < <(git diff --name-only -z --diff-filter=M -- '*.js' '*.jsx' '*.cjs' '*.mjs' '*.ts' '*.tsx')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No tracked source fixes to publish."
             exit 0
           fi
-
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
           git config user.email "actions@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-
-          git add -A
-          git commit -m "chore(ci): eslint autofix [skip ci]" || true
+          git add -- "${files[@]}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git commit -m "chore(ci): apply verified ESLint fixes"
 
           set +e
-          git push origin "HEAD:$BR" 2>&1 | tee -a ci-logs/autofix.log
+          git -c credential.helper='!f() { printf "username=x-access-token\npassword=%s\n" "$GH_TOKEN"; }; f' push origin "HEAD:$BR" 2>&1 | tee -a ci-logs/autofix.log
           RC=$?
           set -e
 
@@ -302,72 +403,29 @@ jobs:
             echo "pushed=true" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::Could not push autofix commit (branch may be protected)." | tee -a ci-logs/autofix.log
-            git diff --patch --no-color > ci-logs/autofix.patch || true
+            git show --format= --patch --no-color HEAD > ci-logs/autofix.patch
+            exit "$RC"
           fi
 
-      - name: Lint + Typecheck + Expo preflight (robust, capture)
-        id: verify
+      - name: Finalize verification receipt
+        if: always()
+        env:
+          WRITEBACK_CHANGED: ${{ steps.writeback.outputs.changed || 'false' }}
+          WRITEBACK_PUSHED: ${{ steps.writeback.outputs.pushed || 'false' }}
         shell: bash
         run: |
-          set +e
-          set -o pipefail
-          mkdir -p ci-logs
-
-          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
-          ESL=$?
-
-          (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
-          TSC=$?
-
-          (
-            npx --no-install expo config --json > ci-logs/expo-config.json &&
-            node -e '
-              const fs = require("fs");
-              const p = "ci-logs/expo-config.json";
-              const data = JSON.parse(fs.readFileSync(p, "utf8"));
-              const projectId = (data?.expo ?? data)?.extra?.eas?.projectId;
-              if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
-                console.error("Missing expo.extra.eas.projectId");
-                process.exit(1);
-              }
-              console.log(`expo.extra.eas.projectId OK: ${projectId}`);
-            '
-          ) 2>&1 | tee ci-logs/expo-preflight.log
-          EXPO=$?
-
-          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
-          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
-          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
-
-          cat > ci-logs/ci-lite-autofix-result.json <<JSON
-          {
-            "workflow_version": "${WORKFLOW_VERSION}",
-            "job_id": "${JOB_ID:-}",
-            "ref": "${TARGET_BRANCH:-}",
-            "github_run_id": "${GITHUB_RUN_ID}",
-            "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
-            "github_sha": "${GITHUB_SHA}",
-            "eslint_fix_exit": ${GH_ESLINT_FIX_EXIT_DEA00F},
-            "eslint_exit": $ESL,
-            "tsc_exit": $TSC,
-            "expo_exit": $EXPO,
-            "writeback_changed": "${GH_CHANGED_CD4261}",
-            "writeback_pushed": "${GH_PUSHED_691437}",
-                "package_manager": "${GH_PACKAGE_MANAGER_9162DF}",
-            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'ci-logs/ci-lite-autofix-result.json';
+          if (fs.existsSync(file)) {
+            const result = JSON.parse(fs.readFileSync(file, 'utf8'));
+            result.writeback_changed = process.env.WRITEBACK_CHANGED;
+            result.writeback_pushed = process.env.WRITEBACK_PUSHED;
+            result.verified_sha = require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+            fs.writeFileSync(file, JSON.stringify(result, null, 2) + '\n');
           }
-          JSON
-
-          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ] || [ "$EXPO" -ne 0 ]; then
-            echo "::error::Autofix verification failed (eslint=$ESL, tsc=$TSC, expo=$EXPO)"
-            exit 1
-          fi
-          exit 0
-        env:
-          GH_ESLINT_FIX_EXIT_DEA00F: ${{ steps.fix.outputs.eslint_fix_exit || '0' }}
-          GH_CHANGED_CD4261: ${{ steps.writeback.outputs.changed || 'false' }}
-          GH_PUSHED_691437: ${{ steps.writeback.outputs.pushed || 'false' }}
-          GH_PACKAGE_MANAGER_9162DF: ${{ steps.lock.outputs.package_manager }}
+          NODE
 
       - name: Summary
         if: always()
@@ -376,23 +434,24 @@ jobs:
           {
             echo "## CI Lite Autofix"
             echo ""
-            echo "- ref: `${TARGET_BRANCH}`"
-            echo "- job_id: `${JOB_ID:-}`"
-            echo "- workflow version: `${WORKFLOW_VERSION}`"
-            echo "- run id: `${GITHUB_RUN_ID}` / attempt `${GITHUB_RUN_ATTEMPT}`"
-            echo "- sha: `${GITHUB_SHA}`"
-            echo "- eslint fix exit: `${GH_ESLINT_FIX_EXIT_96DE20}`"
-            echo "- changed: `${GH_CHANGED_7F481A}`"
-            echo "- pushed: `${GH_PUSHED_B3923E}`"
-            echo "- eslint verify: `${GH_ESLINT_EXIT_38C00D}`"
-            echo "- tsc verify: `${GH_TSC_EXIT_98CCC0}`"
-            echo "- expo preflight: `${GH_EXPO_EXIT_181F6D}`"
+            printf -- '- ref: `%s`\n' "${TARGET_BRANCH}"
+            printf -- '- job_id: `%s`\n' "${JOB_ID:-}"
+            printf -- '- workflow version: `%s`\n' "${WORKFLOW_VERSION}"
+            printf -- '- run id: `%s` / attempt `%s`\n' "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}"
+            printf -- '- sha: `%s`\n' "${GITHUB_SHA}"
+            printf -- '- eslint fix exit: `%s`\n' "${GH_ESLINT_FIX_EXIT_96DE20}"
+            printf -- '- changed: `%s`\n' "${GH_CHANGED_7F481A}"
+            printf -- '- pushed: `%s`\n' "${GH_PUSHED_B3923E}"
+            printf -- '- eslint verify: `%s`\n' "${GH_ESLINT_EXIT_38C00D}"
+            printf -- '- tsc verify: `%s`\n' "${GH_TSC_EXIT_98CCC0}"
+            printf -- '- expo preflight: `%s`\n' "${GH_EXPO_EXIT_181F6D}"
+            printf -- '- coverage: `%s` / other quality gates: `%s`\n' "${GH_TESTS_EXIT}" "${GH_QUALITY_EXIT}"
             echo ""
             echo "Artifacts:"
-            echo "- `ci-logs/ci-lite-autofix-result.json`"
-            echo "- `ci-logs/autofix.log` (+ optional `ci-logs/autofix.patch` if push fails)"
-            echo "- `ci-logs/lint.log`, `ci-logs/typecheck.log`, `ci-logs/expo-preflight.log`"
-            echo "- `ci-logs/metadata.env`, `ci-logs/node-version.log`, `ci-logs/npm-version.log`"
+            printf '%s\n' '- `ci-logs/ci-lite-autofix-result.json`'
+            printf '%s\n' '- `ci-logs/autofix.log` (+ optional `ci-logs/autofix.patch` if push fails)'
+            printf '%s\n' '- `ci-logs/lint.log`, `ci-logs/typecheck.log`, `ci-logs/expo-preflight.log`'
+            printf '%s\n' '- `ci-logs/metadata.env`, `ci-logs/node-version.log`, `ci-logs/npm-version.log`'
           } >> "$GITHUB_STEP_SUMMARY"
         env:
           GH_ESLINT_FIX_EXIT_96DE20: ${{ steps.fix.outputs.eslint_fix_exit }}
@@ -401,6 +460,8 @@ jobs:
           GH_ESLINT_EXIT_38C00D: ${{ steps.verify.outputs.eslint_exit }}
           GH_TSC_EXIT_98CCC0: ${{ steps.verify.outputs.tsc_exit }}
           GH_EXPO_EXIT_181F6D: ${{ steps.verify.outputs.expo_exit }}
+          GH_TESTS_EXIT: ${{ steps.verify.outputs.tests_exit }}
+          GH_QUALITY_EXIT: ${{ steps.verify.outputs.quality_exit }}
 
       - name: Upload CI Lite Autofix logs
         if: always()
@@ -413,6 +474,8 @@ jobs:
             ci-logs/autofix.patch
             ci-logs/lint.log
             ci-logs/typecheck.log
+            ci-logs/coverage.log
+            ci-logs/quality.log
             ci-logs/expo-preflight.log
             ci-logs/expo-config.json
             ci-logs/metadata.env
