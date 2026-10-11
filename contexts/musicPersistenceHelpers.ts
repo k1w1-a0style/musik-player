@@ -4,6 +4,7 @@ import type { CoverCacheProtection } from '../utils/coverCacheCleanup';
 import { didSongCoversChange } from '../utils/musicHydration';
 import { sanitizePlaylists } from '../utils/playlistState';
 import { normalizeFavoriteSongIds, StorageKeys, storage } from '../utils/storage';
+import { assertPersistenceEpoch, capturePersistenceEpoch, trackPersistenceWork } from '../utils/persistenceMaintenance';
 
 const clampVolume = (value: unknown): number =>
   typeof value === 'number' && Number.isFinite(value)
@@ -62,6 +63,7 @@ interface PendingPersistRequest {
 }
 
 interface PersistQueueState {
+  epoch: number;
   inFlight: boolean;
   pendingRequest?: PendingPersistRequest;
   drainPromise?: Promise<void>;
@@ -82,7 +84,7 @@ const getPersistQueueState = (
 
   let queueState = queuesByKey.get(key);
   if (!queueState) {
-    queueState = { inFlight: false };
+    queueState = { inFlight: false, epoch: capturePersistenceEpoch() };
     queuesByKey.set(key, queueState);
   }
   return queueState;
@@ -120,6 +122,7 @@ const drainPersistQueue = async (
       }
 
       try {
+        assertPersistenceEpoch(queueState.epoch);
         const confirmed = await storage.set(key, request.value);
         if (confirmed !== true) {
           console.warn('[MusicPersistence] Failed to persist setting.', { key, error: undefined });
@@ -178,7 +181,7 @@ export const persistIfChanged = async <T,>(
     };
   });
 
-  queueState.drainPromise ??= drainPersistQueue(key, persistedRefs, queueState);
+  queueState.drainPromise ??= trackPersistenceWork(drainPersistQueue(key, persistedRefs, queueState));
   return resultPromise;
 };
 
@@ -193,7 +196,7 @@ export const waitForPersistQueueIdle = async (
 ): Promise<PersistQueueIdleResult> => {
   const queueState = getPersistQueueState(persistedRefs, key);
   while (queueState.inFlight || queueState.pendingRequest) {
-    queueState.drainPromise ??= drainPersistQueue(key, persistedRefs, queueState);
+    queueState.drainPromise ??= trackPersistenceWork(drainPersistQueue(key, persistedRefs, queueState));
     await queueState.drainPromise;
   }
   return queueState.lastCompletedResult?.status === 'failed'

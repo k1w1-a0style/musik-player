@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { z } from 'zod';
+import { BACKUP_RESTORE_KEYS } from './backupTransaction';
+import { assertPersistenceEpoch, assertPersistenceWritable, capturePersistenceEpoch,
+  trackPersistenceWork } from './persistenceMaintenance';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { Playlist, RepeatMode, Song } from '../types/Song';
 import { EQ_BAND_COUNT, EQ_PRESETS, type EqPresetName } from '../types/Song';
@@ -400,14 +403,18 @@ const writeSongsStorageValue = async (value: unknown): Promise<void> => {
 };
 
 const getItem = async (key: StorageKey): Promise<string | null> => AsyncStorage.getItem(storageKey(key));
+const writeNormalStorage = (key: string, operation: () => Promise<void>): Promise<void> => {
+  if (BACKUP_RESTORE_KEYS.has(key)) assertPersistenceWritable();
+  return trackPersistenceWork(operation());
+};
 const setItem = async (key: StorageKey, value: string): Promise<void> => {
-  await AsyncStorage.setItem(storageKey(key), value);
+  await writeNormalStorage(key, () => AsyncStorage.setItem(storageKey(key), value));
 };
 const setJsonItem = async <T,>(key: StorageKey, value: T): Promise<void> => {
   await setItem(key, JSON.stringify(normalizeValueForWrite(key, value)));
 };
 const removeItem = async (key: StorageKey): Promise<void> => {
-  await AsyncStorage.removeItem(storageKey(key));
+  await writeNormalStorage(key, () => AsyncStorage.removeItem(storageKey(key)));
 };
 
 type MutationQueue = {
@@ -429,8 +436,13 @@ const runSerializedMutation = async <T,>(
 const favoriteSongIdsMutationQueue = createMutationQueue();
 const scanFoldersMutationQueue = createMutationQueue();
 
-export const withFavoriteSongIdsMutationLock = async <T,>(operation: () => Promise<T>): Promise<T> =>
-  runSerializedMutation(favoriteSongIdsMutationQueue, operation);
+export const withFavoriteSongIdsMutationLock = <T,>(operation: () => Promise<T>): Promise<T> => {
+  const owner = capturePersistenceEpoch();
+  return trackPersistenceWork(runSerializedMutation(favoriteSongIdsMutationQueue, () => {
+    assertPersistenceEpoch(owner);
+    return operation();
+  }));
+};
 
 export const withScanFoldersMutationLock = async <T,>(operation: () => Promise<T>): Promise<T> =>
   runSerializedMutation(scanFoldersMutationQueue, operation);
@@ -466,7 +478,7 @@ export const storage: StorageApi = {
         await writeSongsStorageValue(value);
         return true;
       }
-      await AsyncStorage.setItem(storageKey(key), JSON.stringify(normalizeValueForWrite(key, value)));
+      await writeNormalStorage(key, () => AsyncStorage.setItem(storageKey(key), JSON.stringify(normalizeValueForWrite(key, value))));
       return true;
     } catch (error) {
       throw new StorageOperationError('set', key, error);
@@ -478,7 +490,7 @@ export const storage: StorageApi = {
         await removeStoredSongLibrary(storageKey(key));
         return;
       }
-      await AsyncStorage.removeItem(storageKey(key));
+      await writeNormalStorage(key, () => AsyncStorage.removeItem(storageKey(key)));
     } catch (error) {
       throw new StorageOperationError('remove', key, error);
     }

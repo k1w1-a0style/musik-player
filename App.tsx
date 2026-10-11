@@ -5,13 +5,14 @@ import AppErrorBoundary from './components/AppErrorBoundary';
 import AppProviders from './components/AppProviders';
 import RootNavigator from './navigation/RootNavigator';
 import ThemedStatusBar from './components/ThemedStatusBar';
+import { BackupMaintenanceBoundary } from './components/BackupMaintenanceBoundary';
 import {
   isTagWriteStartupTimeoutError,
   restoreAndReconcileTagWrites,
 } from './utils/tagWriterRecovery';
 import { startStartupTimer } from './utils/startupTiming';
 
-export const AppContent = (): React.ReactElement => {
+const TagWriteStartupRecovery = (): React.ReactElement | null => {
   useEffect(() => {
     const finishRecoveryTiming = startStartupTimer('tag-write-recovery');
     void restoreAndReconcileTagWrites().then(() => {
@@ -26,12 +27,14 @@ export const AppContent = (): React.ReactElement => {
       console.warn('[TagWriter] Startup recovery reconciliation failed.', String(error));
     });
   }, []);
-
+  return null;
+};
+export const AppContent = (): React.ReactElement => {
   return (
-    <AppProviders>
+    <BackupMaintenanceBoundary><TagWriteStartupRecovery /><AppProviders>
       <ThemedStatusBar />
       <RootNavigator />
-    </AppProviders>
+    </AppProviders></BackupMaintenanceBoundary>
   );
 };
 

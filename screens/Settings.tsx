@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import PresentationSettings from '../components/PresentationSettings';
+import BackupSettings from '../components/BackupSettings';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import {
@@ -127,6 +128,7 @@ const Settings: React.FC = () => {
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Wiedergabe</Text>
           <CoverBassPulseSetting /></View>
         <PresentationSettings />
+        <BackupSettings />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
           {APP_APPEARANCES.map(renderAppearanceOption)}

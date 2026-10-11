@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import { persistIfChanged } from './musicPersistenceHelpers';
+import { registerPersistenceFlusher } from '../utils/persistenceMaintenance';
 
 export interface UsePersistedSettingOptions {
   debounceMs?: number;
@@ -32,6 +33,8 @@ export const usePersistedSetting = <T,>(
     if (!latest.isReady) return;
     void persistIfChanged(latest.key, latest.value, latest.persistedRefs.current).catch(() => undefined);
   }, []);
+
+  useEffect(() => registerPersistenceFlusher(persistLatest), [persistLatest]);
 
   // This effect is intentionally registered before the scheduling effect. On
   // unmount it flushes the latest pending slider value before the timer cleanup.

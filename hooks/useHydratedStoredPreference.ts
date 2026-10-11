@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { assertPersistenceEpoch, capturePersistenceEpoch, trackPersistenceWork } from '../utils/persistenceMaintenance';
 
 interface HydratedStoredPreferenceOptions<T> {
   defaultValue: T;
@@ -35,7 +36,7 @@ export const useHydratedStoredPreference = <T,>({
   const requestIdRef = useRef(0);
   const successfulRequestIdRef = useRef(0);
   const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
-
+  const epochRef = useRef(capturePersistenceEpoch());
   useEffect(() => {
     mountedRef.current = true;
     const requestIdAtStart = requestIdRef.current;
@@ -51,8 +52,8 @@ export const useHydratedStoredPreference = <T,>({
           persistedValueRef.current = normalizedStored;
           setValueState(normalizedStored);
         } else if (successfulRequestIdRef.current === successfulRequestIdAtStart) {
-          // A user write is still pending. Keep the stored value only as its
-          // rollback target; never display it over the user's newer choice.
+          // A pending user write keeps the stored value as rollback target;
+          // never display it over the user's newer choice.
           persistedValueRef.current = normalizedStored;
         }
       })
@@ -78,11 +79,11 @@ export const useHydratedStoredPreference = <T,>({
     requestIdRef.current = requestId;
     valueRef.current = next;
     if (mountedRef.current) setValueState(next);
-
-    writeQueueRef.current = writeQueueRef.current
+    writeQueueRef.current = trackPersistenceWork(writeQueueRef.current
       .catch(() => undefined)
       .then(async () => {
         try {
+          assertPersistenceEpoch(epochRef.current);
           await persist(next);
           successfulRequestIdRef.current = requestId;
           persistedValueRef.current = next;
@@ -94,8 +95,7 @@ export const useHydratedStoredPreference = <T,>({
             setValueState(fallback);
           }
         }
-      });
+      }));
   }, [label, normalize, persist]);
-
   return { value, setValue, isHydrated };
 };

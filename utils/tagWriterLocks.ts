@@ -69,6 +69,7 @@ export const finishSafWriteStartupRestoration = (error?: unknown): void => {
 };
 
 export const isSafWriteStartupReady = (): boolean => startupState === 'ready';
+export const hasActiveSafWriteOperations = (): boolean => activeSafWrites.size > 0;
 
 const awaitSafWriteStartup = async (): Promise<void> => {
   if (startupState === 'ready') return;

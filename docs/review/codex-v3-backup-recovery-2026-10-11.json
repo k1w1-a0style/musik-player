@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-11",
+  "sourceCommit": "4f24eebd2ecde355789cfbcc0e74644d9a78fc4b",
+  "scope": "Host Node 22.23.3 with AsyncStorage/SAF/native boundary doubles; no device or APK acceptance claim",
+  "format": {
+    "name": "k1w1-musik-backup",
+    "version": 1,
+    "maximumCodeUnits": 4194304,
+    "maximumSongReferences": 20000,
+    "maximumPlaylists": 2000,
+    "maximumPlaylistOccurrences": 100000,
+    "audioPayloadIncluded": false
+  },
+  "identity": {
+    "automatic": "unique canonical URI with matching size+physical date, or unique full SHA-256",
+    "displayTextAutomaticMapping": false,
+    "changedPathWithoutStrongHash": "explicit manual selection or skip",
+    "previewLibraryRevalidatedBeforeApply": true
+  },
+  "restore": {
+    "favorites": "union",
+    "playlists": "new copies, original IDs/order preserved",
+    "settings": "explicit opt-in, values inspectable",
+    "journal": "prepared rollback / committed rollforward; per-key write/read-back; confirmed removal before providers resume",
+    "oldWriters": "flush, wait for real settlement, invalidate owner epoch, fence restored keys",
+    "retainedJournal": "providers blocked, retry available",
+    "activeScanOrTagWrite": "restore refused until owner settles"
+  },
+  "faultEvidence": [
+    "partial write rollback",
+    "failed rollback retains journal",
+    "app-kill in prepared/committed phases",
+    "read-back mismatch",
+    "journal removal failure",
+    "marker rejected after native persistence",
+    "concurrent commit denied",
+    "recovery waits for real writer",
+    "old unmounted setter denied",
+    "fresh install and missing sources",
+    "5000 ordered titles",
+    "Unicode and own EQ",
+    "corrupt/unsupported/oversized backup",
+    "export full filesystem/revoked permission",
+    "inspect route cannot apply"
+  ],
+  "nativeSafRead": {
+    "encoding": "UTF8",
+    "position": 0,
+    "maximumBytesRequested": 12582913,
+    "providerReportedSizeTrusted": false
+  },
+  "limits": [
+    "bounded folder selection instead of a new DocumentPicker dependency",
+    "no automatic restoration of SAF permission grants",
+    "only the existing current custom EQ profile; no invented collection of named presets",
+    "Android native UI/SAF/kill/playing acceptance remains for final emulator/device run"
+  ]
+}

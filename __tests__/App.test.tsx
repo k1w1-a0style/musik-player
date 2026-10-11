@@ -56,7 +56,7 @@ describe('App', () => {
 
     const { getByTestId, queryByTestId } = render(<AppContent />);
 
-    expect(getByTestId('app-providers')).toBeTruthy();
+    await waitFor(() => expect(getByTestId('app-providers')).toBeTruthy());
     expect(getByTestId('root-navigator')).toBeTruthy();
     expect(queryByTestId('app-loading')).toBeNull();
 
@@ -88,7 +88,7 @@ describe('App', () => {
     const view = render(<AppContent />);
 
     view.rerender(<AppContent />);
-    expect(view.getByTestId('app-providers')).toBeTruthy();
+    await waitFor(() => expect(view.getByTestId('app-providers')).toBeTruthy());
     expect(restore).toHaveBeenCalledTimes(1);
     await act(async () => { finishRecovery(); await pending; });
   });
