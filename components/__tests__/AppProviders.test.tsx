@@ -7,6 +7,7 @@ import { AppThemeProvider } from '../../contexts/AppThemeContext';
 import { MusicProvider } from '../../contexts/MusicContext';
 import { PlaybackProgressProvider } from '../../contexts/PlaybackProgressContext';
 import { PlayerPresentationProvider } from '../../contexts/PlayerPresentationContext';
+import { PlaybackResumeProvider } from '../../contexts/PlaybackResumeContext';
 
 const onlyChild = (element: React.ReactElement<{ children?: React.ReactNode }>) =>
   React.Children.only(element.props.children) as React.ReactElement<{ children?: React.ReactNode }>;
@@ -17,7 +18,8 @@ describe('AppProviders', () => {
     const safeArea = onlyChild(tree);
     const appThemeProvider = onlyChild(safeArea);
     const presentationProvider = onlyChild(appThemeProvider);
-    const musicProvider = onlyChild(presentationProvider);
+    const resumeProvider = onlyChild(presentationProvider);
+    const musicProvider = onlyChild(resumeProvider);
     const playbackProvider = onlyChild(musicProvider);
 
     expect(tree.type).not.toBe(AppErrorBoundary);
@@ -25,6 +27,7 @@ describe('AppProviders', () => {
     expect(safeArea.type).toBe(SafeAreaProvider);
     expect(appThemeProvider.type).toBe(AppThemeProvider);
     expect(presentationProvider.type).toBe(PlayerPresentationProvider);
+    expect(resumeProvider.type).toBe(PlaybackResumeProvider);
     expect(musicProvider.type).toBe(MusicProvider);
     expect(playbackProvider.type).toBe(PlaybackProgressProvider);
   });

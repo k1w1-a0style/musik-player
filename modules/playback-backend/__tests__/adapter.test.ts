@@ -632,3 +632,11 @@ test('preserves pending play intent in ready state without claiming audible outp
   native.getPlayWhenReady.mockReturnValue(false);
   await expect(adapter.default.getPlaybackState()).resolves.toEqual({ state: adapter.State.Paused });
 });
+test('native heartbeats preserve source ID and timestamp for optional resume without another native read', async () => {
+  const listener = jest.fn();
+  const subscription = adapter.default.addEventListener(adapter.Event.PlaybackProgressUpdated, listener);
+  native.getProgress.mockClear();
+  ReactNative.DeviceEventEmitter.emit('event.playback-progress-updated', { mediaId: 'mix', timestamp: 1800000000000, position: 122, duration: 3600 });
+  expect(listener).toHaveBeenCalledWith({ mediaId: 'mix', timestamp: 1800000000000, position: 122, duration: 3600 });
+  expect(native.getProgress).not.toHaveBeenCalled(); subscription.remove();
+});

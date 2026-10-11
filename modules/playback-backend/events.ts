@@ -88,10 +88,12 @@ export function addEventListener<T extends Event>(event: T, listener: PlayerEven
     });
   }
   if (event === Event.PlaybackProgressUpdated) {
-    // V5 heartbeats are already seconds. This listener's app consumer only needs
-    // the heartbeat; preserve its exact position/duration without another poll.
+    // V5 heartbeats are seconds. Preserve their native source receipt so
+    // optional resume tracking cannot assign an old tick to another track.
     return Player.addEventListener(NativeEvent.PlaybackProgressUpdated, payload => emit({
       position: payload.position, duration: payload.duration,
+      ...(typeof payload.mediaId === 'string' ? { mediaId: payload.mediaId } : {}),
+      ...(Number.isFinite(payload.timestamp) ? { timestamp: payload.timestamp } : {}),
     }));
   }
   throw new Error(`Unsupported playback event: ${event}`);

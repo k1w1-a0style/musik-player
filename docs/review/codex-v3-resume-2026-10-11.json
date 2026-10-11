@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-11",
+  "scope": "Host regression and production export; Android release acceptance still pending",
+  "baseCommit": "853e33b624513f33877bb1898a38d2dcadca2447",
+  "node": "22.23.3",
+  "jest": {
+    "suites": 404,
+    "tests": 3928,
+    "statementsPercent": 93.6,
+    "branchesPercent": 85.63,
+    "functionsPercent": 95.34,
+    "linesPercent": 96.09,
+    "seconds": 220.601
+  },
+  "newCases": {
+    "resume": 56,
+    "workflowAggregate": 1,
+    "pythonSafety": 2
+  },
+  "defaultOff": {
+    "resumePositionReads": 0,
+    "resumePositionWrites": 0,
+    "trackingProgressReads": 0,
+    "trackingSubscriptions": 0,
+    "trackingTimers": 0
+  },
+  "throttledFixture": {
+    "nativeReceipts": 7,
+    "confirmedWritesAt15Seconds": 1,
+    "extraProgressPollsForReceipts": 0
+  },
+  "budgets": {
+    "minDurationMs": 1200000,
+    "minPositionMs": 15000,
+    "endMarginMs": 30000,
+    "writeIntervalMs": 15000,
+    "maxEntries": 200,
+    "rawCodeUnits": 1048576,
+    "maxAgeDays": 90
+  },
+  "sourceProof": "Canonical URI and full SHA-256 or positive physical modification time plus file size; no title or filename matching",
+  "gates": {
+    "typecheck": "passed",
+    "strictLint": "passed",
+    "complexityFunctions": 3741,
+    "sourceNulFiles": 1044,
+    "generatedManifestPolicy": "passed",
+    "productionBundleSources": 1638,
+    "productionHermesBytes": 3701896,
+    "pythonTests": 15
+  },
+  "nativeAcceptance": "New opt-in CI job uses the same inspected preview artifact and immutable SHA, public UI only; no Metro, private database seed or development APK",
+  "deviceLimits": [
+    "No physical A50 connected",
+    "No measured Android CPU/battery/frame improvement",
+    "Spoken TalkBack and failing providers not certified by host tests"
+  ]
+}

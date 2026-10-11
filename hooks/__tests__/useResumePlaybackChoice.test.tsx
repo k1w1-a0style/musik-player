@@ -1,0 +1,50 @@
+import { act, renderHook } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import TrackPlayer, { Event } from 'react-native-track-player';
+import { useResumePlaybackChoice } from '../useResumePlaybackChoice';
+import { acquireNativeHydrationGate, publishNativeHydrationGate, resetNativeHydrationGateForTests } from '../../utils/nativeHydrationGate';
+import { recordNativePlaybackIntent, resetNativePlaybackIntentForTests } from '../../utils/nativePlaybackIntent';
+import { notifyProgressMutation } from '../../modules/playback-backend/progressMutations';
+import type { Song } from '../../types/Song';
+const song: Song = { id: 'mix', title: 'Mix', artist: 'DJ', uri: 'file:///mix.mp3', fileInfo: { size: 10, modificationTime: 1700000000000 } };
+const mockLookup = jest.fn().mockResolvedValue({ positionMs: 120000 });
+const mockPreference = { enabled: true, store: { lookup: mockLookup } };
+jest.mock('../../contexts/PlaybackResumeContext', () => ({ usePlaybackResume: () => mockPreference }));
+let changeTrack: () => void;
+let owner: ReturnType<typeof acquireNativeHydrationGate>;
+beforeEach(() => {
+  jest.clearAllMocks(); resetNativeHydrationGateForTests(); resetNativePlaybackIntentForTests();
+  owner = acquireNativeHydrationGate(); publishNativeHydrationGate(owner, 'ready');
+  mockPreference.enabled = true; mockLookup.mockResolvedValue({ positionMs: 120000 });
+  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (TrackPlayer.getActiveTrack as jest.Mock).mockResolvedValue({ id: 'other' });
+  (TrackPlayer.addEventListener as jest.Mock).mockImplementation((event, callback) => {
+    if (event === Event.PlaybackActiveTrackChanged) changeTrack = callback;
+    return { remove: jest.fn() };
+  });
+});
+afterEach(() => jest.restoreAllMocks());
+const answer = () => (Alert.alert as jest.Mock).mock.calls[0][2].find((button: any) => button.text === 'Fortsetzen').onPress();
+test('Off does not subscribe, look up or ask for a saved position', () => {
+  mockPreference.enabled = false;
+  const view = renderHook(() => useResumePlaybackChoice({ current: [song] }));
+  expect(view.result.current(song)).toBeUndefined();
+  expect(TrackPlayer.addEventListener).not.toHaveBeenCalled(); expect(mockLookup).not.toHaveBeenCalled();
+  view.unmount();
+});
+test.each(['pause', 'seek', 'track', 'revision', 'hydration', 'off', 'unmount'])('an open choice cannot override %s', async reason => {
+  const songsRef = { current: [song] };
+  const view = renderHook(() => useResumePlaybackChoice(songsRef));
+  let pending: ReturnType<typeof view.result.current>;
+  await act(async () => { pending = view.result.current(song); });
+  expect(Alert.alert).toHaveBeenCalled();
+  if (reason === 'pause') recordNativePlaybackIntent('paused');
+  if (reason === 'seek') notifyProgressMutation();
+  if (reason === 'track') changeTrack();
+  if (reason === 'revision') songsRef.current = [{ ...song, fileInfo: { ...song.fileInfo, size: 11 } }];
+  if (reason === 'hydration') publishNativeHydrationGate(owner, 'ready');
+  if (reason === 'off') mockPreference.enabled = false;
+  if (reason === 'unmount') view.unmount();
+  answer(); expect((await pending!)?.status).toBe('cancel');
+  if (reason !== 'unmount') view.unmount();
+});

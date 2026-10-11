@@ -258,10 +258,31 @@ describe('GitHub workflow CI strategy', () => {
     expect(workflow.jobs['quality-gates'].steps.some((step: any) => /checkNpmAudit/.test(step.run ?? ''))).toBe(false);
     const aggregate = workflow.jobs['release-ready'];
     expect(aggregate.if).toBe('${{ always() }}');
-    expect(aggregate.needs).toEqual(['security-audit', 'quality-gates', 'native-gates']);
+    expect(aggregate.needs).toEqual(['security-audit', 'quality-gates', 'native-gates', 'release-emulator']);
     const step = aggregate.steps[0];
     for (const result of ['SECURITY_RESULT', 'QUALITY_RESULT', 'NATIVE_RESULT']) {
       expect(step.run).toContain(`test "$${result}" = success`);
+    }
+  });
+
+  it('requires successful acceptance of the same inspected release APK only for an explicit codex preview', () => {
+    const workflow = parseWorkflow('ci.yml');
+    const acceptance = workflow.jobs['release-emulator'];
+    expect(acceptance.needs).toEqual(['security-audit', 'quality-gates', 'native-gates']);
+    expect(acceptance.if).toContain("github.ref == 'refs/heads/codex'");
+    expect(acceptance.if).toContain("'[preview apk]'");
+    expect(JSON.stringify(acceptance)).not.toContain('secrets.');
+    const download = acceptance.steps.find((step: any) => step.uses?.startsWith('actions/download-artifact@'));
+    expect(download.with.name).toBe('musik-player-preview-${{ github.sha }}');
+    const script = workflow.jobs['release-ready'].steps[0].run;
+    for (const [requested, result, accepted] of [
+      ['true', 'success', true], ['true', 'failure', false], ['true', 'skipped', false],
+      ['false', 'skipped', true], ['true', 'cancelled', false],
+    ] as const) {
+      const run = spawnSync('bash', ['-e', '-c', script], { env: { ...process.env,
+        SECURITY_RESULT: 'success', QUALITY_RESULT: 'success', NATIVE_RESULT: 'success',
+        PREVIEW_REQUESTED: requested, EMULATOR_RESULT: result } });
+      expect(run.status === 0).toBe(accepted);
     }
   });
 

@@ -1,5 +1,7 @@
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import type { Song } from '../types/Song';
+import { useResumePlaybackChoice } from '../hooks/useResumePlaybackChoice';
+import { getResumeSource } from '../utils/resumePosition';
 import { getNativePlaybackIntent, recordNativePlaybackIntent } from '../utils/nativePlaybackIntent';
 import { enqueuePlaybackIntent } from '../utils/playbackIntentScheduler';
 import { withPlaybackSelectionFeedback } from '../utils/playbackSelectionStatus';
@@ -57,6 +59,47 @@ const useQueueActionScheduler = () => {
   return { playBatchRef, enqueueQueueAction };
 };
 
+const usePlaySongAction = (args: PlaybackQueueActionsArgs, shuffleRef: MutableRefObject<boolean>,
+  { playBatchRef, enqueueQueueAction }: ReturnType<typeof useQueueActionScheduler>) => {
+  const { songsRef, queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue,
+    setCurrentSong, shuffle, setShuffle } = args;
+  const chooseResume = useResumePlaybackChoice(songsRef);
+  return useCallback(
+    async (song: Song, queue?: Song[]) => {
+      const batch = playBatchRef.current;
+      const intent = ++batch.latest;
+      const pendingChoice = chooseResume(song);
+      const choice = pendingChoice ? await pendingChoice : undefined;
+      if (choice?.status === 'cancel' || choice?.isCurrent?.() === false
+        || batch !== playBatchRef.current || intent !== batch.latest) return { status: 'stale' as const };
+      const startPositionMs = choice?.status === 'continue' ? choice.startPositionMs : undefined;
+      const playbackIntentRevision = captureRequiredNativeHydration() !== null
+        ? recordNativePlaybackIntent('playing').revision : undefined;
+      return withPlaybackSelectionFeedback(playbackIntentRevision === undefined ? null : song,
+        () => enqueueQueueAction(hydrationCapture => intent !== batch.latest
+        ? Promise.resolve({ status: 'stale' as const }) : runPlaySongQueueAction({
+          song,
+          queue,
+          startPositionMs,
+          resumeSource: startPositionMs === undefined ? undefined : getResumeSource(song) ?? undefined,
+          songsRef,
+          queueContextRef,
+          baseQueueContextRef,
+          nativeQueueRef,
+          setPlaybackQueue,
+          setCurrentSong,
+          shuffle,
+          shuffleRef,
+          setShuffle,
+          hydrationCapture,
+          playbackIntentRevision,
+      }), true));
+    },
+    [baseQueueContextRef, chooseResume, enqueueQueueAction, nativeQueueRef, playBatchRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, shuffleRef, songsRef],
+  );
+
+};
+
 export const usePlaybackQueueActions = ({
   songsRef,
   queueContextRef,
@@ -71,32 +114,8 @@ export const usePlaybackQueueActions = ({
   const { playBatchRef, enqueueQueueAction } = useQueueActionScheduler();
   const shuffleRef = useRef(shuffle);
   shuffleRef.current = shuffle;
-  const playSong = useCallback(
-    async (song: Song, queue?: Song[]) => {
-      const playbackIntentRevision = captureRequiredNativeHydration() !== null
-        ? recordNativePlaybackIntent('playing').revision : undefined;
-      const batch = playBatchRef.current;
-      const intent = ++batch.latest;
-      return withPlaybackSelectionFeedback(playbackIntentRevision === undefined ? null : song,
-        () => enqueueQueueAction(hydrationCapture => intent !== batch.latest
-        ? Promise.resolve({ status: 'stale' as const }) : runPlaySongQueueAction({
-          song,
-          queue,
-          songsRef,
-          queueContextRef,
-          baseQueueContextRef,
-          nativeQueueRef,
-          setPlaybackQueue,
-          setCurrentSong,
-          shuffle,
-          shuffleRef,
-          setShuffle,
-          hydrationCapture,
-          playbackIntentRevision,
-      }), true));
-    },
-    [baseQueueContextRef, enqueueQueueAction, nativeQueueRef, playBatchRef, queueContextRef, setCurrentSong, setPlaybackQueue, setShuffle, shuffle, songsRef],
-  );
+  const playSong = usePlaySongAction({ songsRef, queueContextRef, baseQueueContextRef, nativeQueueRef,
+    setPlaybackQueue, setCurrentSong, currentSongId, shuffle, setShuffle }, shuffleRef, { playBatchRef, enqueueQueueAction });
 
   const insertSongIntoQueue = useCallback(
     async (song: Song, position: 'next' | 'end') => enqueueQueueAction(hydrationCapture => runInsertSongQueueAction({

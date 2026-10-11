@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-nat
 import AppBackground from '../components/AppBackground';
 import PresentationSettings from '../components/PresentationSettings';
 import BackupSettings from '../components/BackupSettings';
+import ResumeSettings from '../components/ResumeSettings';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import {
@@ -126,7 +127,7 @@ const Settings: React.FC = () => {
         <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Wähle Darstellung, Bibliotheksdichte und Player-Ansicht. Du bestimmst die Bewegung und den Waveform-Akzent.</Text>
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Wiedergabe</Text>
-          <CoverBassPulseSetting /></View>
+          <CoverBassPulseSetting /><ResumeSettings /></View>
         <PresentationSettings />
         <BackupSettings />
         <View style={[styles.section, sectionTokenStyle]}>

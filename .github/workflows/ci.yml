@@ -343,10 +343,101 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  release-emulator:
+    name: Exact preview APK public-UI acceptance
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
+    needs: [security-audit, quality-gates, native-gates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PACKAGE_NAME: com.k1w1a0style.musikplayer
+      AVD_NAME: musik-preview-api-35
+      ANDROID_API: '35'
+    steps:
+      - name: Checkout the exact reviewed APK source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download the inspected APK from this same CI run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: musik-player-preview-${{ github.sha }}
+          path: preview-input
+
+      - name: Verify immutable APK provenance before device access
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, os
+          from pathlib import Path
+          root = Path('preview-input')
+          assert (root / 'source-commit.txt').read_text().strip() == os.environ['GITHUB_SHA']
+          expected = (root / 'apk-sha256.txt').read_text().split()[0]
+          assert hashlib.sha256((root / 'musik-player-preview.apk').read_bytes()).hexdigest() == expected
+          print('Same inspected release APK and source commit confirmed.')
+          PYCODE
+
+      - name: Prepare isolated Android emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_AVD_HOME="$RUNNER_TEMP/preview-avd"
+          export ANDROID_AVD_HOME
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          sdk_status=${PIPESTATUS[1]}
+          set -o pipefail
+          test "$sdk_status" -eq 0
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' 'emulator' "system-images;android-${ANDROID_API};google_apis;x86_64"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
+          mkdir -p ci-logs
+          nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
+          echo $! > ci-logs/emulator.pid
+          timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell wm size 480x960
+          adb shell wm density 240
+          adb shell input keyevent 82
+          adb logcat -c
+
+      - name: Exercise release UI, files, native playback, backup and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
+          python3 -m venv "$RUNNER_TEMP/release-ui-venv"
+          "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+          "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/release-ui.log
+
+      - name: Capture diagnostics after any device failure
+        if: always()
+        run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
+
+      - name: Upload release acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-release-acceptance-${{ github.sha }}
+          path: ci-logs/**
+          if-no-files-found: error
+          retention-days: 30
+
   release-ready:
     name: Required release checks
     if: ${{ always() }}
-    needs: [security-audit, quality-gates, native-gates]
+    needs: [security-audit, quality-gates, native-gates, release-emulator]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -355,7 +446,14 @@ jobs:
           SECURITY_RESULT: ${{ needs.security-audit.result }}
           QUALITY_RESULT: ${{ needs.quality-gates.result }}
           NATIVE_RESULT: ${{ needs.native-gates.result }}
+          EMULATOR_RESULT: ${{ needs.release-emulator.result }}
+          PREVIEW_REQUESTED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
         run: |
           test "$SECURITY_RESULT" = success
           test "$QUALITY_RESULT" = success
           test "$NATIVE_RESULT" = success
+          if [ "$PREVIEW_REQUESTED" = true ]; then
+            test "$EMULATOR_RESULT" = success
+          else
+            test "$EMULATOR_RESULT" = skipped
+          fi

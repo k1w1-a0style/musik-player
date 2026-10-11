@@ -87,7 +87,8 @@ export interface EventPayloadByEvent {
   [Event.PlaybackError]: PlaybackError;
   [Event.PlaybackActiveTrackChanged]: PlaybackActiveTrackChangedEvent;
   [Event.PlaybackPlayWhenReadyChanged]: { playWhenReady: boolean };
-  [Event.PlaybackProgressUpdated]: { position: number; duration: number; buffered?: number; track?: number };
+  [Event.PlaybackProgressUpdated]: { position: number; duration: number; buffered?: number; track?: number;
+    mediaId?: string; timestamp?: number };
   [Event.RemotePlay]: undefined;
   [Event.RemotePause]: undefined;
   [Event.RemoteStop]: undefined;

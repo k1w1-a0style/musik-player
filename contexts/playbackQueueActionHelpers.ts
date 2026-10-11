@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
+import { getResumeSource } from '../utils/resumePosition';
 import { assertCurrentSongPersistenceSucceeded } from '../utils/currentSongPersistence';
 import { isPlayableSong, type PlayableSong } from '../utils/playableSong';
 import {
@@ -54,6 +55,8 @@ interface PlaybackQueueActionRefs {
 export interface RunPlaySongQueueActionArgs extends PlaybackQueueActionRefs {
   song: Song;
   queue?: Song[];
+  startPositionMs?: number;
+  resumeSource?: string;
   shuffle?: boolean;
   shuffleRef?: MutableRefObject<boolean>;
   setShuffle?: Dispatch<SetStateAction<boolean>>;
@@ -222,6 +225,7 @@ const rebuildForPlayPlan = async (
   nativeQueueRef: MutableRefObject<Song[]>,
   context: NativeQueueReplacementContext,
   playbackIntentRevision: number,
+  startPositionMs = 0,
 ): Promise<NativeQueueReadback | undefined> => {
   const orderedQueue = plan.rebuildOrderedQueue;
   const startIndex = orderedQueue.findIndex(
@@ -231,7 +235,7 @@ const rebuildForPlayPlan = async (
   const rebuilt = await rebuildNativePlaybackQueueUnlocked(
     orderedQueue,
     nativeQueueRef,
-    0,
+    startPositionMs / 1000,
     context,
     startIndex,
     undefined,
@@ -247,20 +251,29 @@ const executePlaySongPlan = async (
   nativeQueueRef: MutableRefObject<Song[]>,
   context: NativeQueueReplacementContext,
   playbackIntentRevision: number,
+  startPositionMs?: number,
 ): Promise<NativeQueueReadback | undefined> => {
-  if (!plan.canReuseNativeQueue) return rebuildForPlayPlan(plan, nativeQueueRef, context, playbackIntentRevision);
+  if (!plan.canReuseNativeQueue) return rebuildForPlayPlan(plan, nativeQueueRef, context, playbackIntentRevision, startPositionMs);
   try {
     const activeTrack = await TrackPlayer.getActiveTrack();
     if (!context.isCurrent()) return undefined;
     context.beginNativeMutation();
+    if (startPositionMs !== undefined) {
+      await TrackPlayer.pause();
+      if (!context.isCurrent()) return undefined;
+    }
     if (activeTrack?.id !== plan.requestedSong.id) await TrackPlayer.skip(plan.nativeIndex);
     if (!context.isCurrent()) return undefined;
+    if (startPositionMs !== undefined) {
+      await TrackPlayer.seekTo(startPositionMs / 1000);
+      if (!context.isCurrent()) return undefined;
+    }
     if (!await restoreNativePlaybackIntent('playing', playbackIntentRevision, context.isCurrent)) return undefined;
     const readback = await readNativeQueueTruth(plan.reusableOrderedQueue);
     return context.isCurrent() ? readback : undefined;
   } catch (error) {
     console.warn('[PlaybackQueue] Native reuse failed, rebuilding queue.', error);
-    return context.isCurrent() ? rebuildForPlayPlan(plan, nativeQueueRef, context, playbackIntentRevision) : undefined;
+    return context.isCurrent() ? rebuildForPlayPlan(plan, nativeQueueRef, context, playbackIntentRevision, startPositionMs) : undefined;
   }
 };
 
@@ -324,9 +337,23 @@ const recoverShuffleQueueFailure = async (
   return { status: recovery.status, recovery };
 };
 
+const validStartPosition = (value?: number): boolean =>
+  value === undefined || (Number.isFinite(value) && value >= 0);
+const prepareResumePlayPlan = (plan: PlaySongQueuePlan, nativeQueue: Song[], startPositionMs?: number, source?: string): boolean => {
+  if (source !== undefined && getResumeSource(plan.requestedSong) !== source) return false;
+  if (startPositionMs === undefined || !plan.canReuseNativeQueue) return true;
+  const nativeSource = nativeQueue.find(item => item.id === plan.requestedSong.id);
+  if (!nativeSource || getResumeSource(nativeSource) !== getResumeSource(plan.requestedSong)) plan.canReuseNativeQueue = false;
+  return true;
+};
+const hasCurrentResumeSource = (songs: Song[], song: Song, source?: string): boolean =>
+  source === undefined || !songs.some(item => item.id === song.id && getResumeSource(item) !== source);
+
 export const runPlaySongQueueAction = async ({
   song,
   queue,
+  startPositionMs,
+  resumeSource,
   songsRef,
   queueContextRef,
   baseQueueContextRef,
@@ -341,12 +368,16 @@ export const runPlaySongQueueAction = async ({
 }: RunPlaySongQueueActionArgs): Promise<NativeQueueActionResult> =>
   runExclusiveNativeQueueReplacement<NativeQueueActionResult>(async context => {
     if (!context.isCurrent()) return { status: 'stale' };
+    if (!validStartPosition(startPositionMs)) {
+      return { status: 'failed', error: new Error('Invalid resume position.') };
+    }
     const sourceQueue = queue && queue.length > 0 ? queue : songsRef.current;
     const plan = buildPlaySongQueuePlan(song, sourceQueue, nativeQueueRef.current);
     if (!plan) {
       console.warn('[PlaybackQueue] Unable to build play-song queue plan.', { songId: song.id });
       return { status: 'failed', error: new Error('Unable to build play-song queue plan.') };
     }
+    if (!prepareResumePlayPlan(plan, nativeQueueRef.current, startPositionMs, resumeSource)) return { status: 'stale' };
     const knownSongs = [...songsRef.current, ...sourceQueue, ...nativeQueueRef.current];
     const targets = { queueContextRef, baseQueueContextRef, nativeQueueRef, setPlaybackQueue,
       setCurrentSong, shuffleRef, setShuffle };
@@ -356,7 +387,8 @@ export const runPlaySongQueueAction = async ({
       targets,
     });
     try {
-      const readback = await executePlaySongPlan(plan, nativeQueueRef, context, playbackIntentRevision);
+      if (!hasCurrentResumeSource(songsRef.current, song, resumeSource)) return { status: 'stale' };
+      const readback = await executePlaySongPlan(plan, nativeQueueRef, context, playbackIntentRevision, startPositionMs);
       if (!readback || !context.isCurrent()) return { status: 'stale' };
       await commitNativeQueueTruth({
         readback, preferredBaseQueue: plan.queueWithRequested, librarySongs: songsRef.current, targets,

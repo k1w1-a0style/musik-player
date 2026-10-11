@@ -11,18 +11,20 @@ import type { ProvidedMusicContextValues } from './useProvidedMusicContextValues
 import type { MusicProviderDomainActions } from './useMusicProviderDomainActions';
 import type { MusicProviderRuntime } from './useMusicProviderRuntime';
 import { guardNativePlaybackActions } from './nativePlaybackActionGuard';
+import { useResumePlayPause } from '../hooks/useResumePlayPause';
 
 export const useMusicProviderContextComposition = (
   runtime: MusicProviderRuntime,
   actions: MusicProviderDomainActions,
 ): ProvidedMusicContextValues => {
   const contextActions = buildMusicProviderContextActionsInput(actions);
+  const togglePlayPause = useResumePlayPause(runtime, actions);
   const guardedPlayback = guardNativePlaybackActions(runtime.state.hydrationStatus, {
     playSong: actions.playSong, playSongNext: actions.playSongNext, addSongToQueue: actions.addSongToQueue,
     reorderQueue: actions.reorderQueue ?? (async () => ({ status: 'failed' as const })),
     toggleShuffle: actions.toggleShuffle, playPlaylist: actions.playPlaylist,
     next: runtime.playback.next, previous: runtime.playback.previous,
-    togglePlayPause: runtime.playback.togglePlayPause, seekTo: runtime.playback.seekTo, stop: runtime.playback.stop,
+    togglePlayPause, seekTo: runtime.playback.seekTo, stop: runtime.playback.stop,
   });
 
   return useProvidedMusicContextValues(
