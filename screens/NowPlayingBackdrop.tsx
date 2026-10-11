@@ -3,6 +3,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import type { ColorValue, ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 import { blendBackdropColor, getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
@@ -53,6 +54,7 @@ const BackdropLayer = ({ snapshot, opacity, artworkTestId }: {
   opacity: number | Animated.Value;
   artworkTestId: string;
 }) => {
+  const { presentation } = usePlayerPresentation();
   const thumbnailUri = useArtworkThumbnail(snapshot.artworkUri, 64);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   useEffect(() => setThumbnailFailed(false), [snapshot.artworkUri, thumbnailUri]);
@@ -69,7 +71,7 @@ const BackdropLayer = ({ snapshot, opacity, artworkTestId }: {
       ) : null}
       <LinearGradient colors={snapshot.gradientColors} start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
-      <View style={[styles.glowOrb, { backgroundColor: snapshot.accent, left: snapshot.glowLeft }]} />
+      {!presentation.quiet ? <View style={[styles.glowOrb, { backgroundColor: snapshot.accent, left: snapshot.glowLeft }]} /> : null}
     </Animated.View>
   );
 };

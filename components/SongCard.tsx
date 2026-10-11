@@ -13,6 +13,7 @@ import SongWaveformStatus from './SongWaveformStatus';
 import { getSongCardHeight } from '../utils/libraryRendererHelpers';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 import { useSongPreparation } from '../hooks/useSongPreparation';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 interface SongCardProps {
   song: Song;
@@ -75,6 +76,7 @@ const useSongCardArtwork = (song: Song, variant: LibrarySongCardVariant) => {
 
 const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoSong, isCurrent, isPlaying, variant = 'row' }) => {
   const { theme } = useAppTheme();
+  const { presentation } = usePlayerPresentation();
   const preparation = useSongPreparation(song);
   const { fontScale } = useWindowDimensions();
   const { artworkSource, onArtworkError } = useSongCardArtwork(song, variant);
@@ -139,28 +141,24 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   if (variant === 'tile') {
     return (
       <View style={styles.tileSlot} testID={`song-card-slot-${songTestId}`}>
+      <View testID={`song-card-surface-${songTestId}`} style={[
+        styles.tileContainer,
+        { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
+        isCurrent && { backgroundColor: selectedColors.background, borderColor: selectedColors.accent },
+        isCurrent && styles.tileCurrent,
+      ]}>
       <Pressable
         testID={`song-card-${songTestId}`}
         accessibilityRole="button"
         accessibilityLabel={`${song.title} von ${song.artist}`}
         accessibilityState={{ selected: isCurrent }}
         onPress={handlePress}
-        style={({ pressed }) => [
-          styles.tileContainer,
-          { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
-          isCurrent && { backgroundColor: selectedColors.background, borderColor: selectedColors.accent },
-          isCurrent && styles.tileCurrent,
-          pressed && styles.pressed,
-        ]}
+        style={({ pressed }) => [styles.tileContent, pressed && styles.pressed]}
       >
         <View testID={`song-card-content-${songTestId}`}
           style={styles.tileContent}>
           <View>
             {cover}
-          </View>
-          <View style={styles.tileActions}>
-            <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
-            {infoButton}
           </View>
           <Text style={[styles.tileTitle, { color: isCurrent ? selectedColors.text : theme.palette.text.primary }]} numberOfLines={1}>
             {song.title}
@@ -172,6 +170,11 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
             color={theme.palette.text.muted} tile />
         </View>
       </Pressable>
+      <View style={styles.tileActions}>
+        <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
+        {infoButton}
+      </View>
+      </View>
       </View>
     );
   }
@@ -179,19 +182,13 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
   const isBanner = variant === 'banner';
 
   return (
-    <View style={[styles.slot, { height: getSongCardHeight(fontScale, isBanner) }]} testID={`song-card-slot-${songTestId}`}>
-    <Pressable
-      testID={`song-card-${songTestId}`}
-      accessibilityRole="button"
-      accessibilityLabel={`${song.title} von ${song.artist}`}
-      accessibilityState={{ selected: isCurrent }}
-      onPress={handlePress}
-      style={({ pressed }) => [
+    <View style={[styles.slot, { height: getSongCardHeight(fontScale, isBanner, presentation.density) }]} testID={`song-card-slot-${songTestId}`}>
+    <View testID={`song-card-surface-${songTestId}`} style={[
         styles.container,
         { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border },
         isBanner && styles.bannerContainer,
+        presentation.density === 'compact' && styles.compactContainer,
         isCurrent && { backgroundColor: selectedColors.background, borderColor: selectedColors.accent },
-        pressed && styles.pressed,
       ]}
     >
       <LinearGradient pointerEvents="none" colors={[theme.palette.surfaceElevated, theme.palette.surface]}
@@ -205,6 +202,10 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
             isPlaying && { backgroundColor: selectedColors.accent },
           ]}
         />
+        <Pressable testID={`song-card-${songTestId}`} accessibilityRole="button"
+          accessibilityLabel={`${song.title} von ${song.artist}`}
+          accessibilityState={{ selected: isCurrent }} onPress={handlePress}
+          style={({ pressed }) => [styles.playArea, pressed && styles.pressed]}>
         {cover}
         <View style={styles.infoContainer}>
           <Text
@@ -222,10 +223,11 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
           <SongMetadata song={song} label={metadataLabel}
             color={theme.palette.text.muted} />
         </View>
+        </Pressable>
         <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
         {infoButton}
       </View>
-    </Pressable>
+    </View>
     </View>
   );
 };
@@ -254,6 +256,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  playArea: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  compactContainer: { paddingVertical: 3 },
   statusSlot: { width: 48, minHeight: 48 },
   tileActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' },
   bannerContainer: { paddingVertical: 6 },

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useProgress } from 'react-native-track-player';
 import { usePlaybackProgressVisible } from '../utils/playbackProgressVisibility';
+import { usePlayerPresentation } from './PlayerPresentationContext';
+import { getVisibleProgressInterval } from '../utils/playerPresentation';
 
 /**
  * Playback progress exposed to the UI in milliseconds.
@@ -18,7 +20,8 @@ export const PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS = 500;
 
 export const PlaybackProgressProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const visible = usePlaybackProgressVisible();
-  const progress = useProgress(PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS, { enabled: visible });
+  const { presentation } = usePlayerPresentation();
+  const progress = useProgress(getVisibleProgressInterval(presentation.quiet), { enabled: visible });
 
   const value = useMemo<PlaybackProgressContextValue>(
     () => ({

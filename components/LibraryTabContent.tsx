@@ -19,8 +19,9 @@ import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { LibraryTab } from '../utils/libraryTabs';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
+import { getLibraryGroupRowHeight } from '../utils/libraryRendererHelpers';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
-const GROUP_ROW_HEIGHT = 66;
 const GROUP_INITIAL_RENDER_COUNT = 12;
 const GROUP_WINDOW_SIZE = 7;
 const SONG_INITIAL_RENDER_COUNT = 10;
@@ -94,12 +95,6 @@ export interface LibraryTabContentProps {
 const groupKeyExtractor = (item: LibraryGroupItem | LibraryPlaylistItem): string => item.id;
 const folderKeyExtractor = (item: ScanFolder): string => item.id;
 
-const getGroupItemLayout = (_: ArrayLike<LibraryGroupItem | LibraryPlaylistItem> | null | undefined, index: number) => ({
-  length: GROUP_ROW_HEIGHT,
-  offset: GROUP_ROW_HEIGHT * index,
-  index,
-});
-
 const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   activeTab,
   activeFolders,
@@ -130,6 +125,11 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   onCycleSongViewMode,
 }) => {
   const { theme } = useAppTheme();
+  const { fontScale } = useWindowDimensions();
+  const { presentation } = usePlayerPresentation();
+  const groupHeight = getLibraryGroupRowHeight(fontScale, presentation.density);
+  const getGroupItemLayout = useCallback((_: ArrayLike<LibraryGroupItem | LibraryPlaylistItem> | null | undefined,
+    index: number) => ({ length: groupHeight, offset: groupHeight * index, index }), [groupHeight]);
   const emptyState = <LibraryEmptyState activeTab={activeTab} message={emptyMessage} />;
 
   if (activeTab === 'folders') {

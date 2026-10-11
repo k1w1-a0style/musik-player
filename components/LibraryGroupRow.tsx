@@ -1,10 +1,12 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Play } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
+import { getLibraryGroupRowHeight } from '../utils/libraryRendererHelpers';
 
 interface LibraryGroupRowProps {
   group: LibraryGroupItem;
@@ -13,6 +15,8 @@ interface LibraryGroupRowProps {
 
 const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPress }) => {
   const { theme } = useAppTheme();
+  const { presentation } = usePlayerPresentation();
+  const { fontScale } = useWindowDimensions();
   const [coverFailed, setCoverFailed] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const thumbnailUri = useArtworkThumbnail(group.cover, 128);
@@ -41,7 +45,7 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
       accessibilityLabel={`${group.title} abspielen`}
       style={({ pressed }) => [
         styles.groupRow,
-        { borderBottomColor: theme.palette.border },
+        { borderBottomColor: theme.palette.border, height: getLibraryGroupRowHeight(fontScale, presentation.density) },
         pressed && styles.pressed,
       ]}
       onPress={handlePress}
@@ -62,7 +66,7 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
         <Text style={[styles.groupTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
           {group.title}
         </Text>
-        <Text style={[styles.groupSubtitle, { color: theme.palette.text.secondary }]}>
+        <Text style={[styles.groupSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
           {group.subtitle}
         </Text>
       </View>
@@ -92,8 +96,8 @@ const styles = StyleSheet.create({
   groupCover: { width: '100%', height: '100%' },
   groupIconText: { fontFamily: staticTokens.fonts.heading, fontSize: 18 },
   groupTextWrap: { flex: 1, minWidth: 0 },
-  groupTitle: { fontFamily: staticTokens.fonts.heading, fontSize: 15 },
-  groupSubtitle: { fontFamily: staticTokens.fonts.body, fontSize: 12, marginTop: 2 },
+  groupTitle: { fontFamily: staticTokens.fonts.heading, fontSize: 15, lineHeight: 20 },
+  groupSubtitle: { fontFamily: staticTokens.fonts.body, fontSize: 12, lineHeight: 16, marginTop: 2 },
   pressed: { opacity: 0.72 },
 });
 

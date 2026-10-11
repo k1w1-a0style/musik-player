@@ -2,6 +2,7 @@ import React from 'react';
 import * as ReactNative from 'react-native';
 import { act, renderHook } from '@testing-library/react-native';
 import type { MediaItem } from '@rntp/player';
+import { getVisibleProgressInterval } from '../../../utils/playerPresentation';
 
 const deferred = <T = void>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -564,9 +565,26 @@ test('keeps the visible playing cadence at 60 periodic reads over 30 seconds', a
   expect(native.getProgress).toHaveBeenCalledTimes(60); hook.unmount();
 });
 
-test('confirmed seeks refresh a paused progress consumer without starting a periodic poll', async () => {
+test.each([false, true])('compares actual visible playback reads with quiet=%s on the same 30-second clock', async quiet => {
+  jest.useFakeTimers(); native.getPlaybackState.mockReturnValue('ready'); native.isPlaying.mockReturnValue(true);
+  const interval = getVisibleProgressInterval(quiet);
+  const hook = renderHook(() => adapter.useProgress(interval));
+  await act(async () => { await flush(); }); await act(async () => { await flush(); });
+  native.getProgress.mockClear();
+  await act(async () => { await jest.advanceTimersByTimeAsync(30_000); });
+  const reads = native.getProgress.mock.calls.length;
+  expect(reads).toBe(quiet ? 30 : 60);
+  // eslint-disable-next-line no-console -- Actual adapter/native-boundary count, not device CPU or battery.
+  console.info(JSON.stringify({ scope: 'host adapter with native boundary double', quiet, seconds: 30, interval, periodicReads: reads }));
+  hook.unmount();
+  const before = native.getProgress.mock.calls.length;
+  await jest.advanceTimersByTimeAsync(2000);
+  expect(native.getProgress).toHaveBeenCalledTimes(before);
+});
+
+test.each([500, 1000])('confirmed seeks refresh a paused progress consumer immediately at interval %s', async interval => {
   jest.useFakeTimers(); native.getPlaybackState.mockReturnValue('ready');
-  const hook = renderHook(() => adapter.useProgress(500));
+  const hook = renderHook(() => adapter.useProgress(interval));
   await act(async () => { await flush(); }); await act(async () => { await flush(); });
   native.getProgress.mockReturnValue({ position: 42, duration: 120, buffered: 60 });
   await act(async () => { await adapter.default.seekTo(42); await flush(); });

@@ -20,6 +20,8 @@ interface AppThemeBoxOverlayColors {
 
 export const SOUNDCLOUD_PLAYER_COLORS = {
   accent: '#ff5500',
+  waveformNeutral: '#858585',
+  waveformBlue: '#4885c5',
   playerBackground: '#050505',
   artworkBackground: '#111111',
   artworkFallback: '#181818',

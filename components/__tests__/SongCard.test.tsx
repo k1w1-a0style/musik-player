@@ -112,7 +112,7 @@ describe('SongCard', () => {
       <SongCard song={{ id: 'themed', title: 'Themed Track', artist: 'Theme Artist' }} onPressSong={jest.fn()} onInfoSong={jest.fn()} isCurrent={false} isPlaying={false} />,
     );
 
-    expect(JSON.stringify(getByTestId('song-card-themed').props.style)).toContain(mockAppTheme.palette.border);
+    expect(JSON.stringify(getByTestId('song-card-surface-themed').props.style)).toContain(mockAppTheme.palette.border);
     expect(JSON.stringify(getByTestId('song-card-cover-themed').props.style)).toContain(mockAppTheme.palette.surfaceGlass);
     expect(JSON.stringify(getByTestId('song-card-cover-themed').props.style)).toContain(mockAppTheme.palette.border);
     expect(JSON.stringify(getByText('Themed Track').props.style)).toContain(mockAppTheme.palette.text.primary);
@@ -124,7 +124,7 @@ describe('SongCard', () => {
       <SongCard song={{ id: 'current', title: 'Current Track', artist: 'Theme Artist' }} onPressSong={jest.fn()} isCurrent isPlaying />,
     );
 
-    expect(JSON.stringify(getByTestId('song-card-current').props.style)).toContain(mockAppTheme.palette.primaryGlow);
+    expect(JSON.stringify(getByTestId('song-card-surface-current').props.style)).toContain(mockAppTheme.palette.primaryGlow);
   });
 
   test('shows compact duration and format metadata on row cards', () => {

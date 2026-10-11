@@ -3,6 +3,7 @@ import { Animated, Easing } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS } from '../contexts/PlaybackProgressContext';
 import { resolveSoundCloudSeekRatio } from '../utils/soundCloudPlayer';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 const LIVE_PREVIEW_THROTTLE_MS = 90;
 
@@ -15,6 +16,7 @@ interface PlaybackProgressMotionOptions {
 }
 
 const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, isPlaying, onPreviewPosition }: PlaybackProgressMotionOptions) => {
+  const { presentation } = usePlayerPresentation();
   const progressValue = useRef(new Animated.Value(progressRatio)).current;
   const draggingRef = useRef(false);
   const heldSeek = useRef<{ position: number; expires: number } | null>(null);
@@ -32,12 +34,12 @@ const usePlaybackProgressMotion = ({ progressRatio, safeDuration, safePosition, 
     if (held) releaseHold();
     progressValue.stopAnimation();
     progressValue.setValue(progressRatio);
-    if (!isPlaying || safeDuration <= 0 || safePosition >= safeDuration) return;
+    if (presentation.quiet || !isPlaying || safeDuration <= 0 || safePosition >= safeDuration) return;
     const predicted = Math.min(safeDuration, safePosition + PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS);
     Animated.timing(progressValue, { toValue: predicted / safeDuration,
       duration: PLAYBACK_PROGRESS_UPDATE_INTERVAL_MS,
       easing: Easing.linear, useNativeDriver: true, isInteraction: false }).start();
-  }, [isPlaying, progressRatio, progressValue, releaseHold, safeDuration, safePosition]);
+  }, [isPlaying, presentation.quiet, progressRatio, progressValue, releaseHold, safeDuration, safePosition]);
   useEffect(() => {
     sync();
     return () => progressValue.stopAnimation();

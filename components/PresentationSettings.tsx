@@ -1,0 +1,55 @@
+import React from 'react';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useAppTheme } from '../contexts/AppThemeContext';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
+import { WAVEFORM_ACCENT_LABELS, type LibraryDensity, type WaveformAccent } from '../utils/playerPresentation';
+
+const PresentationSettings = () => {
+  const { theme } = useAppTheme();
+  const { presentation, setPresentation, isHydrated } = usePlayerPresentation();
+  const titleStyle = { color: theme.palette.text.primary, fontFamily: theme.tokens.fonts.heading };
+  const copyStyle = { color: theme.palette.text.secondary, fontFamily: theme.tokens.fonts.body };
+  const option = (id: string, title: string, selected: boolean, onPress: () => void) => (
+    <Pressable key={id} testID={`settings-${id}`} accessibilityRole="radio"
+      accessibilityLabel={title} accessibilityState={{ checked: selected, disabled: !isHydrated }}
+      disabled={!isHydrated} onPress={onPress} style={[styles.choice, {
+        borderColor: selected ? theme.palette.primary : theme.palette.border,
+        backgroundColor: selected ? theme.palette.surfaceElevated : theme.palette.surface,
+      }]}><Text style={[styles.label, titleStyle]}>{title}</Text></Pressable>
+  );
+  return <View style={styles.section} testID="settings-presentation">
+    <Text style={[styles.heading, titleStyle]}>Bewegung & Bibliothek</Text>
+    <View style={[styles.quiet, { borderColor: theme.palette.border, backgroundColor: theme.palette.surface }]}>
+      <View style={styles.copy}>
+        <Text style={[styles.label, titleStyle]}>Ruhiges Profil</Text>
+        <Text style={[styles.description, copyStyle]}>Das Cover bleibt ruhig, Farben wechseln direkt, Glow entfällt und die Fortschrittsanzeige aktualisiert seltener.</Text>
+      </View>
+      <Switch testID="settings-quiet-profile" accessibilityLabel="Ruhiges Profil"
+        disabled={!isHydrated} value={presentation.quiet}
+        onValueChange={quiet => setPresentation?.(previous => ({ ...previous, quiet }))} />
+    </View>
+    <Text style={[styles.label, titleStyle]}>Bibliotheksdichte</Text>
+    <Text style={[styles.description, copyStyle]}>Kompakt zeigt mehr Titel in Listen. Menü und Status behalten ihre eigenen Bedienflächen; große Schrift bekommt mehr Platz.</Text>
+    <View style={styles.choices} accessibilityRole="radiogroup">
+      {(['standard', 'compact'] as LibraryDensity[]).map(density => option(`density-${density}`,
+        density === 'standard' ? 'Standard' : 'Kompakt', presentation.density === density,
+        () => setPresentation?.(previous => ({ ...previous, density }))))}
+    </View>
+    <Text style={[styles.label, titleStyle]}>Waveform-Akzent</Text>
+    <Text style={[styles.description, copyStyle]}>Wähle die Farbe des gespielten Abschnitts in der SoundCloud-Ansicht. Der ungespielte Teil bleibt neutral.</Text>
+    <View style={styles.choices} accessibilityRole="radiogroup">
+      {(Object.keys(WAVEFORM_ACCENT_LABELS) as WaveformAccent[]).map(waveformAccent => option(`waveform-accent-${waveformAccent}`,
+        WAVEFORM_ACCENT_LABELS[waveformAccent], presentation.waveformAccent === waveformAccent,
+        () => setPresentation?.(previous => ({ ...previous, waveformAccent }))))}
+    </View>
+  </View>;
+};
+const styles = StyleSheet.create({
+  section: { gap: 10 }, heading: { fontSize: 18 }, label: { fontSize: 16 },
+  description: { fontSize: 12, lineHeight: 17 }, copy: { flex: 1, gap: 6 },
+  quiet: { padding: 14, borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choice: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderRadius: 12 },
+});
+export default PresentationSettings;

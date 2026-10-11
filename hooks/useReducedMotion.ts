@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 export const useReducedMotion = (): boolean => {
   const [reduceMotion, setReduceMotion] = useState(false);
+  const { presentation } = usePlayerPresentation();
 
   useEffect(() => {
     let active = true;
@@ -18,5 +20,5 @@ export const useReducedMotion = (): boolean => {
     };
   }, []);
 
-  return reduceMotion;
+  return reduceMotion || presentation.quiet;
 };

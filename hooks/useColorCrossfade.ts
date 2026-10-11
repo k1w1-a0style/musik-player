@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing } from 'react-native';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 export const PLAYER_COLOR_CROSSFADE_DELAY_MS = 0;
 export const PLAYER_COLOR_CROSSFADE_MS = 1000;
@@ -24,6 +25,8 @@ const boundMixture = <T,>(mixture: ColorLayer<T>[], max: number,
 export const useColorCrossfade = <T,>(value: T, key: string,
   duration = PLAYER_COLOR_CROSSFADE_MS, delay = PLAYER_COLOR_CROSSFADE_DELAY_MS,
   { maxOutgoingLayers = 8, mergeLayers }: CrossfadeOptions<T> = {}) => {
+  const { presentation } = usePlayerPresentation();
+  if (presentation.quiet) duration = 0;
   const incoming = useMemo(() => ({ key, value, weight: 1 }), [key, value]);
   const [layers, setLayers] = useState<{ active: ColorLayer<T>; outgoing: ColorLayer<T>[] }>({
     active: incoming, outgoing: [],

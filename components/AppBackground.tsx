@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 interface AppBackgroundProps {
   children: React.ReactNode;
@@ -35,13 +36,16 @@ const Orb: React.FC<OrbProps> = ({ color, size, start, opacity }) => (
 
 const AppBackground: React.FC<AppBackgroundProps> = ({ children, style, variant = 'default' }) => {
   const { theme } = useAppTheme();
+  const { presentation } = usePlayerPresentation();
   const gradient = variant === 'nowPlaying' ? theme.gradients.nowPlaying : theme.gradients.background;
 
   return (
     <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.root, style]}>
+      {!presentation.quiet ? <>
       <Orb color={theme.palette.primaryGlow} size={300} start={{ x: -110, y: -110 }} opacity={0.22} />
       <Orb color={theme.palette.primaryGlow} size={250} start={{ x: 180, y: 460 }} opacity={0.16} />
       <Orb color={theme.palette.accentGlow} size={200} start={{ x: 210, y: 40 }} opacity={0.12} />
+      </> : null}
       {children}
     </LinearGradient>
   );

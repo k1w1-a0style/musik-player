@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 import { getSoundCloudWaveformColors } from '../utils/soundCloudWaveformColors';
 
 interface WaveformBarsProps {
@@ -57,7 +58,9 @@ interface SoundCloudWaveformLayersProps {
 
 const SoundCloudWaveformLayers = ({ points, sourceKey, stripWidth, height, viewportCenter,
   accent, translateX, ready = true, showProgress = true }: SoundCloudWaveformLayersProps) => {
-  const colors = useMemo(() => getSoundCloudWaveformColors(accent), [accent]);
+  const { presentation } = usePlayerPresentation();
+  const colors = useMemo(() => getSoundCloudWaveformColors(accent, presentation.waveformAccent),
+    [accent, presentation.waveformAccent]);
   const stripStyle = useMemo(() => ({ width: stripWidth, height,
     transform: [{ translateX }] }), [height, stripWidth, translateX]);
   return (

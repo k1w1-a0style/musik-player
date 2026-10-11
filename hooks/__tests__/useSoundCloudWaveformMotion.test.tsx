@@ -1,7 +1,12 @@
-import { act, renderHook } from '@testing-library/react-native';
+import React from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { Animated } from 'react-native';
 import { State, type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { useSoundCloudWaveformMotion } from '../useSoundCloudWaveformMotion';
+import { PlayerPresentationProvider, usePlayerPresentation } from '../../contexts/PlayerPresentationContext';
+import { storage } from '../../utils/storage';
+jest.mock('../../utils/storage', () => ({ storage: { get: jest.fn(), set: jest.fn().mockResolvedValue(true) } }));
 
 const stateEvent = (nativeEvent: Record<string, number>) => (
   { nativeEvent } as unknown as PanGestureHandlerStateChangeEvent
@@ -9,6 +14,29 @@ const stateEvent = (nativeEvent: Record<string, number>) => (
 const gestureEvent = (translationX: number) => (
   { nativeEvent: { translationX } } as unknown as PanGestureHandlerGestureEvent
 );
+
+test('quiet stops automatic timeline animation while live drag and confirmed seek still work', async () => {
+  (storage.get as jest.Mock).mockResolvedValue({ quiet: true, density: 'standard', waveformAccent: 'cover' });
+  const timing = jest.spyOn(Animated, 'timing');
+  const onSeek = jest.fn().mockResolvedValue(undefined);
+  const wrapper = ({ children }: { children: React.ReactNode }) => <PlayerPresentationProvider>{children}</PlayerPresentationProvider>;
+  const hook = renderHook(({ position }: { position: number }) => ({ preferences: usePlayerPresentation(), motion: useSoundCloudWaveformMotion({
+    progressRatio: position / 100_000, safeDuration: 100_000, safePosition: position, isPlaying: true,
+    travelWidth: 1000, viewportCenter: 200, waveformKey: 'quiet', onSeek,
+  }) }), { wrapper, initialProps: { position: 50_000 } });
+  await waitFor(() => expect(hook.result.current.preferences.isHydrated).toBe(true));
+  timing.mockClear();
+  expect(timing).not.toHaveBeenCalled();
+  act(() => hook.result.current.motion.onStateChange(stateEvent({ state: State.BEGAN, oldState: State.UNDETERMINED, translationX: 0 })));
+  const gesture = hook.result.current.motion.onGestureEvent as unknown as { __getHandler: () => (event: PanGestureHandlerGestureEvent) => void };
+  act(() => gesture.__getHandler()(gestureEvent(100)));
+  await act(async () => hook.result.current.motion.onStateChange(stateEvent({ state: State.END, oldState: State.ACTIVE, translationX: 100 })));
+  expect(onSeek).toHaveBeenCalledTimes(1);
+  expect(onSeek).toHaveBeenCalledWith(40_000);
+  hook.rerender({ position: 60_000 });
+  expect(timing).not.toHaveBeenCalled();
+  hook.unmount(); timing.mockRestore();
+});
 
 describe('useSoundCloudWaveformMotion', () => {
   test('reports a live drag preview and commits the same final seek once', async () => {

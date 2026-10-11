@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Animated } from 'react-native';
 import type { Song } from '../types/Song';
 import { useCoverBassPulse } from '../hooks/useCoverBassPulse';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 interface CoverBassPulseProps {
   children: React.ReactNode;
@@ -19,10 +20,11 @@ const BassController = ({ song, isPlaying, onScale }: Omit<CoverBassPulseProps, 
 };
 
 const CoverBassPulse = ({ children, song, isPlaying, enabled }: CoverBassPulseProps) => {
+  const { presentation } = usePlayerPresentation();
   const [scale, setScale] = useState<PulseScale | number>(1);
   // Keep the image's native ancestry unchanged when a neighbour becomes active.
   return <Animated.View style={{ transform: [{ scale }] }} testID="now-playing-cover-bass-pulse">
-    {enabled ? <BassController song={song} isPlaying={isPlaying} onScale={setScale} /> : null}
+    {enabled && !presentation.quiet ? <BassController song={song} isPlaying={isPlaying} onScale={setScale} /> : null}
     {children}
   </Animated.View>;
 };

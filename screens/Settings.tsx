@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
+import PresentationSettings from '../components/PresentationSettings';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import {
@@ -121,12 +122,11 @@ const Settings: React.FC = () => {
         testID="settings-scroll"
         contentContainerStyle={[styles.content, { gap: spacing.md, padding: spacing.md }]}
       >
-        <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}> 
-          Wähle Darstellung, Oberfläche und Player-Ansicht. Cover-Farben dürfen weiterhin Player, Waveform und aktive Elemente akzentuieren.
-        </Text>
+        <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Wähle Darstellung, Bibliotheksdichte und Player-Ansicht. Du bestimmst die Bewegung und den Waveform-Akzent.</Text>
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Wiedergabe</Text>
           <CoverBassPulseSetting /></View>
+        <PresentationSettings />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
           {APP_APPEARANCES.map(renderAppearanceOption)}

@@ -20,6 +20,7 @@ import type {
   LibraryRendererPlaySong,
 } from './libraryRendererTypes';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
+import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 
 interface UseLibrarySongRendererOptions {
   currentSongId: string | null;
@@ -53,6 +54,7 @@ export const useLibrarySongRenderer = ({
   // press handlers and defeat SongCard's React.memo, causing every visible row
   // to re-render even when only playback progress or currentSongId changed.
   const { fontScale } = useWindowDimensions();
+  const { presentation } = usePlayerPresentation();
   const songsById = useMemo(() => new Map(filteredSongs.map(song => [getLibrarySongKey(song), song])), [filteredSongs]);
   const songsByIdRef = useRef(songsById);
   songsByIdRef.current = songsById;
@@ -78,7 +80,7 @@ export const useLibrarySongRenderer = ({
   const songKeyExtractor = useCallback(getLibrarySongKey, []);
 
   const getSongItemLayout = useCallback((data: ArrayLike<Song> | null | undefined, index: number) =>
-    getLibrarySongItemLayout(data, index, fontScale), [fontScale]);
+    getLibrarySongItemLayout(data, index, fontScale, presentation.density), [fontScale, presentation.density]);
 
   const variant = getLibrarySongCardVariant(songViewMode);
 

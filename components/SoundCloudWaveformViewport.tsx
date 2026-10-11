@@ -37,7 +37,7 @@ const WaveformTimeRow = ({ position, duration }: { position: number; duration: n
 );
 
 const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({ waveform,
-  currentPosition, duration, isPlaying, onSeek, accent = SOUNDCLOUD_PLAYER_COLORS.accent,
+  currentPosition, duration, isPlaying, onSeek, accent = SOUNDCLOUD_PLAYER_COLORS.waveformBlue,
   height = 116, interactive = true, ready = true, loading = false, onRetry, showProgress = true, gestureHandlerRef,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
