@@ -41,7 +41,8 @@ const subscribe = (listener: () => void): (() => void) => {
 export const useWaveformPreparation = (): WaveformPreparationState =>
   useSyncExternalStore(subscribe, getWaveformPreparationState, getWaveformPreparationState);
 
-const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> => {
+type PreparationOutcome = 'cached' | 'prepared' | 'failed';
+const prepareSong = async (song: Song, signal: AbortSignal): Promise<PreparationOutcome> => {
   const identity = getWaveformSourceIdentity(song);
   clearWaveformFailure(identity.sourceFingerprint);
   const deadline = Date.now() + WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS;
@@ -49,7 +50,7 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
     throwIfAborted(signal);
     const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(song), signal);
     throwIfAborted(signal);
-    if (cached?.source === 'native') return true;
+    if (cached?.source === 'native') return 'cached';
     let deferred = false;
     const waveform = await extractNativeWaveform(song, song.duration ?? song.audioInfo?.durationMs ?? 0, {
       priority: 'background', signal,
@@ -60,11 +61,11 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
     throwIfAborted(signal);
     if (waveform) {
       await waitForPreparationStorage(() => setCachedWaveform(waveform), signal);
-      return true;
+      return 'prepared';
     }
     if (!deferred) {
       setWaveformStatus(identity.sourceFingerprint, 'unavailable');
-      return false;
+      return 'failed';
     }
     // Visible playback wins. Resume this same source after contention instead
     // of counting a preempted job as a corrupt file or abandoning the batch.
@@ -72,16 +73,17 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<boolean> =>
     await waitForWaveformSchedulerAvailability(signal, 'background', deadline - Date.now());
   }
   setWaveformStatus(identity.sourceFingerprint, 'unavailable');
-  return false;
+  return 'failed';
 };
 
 const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<boolean> => {
   try {
-    const ready = await prepareSong(song, signal);
-    if (ready) void markSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint).catch(error => {
+    const result = await prepareSong(song, signal);
+    // Reusing durable data must not serialize historical completion again.
+    if (result === 'prepared') void markSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint).catch(error => {
       console.warn('[Preparation] Completion could not be persisted.', error);
     });
-    return ready;
+    return result !== 'failed';
   }
   catch (error) {
     if (isAbortError(error) || signal.aborted || error instanceof PreparationStorageError) throw error;
@@ -112,16 +114,10 @@ export const prepareLibraryWaveforms = async (
     // what decides whether a decoder is needed.
     void loadPreparedSources().catch(() => undefined);
     throwIfAborted(controller.signal);
-    // Validate actual durable data once. An old completion marker alone must
-    // never skip a missing/corrupt waveform after restart or eviction.
-    const pendingSongs: Song[] = [];
+    // prepareSong validates durable data once per source. Only real scheduler
+    // contention retries recheck it, because playback may publish that data.
+    // Count checked sources consistently, including already cached waveforms.
     for (const song of songs) {
-      const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(song), controller.signal);
-      throwIfAborted(controller.signal);
-      if (cached?.source !== 'native') pendingSongs.push(song);
-    }
-    publish({ ...idle, status: pendingSongs.length ? 'running' : 'completed', total: pendingSongs.length });
-    for (const song of pendingSongs) {
       throwIfAborted(controller.signal);
       publish({ ...state, currentTitle: song.title, currentFingerprint: getWaveformSourceIdentity(song).sourceFingerprint });
       const ready = await prepareSongSafely(song, controller.signal);

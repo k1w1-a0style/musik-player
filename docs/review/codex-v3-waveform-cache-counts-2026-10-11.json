@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-11",
+  "node": "22.23.3",
+  "baseline_commit": "5b65c654c03465f895052956da86b347108e1f0f",
+  "finding": "F16",
+  "fixture": "Unique songs, empty cache, no scheduler contention, immediate cache/decoder boundary doubles returning null",
+  "metric": "Function call counts; no device timing, CPU or battery claim",
+  "before": [
+    {
+      "scope": "host orchestration with immediate boundary doubles; no device timing claim",
+      "songs": 500,
+      "cacheReads": 1000,
+      "decoderRequests": 500
+    },
+    {
+      "scope": "host orchestration with immediate boundary doubles; no device timing claim",
+      "songs": 2000,
+      "cacheReads": 4000,
+      "decoderRequests": 2000
+    },
+    {
+      "scope": "host orchestration with immediate boundary doubles; no device timing claim",
+      "songs": 5000,
+      "cacheReads": 10000,
+      "decoderRequests": 5000
+    }
+  ],
+  "after": [
+    {
+      "scope": "host orchestration with immediate boundary doubles; no device timing claim",
+      "songs": 500,
+      "cacheReads": 500,
+      "decoderRequests": 500
+    },
+    {
+      "scope": "host orchestration with immediate boundary doubles; no device timing claim",
+      "songs": 2000,
+      "cacheReads": 2000,
+      "decoderRequests": 2000
+    },
+    {
+      "scope": "host orchestration with immediate boundary doubles; no device timing claim",
+      "songs": 5000,
+      "cacheReads": 5000,
+      "decoderRequests": 5000
+    }
+  ]
+}

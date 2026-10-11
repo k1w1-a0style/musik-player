@@ -50,7 +50,7 @@ test('prepares uncached songs once, keeps cached songs, and continues after an u
   const task = prepareLibraryWaveforms([cached, missing, fresh]);
   await jest.advanceTimersByTimeAsync(1000);
   await task;
-  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 2, processed: 2, ready: 1, failed: 1 });
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 3, processed: 3, ready: 2, failed: 1 });
   expect(audio.extractWaveformPeaks.mock.calls.map(call => call[0])).toEqual(['file:///missing.mp3', 'file:///fresh.mp3']);
   expect(getWaveformStatus(getWaveformSourceIdentity(missing).sourceFingerprint)).toBe('unavailable');
   // Survives a fresh JS cache: success is backed by the stored waveform.
@@ -75,7 +75,7 @@ test('cancel preserves completed cache entries and resume skips their decoder wo
   const resumed = resumeWaveformPreparation();
   await jest.advanceTimersByTimeAsync(1000);
   await resumed;
-  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', processed: 1, ready: 1 });
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 2, processed: 2, ready: 2 });
   expect(audio.extractWaveformPeaks.mock.calls.filter(call => call[0] === first.uri)).toHaveLength(1);
 });
 

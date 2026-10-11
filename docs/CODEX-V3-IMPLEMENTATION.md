@@ -78,3 +78,25 @@ Unbekannte `keys`-/UUID-/ID32-/Freeform-Strukturen, mehrere Metadatenlisten, unv
 **Geräteprüfung derzeit blockiert:** Die Limrun-MCP-Verbindung ist vorhanden, die CLI ist jedoch nicht authentifiziert. Der neue APK-Download ist privat; der serverseitige Installationsversuch über den vorhandenen Dateilink scheitert mit HTTP 401. Ältere Limrun-APKs werden deshalb nicht als Nachweis dieses Commits verwendet. Eine Emulator-/A50-Abnahme und die folgenden Funktionspakete bleiben offen.
 
 Primärquellen für Formatgrenzen: [Apple – Metadata atoms and types](https://developer.apple.com/documentation/quicktime-file-format/metadata_atoms_and_types), [FFmpeg – MOV/MP4-Demuxer](https://github.com/FFmpeg/FFmpeg/blob/master/libavformat/mov.c). Die konservative Löschentscheidung ist eine projektspezifische Sicherheitsregel.
+
+## Paket 5: Ein Waveform-Cache-Durchlauf (F16)
+
+Ausgangspunkt: `5b65c654c03465f895052956da86b347108e1f0f`. Keine Cacheformat- oder Bibliotheksmigration.
+
+Die vorbereitende Prüfung aller Songs und die anschließende identische Prüfung jedes fehlenden Songs sind zusammengeführt. Jeder Song prüft seine tatsächlichen Cache-Daten direkt vor einer nötigen Analyse. Nur nach echter Scheduler-Konkurrenz wird erneut geprüft, da die sichtbare Wiedergabe die Waveform inzwischen erstellt haben kann. Vorhandene Budgets, serialisierte Analyse, Abbruch, Timeout, native Prioritäten und die Prüfung tatsächlich gespeicherter Payloads bleiben erhalten. Cachetreffer verursachen keinen neuen Completion-History-Write.
+
+Die Fortschrittsanzeige zählt jetzt alle geprüften Quellen einschließlich Cachetreffern: `processed / total`, `ready` umfasst bestehende und neue native Waveforms. Die Summe schrumpft nicht nach einem vorgeschalteten Gesamtdurchlauf. Beim Wiederaufnehmen werden bestehende Waveforms gezählt und ihre Decoderarbeit übersprungen.
+
+**Vergleichbare Messung unter Node 22.23.3:** derselbe ungestörte Batch mit sofortigen Cache-/Decoder-Doubles, kein Gerätetiming. Drei korrekte Begrenzungstests scheiterten vorher mit genau doppelt so vielen Cache-Aufrufen.
+
+| Songs | Cache-Aufrufe vorher | Cache-Aufrufe nachher | Decoder-Anfragen vorher/nachher |
+| ---: | ---: | ---: | ---: |
+| 500 | 1.000 | 500 | 500 / 500 |
+| 2.000 | 4.000 | 2.000 | 2.000 / 2.000 |
+| 5.000 | 10.000 | 5.000 | 5.000 / 5.000 |
+
+Damit sind 50 % weniger Cache-Funktionsaufrufe in diesem Fall belegt, kein halbierter Scan und kein CPU-/Akkuprozentwert. Die Decoder-Doubles liefern hier bewusst kein Ergebnis; Cachehits und echte Contention werden separat geprüft. Rohzähler mit Methodik stehen in `docs/review/codex-v3-waveform-cache-counts-2026-10-11.json`.
+
+**Prüfung:** 378 Suiten / 3.777 Tests unter Node 22 bestanden; Coverage 93,53 % Statements / 85,61 % Branches / 95,34 % Functions / 95,97 % Lines. Typecheck, Lint ohne Warnungen und Komplexität bestehen. Die drei ursprünglichen Counterregressionen, Cachehit ohne Decoder/Historywrite und erneute Cacheprüfung nach Contention bestehen. Bestehende Speichertimeout-, Abbruch-, Decoderfehler- und Resumeprüfungen bestehen im Gesamtlauf. Gerätewerte bleiben offen.
+
+Der frische Produktions-Hermes-Export besteht die Dependency-Boundary mit 1.611 Quellen; ein anschließend separat erzeugtes Androidprojekt besteht die Manifestpolicy. Keine Dependency-/Scriptänderungen wurden dabei in den Commit übernommen. Die APK zu `9f450f4` bleibt ein Buildnachweis des früheren Scan-Pakets und enthält diesen Fix noch nicht.
