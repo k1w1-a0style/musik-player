@@ -38,6 +38,10 @@ internal class ArtworkThumbnailCache(
         // Do not publish a variant from a source replaced during decoding.
         val currentStamp = "${source.canonicalPath}|${source.length()}|${source.lastModified()}|$revision"
         if (sourceStamp != currentStamp || !validThumbnail(temporary, size)) return@synchronized null
+        // Never grow beyond the budget just because every recent variant is
+        // inside its handoff grace. The caller retains the original fallback.
+        trim(destination, now(), temporary.length())
+        if (!canAdmit(destination, temporary.length())) return@synchronized null
         atomicReplace(temporary, destination)
       } finally {
         thumbnail.recycle()
@@ -77,20 +81,27 @@ internal class ArtworkThumbnailCache(
     return bounds.outWidth in 1..size && bounds.outHeight in 1..size
   }
 
-  private fun trim(returned: File, accessTime: Long) {
+  private fun trim(returned: File, accessTime: Long, reserveBytes: Long = 0L) {
     val entries = directory.listFiles()?.filter { it.isFile } ?: return
     entries.filter { it.name.startsWith(".thumbnail-") && accessTime - it.lastModified() > 60_000L }
       .forEach { it.delete() }
     val images = entries.filter { NAME.matches(it.name) }.sortedByDescending { it.lastModified() }
-    val protected = images.filter { it == returned || accessTime - it.lastModified() <= 60_000L }.toSet()
-    var count = protected.size
-    var bytes = protected.sumOf { it.length() }
-    images.filterNot { it in protected }.forEach {
+    val protected = images.filter { (it == returned && reserveBytes == 0L) ||
+      (it != returned && accessTime - it.lastModified() <= 60_000L) }.toSet()
+    var count = protected.size + if (reserveBytes > 0L) 1 else 0
+    var bytes = protected.sumOf { it.length() } + reserveBytes
+    if (reserveBytes > 0L) returned.delete()
+    images.filterNot { it in protected || (reserveBytes > 0L && it == returned) }.forEach {
       if (count < maxFiles && bytes + it.length() <= maxBytes) {
         count += 1
         bytes += it.length()
       } else it.delete()
     }
+  }
+
+  private fun canAdmit(destination: File, bytes: Long): Boolean {
+    val images = directory.listFiles()?.filter { it.isFile && NAME.matches(it.name) && it != destination } ?: emptyList()
+    return images.size < maxFiles && images.sumOf { it.length() } + bytes <= maxBytes
   }
 
   companion object {

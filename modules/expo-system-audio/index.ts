@@ -38,6 +38,11 @@ export type EmbeddedArtworkInspection =
   | { checked: true; artwork: EmbeddedArtworkResult | null }
   | { checked: false; artwork: null };
 
+export interface ImportSnapshot {
+  audioInfo: AudioInfoResult | null;
+  artwork: EmbeddedArtworkInspection;
+}
+
 export interface AudioTagWriteRequest {
   operationId?: string;
   tags?: Record<string, string | null | undefined>;
@@ -173,6 +178,7 @@ declare class ExpoSystemAudioModule extends NativeModule {
   extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null>;
   releaseEmbeddedArtworkLease?(leaseId: string): Promise<boolean>;
   extractAudioInfo(uri: string): Promise<AudioInfoResult | null>;
+  extractImportSnapshot?(uri: string, includeArtwork: boolean): Promise<ImportSnapshot>;
   readImportFileStat?(uri: string): Promise<ImportFileStat | null>;
   extractMetadataFast?(uri: string): Promise<FastMetadataResult | null>;
   writeAudioTags?(uri: string, request: AudioTagWriteRequest): Promise<AudioTagWriteResult>;
@@ -389,6 +395,19 @@ export const SystemAudio = {
 
   async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {
     return native ? runBoundedNativeRead(() => native.extractAudioInfo(uri)) : null;
+  },
+
+  /** Null means an older APK; failed or skipped work remains explicitly unchecked. */
+  async extractImportSnapshot(uri: string, includeArtwork: boolean): Promise<ImportSnapshot | null> {
+    const read = native?.extractImportSnapshot?.bind(native);
+    if (!read) return null;
+    try {
+      return await runBoundedNativeRead(() => read(uri, includeArtwork),
+        value => { void releaseNativeArtworkLease(value.artwork?.artwork?.leaseId); })
+        ?? { audioInfo: null, artwork: { checked: false, artwork: null } };
+    } catch {
+      return { audioInfo: null, artwork: { checked: false, artwork: null } };
+    }
   },
 
   async readImportFileStat(uri: string): Promise<ImportFileStat | null> {

@@ -82,3 +82,38 @@ test('releases exactly once when native completion shares the timeout tick', asy
   expect(release).toHaveBeenCalledTimes(1);
   expect(release).toHaveBeenCalledWith('owned-lease');
 });
+
+test('combined import snapshot keeps the consumer lease and supports older APKs', async () => {
+  const release = jest.fn().mockResolvedValue(true);
+  const snapshot = { audioInfo: { durationMs: 1000 }, artwork: { checked: true, artwork } };
+  const read = jest.fn().mockResolvedValue(snapshot);
+  const module = loadModule({ extractImportSnapshot: read, releaseEmbeddedArtworkLease: release });
+  await expect(module.extractImportSnapshot('content://one.mp3', true)).resolves.toEqual(snapshot);
+  expect(read).toHaveBeenCalledWith('content://one.mp3', true);
+  expect(release).not.toHaveBeenCalled();
+  const older = loadModule({ extractAudioInfo: jest.fn() });
+  await expect(older.extractImportSnapshot('content://one.mp3', true)).resolves.toBeNull();
+});
+
+test('combined snapshot reclaims a late discarded receipt and never confirms absence on timeout', async () => {
+  jest.useFakeTimers();
+  let complete!: (value: unknown) => void;
+  const release = jest.fn().mockResolvedValue(true);
+  const read = jest.fn(() => new Promise(resolve => { complete = resolve; }));
+  const module = loadModule({ extractImportSnapshot: read, releaseEmbeddedArtworkLease: release });
+  const pending = module.extractImportSnapshot('content://one.mp3', true);
+  await jest.advanceTimersByTimeAsync(20_000);
+  await expect(pending).resolves.toEqual({ audioInfo: null, artwork: { checked: false, artwork: null } });
+  expect(release).not.toHaveBeenCalled();
+  complete({ audioInfo: null, artwork: { checked: true, artwork } });
+  await jest.advanceTimersByTimeAsync(0);
+  expect(release).toHaveBeenCalledTimes(1);
+  expect(release).toHaveBeenCalledWith(artwork.leaseId);
+});
+
+test('combined native rejection remains retryable and unchecked', async () => {
+  const module = loadModule({ extractImportSnapshot: jest.fn().mockRejectedValue(new Error('provider failed')) });
+  await expect(module.extractImportSnapshot('content://one.mp3', true)).resolves.toEqual({
+    audioInfo: null, artwork: { checked: false, artwork: null },
+  });
+});

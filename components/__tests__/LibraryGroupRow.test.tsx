@@ -2,6 +2,8 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryGroupRow from '../LibraryGroupRow';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
+import { useArtworkThumbnail } from '../../hooks/useArtworkThumbnail';
+jest.mock('../../hooks/useArtworkThumbnail', () => ({ useArtworkThumbnail: jest.fn((uri?: string) => uri) }));
 const mockAppTheme = {
   palette: {
     surfaceGlass: 'rgba(18, 20, 26, 0.76)',
@@ -65,4 +67,19 @@ test('calls onPress with group', () => {
   fireEvent.press(getByTestId('library-group-row-press-me'));
 
   expect(onPress).toHaveBeenCalledWith(item);
+});
+
+test('a broken thumbnail falls back to the original, then a letter; changing cover resets errors', () => {
+  (useArtworkThumbnail as jest.Mock).mockReturnValue('file:///cache/thumb.png');
+  const first = group({ id: 'covered', cover: 'file:///original.jpg' });
+  const screen = render(<LibraryGroupRow group={first} onPress={jest.fn()} />);
+  expect(useArtworkThumbnail).toHaveBeenCalledWith(first.cover, 128);
+  expect(screen.getByTestId('library-group-cover-covered').props.source.uri).toBe('file:///cache/thumb.png');
+  fireEvent(screen.getByTestId('library-group-cover-covered'), 'error');
+  expect(screen.getByTestId('library-group-cover-covered').props.source.uri).toBe(first.cover);
+  fireEvent(screen.getByTestId('library-group-cover-covered'), 'error');
+  expect(screen.queryByTestId('library-group-cover-covered')).toBeNull();
+  expect(screen.getByText('T')).toBeTruthy();
+  screen.rerender(<LibraryGroupRow group={group({ id: 'covered', cover: 'file:///new.jpg' })} onPress={jest.fn()} />);
+  expect(screen.getByTestId('library-group-cover-covered').props.source.uri).toBe('file:///cache/thumb.png');
 });

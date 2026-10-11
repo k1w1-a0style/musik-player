@@ -116,6 +116,7 @@ interface BuildSongOptions {
   loadNativeCover?: boolean;
   signal?: AbortSignal;
   coverCacheProtection?: CoverCacheProtection;
+  nativeArtworkInspection?: EmbeddedArtworkInspection;
 }
 
 interface ImportEnrichmentOptions extends BuildSongOptions {
@@ -307,7 +308,8 @@ const readImportArtwork = async (source: BuildSongSource, cover: string | undefi
   const cachedCover = await cacheBase64Cover(source.id, cover, options.coverCacheProtection);
   throwIfAborted(options.signal);
   const parsedCover = cachedCover ?? (cover && !isBase64ImageDataUri(cover) ? cover : undefined);
-  const inspection = parsedCover || options.loadNativeCover === false ? null : await inspectEmbeddedArtwork(source.uri);
+  const inspection = parsedCover || options.loadNativeCover === false ? null
+    : options.nativeArtworkInspection ?? await inspectEmbeddedArtwork(source.uri);
   const nativeArtwork = inspection?.artwork;
   try {
     throwIfAborted(options.signal);
@@ -322,7 +324,24 @@ const readImportArtwork = async (source: BuildSongSource, cover: string | undefi
       && artworkInspectionCompleted(parsedCover, inspection, permanentCover);
     return { cover: artwork, status, embeddedArtworkChecked } as const;
   } finally {
-    if (nativeArtwork?.leaseId) void SystemAudio.releaseEmbeddedArtworkLease(nativeArtwork.leaseId);
+    if (nativeArtwork?.leaseId && !options.nativeArtworkInspection) void SystemAudio.releaseEmbeddedArtworkLease(nativeArtwork.leaseId);
+  }
+};
+
+const buildSongWithNativeSnapshot = async (source: BuildSongSource, tags: Id3Tags,
+  options: BuildSongOptions): Promise<Song> => {
+  const includeArtwork = options.loadNativeCover !== false && !tags.cover;
+  const snapshot = typeof SystemAudio.extractImportSnapshot === 'function'
+    ? await SystemAudio.extractImportSnapshot(source.uri, includeArtwork) : null;
+  try {
+    throwIfAborted(options.signal);
+    const audio = snapshot ? snapshot.audioInfo : await getNativeAudioInfo(source.uri);
+    throwIfAborted(options.signal);
+    return await buildSongFromImportSource(mergeAudioInfoIntoSource(source, audio), tags,
+      { ...options, nativeArtworkInspection: includeArtwork ? snapshot?.artwork : undefined });
+  } finally {
+    const lease = snapshot?.artwork.artwork?.leaseId;
+    if (lease) void SystemAudio.releaseEmbeddedArtworkLease(lease);
   }
 };
 
@@ -799,9 +818,7 @@ export const enrichMediaLibraryAssets = async (
         extension: assetExtension,
       });
       throwIfAborted(childSignal);
-      const audioInfo = await getNativeAudioInfo(asset.uri);
-      throwIfAborted(childSignal);
-      const imported = await buildSongFromImportSource(mergeAudioInfoIntoSource({
+      const imported = await buildSongWithNativeSnapshot({
         id: asset.id,
         uri: asset.uri,
         filename: asset.filename,
@@ -809,7 +826,7 @@ export const enrichMediaLibraryAssets = async (
         mimeType: assetMimeType,
         ...revision,
         source: 'media-library',
-      }, audioInfo), tags, { loadNativeCover, signal: childSignal, coverCacheProtection: options.coverCacheProtection });
+      }, tags, { loadNativeCover, signal: childSignal, coverCacheProtection: options.coverCacheProtection });
       throwIfAborted(childSignal);
       const previous = selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id);
       const song = preserveImportedSource(imported, previous,
@@ -848,9 +865,7 @@ export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}
 };
 
 const buildSafSong = async (uri: string, tags: Id3Tags, options: SafImportOptions): Promise<Song> => {
-  const audioInfo = await getNativeAudioInfo(uri);
-  throwIfAborted(options.signal);
-  return buildSongFromImportSource(mergeAudioInfoIntoSource({ id: uri, uri, source: 'saf' }, audioInfo),
+  return buildSongWithNativeSnapshot({ id: uri, uri, source: 'saf' },
     tags, { loadNativeCover: options.loadNativeCover ?? true, signal: options.signal, coverCacheProtection: options.coverCacheProtection });
 };
 

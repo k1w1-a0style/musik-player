@@ -78,4 +78,33 @@ class ArtworkThumbnailCacheTest {
     assertTrue(second.exists())
     assertTrue(original.exists())
   }
+
+  @Test fun burstCannotGrowBudgetWhileRecentFilesRetainHandoffGrace() {
+    val directory = temporary.newFolder()
+    var time = 1000L
+    val cache = cache(directory, { time }, maxFiles = 3)
+    val original = source()
+    val accepted = (1..3).map { cache.get(original, 128, it.toString())!! }
+    assertNull(cache.get(original, 128, "four"))
+    assertNull(cache.get(original, 128, "five"))
+    assertEquals(3, directory.listFiles()!!.count { it.extension == "png" })
+    assertTrue(accepted.all { it.exists() })
+    assertTrue(original.exists())
+    assertFalse(directory.listFiles()!!.any { it.extension == "tmp" })
+    time += 61_000
+    assertNotNull(cache.get(original, 128, "four"))
+    assertEquals(3, directory.listFiles()!!.count { it.extension == "png" })
+  }
+
+  @Test fun rejectedByteBudgetRemovesTemporaryAndPreservesSource() {
+    val directory = temporary.newFolder()
+    val original = source()
+    val bytes = original.readBytes()
+    val cache = ArtworkThumbnailCache(directory, { from, to ->
+      Files.move(from.toPath(), to.toPath(), StandardCopyOption.ATOMIC_MOVE)
+    }, maxBytes = 1L)
+    assertNull(cache.get(original, 128, ""))
+    assertEquals(0, directory.listFiles()!!.size)
+    assertArrayEquals(bytes, original.readBytes())
+  }
 }

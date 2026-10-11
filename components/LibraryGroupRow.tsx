@@ -4,6 +4,7 @@ import { Play } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
+import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 
 interface LibraryGroupRowProps {
   group: LibraryGroupItem;
@@ -13,10 +14,14 @@ interface LibraryGroupRowProps {
 const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPress }) => {
   const { theme } = useAppTheme();
   const [coverFailed, setCoverFailed] = useState(false);
-  const coverSource = useMemo(() => group.cover ? { uri: group.cover } : null, [group.cover]);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const thumbnailUri = useArtworkThumbnail(group.cover, 128);
+  const displayUri = thumbnailFailed ? group.cover : thumbnailUri;
+  const coverSource = useMemo(() => displayUri ? { uri: displayUri } : null, [displayUri]);
 
   useEffect(() => {
     setCoverFailed(false);
+    setThumbnailFailed(false);
   }, [group.cover, group.id]);
 
   const handlePress = useCallback(() => {
@@ -24,8 +29,9 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
   }, [group, onPress]);
 
   const handleCoverError = useCallback(() => {
-    setCoverFailed(true);
-  }, []);
+    if (displayUri !== group.cover) setThumbnailFailed(true);
+    else setCoverFailed(true);
+  }, [displayUri, group.cover]);
 
   const showCover = coverSource !== null && !coverFailed;
 

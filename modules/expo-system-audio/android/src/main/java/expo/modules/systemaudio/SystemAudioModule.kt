@@ -157,6 +157,10 @@ class SystemAudioModule : Module() {
       submitNativeRead(mediaReadExecutor, promise) { extractAudioInfo(uri) }
     }.runOnQueue(Queues.MAIN)
 
+    AsyncFunction("extractImportSnapshot") { uri: String, includeArtwork: Boolean, promise: Promise ->
+      submitNativeRead(mediaReadExecutor, promise) { extractImportSnapshot(uri, includeArtwork) }
+    }.runOnQueue(Queues.MAIN)
+
     AsyncFunction("readImportFileStat") { uri: String, promise: Promise ->
       submitNativeRead(importStatExecutor, promise) {
         val resolver = appContext.reactContext?.contentResolver ?: return@submitNativeRead null
@@ -540,6 +544,15 @@ class SystemAudioModule : Module() {
   }
 
   private fun extractAudioInfo(uri: String): Map<String, Any?>? {
+    val result = readSourceAudioInfo(uri)
+    readRetrieverInfo(uri)?.let { info ->
+      info.durationMs?.let { result["durationMs"] = it }
+      info.bitrateBps?.let { result["bitrateBps"] = it }
+    }
+    return result.ifEmpty { null }
+  }
+
+  private fun readSourceAudioInfo(uri: String): MutableMap<String, Any?> {
     val result = mutableMapOf<String, Any?>()
     readOpenableInfo(uri)?.let { info ->
       info.sizeBytes?.let { result["sizeBytes"] = it }
@@ -547,16 +560,37 @@ class SystemAudioModule : Module() {
     }
     fileSizeForUri(uri)?.let { result.putIfAbsent("sizeBytes", it) }
     mimeTypeForUri(uri)?.let { result["mimeType"] = it }
-    readRetrieverInfo(uri)?.let { info ->
-      info.durationMs?.let { result["durationMs"] = it }
-      info.bitrateBps?.let { result["bitrateBps"] = it }
-    }
     readExtractorInfo(uri)?.let { info ->
       info.sampleRateHz?.let { result["sampleRateHz"] = it }
       info.channels?.let { result["channels"] = it }
       info.mimeType?.let { result.putIfAbsent("mimeType", it) }
     }
-    return result.ifEmpty { null }
+    return result
+  }
+
+  private fun extractImportSnapshot(uri: String, includeArtwork: Boolean): Map<String, Any?> {
+    val audio = readSourceAudioInfo(uri)
+    val snapshot = readImportRetrieverSnapshot<MediaMetadataRetriever, RetrieverInfo, Map<String, Any?>>(
+      open = { MediaMetadataRetriever() },
+      configure = { configureDataSource(it, uri) },
+      readAudio = { readRetrieverFields(it) },
+      readArtwork = if (includeArtwork) ({ retriever ->
+        retriever.embeddedPicture?.let { stageImportArtwork(it) }
+      }) else null,
+      release = { try { it.release() } catch (_: Throwable) {} },
+    )
+    snapshot.audio?.durationMs?.let { audio["durationMs"] = it }
+    snapshot.audio?.bitrateBps?.let { audio["bitrateBps"] = it }
+    return mapOf("audioInfo" to audio.ifEmpty { null },
+      "artwork" to mapOf("checked" to snapshot.artworkChecked, "artwork" to snapshot.artwork))
+  }
+
+  private fun stageImportArtwork(bytes: ByteArray): Map<String, Any?> {
+    check(bytes.size.toLong() <= MAX_EMBEDDED_ARTWORK_BYTES) { "Embedded artwork exceeds the staging budget" }
+    val mime = checkNotNull(detectImageMime(bytes)) { "Unsupported embedded image" }
+    val entry = checkNotNull(cacheArtworkBytes(bytes, extensionForMime(mime))) { "Embedded artwork staging failed" }
+    return mapOf("uri" to Uri.fromFile(entry.file).toString(), "mimeType" to mime,
+      "byteLength" to bytes.size, "leaseId" to entry.leaseId)
   }
 
   /**
@@ -649,17 +683,16 @@ class SystemAudioModule : Module() {
     val retriever = MediaMetadataRetriever()
     return try {
       if (!configureDataSource(retriever, uri)) return null
-      val duration = readPositiveLongMetadata {
-        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-      }
-      val bitrate = readPositiveLongMetadata {
-        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
-      }
-      RetrieverInfo(duration, bitrate)
+      readRetrieverFields(retriever)
     } finally {
       try { retriever.release() } catch (_: Throwable) {}
     }
   }
+
+  private fun readRetrieverFields(retriever: MediaMetadataRetriever): RetrieverInfo = RetrieverInfo(
+    readPositiveLongMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION) },
+    readPositiveLongMetadata { retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE) },
+  )
 
   private fun readExtractorInfo(uri: String): ExtractorInfo? {
     val ctx = appContext.reactContext ?: return null
