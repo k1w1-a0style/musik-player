@@ -683,3 +683,55 @@ describe('parseId3FromUri', () => {
     warnSpy.mockRestore();
   });
 });
+
+describe('authoritative metadata inspection', () => {
+  const emptyMp3 = (): Uint8Array => {
+    const bytes = new Uint8Array(2048);
+    bytes.set([73, 68, 51, 3, 0, 0, 0, 0, 0, 0]);
+    bytes.set([255, 251, 144, 0], 10);
+    bytes.set([255, 251, 144, 0], 427);
+    return bytes;
+  };
+  beforeEach(() => {
+    mockReadAsStringAsync.mockReset(); mockGetInfoAsync.mockReset(); mockFileBytes.mockReset(); mockOpen.mockReset();
+  });
+  const readBytes = (bytes: Uint8Array) => {
+    mockGetInfoAsync.mockResolvedValue({ exists: true, size: bytes.length });
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => Buffer.from(
+      bytes.subarray(options.position ?? 0, (options.position ?? 0) + options.length),
+    ).toString('base64'));
+  };
+  test('successful head and tail inspection emits an explicit removal receipt', async () => {
+    readBytes(emptyMp3());
+    const tags = await parseId3FromUri('content://provider/document/one', { inspectMissingFields: true, maxHeadBytes: 1024 });
+    expect(tags.metadataInspection?.absentFields).toEqual(['album', 'albumArtist', 'year', 'genre', 'trackNumber', 'discNumber', 'comment', 'cover']);
+    expect(mockReadAsStringAsync).toHaveBeenCalledWith('content://provider/document/one', { encoding: 'base64', length: 512, position: 1536 });
+  });
+  test('tail read failure cannot confirm removed metadata', async () => {
+    readBytes(emptyMp3());
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => {
+      if (options.position !== undefined) throw new Error('provider revoked');
+      return Buffer.from(emptyMp3().subarray(0, options.length)).toString('base64');
+    });
+    expect((await parseId3FromUri('file:///one.mp3', { inspectMissingFields: true, maxHeadBytes: 1024 })).metadataInspection).toBeUndefined();
+  });
+  test('ID3v1 tail metadata retains unknown fields instead of declaring absence', async () => {
+    const bytes = emptyMp3(); bytes.set([84, 65, 71], bytes.length - 128); readBytes(bytes);
+    expect((await parseId3FromUri('file:///one.mp3', { inspectMissingFields: true })).metadataInspection).toBeUndefined();
+  });
+  test('File API fallback emits the same receipt after bounded reads', async () => {
+    const bytes = emptyMp3(); readBytes(bytes);
+    mockReadAsStringAsync.mockRejectedValue(new Error('legacy unsupported'));
+    mockFileBytes.mockResolvedValue(bytes);
+    expect((await parseId3FromUri('file:///one.mp3', { inspectMissingFields: true })).metadataInspection?.absentFields).toContain('album');
+  });
+  test('cancellation while inspecting the tail remains cancellation', async () => {
+    const controller = new AbortController(); readBytes(emptyMp3());
+    mockReadAsStringAsync.mockImplementation(async (_uri, options) => {
+      if (options.position !== undefined) controller.abort(new Error('cancelled inspection'));
+      return Buffer.from(emptyMp3().subarray(options.position ?? 0, (options.position ?? 0) + options.length)).toString('base64');
+    });
+    await expect(parseId3FromUri('file:///one.mp3', { inspectMissingFields: true, maxHeadBytes: 1024, signal: controller.signal }))
+      .rejects.toThrow('cancelled inspection');
+  });
+});

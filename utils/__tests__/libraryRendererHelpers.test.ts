@@ -33,7 +33,7 @@ describe('libraryRendererHelpers', () => {
   });
 
   test('builds stable keys for songs with missing ids', () => {
-    expect(getLibrarySongKey({ ...song, id: '', uri: 'file:///Music/Track.mp3' })).toBe('song-uri:file:///music/track.mp3');
+    expect(getLibrarySongKey({ ...song, id: '', uri: 'file:///Music/Track.mp3' })).toBe('song-uri:file:///Music/Track.mp3');
     expect(getLibrarySongKey({ ...song, id: '', uri: undefined, title: '  Title ', artist: ' artist ', duration: 10 })).toBe('song-meta:artist:title:10');
   });
 

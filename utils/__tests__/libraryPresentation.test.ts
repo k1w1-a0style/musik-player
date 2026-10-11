@@ -63,7 +63,7 @@ test('mergeSongs dedupes by uri and keeps newest imported fields', () => {
   expect(merged[0]).toMatchObject({ id: 'new', title: 'New', artist: 'B', album: 'Album' });
 });
 
-test('mergeSongs dedupes by normalized uri variants and imported song wins', () => {
+test('mergeSongs dedupes a file URI cache token while preserving path case', () => {
   const existing = song({
     id: 'old',
     title: 'Old',
@@ -74,13 +74,13 @@ test('mergeSongs dedupes by normalized uri variants and imported song wins', () 
     id: 'new',
     title: 'Fresh',
     artist: 'B',
-    uri: 'file:///music/track.mp3',
+    uri: 'file:///Music/Track.mp3',
   });
 
   expect(mergeSongs([existing], [imported])).toEqual([{ ...existing, ...imported }]);
 });
 
-test('mergeSongs collapses a transitive alias bridge into one canonical song', () => {
+test('mergeSongs does not bridge independent sources through matching file hints', () => {
   const existingByUri = song({
     id: 'uri-match',
     title: 'URI match',
@@ -104,8 +104,8 @@ test('mergeSongs collapses a transitive alias bridge into one canonical song', (
 
   const merged = mergeSongs([existingByUri, existingByFingerprint], [bridge]);
 
-  expect(merged).toHaveLength(1);
-  expect(merged[0]).toMatchObject({ id: 'bridge', title: 'Canonical bridge' });
+  expect(merged).toHaveLength(2);
+  expect(merged.map(item => item.id)).toEqual(['bridge', 'fingerprint-match']);
 });
 
 
@@ -131,7 +131,7 @@ test('mergeSongs preserves rich metadata when SAF re-import provides placeholder
     id: 'new',
     title: 'Track',
     artist: 'Artist',
-    uri: 'content://tree/music/track.mp3?fresh=1',
+    uri: 'content://tree/music/track.mp3',
     cover: undefined,
     coverInfo: { status: 'unknown' },
     duration: undefined,
@@ -141,13 +141,13 @@ test('mergeSongs preserves rich metadata when SAF re-import provides placeholder
     year: '',
     trackNumber: '',
     discNumber: '',
-    fileInfo: { uri: 'content://tree/music/track.mp3?fresh=1', filename: 'track-renamed.mp3', size: undefined, source: 'saf', importedAt: 10 },
+    fileInfo: { uri: 'content://tree/music/track.mp3', filename: 'track-renamed.mp3', size: undefined, source: 'saf', importedAt: 10 },
     audioInfo: { bitrate: undefined, sampleRate: undefined, channels: undefined },
   });
 
   expect(mergeSongs([existing], [imported])[0]).toMatchObject({
     id: 'new',
-    uri: 'content://tree/music/track.mp3?fresh=1',
+    uri: 'content://tree/music/track.mp3',
     cover: 'file:///covers/track.jpg',
     coverInfo: existing.coverInfo,
     duration: 123,
@@ -157,7 +157,7 @@ test('mergeSongs preserves rich metadata when SAF re-import provides placeholder
     year: '2024',
     trackNumber: '2',
     discNumber: '1',
-    fileInfo: { uri: 'content://tree/music/track.mp3?fresh=1', filename: 'track-renamed.mp3', size: 456, source: 'saf', importedAt: 10 },
+    fileInfo: { uri: 'content://tree/music/track.mp3', filename: 'track-renamed.mp3', size: 456, source: 'saf', importedAt: 10 },
     audioInfo: { bitrate: 320000, sampleRate: 44100, channels: 2 },
   });
 });
@@ -171,7 +171,7 @@ test('mergeSongs dedupes by id when uri is missing', () => {
   expect(merged).toEqual([song({ id: 'same', title: 'New', artist: 'B', album: 'Album' })]);
 });
 
-test('mergeSongs dedupes by stable file fingerprint when uri representation changed', () => {
+test('mergeSongs preserves separate provider and file sources without a proven alias', () => {
   const merged = mergeSongs(
     [song({
       id: 'old',
@@ -192,8 +192,9 @@ test('mergeSongs dedupes by stable file fingerprint when uri representation chan
     })],
   );
 
-  expect(merged).toHaveLength(1);
+  expect(merged).toHaveLength(2);
   expect(merged[0]).toMatchObject({ id: 'new', title: 'New', artist: 'B', album: 'Album' });
+  expect(merged[1].id).toBe('old');
 });
 
 test('mergeSongs sorts distinct entries by title', () => {
@@ -303,28 +304,28 @@ test('placeholder album values share the unknown album group key and label', () 
   expect(unknownGroups).toHaveLength(1);
   expect(unknownGroups[0].id).toBe('album:unknown-album');
   expect(unknownGroups[0].songs.map(item => item.id).sort()).toEqual(['angle', 'missing', 'null', 'undefined', 'unknown']);
-  expect(groups.find(group => group.title === 'Real Album')?.id).toBe('album:real album');
+  expect(groups.find(group => group.title === 'Real Album')?.id).toBe('album:real album::artist');
 });
 
-test('album keys merge equal album names despite varying track artists', () => {
+test('compilations share their explicit albumArtist despite varying track artists', () => {
   const groups = groupSongs([
-    song({ id: 'a', artist: 'Artist A', title: 'A Song', album: 'Greatest Hits' }),
-    song({ id: 'b', artist: 'Artist B', title: 'B Song', album: 'Greatest Hits' }),
+    song({ id: 'a', artist: 'Artist A', albumArtist: 'Various Artists', title: 'A Song', album: 'Greatest Hits' }),
+    song({ id: 'b', artist: 'Artist B', albumArtist: 'Various Artists', title: 'B Song', album: 'Greatest Hits' }),
   ], 'album');
 
   expect(groups).toHaveLength(1);
-  expect(groups[0].id).toBe('album:greatest hits');
+  expect(groups[0].id).toBe('album:greatest hits::various artists');
   expect(groups[0].subtitle).toBe('Artist A, Artist B • 2 Titel');
 });
 
 test('album keys are stable for matching album despite case and whitespace', () => {
   const groups = groupSongs([
     song({ id: 'a', artist: '  Artist A ', album: ' Greatest   Hits ' }),
-    song({ id: 'b', artist: 'artist b', album: 'greatest hits' }),
+    song({ id: 'b', artist: 'artist a', album: 'greatest hits' }),
   ], 'album');
 
   expect(groups).toHaveLength(1);
-  expect(groups[0].id).toBe('album:greatest hits');
+  expect(groups[0].id).toBe('album:greatest hits::artist a');
 });
 
 test('missing album uses stable unknown key part', () => {
@@ -336,4 +337,15 @@ test('missing album uses stable unknown key part', () => {
   expect(normalizeAlbumName('unknown')).toBe('unknown-album');
   expect(normalizeArtistName(undefined)).toBe('unknown-artist');
   expect(normalizeArtistName('unknown')).toBe('unknown-artist');
+});
+
+test('an explicit albumArtist does not absorb an unrelated same-name album', () => {
+  const collection = [song({ id: 'a', artist: 'A', albumArtist: 'A', album: 'Hits' }),
+    song({ id: 'b', artist: 'B', album: 'Hits' })];
+  expect(groupSongs(collection, 'album').map(group => group.id)).toEqual(['album:hits::a', 'album:hits::b']);
+});
+test('missing albumArtist inference for the same track artist remains stable under search', () => {
+  const collection = [song({ id: 'a', artist: 'A', albumArtist: 'Compilation', album: 'Hits' }),
+    song({ id: 'b', artist: 'A', album: 'Hits' })];
+  expect(groupSongs([collection[1]], 'album', collection)[0].id).toBe(groupSongs(collection, 'album')[0].id);
 });

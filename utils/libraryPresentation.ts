@@ -4,6 +4,8 @@ import type { ScanFolder } from '../types/ScanFolder';
 import { deriveFolderNameFromUri } from './mediaLibraryImport';
 import { normalizeMetadataText, resolveDisplayAlbum, resolveDisplayArtist, resolveDisplayTitle } from './musicParser';
 import { getSongArtworkUri } from './songArtwork';
+import { getSongSourceKey } from './songSourceIdentity';
+import { compareAlbumTracks } from './albumTrackOrder';
 
 export type LibraryGroupKind = 'album' | 'artist' | 'genre';
 
@@ -30,14 +32,6 @@ const basename = (value?: string): string => {
 };
 
 const stripExtension = (value: string): string => value.replace(/\.[^.]+$/, '');
-
-const decodeUriSafely = (value: string): string => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
 
 export const normalizeLibraryText = (value?: string | null): string =>
   (value ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
@@ -66,9 +60,11 @@ const buildAlbumGroupingKeyResolver = (songs: Song[]): ((song: Song) => string) 
     if (albumPart === UNKNOWN_ALBUM_KEY) continue;
     const albumArtistNorm = normalizeMetadataText(song.albumArtist)?.toLocaleLowerCase('de-DE');
     if (!albumArtistNorm) continue;
-    const knownArtists = knownAlbumArtistsByAlbum.get(albumPart);
+    const artistPart = normalizeArtistName(song.artist);
+    const identity = `${albumPart}::${artistPart}`;
+    const knownArtists = knownAlbumArtistsByAlbum.get(identity);
     if (knownArtists) knownArtists.add(albumArtistNorm);
-    else knownAlbumArtistsByAlbum.set(albumPart, new Set([albumArtistNorm]));
+    else knownAlbumArtistsByAlbum.set(identity, new Set([albumArtistNorm]));
   }
 
   return song => {
@@ -79,33 +75,17 @@ const buildAlbumGroupingKeyResolver = (songs: Song[]): ((song: Song) => string) 
     const albumArtistNorm = normalizeMetadataText(song.albumArtist)?.toLocaleLowerCase('de-DE');
     if (albumArtistNorm) return `${baseKey}::${albumArtistNorm}`;
 
-    const knownArtists = knownAlbumArtistsByAlbum.get(albumPart);
+    const artist = normalizeArtistName(song.artist);
+    const knownArtists = artist !== UNKNOWN_ARTIST_KEY ? knownAlbumArtistsByAlbum.get(`${albumPart}::${artist}`) : undefined;
     const inferredAlbumArtist = knownArtists?.size === 1 ? Array.from(knownArtists)[0] : undefined;
-    return inferredAlbumArtist ? `${baseKey}::${inferredAlbumArtist}` : baseKey;
+    return inferredAlbumArtist ? `${baseKey}::${inferredAlbumArtist}`
+      : artist !== UNKNOWN_ARTIST_KEY ? `${baseKey}::${artist}` : baseKey;
   };
 };
 
 const normalizedSongUriKey = (song: Song): string | null => {
-  const rawUri = song.fileInfo?.uri ?? song.uri;
-  if (!rawUri) return null;
-  const normalized = decodeUriSafely(rawUri)
-    .trim()
-    .toLowerCase()
-    .replace(/^[a-z]+:\/\/+/i, '')
-    .replace(/\?.*$/, '')
-    .replace(/#+.*$/, '')
-    .replace(/\/+/g, '/')
-    .replace(/\/+$/, '');
-  return normalized || null;
-};
-
-const normalizedSongFingerprintKey = (song: Song): string | null => {
-  const rawFilename = song.fileInfo?.filename ?? basename(song.fileInfo?.uri ?? song.uri);
-  const filename = decodeUriSafely(rawFilename).trim().toLowerCase();
-  const size = song.fileInfo?.size;
-  const duration = song.duration ?? '';
-  if (!filename || typeof size !== 'number') return null;
-  return `file:${filename}:${size}:${duration}`;
+  const source = getSongSourceKey(song.fileInfo?.uri ?? song.uri);
+  return source ? `uri:${source}` : null;
 };
 
 export const buildSongKey = (song: Pick<Song, 'id' | 'title' | 'artist' | 'uri' | 'fileInfo' | 'duration'>): string => {
@@ -113,7 +93,7 @@ export const buildSongKey = (song: Pick<Song, 'id' | 'title' | 'artist' | 'uri' 
   if (id) return `song:${id}`;
   const rawUri = song.fileInfo?.uri ?? song.uri;
   if (rawUri) {
-    const normalizedUri = decodeUriSafely(rawUri).trim().toLocaleLowerCase('de-DE').replace(/\?.*$/, '').replace(/#+.*$/, '');
+    const normalizedUri = getSongSourceKey(rawUri);
     if (normalizedUri) return `song-uri:${normalizedUri}`;
   }
   const titleKey = normalizeLibraryKeyPart(song.title, UNKNOWN_SONG_KEY);
@@ -128,6 +108,24 @@ const hasUsableArtwork = (song?: Pick<Song, 'cover' | 'coverInfo'> | null): bool
 const preferText = (incoming?: string, previous?: string): string | undefined => hasNonEmptyText(incoming) ? incoming : previous;
 const preferNumber = (incoming?: number, previous?: number): number | undefined => hasUsableNumber(incoming) ? incoming : previous;
 
+const applyMetadataInspection = (previousSong: Song, incomingSong: Song, merged: Song): void => {
+  for (const field of incomingSong.metadataInspection?.absentFields ?? []) {
+    if (field !== 'cover' && !hasNonEmptyText(incomingSong[field])) merged[field] = undefined;
+  }
+  const coverRemoved = (incomingSong.coverInfo?.status === 'none' && incomingSong.coverInfo.embeddedArtworkChecked)
+    || incomingSong.metadataInspection?.absentFields.includes('cover');
+  const preservePreview = previousSong.coverInfo?.pendingEmbeddedArtworkRefresh || previousSong.coverInfo?.embeddedArtworkRefreshFailed;
+  if (!hasUsableArtwork(incomingSong) && hasUsableArtwork(previousSong) && (!coverRemoved || preservePreview)) {
+    merged.cover = previousSong.cover;
+    merged.coverInfo = previousSong.coverInfo;
+  } else if (!hasUsableArtwork(incomingSong) && coverRemoved && !preservePreview) {
+    merged.cover = undefined;
+    merged.coverInfo = { ...incomingSong.coverInfo, status: 'none', uri: undefined, embeddedArtworkChecked: true };
+  }
+  // A receipt belongs to this inspection, never to a subsequent partial update.
+  delete merged.metadataInspection;
+};
+
 export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, incomingSong: Song): Song => {
   if (!previousSong) return incomingSong;
   const merged: Song = {
@@ -139,6 +137,7 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
     year: preferText(incomingSong.year, previousSong.year),
     trackNumber: preferText(incomingSong.trackNumber, previousSong.trackNumber),
     discNumber: preferText(incomingSong.discNumber, previousSong.discNumber),
+    comment: preferText(incomingSong.comment, previousSong.comment),
     duration: preferNumber(incomingSong.duration, previousSong.duration),
     fileInfo: {
       ...previousSong.fileInfo,
@@ -157,16 +156,13 @@ export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, 
       channels: preferNumber(incomingSong.audioInfo?.channels, previousSong.audioInfo?.channels),
     },
   };
-  if (!hasUsableArtwork(incomingSong) && hasUsableArtwork(previousSong)) {
-    merged.cover = previousSong.cover;
-    merged.coverInfo = previousSong.coverInfo;
-  }
+  applyMetadataInspection(previousSong, incomingSong, merged);
   if (!previousSong.fileInfo && !incomingSong.fileInfo) delete merged.fileInfo;
   if (!previousSong.audioInfo && !incomingSong.audioInfo) delete merged.audioInfo;
   return merged;
 };
 
-export const getSongMergeKeys = (song: Song): string[] => [normalizedSongUriKey(song), normalizedSongFingerprintKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
+export const getSongMergeKeys = (song: Song): string[] => [normalizedSongUriKey(song), song.id ? `id:${song.id}` : null].filter((key): key is string => !!key);
 const safeTitle = (song: Pick<Song, 'title' | 'fileInfo' | 'uri'>): string => displayTitle(song);
 export const compareSongTitles = (a: Song, b: Song): number => safeTitle(a).localeCompare(safeTitle(b), 'de-DE', { sensitivity: 'base' }) || buildSongKey(a).localeCompare(buildSongKey(b));
 const byGroupTitle = (a: LibraryGroupItem, b: LibraryGroupItem): number => a.title.localeCompare(b.title, 'de-DE', { sensitivity: 'base' }) || a.id.localeCompare(b.id);
@@ -209,7 +205,7 @@ const buildGroupSubtitle = (kind: LibraryGroupKind, sortedSongs: Song[]): string
 
 const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, titles: Map<string, string>): LibraryGroupItem[] =>
   Array.from(grouped.entries()).map(([id, list]) => {
-    const sortedSongs = [...list].sort(compareSongTitles);
+    const sortedSongs = [...list].sort(kind === 'album' ? compareAlbumTracks : compareSongTitles);
     const title = titles.get(id) ?? (kind === 'album' ? UNKNOWN_ALBUM_LABEL : kind === 'artist' ? UNKNOWN_ARTIST_LABEL : UNKNOWN_GENRE_LABEL);
     return {
       id,
@@ -220,10 +216,10 @@ const groupsFromMap = (kind: LibraryGroupKind, grouped: Map<string, Song[]>, tit
     };
   }).sort(byGroupTitle);
 
-export const groupSongs = (songs: Song[], kind: LibraryGroupKind): LibraryGroupItem[] => {
+export const groupSongs = (songs: Song[], kind: LibraryGroupKind, identitySongs: Song[] = songs): LibraryGroupItem[] => {
   const grouped = new Map<string, Song[]>();
   const titles = new Map<string, string>();
-  const resolveAlbumGroupingKey = kind === 'album' ? buildAlbumGroupingKeyResolver(songs) : null;
+  const resolveAlbumGroupingKey = kind === 'album' ? buildAlbumGroupingKeyResolver(identitySongs) : null;
   for (const song of songs) {
     const key = kind === 'album' ? resolveAlbumGroupingKey!(song) : kind === 'artist' ? buildArtistKey(song.artist) : `genre:${normalizeLibraryKeyPart(displayGenre(song), UNKNOWN_GENRE_KEY)}`;
     const title = kind === 'album' ? displayAlbum(song) : kind === 'artist' ? displayArtist(song) : displayGenre(song);

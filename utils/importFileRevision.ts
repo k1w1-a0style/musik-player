@@ -44,7 +44,7 @@ export const readImportFileRevision = async (uri: string, hints: ImportFileRevis
     if (!info.exists) return stat;
     return { size: positive(stat.size) ? stat.size : positive(info.size) ? info.size : undefined,
       modificationTime: positive(stat.modificationTime) ? stat.modificationTime
-        : positive(info.modificationTime) ? info.modificationTime : undefined,
+        : positive(info.modificationTime) ? Math.round(info.modificationTime * 1000) : undefined,
       contentHash: info.md5 || undefined };
   } catch {
     throwIfAborted(signal);
@@ -52,10 +52,18 @@ export const readImportFileRevision = async (uri: string, hints: ImportFileRevis
   }
 };
 
+/** Recognize only an exact old seconds/new milliseconds pair in the epoch range.
+ * The next successful quick scan persists the new stat without changing the song ID. */
+const previousModificationTime = (previous: ImportFileRevision, current: ImportFileRevision): number | undefined => {
+  const time = previous.modificationTime;
+  return time !== undefined && time >= 1_000_000_000 && time < 10_000_000_000
+    && Math.round(time * 1000) === current.modificationTime ? current.modificationTime : time;
+};
+
 export const sameImportFileRevision = (previous: ImportFileRevision, current: ImportFileRevision): boolean => {
   if (current.contentHash) return Boolean(previous.contentHash && previous.contentHash === current.contentHash);
   if (previous.size !== undefined && current.size !== undefined && previous.size !== current.size) return false;
-  return positive(current.modificationTime) && previous.modificationTime === current.modificationTime;
+  return positive(current.modificationTime) && previousModificationTime(previous, current) === current.modificationTime;
 };
 
 export const compareImportFileRevision = (previous: ImportFileRevision, current: ImportFileRevision): 'same' | 'changed' | 'unknown' => {

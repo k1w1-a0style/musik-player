@@ -1,15 +1,10 @@
 import type { Song, SongFileInfo } from '../types/Song';
-import type { ImportFileRevision } from './importFileRevision';
+import { compareImportFileRevision, type ImportFileRevision } from './importFileRevision';
+import { getSongSourceKey } from './songSourceIdentity';
 import { classifyImportSource, type ImportSourceDecision } from './libraryImportStatistics';
 
 /** SAF tree grants can differ while referring to the same physical document. */
-export const getImportSourceKey = (uri?: string): string | undefined => {
-  if (!uri) return undefined;
-  let decoded = uri.split(/[?#]/)[0];
-  try { decoded = decodeURIComponent(decoded); } catch { /* Keep malformed URIs distinct. */ }
-  const document = /^(content:\/\/[^/]+)\/.*\/document\/(.+)$/.exec(decoded);
-  return document ? `${document[1]}/document/${document[2]}` : decoded.replace(/\/+$/, '');
-};
+export const getImportSourceKey = getSongSourceKey;
 
 export const indexImportedSources = (songs: Song[]): Map<string, Song> => {
   const index = new Map<string, Song>();
@@ -61,10 +56,7 @@ export const createImportSourceSelection = (options: { existingSongs?: Song[]; r
 };
 
 const changedRevision = (previous: SongFileInfo = {}, current: SongFileInfo = {}): boolean =>
-  previous.contentHash !== undefined && current.contentHash !== undefined
-    ? previous.contentHash !== current.contentHash :
-  (previous.size !== undefined && current.size !== undefined && previous.size !== current.size)
-  || (previous.modificationTime !== undefined && current.modificationTime !== undefined && previous.modificationTime !== current.modificationTime)
+  compareImportFileRevision(previous, current) === 'changed'
   || (previous.modificationTime === undefined && current.modificationTime !== undefined
     && current.modificationTime > (previous.importedAt ?? Infinity));
 

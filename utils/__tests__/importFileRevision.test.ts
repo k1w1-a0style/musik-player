@@ -1,6 +1,6 @@
 import { getInfoAsync } from 'expo-file-system/legacy';
 import { SystemAudio } from 'expo-system-audio';
-import { readImportFileRevision, sameImportFileRevision } from '../importFileRevision';
+import { readImportFileRevision, sameImportFileRevision, compareImportFileRevision } from '../importFileRevision';
 
 jest.mock('expo-file-system/legacy', () => ({ getInfoAsync: jest.fn() }));
 const info = getInfoAsync as jest.Mock;
@@ -69,4 +69,11 @@ test('provider errors preserve partial hints without opening an audio stream', a
   stat.mockRejectedValue(new Error('permission denied'));
   expect(await readImportFileRevision('content://provider/42', { size: 100 })).toEqual({ size: 100 });
   expect(info).not.toHaveBeenCalled();
+});
+
+test('only an exact plausible old seconds stat is a migration, not a changed file', () => {
+  expect(compareImportFileRevision({ size: 1000, modificationTime: 1_700_000_000 }, { size: 1000, modificationTime: 1_700_000_000_000 })).toBe('same');
+  expect(compareImportFileRevision({ size: 1000, modificationTime: 1_700_000_000 }, { size: 1001, modificationTime: 1_700_000_000_000 })).toBe('changed');
+  expect(compareImportFileRevision({ modificationTime: 100 }, { modificationTime: 100_000 })).toBe('changed');
+  expect(compareImportFileRevision({ modificationTime: 1_700_000_000 }, { modificationTime: 1_700_000_001_000 })).toBe('changed');
 });

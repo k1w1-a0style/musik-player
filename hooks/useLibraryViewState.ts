@@ -51,8 +51,8 @@ export const useLibraryViewState = ({
     [displayedSongs, query],
   );
   const albumGroups = useMemo(
-    () => activeTab === 'albums' ? groupSongs(filteredSongs, 'album') : NO_GROUPS,
-    [activeTab, filteredSongs],
+    () => activeTab === 'albums' ? groupSongs(filteredSongs, 'album', displayedSongs) : NO_GROUPS,
+    [activeTab, displayedSongs, filteredSongs],
   );
   const artistGroups = useMemo(
     () => activeTab === 'artists' ? groupSongs(filteredSongs, 'artist') : NO_GROUPS,

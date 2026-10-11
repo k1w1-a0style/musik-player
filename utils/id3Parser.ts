@@ -11,6 +11,8 @@ import * as FileSystem from 'expo-file-system';
 import { readAsStringAsync, EncodingType, getInfoAsync } from 'expo-file-system/legacy';
 import { decodeBase64ToBytes, encodeBytesToBase64 } from './base64';
 import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
+import type { MetadataInspection } from '../types/Song';
+import { hasLegacyTailMetadata, inspectId3MissingFields } from './id3MetadataInspection';
 
 export interface Id3Tags {
   title?: string;
@@ -24,7 +26,9 @@ export interface Id3Tags {
   comment?: string;
   /** data:image/... base64 data URI */
   cover?: string;
+  metadataInspection?: MetadataInspection;
 }
+type Id3TextField = Exclude<keyof Id3Tags, 'metadataInspection'>;
 
 const ID3V1_GENRES = [
   'Blues', 'Classic Rock', 'Country', 'Dance', 'Disco', 'Funk', 'Grunge', 'Hip-Hop',
@@ -96,6 +100,7 @@ const ID3_TEXT_FRAME_READ_LIMIT = 64 * 1024;
 
 export interface ParseId3Options {
   includeCover?: boolean;
+  inspectMissingFields?: boolean;
   signal?: AbortSignal;
   maxHeadBytes?: number;
   maxTailBytes?: number;
@@ -669,7 +674,7 @@ const MP4_CONTAINER_ATOMS = new Set([
   'minf',
   'stbl',
 ]);
-const MP4_TEXT_ATOM_TAGS: Record<string, keyof Id3Tags> = {
+const MP4_TEXT_ATOM_TAGS: Record<string, Id3TextField> = {
   '©nam': 'title',
   '©ART': 'artist',
   aART: 'albumArtist',
@@ -678,7 +683,7 @@ const MP4_TEXT_ATOM_TAGS: Record<string, keyof Id3Tags> = {
   '©gen': 'genre',
   '©cmt': 'comment',
 };
-const MP4_NUMBER_ATOM_TAGS: Record<string, keyof Id3Tags> = {
+const MP4_NUMBER_ATOM_TAGS: Record<string, Id3TextField> = {
   trkn: 'trackNumber',
   disk: 'discNumber',
 };
@@ -772,7 +777,7 @@ const parseMp4NumberAtom = (bytes: Uint8Array, start: number, end: number): stri
   return value;
 };
 
-const assignMp4Tag = (tags: Id3Tags, key: keyof Id3Tags, value?: string): void => {
+const assignMp4Tag = (tags: Id3Tags, key: Id3TextField, value?: string): void => {
   if (!value || tags[key]) return;
   tags[key] = value;
 };
@@ -858,7 +863,7 @@ export const parseMp4TagsFromBuffer = (
 
 const base64ToBytes = (b64: string): Uint8Array => decodeBase64ToBytes(b64);
 
-const TEXT_FRAME_IDS: Record<string, keyof Id3Tags> = {
+const TEXT_FRAME_IDS: Record<string, Id3TextField> = {
   TIT2: 'title',
   TPE1: 'artist',
   TPE2: 'albumArtist',
@@ -895,7 +900,7 @@ const mergeId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => ({
 
 const mergeMissingOrPlaceholderId3Tags = (base: Id3Tags, patch: Id3Tags): Id3Tags => {
   const merged: Id3Tags = { ...base };
-  for (const [key, value] of Object.entries(patch) as Array<[keyof Id3Tags, string | undefined]>) {
+  for (const [key, value] of Object.entries(patch) as Array<[Id3TextField, string | undefined]>) {
     // MP4 tail/head fallback tags should replace empty or parser-placeholder values,
     // but must not overwrite already useful ID3/head metadata.
     if (isUsableParsedTagValue(value) && !isUsableParsedTagValue(merged[key])) {
@@ -1115,6 +1120,25 @@ const mergeBoundedId3TextFrames = async (
   }
 };
 
+const attachMetadataInspection = async (parsed: Id3Tags, head: Uint8Array, context: Id3UriParseContext,
+  readRange: ReadRange, knownSize?: number): Promise<Id3Tags> => {
+  if (!context.options.inspectMissingFields || context.isMp4Like()) return parsed;
+  const missing = inspectId3MissingFields(head, context.includeCover);
+  if (!missing) return parsed;
+  try {
+    const size = knownSize ?? (await getId3FileInfo(context.normalizedUri)).size;
+    if (!Number.isSafeInteger(size) || size < head.length || size <= 0) return parsed;
+    const length = Math.min(512, size);
+    const tail = size <= head.length ? head.subarray(size - length) : await readRange(size - length, length);
+    throwIfParseAborted(context.options.signal);
+    if (tail.length !== length || hasLegacyTailMetadata(tail)) return parsed;
+    return { ...parsed, metadataInspection: { absentFields: missing.filter(field => !parsed[field]) } };
+  } catch {
+    throwIfParseAborted(context.options.signal);
+    return parsed;
+  }
+};
+
 const tryParseId3WithLegacyReader = async (
   context: Id3UriParseContext,
 ): Promise<Id3Tags | null> => {
@@ -1134,7 +1158,7 @@ const tryParseId3WithLegacyReader = async (
     throwIfParseAborted(context.options.signal);
     let parsed = context.parseHeadBytes(headBytes);
     parsed = await mergeBoundedId3TextFrames(parsed, headBytes, readRange, context, true);
-    if (!context.isMp4Like()) return parsed;
+    if (!context.isMp4Like()) return attachMetadataInspection(parsed, headBytes, context, readRange);
     try {
       const info = await getId3FileInfo(context.normalizedUri);
       if (!info.exists) return parsed;
@@ -1178,7 +1202,7 @@ const readId3WithOpenFileHandle = async (
         handle.offset = tailStart;
         return handle.readBytes(tailReadLength);
       })
-      : parsed;
+      : await attachMetadataInspection(parsed, headBytes, context, readRange, size);
   } finally {
     handle.close?.();
   }
@@ -1199,7 +1223,9 @@ const parseId3WithFileApi = async (context: Id3UriParseContext): Promise<Id3Tags
     }
     const bytes = await file.bytes();
     throwIfParseAborted(context.options.signal);
-    return context.parseHeadBytes(bytes.subarray(0, context.maxHeadBytes));
+    const head = bytes.subarray(0, context.maxHeadBytes);
+    return attachMetadataInspection(context.parseHeadBytes(head), head, context,
+      async (position, length) => bytes.subarray(position, position + length), info.size);
   } catch {
     throwIfParseAborted(context.options.signal);
     return {};

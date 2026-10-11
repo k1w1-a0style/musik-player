@@ -60,7 +60,7 @@ interface SongMetadataRefreshOptions extends Pick<ParseId3Options, 'includeCover
   disableNativeFastPath?: boolean;
 }
 
-const NATIVE_TO_ID3_FIELD_MAP: Record<keyof FastMetadataResult, keyof Id3Tags | undefined> = {
+const NATIVE_TO_ID3_FIELD_MAP: Record<keyof FastMetadataResult, Exclude<keyof Id3Tags, 'metadataInspection'> | undefined> = {
   title: 'title',
   artist: 'artist',
   album: 'album',
@@ -97,6 +97,9 @@ export const mergeFastMetadataIntoId3Tags = (
       if (normalized) merged[id3Key] = normalized;
     }
   });
+  if (merged.metadataInspection) merged.metadataInspection = {
+    absentFields: merged.metadataInspection.absentFields.filter(field => !hasText(merged[field])),
+  };
   return merged;
 };
 
@@ -168,6 +171,9 @@ export const buildId3SongPatch = (song: Song, tags: Id3Tags): Partial<Song> => {
   assignChanged(patch, song, 'trackNumber', tags.trackNumber);
   assignChanged(patch, song, 'discNumber', tags.discNumber);
   assignChanged(patch, song, 'comment', tags.comment);
+  for (const field of tags.metadataInspection?.absentFields ?? []) {
+    if (field !== 'cover' && !hasText(tags[field]) && song[field] !== undefined) patch[field] = undefined;
+  }
 
   if (hasText(tags.cover)) {
     const normalizedCover = tags.cover.trim();
@@ -184,6 +190,11 @@ export const buildId3SongPatch = (song: Song, tags: Id3Tags): Partial<Song> => {
         embeddedArtworkChecked: true,
       };
     }
+  } else if (tags.metadataInspection?.absentFields.includes('cover')
+    && !song.coverInfo?.pendingEmbeddedArtworkRefresh && !song.coverInfo?.embeddedArtworkRefreshFailed
+    && (song.cover || song.coverInfo?.uri)) {
+    patch.cover = undefined;
+    patch.coverInfo = { status: 'none', embeddedArtworkChecked: true };
   }
 
   return patch;
@@ -193,6 +204,7 @@ const DEFAULT_CONCURRENCY = 2;
 const MAX_CONCURRENCY = 3;
 export const MANUAL_METADATA_REFRESH_ID3_OPTIONS = {
   includeCover: false,
+  inspectMissingFields: true,
   maxHeadBytes: 256 * 1024,
   // Bounded MP4/M4A tail read keeps manual refresh text-tag capable without cover backfill.
   maxTailBytes: 512 * 1024,

@@ -39,6 +39,13 @@ export interface SongCoverInfo {
   embeddedArtworkRefreshFailed?: boolean;
 }
 
+export type SongMetadataField = 'album' | 'albumArtist' | 'year' | 'genre' | 'trackNumber' | 'discNumber' | 'comment' | 'cover';
+
+/** Ephemeral read receipt; unknown/unreadable fields must never be listed here. */
+export interface MetadataInspection {
+  absentFields: readonly SongMetadataField[];
+}
+
 export interface Song {
   id: string;
   title: string;
@@ -56,6 +63,7 @@ export interface Song {
   fileInfo?: SongFileInfo;
   audioInfo?: SongAudioInfo;
   coverInfo?: SongCoverInfo;
+  metadataInspection?: MetadataInspection;
 }
 
 export interface Playlist {

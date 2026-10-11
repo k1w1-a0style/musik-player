@@ -1,5 +1,6 @@
 import type { Song } from '../types/Song';
 import { displayArtist, displayTitle } from './libraryPresentation';
+import { compareAlbumTracks } from './albumTrackOrder';
 
 export type LibrarySortMode = 'alphabet' | 'trackNumber' | 'year' | 'recentlyAdded';
 
@@ -62,8 +63,7 @@ const compareByMode = (left: Song, right: Song, mode: LibrarySortMode): number =
   const rightTitle = displayTitle(right);
 
   if (mode === 'trackNumber') {
-    return compareNumberNullsLast(parseLeadingInt(left.trackNumber), parseLeadingInt(right.trackNumber))
-      || compareText(leftTitle, rightTitle);
+    return compareAlbumTracks(left, right);
   }
 
   if (mode === 'year') {

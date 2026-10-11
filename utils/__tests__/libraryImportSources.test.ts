@@ -64,3 +64,13 @@ test('a full scan never skips known files and counts failed content verification
   expect(selection.getUnverifiedCount()).toBe(1);
   expect(selection.getReusedCount()).toBe(0);
 });
+
+test('legacy Expo seconds migrate on reuse without changing IDs or audio preparation', () => {
+  const previous = { ...old, fileInfo: { ...old.fileInfo, modificationTime: 1_700_000_000 } };
+  const current = { size: 1000, modificationTime: 1_700_000_000_000 };
+  const selection = createImportSourceSelection({ existingSongs: [previous] });
+  expect(selection.select(newUri, current)).toEqual({ include: false, outcome: 'unchanged', unverified: false });
+  expect(selection.getRevisionUpdates()).toEqual([{ ...previous, fileInfo: { ...previous.fileInfo, ...current } }]);
+  expect(preserveImportedSource({ ...previous, id: 'new-id', fileInfo: { ...previous.fileInfo, ...current, importedAt: 50 } }, previous))
+    .toMatchObject({ id: previous.id, fileInfo: { importedAt: previous.fileInfo.importedAt } });
+});

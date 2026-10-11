@@ -287,7 +287,7 @@ const mergeAudioInfoIntoSource = (source: BuildSongSource, audioInfo: AudioInfoR
 const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal, hints: Pick<ParseId3Options, 'filename' | 'mimeType' | 'extension'> = {}): Promise<Id3Tags> => {
   if (!enabled) return {};
   try {
-    return await parseId3FromUri(uri, { signal, ...hints });
+    return await parseId3FromUri(uri, { signal, inspectMissingFields: true, ...hints });
   } catch {
     throwIfAborted(signal);
     return {};
@@ -352,6 +352,7 @@ export const buildSongFromImportSource = async (
     trackNumber: normalizeMetadataText(tags.trackNumber),
     discNumber: normalizeMetadataText(tags.discNumber),
     comment: normalizeMetadataText(tags.comment),
+    metadataInspection: tags.metadataInspection,
     uri: source.uri,
     cover,
     fileInfo: {
