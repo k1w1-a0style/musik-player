@@ -37,3 +37,11 @@ Hostprüfung: 404 Suiten/3934 Tests vollständig grün,194,175s, Coverage93,61% 
 ## Laufender Übergabepunkt
 
 Vier echte Teilprüfungen wurden beauftragt; Implementierung in getrennten Worktrees, keine konkurrierenden Dateiwriter. Hauptagent integriert kontrolliert und veröffentlicht ausschließlich codex. V5 ist noch nicht vollständig implementiert oder freigegeben. Unsafe Dateirewrites, FLACwrites, Rename/Website-/Unknownframe-Löschung bleiben hinter dem belegten nativen Vertrag; reine Vorschläge und Export müssen dies deutlich zeigen. Native Recovery nach Write ist kein späteres Undo.
+
+## P1 APK-Nachtrag: bestätigter Named-State-Testfehler
+
+Der neue Quellenstand8a47be64 besteht CI38194320051 Security,Quality und echten NativeReleaseBuild. Das gebaute Artefakt11723521394 enthält100.660.973Bytes, SHA256b075699a70c5d17b7f77b00d880640d0960aa8bf701236c02de450310243c0ba. Die öffentliche UI-Abnahme114637734474 ist fehlgeschlagen: Android35 schreibt PLAYING(3), der Test verlangte numerisches state=3. Der tatsächliche app-eigene MediaSession-Dump zeigt33.301ms und später36.465ms, Screenshot/nativeTimeline laufendes MP3 und1:29. Das ist ein belegter Parserfehler; weitere Formate und Bedienabläufe sind damit noch nicht abgenommen.
+
+Vier neue Solltests sind zunächst rot: NamedState, fremdePlayingSession, fremderMetadatentitel, doppelteEigeneSession. Der korrigierte Parser liest ausschließlich den exakt zugehörigen eingerückten package-Block; PLAYING(3) und legacy3 sind erlaubt, PAUSED(2)/PAUSED(3)/PLAYING(2)/33 werden abgelehnt. Alle35 Pythonfälle bestehen. Ein Retest pinnt ausschließlich diese neue8a47APK und deren dreiOriginalgates; Produktivänderungen bleiben verboten. Nur der explizit freigegebene V5-Statusbericht kommt zur Dokumentationsallowlist hinzu. Normale spätere codex-Pushes besitzen einen eigenen Concurrencygroup und können den laufenden APK-Retest nicht allein durch einen skippedJob abbrechen. Der reguläre Preview-/RequiredRelease-Workflow wird nicht gelockert.
+
+Der letzte veröffentlichte Stand bleibt ein P1-Zwischenergebnis, keine vollständige V5-Freigabe. Noch offene neue Features und finale exakte V5-APK werden weiterbearbeitet.

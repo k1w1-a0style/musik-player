@@ -24,7 +24,7 @@ RETEST_ONLY_PATHS = frozenset({
     'scripts/ci/androidReleaseInteractionSmoke.py',
     'scripts/ci/androidReleaseInteractionSmoke_test.py',
     '.github/workflows/android-release-retest.yml',
-    'docs/CODEX-V3-IMPLEMENTATION.md',
+    'docs/CODEX-V3-IMPLEMENTATION.md', 'docs/CODEX-V5-IMPLEMENTATION.md',
 })
 
 
@@ -452,17 +452,32 @@ def soundcloud_seconds():
 
 
 def app_media_session():
-    session = adb('shell', 'dumpsys', 'media_session').decode(errors='replace')
-    blocks = re.split(r'(?=\bSession #\d+:)', session)
-    matching = [block for block in blocks if 'package=' + PACKAGE in block]
+    dump = adb('shell', 'dumpsys', 'media_session').decode(errors='replace')
+    lines = dump.splitlines()
+    matching = []
+    for index, line in enumerate(lines):
+        match = re.fullmatch(r'([ \t]*)package=([^ \t]+)', line)
+        if not match or match[2] != PACKAGE:
+            continue
+        indent = len(match[1])
+        block = [line]
+        for next_line in lines[index+1:]:
+            stripped = next_line.lstrip(' \t')
+            if stripped and (len(next_line)-len(stripped) < indent
+                             or stripped.startswith('package=')
+                             or re.match(r'Session #\d+:', stripped)):
+                break
+            block.append(next_line)
+        matching.append('\n'.join(block))
     assert len(matching) == 1, 'Native media session missing or ambiguous'
     (OUT / 'media-session.txt').write_text(matching[0])
     return matching[0]
 
 
 def validate_playing_session(session, title):
-    assert re.search(r'\bpackage=' + re.escape(PACKAGE) + r'(?:\s|$)', session), 'Native session belongs to another app'
-    assert re.search(r'PlaybackState\s*\{state=3\b', session), 'Native playback is not playing'
+    assert re.search(r'^[ \t]*package=' + re.escape(PACKAGE) + r'[ \t]*$', session, re.M), 'Native session belongs to another app'
+    state = re.search(r'PlaybackState\s*\{state=(?:([A-Z_]+)\((\d+)\)|(\d+))(?=[,\s}])', session)
+    assert state and ((state[1], state[2]) == ('PLAYING', '3') or state[3] == '3'), 'Native playback is not playing'
     assert title in session, 'Native session selected another track: ' + title
 
 
@@ -526,7 +541,7 @@ def background_and_queue_acceptance():
     adb('shell', 'input', 'keyevent', '3')
     time.sleep(6)
     session = app_media_session()
-    assert re.search(r'PlaybackState\s*\{state=3\b', session), 'Native playback stopped in background'
+    validate_playing_session(session, TITLES[3])
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     find('soundcloud-waveform-current-time', timeout=30)
     assert soundcloud_seconds() >= before+3, 'Background playback position did not advance'

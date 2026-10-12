@@ -141,6 +141,53 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 validate_playing_session(session, 'V3 FLAC')
 
+    def native_stack(self, app_state='PLAYING(3)', other_state='PAUSED(2)', app_title='V3 FLAC'):
+        # Structure and named state copied from the actual API-35 failing run.
+        return f'''MEDIA SESSION SERVICE (dumpsys media_session)
+  Sessions Stack - have 2 sessions:
+    androidx.media3.session.id. com.k1w1a0style.musikplayer/7 (userId=0)
+      ownerPid=4108, ownerUid=10209, userId=0
+      package={smoke.PACKAGE}
+      active=true
+      state=PlaybackState {{state={app_state}, position=33301, speed=1.0}}
+      metadata: description={app_title}, V3 Proof
+    OtherPlayer com.other.player/2 (userId=0)
+      ownerPid=555, ownerUid=12345, userId=0
+      package=com.other.player
+      state=PlaybackState {{state={other_state}, position=4000, speed=1.0}}
+      metadata: description=V3 M4A, Other Artist
+Audio playback (lastly played comes first)
+  uid=10209 packages={smoke.PACKAGE}
+'''
+
+    def read_session(self, dump):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), patch.object(smoke, 'adb', return_value=dump.encode()):
+            return smoke.app_media_session()
+
+    def test_observed_android_named_playing_state_and_legacy_numeric_are_supported(self):
+        for state in ('PLAYING(3)', '3'):
+            session = self.read_session(self.native_stack(app_state=state))
+            self.assertNotIn('package=com.other.player', session)
+            validate_playing_session(session, 'V3 FLAC')
+
+    def test_a_foreign_playing_session_never_proves_our_paused_player(self):
+        session = self.read_session(self.native_stack(app_state='PAUSED(2)', other_state='3'))
+        with self.assertRaises(AssertionError):
+            validate_playing_session(session, 'V3 FLAC')
+
+    def test_a_foreign_metadata_title_never_proves_our_selected_track(self):
+        session = self.read_session(self.native_stack(app_state='3', app_title='Wrong Track'))
+        with self.assertRaises(AssertionError):
+            validate_playing_session(session, 'V3 M4A')
+
+    def test_duplicate_own_sessions_are_ambiguous_and_named_nonplaying_is_rejected(self):
+        duplicate = self.native_stack().replace('package=com.other.player', f'package={smoke.PACKAGE}')
+        with self.assertRaises(AssertionError):
+            self.read_session(duplicate)
+        for state in ('PAUSED(2)', 'PAUSED(3)', 'PLAYING(2)', '33', 'BUFFERING(6)'):
+            with self.assertRaises(AssertionError):
+                validate_playing_session(self.playing_session(state=state), 'V3 FLAC')
+
     def test_metadata_only_or_stalled_progress_fails_playback_proof(self):
         for positions in ((4,4), (4,5), (4,40)):
             with patch.object(smoke, 'wait_playing_session'), patch.object(smoke, 'app_media_session', return_value=self.playing_session()), patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=[0,4]):
