@@ -1,18 +1,27 @@
-# V5 – externe Arbeitszwischenstände
+# V5 – kompakter Fortsetzungsstand
 
-Stand: 12. Oktober 2026. Basis codex: 74af98a1d33a14e51aaa02598bcf9b5be0e48e25.
+Aktualisiert: 12.10.2026, 19:40 Berlin. Publizierter codex-HEAD: e02bacebd44ede829092b4c4cf8f04293b5783dc. main unverändert.
 
-Diese Gitobjekte sind ausschließlich Arbeitszwischenstände. Sie wurden nicht als geprüfte App oder finale V5-Abnahme veröffentlicht. Nach lokalen Rücksetzungen muss ihr Inhalt aus GitHub rekonstruiert und vor Integration überprüft werden. main bleibt unverändert.
+## Erledigt / belegte Zwischenstände
 
-| Bereich | Commit | Tree | Zustand |
-| --- | --- | --- | --- |
-| Scan: erste Hängerregressionen | 446228be451a218528aeb950d3e62dd73d72cf9b | efbe1f66376d2777ec65875e9d0c9ed21823bd32 | WIP, rekursiver Testhelper im Nachfolger korrigiert |
-| Scan: optionale Wartung aus Speicher-ACK | 7eb80a44033c93b14c145db8db5d2cd3446daf50 | 9e9a3836bb5abab43a9baf93f3c17bcfef08b19d | 3 Regressionen rot → grün; Race/Epoch/Gates offen |
-| Cleaner: Typen und Quellenauswahl | d62241179138499f2154410a75ff5f8edc40deba | 8b237d977b68538f45af88888fe4da599b7b9d45 | 3 Auswahltests grün; noch kein vollständiger Cleaner |
-| Oberfläche: Wechselhinweise/Viewport | 27a835dc1125dc2a7456b33c5bd1cc2104f5695c | 1c16726ab39a157ccd7f9f7cb562ac3e8910439c | WIP, Tests und Einbindung offen |
+P1 Revision/Resume/Backup und native MediaSession-Testtreiber: veröffentlicht 8a47be6 / 74af98a. Vorhandene CI-Gates 74af98a erfolgreich; kein finaler V5-APK-Nachweis. Retest e02bace korrigiert Wischgesten auf echte Listengrenzen (41 Python-Gatetests, 342 Workflowtests). Retest 38252235934 endet fehlgeschlagen; Artefakte auswerten.
 
-## Noch offene integrierte Arbeit
+| Paket | Externer Commit | Stand / nächste Prüfung |
+| --- | --- | --- |
+| Root: echte Metadaten-Speicherbestätigung, Playback-SAF-Guard, UI/Backup-Wiring | 7e17d16bac27cea789fe6cda80a3b908258a4ab9 | WIP; Root-ACK 4 vorher rot/nachher grün; 107 Playbacktests plus 21 fokussierte Tests grün; Backup12 noch neue UI-Typen integrieren |
+| Auswahl / Bibliothekseinstiege | d2a3a74f67aae51d560333ac8c46b5089491f7a6 | Bereit; 52 Suites/334 Tests, Types/Lint/Complexity; abhängig vom Cleaner und TagCleaner-Route |
+| Scan/Wartung/kompakter Status | 91db509ced40f63a1c95d01a4723b77d4c14fca2 | Bereit; 105 distinct gezielte Tests, Types/Lint/Complexity; Hostprofil 8×20. Separater budgetierter Yield-Slice noch offen |
+| F25 Toolinghärtung | 08c3e0749067feae4df7382f9672a3c0dc3ecafe | Bereit; npm-ci/Types/Lint/39 Tests mit142 Corpusfällen. Root integriert und prüft Postinstall. F25/Issue396/Frist21.10 bleiben offen |
+| FLAC/Vorbis Tag-Leser | fb1550e45662c554de317db8562ed45ff1c612c7 | Bereit; 148 gezielte Tests/Types/Lint/Complexity; echte FLAC-Regression vorher rot. Read-only |
+| UI/Akzente/Palette | e08a8660eaca6c12d771f6374aebbfec174fd7d0 | WIP; physisches Viewport-Inset, leere Wechselnotice entfernt; Nativeownership/Scan-Priorität/ReduceMotion-Fixes jetzt fokussiert prüfen |
+| Cleaner/Wizard/Journal | aa0daa6ad94b8753173e8c6e0abd8a0c3ba74c97 | WIP; Default-Kommentare und O(N²)-Journal inzwischen lokal korrigiert, neuer Checkpoint folgt; Execution/UI-Tests abschließen |
+| Android Backup-Inhalte und Kaltstart | 7af9c112cc6a87219c449b220a64b303896742e2 | Testtreiber-WIP; 42 Python-Gatetests; noch nicht auf echtem Android-Lauf bestätigt |
 
-Tag-Cleaner mit echter Vorschau, bestätigtem Speichern, Playback-Schutz und SAF-Readback; Auswahl und Einstiegspunkte; persistente Akzente und Cover-Palette; Scan-Wartungsrennen; F25; End-to-End-Abnahme derselben finalen APK; aktualisierte Full-Scan- und Ideen-Dokumente.
+## Verbindlich offen
 
-P1-APK des Quellstands 8a47be64e6e813b606c5516e285d00922e3a13a6 (SHA256 b075699a70c5d17b7f77b00d880640d0960aa8bf701236c02de450310243c0ba) ist **keine finale V5-APK**. Retest 38218345873 scheiterte beim erneuten Erreichen eines importierten langen Titels. Die sichtbaren UI-Artefakte werden untersucht; ein App-Fehler wird daraus noch nicht behauptet.
+1. Fertige Slices anhand ihrer gepinnten Diffs integrieren; gezielte integrierte Tests. Root owns Provider/Navigation/Settings/Backup-Verträge.
+2. Cleaner und Palette bekannte Befunde schließen; bei unsicheren Schreibrechten Vorschau/Export sichtbar, keine Schreibschutzumgehung/Dateiumbenennung/Fake-Undo.
+3. Finale CI + Native-Build + öffentliche UI-Abnahme derselben neuen APK mit SHA/Source. P1-APK 8a47 ist ausdrücklich nicht final V5.
+4. Full-Scan-/Ideen-Dokumente aktualisieren und als Downloads speichern. A50/TalkBack-Grenzen ehrlich kennzeichnen.
+
+Keine abgeschlossenen V3/V4-Analysen wiederholen. Die hier verknüpften WIP-Gitobjekte sind externe Sicherungen, keine Freigabe der gesamten App. Keine realen Nutzer-MP3s veröffentlichen oder verändern.
