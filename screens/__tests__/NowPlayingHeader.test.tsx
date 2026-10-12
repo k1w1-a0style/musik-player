@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingHeader from '../NowPlayingHeader';
 
@@ -30,7 +31,7 @@ test('renders album title and calls header actions', () => {
   );
 
   expect(getByText('JETZT LÄUFT')).toBeTruthy();
-  expect(getByText('Mein Album')).toBeTruthy();
+  expect(getByText('Album: Mein Album')).toBeTruthy();
 
   fireEvent.press(getByTestId('now-playing-close'));
   fireEvent.press(getByTestId('now-playing-more'));
@@ -45,7 +46,7 @@ test('uses app theme text colors', () => {
   );
 
   expect(JSON.stringify(getByText('JETZT LÄUFT').props.style)).toContain(mockAppTheme.palette.text.muted);
-  expect(JSON.stringify(getByText('Mein Album').props.style)).toContain(mockAppTheme.palette.text.primary);
+  expect(JSON.stringify(getByText('Album: Mein Album').props.style)).toContain(mockAppTheme.palette.text.primary);
 });
 
 
@@ -67,4 +68,17 @@ test('shows sleep timer countdown only when active', () => {
   );
 
   expect(active.getByText('JETZT LÄUFT · TIMER 14:59')).toBeTruthy();
+});
+
+
+test('identifies a SoundCloud album tag as an album, with accessible touch targets', () => {
+  const { getByText, getByTestId } = render(
+    <NowPlayingHeader albumTitle="SoundCloud" onClose={jest.fn()} onMore={jest.fn()} />,
+  );
+  expect(getByText('Album: SoundCloud')).toBeTruthy();
+  for (const id of ['now-playing-close', 'now-playing-more']) {
+    const style = StyleSheet.flatten(getByTestId(id).props.style);
+    expect(style.width).toBeGreaterThanOrEqual(48);
+    expect(style.height).toBeGreaterThanOrEqual(48);
+  }
 });

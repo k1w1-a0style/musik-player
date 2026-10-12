@@ -1,4 +1,5 @@
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useLibrarySelectionScope } from './useLibrarySelectionScope';
 import { useLibraryControllerActions } from './useLibraryControllerActions';
 import { useLibraryBackgroundAnalysis } from './useLibraryBackgroundAnalysis';
 import { useLibraryControllerProps } from './useLibraryControllerProps';
@@ -14,6 +15,7 @@ import {
 } from '../utils/metadataRefreshOperation';
 import type { Song } from '../types/Song';
 import type { UseLibraryComponentPropsResult } from './useLibraryComponentProps';
+import { getLibraryScanOperation } from '../utils/libraryScanOperation';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 
 export type UseLibraryControllerResult = UseLibraryComponentPropsResult;
@@ -28,12 +30,13 @@ const runSongQueueAction = (
   { dropIfPending: false },
 );
 
+const useRetryLibraryScan = (importFromDevice: ReturnType<typeof useLibraryControllerActions>['importFromDevice']) =>
+  useCallback(() => { void importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan }); }, [importFromDevice]);
+
 export const useLibraryController = (): UseLibraryControllerResult => {
   const {
     music: {
-      currentSongId,
-      isPlaying,
-      isReady,
+      currentSongId, isPlaying, isReady,
       playPlaylist,
       playSong,
       playSongNext,
@@ -102,7 +105,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     openSettings,
     openEqualizer,
     openPlaylistDetail,
-    openTrackInfo,
+    openTrackInfo, openTagCleaner,
     refreshMetadataFromFiles,
     cancelMetadataRefresh,
     resumeMetadataRefresh,
@@ -123,6 +126,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     applySongMetadataPatches,
     songs,
   });
+  const retryScan = useRetryLibraryScan(importFromDevice);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const handleCreatePlaylist = useCallback(() => {
     const trimmedName = newPlaylistName.trim();
@@ -171,7 +175,6 @@ export const useLibraryController = (): UseLibraryControllerResult => {
 
   const refreshOperation = useMetadataRefreshOperation();
   const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);
-
   const {
     getSongItemLayout,
     handlePlayActiveList,
@@ -198,7 +201,9 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     songViewMode: viewMode,
   });
 
+  const selectionScope = useLibrarySelectionScope({ songs, songsForActiveList, playlistItems, scanFolders, activeTab, onOpenCleaner: openTagCleaner });
   return useLibraryControllerProps({
+    selectionScope,
     activeFolders,
     activeTab,
     albumGroups,
@@ -209,7 +214,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     genreGroups,
     getSongItemLayout,
     importFromDevice,
-    importStatus, cancelImport,
+    importStatus, cancelImport, onRetryScan: retryScan,
     isReady,
     loading,
     menuOpen,

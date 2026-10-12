@@ -57,6 +57,17 @@ export class SongLibraryState implements SongImportController {
   configureImportPublication = (publish: (songs: Song[]) => void): void => { this.importPublication = publish; };
   waitForCheckpoints = async (): Promise<void> => { await this.checkpoints.catch(() => undefined); };
 
+  /** A real writer acknowledgement, serialized with import checkpoints. */
+  confirmCurrent = (): Promise<void> => {
+    const run = this.checkpoints.catch(() => undefined).then(async () => {
+      const persist = this.persistence;
+      if (!persist) throw new Error('Bibliothek ist noch nicht bereit. Bitte erneut versuchen.');
+      await persist(this.getCurrent, songs => { this.confirmed = songs; });
+    });
+    this.checkpoints = run;
+    return run;
+  };
+
   private publish(songs: Song[]): void {
     if (this.visible === songs) return;
     protectAcceptedSongCovers(songs);

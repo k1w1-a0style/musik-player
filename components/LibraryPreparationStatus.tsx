@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { cancelWaveformPreparation, resumeWaveformPreparation,
@@ -8,15 +8,15 @@ import LibraryScanSummary from './LibraryScanSummary';
 
 const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProps & { visible: boolean }) => {
   const preparation = useWaveformPreparation();
-  let control: React.ReactNode = null;
-  if (visible && props.scanning) control = <LibraryImportStatus {...props} />;
-  else if (preparation.status === 'idle') control = visible ? <LibraryImportStatus {...props} /> : null;
-  else if (preparation.status !== 'completed' || preparation.failed !== 0) control = <WaveformPreparationPanel preparation={preparation} />;
-  return <>{control}<LibraryScanSummary /></>;
+  const showWaveforms = preparation.status !== 'idle' && (preparation.status !== 'completed' || preparation.failed !== 0);
+  return <>{visible || props.persistenceWarning ? <LibraryImportStatus {...props} /> : null}
+    {showWaveforms ? <WaveformPreparationPanel preparation={preparation} /> : null}
+    <LibraryScanSummary onRetry={props.onRetryScan} persistenceWarning={props.persistenceWarning} /></>;
 };
 
 const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPreparationState }) => {
   const { theme } = useAppTheme();
+  const [details, setDetails] = useState(false);
   const running = preparation.status === 'running';
   const resumable = preparation.status === 'cancelled' || preparation.status === 'failed' || preparation.failed > 0;
   const label = running ? 'Scan fertig – Waveforms werden vorbereitet' : preparation.status === 'cancelled'
@@ -29,16 +29,21 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
     <View style={styles.row}>
       {running ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
       <Text style={[styles.title, { color: theme.palette.text.primary }]}>{label}</Text>
-      <Pressable onPress={action} accessibilityRole="button" style={styles.action}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Waveform-Details" accessibilityState={{ expanded: details }}
+        onPress={() => setDetails(value => !value)} style={styles.action}><Text style={{ color: theme.palette.primary }}>Details</Text></Pressable>
+      <Pressable accessibilityLabel={running ? 'Waveformanalyse abbrechen' : 'Waveformanalyse fortsetzen'} onPress={action} accessibilityRole="button" style={styles.action}>
         <Text style={{ color: theme.palette.primary }}>{running ? 'Abbrechen' : resumable ? 'Fortsetzen' : 'Erneut'}</Text>
       </Pressable>
     </View>
-    <Text style={{ color: theme.palette.text.secondary }}>{`${preparation.processed}/${preparation.total} analysiert · ${preparation.failed} fehlgeschlagen`}</Text>
-    {preparation.currentTitle ? <Text style={{ color: theme.palette.text.secondary }} numberOfLines={1}>{preparation.currentTitle}</Text> : null}
+    {preparation.failed > 0 ? <Text style={{ color: theme.palette.text.secondary }}>{`${preparation.failed} Analysefehler`}</Text> : null}
+    {details ? <View>
+      <Text style={{ color: theme.palette.text.secondary }}>{`${preparation.processed}/${preparation.total} analysiert · ${preparation.failed} fehlgeschlagen`}</Text>
+      {preparation.currentTitle ? <Text style={{ color: theme.palette.text.secondary }} numberOfLines={1}>{preparation.currentTitle}</Text> : null}
+    </View> : null}
   </View>;
 };
 const styles = StyleSheet.create({
-  box: { marginHorizontal: 8, marginBottom: 8, padding: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
+  box: { marginHorizontal: 20, marginBottom: 8, paddingVertical: 4, paddingHorizontal: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 }, title: { flex: 1, fontSize: 12 },
   action: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 6 },
 });

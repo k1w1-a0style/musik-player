@@ -7,7 +7,7 @@ type StateInput = Pick<
 
 type LibraryInput = Pick<
   MusicContextValue,
-  'setSongs' | 'addSongs' | 'updateSongMetadata' | 'applySongMetadataPatches'
+  'setSongs' | 'addSongs' | 'updateSongMetadata' | 'updateSongMetadataConfirmed' | 'applySongMetadataPatches'
 >;
 
 type PlaybackInput = Pick<

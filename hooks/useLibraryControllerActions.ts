@@ -37,6 +37,7 @@ export interface UseLibraryControllerActionsResult {
   openSettings: () => void;
   openEqualizer: () => void;
   openPlaylistDetail: (playlistId: string) => void;
+  openTagCleaner: (songIds: string[]) => void;
   openTrackInfo: (song: Song) => void;
   refreshMetadataFromFiles: () => Promise<void>;
   cancelMetadataRefresh: () => boolean;
@@ -54,7 +55,7 @@ export const useLibraryControllerActions = ({
   const scanAddedFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
     await importActionRef.current?.({ folders: [folder], refreshExisting: false });
   }, []);
-  const { openPlaylistDetail, openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } =
+  const { openTagCleaner, openPlaylistDetail, openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } =
     useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();
 
@@ -113,7 +114,7 @@ export const useLibraryControllerActions = ({
     openSettings,
     openEqualizer,
     openPlaylistDetail,
-    openTrackInfo,
+    openTrackInfo, openTagCleaner,
     refreshMetadataFromFiles,
     cancelMetadataRefresh: cancelRefresh,
     resumeMetadataRefresh,

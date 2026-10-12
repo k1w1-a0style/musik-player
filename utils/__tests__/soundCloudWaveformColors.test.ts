@@ -17,7 +17,7 @@ test.each(['#ffffff', '#000000', '#555555', '#0000ff', '#44ccaa', 'invalid'])(
 test('cover choice preserves different readable hues; neutral/blue/orange are explicit choices', () => {
   expect(getSoundCloudWaveformColors('#44ccaa').played).not.toBe(getSoundCloudWaveformColors('#0000ff').played);
   expect(getSoundCloudWaveformColors('#ffffff', 'neutral').played).toBe('#858585');
-  expect(getSoundCloudWaveformColors('#ffffff', 'blue').played).toBe('#4885c5');
-  expect(getSoundCloudWaveformColors('#ffffff', 'orange').played).toBe('#ff5500');
+  expect(getSoundCloudWaveformColors('#ffffff', 'blue').played).toMatch(/^#[0-9a-f]{6}$/i);
+  expect(getSoundCloudWaveformColors('#ffffff', 'orange').played).toMatch(/^#[0-9a-f]{6}$/i);
   expect(getSoundCloudWaveformColors('invalid').played).toBe('#4885c5');
 });

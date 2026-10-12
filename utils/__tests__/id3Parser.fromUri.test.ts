@@ -61,6 +61,18 @@ describe('parseId3FromUri', () => {
     return b64([...header, ...flat]);
   };
 
+  test('reads the actual ffmpeg FLAC Vorbis metadata from the failed public APK fixture', async () => {
+    // Exact STREAMINFO and Vorbis comment bytes from artifact11732627939;
+    // no music samples, title/artist are independently confirmed by ffprobe.
+    const original = 'ZkxhQwAAACIJAAkAAAG5AAL5BWIg8AAyd+xpvy84bUAKXVakVsdcz4UfBAAAaQ0AAABMYXZmNjAuMTYuMTAwBAAAAA0AAAB0aXRsZT1WMyBGTEFDDwAAAGFydGlzdD1WMyBQcm9vZhMAAABhbGJ1bT1WMyBBY2NlcHRhbmNlFQAAAGVuY29kZXI9TGF2ZjYwLjE2LjEwMA==';
+    mockReadAsStringAsync.mockResolvedValueOnce(original);
+    const tags = await parseId3FromUri('content://media/external/audio/media/1000000021',
+      { filename: 'V3-2.flac', mimeType: 'audio/flac', inspectMissingFields: true });
+    expect(tags).toMatchObject({ title: 'V3 FLAC', artist: 'V3 Proof', album: 'V3 Acceptance' });
+    expect(mockReadAsStringAsync).toHaveBeenCalledTimes(1);
+    expect(tags.metadataInspection).toBeUndefined();
+  });
+
   test('includeCover false reads text metadata without producing ID3 cover data URIs', async () => {
     const image = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4];
     const apicBody = [0x00, ...enc('image/jpeg'), 0, 0x03, 0, ...image];
@@ -816,5 +828,47 @@ describe('authoritative MP4 metadata inspection', () => {
     });
     await expect(parseId3FromUri('file:///mix.m4a', { inspectMissingFields: true, maxHeadBytes: 64,
       maxTailBytes: 256, signal: controller.signal })).rejects.toThrow('cancelled MP4 inspection');
+  });
+});
+
+describe('bounded FLAC import integration', () => {
+  beforeEach(() => { mockReadAsStringAsync.mockReset(); mockGetInfoAsync.mockReset(); mockOpen.mockReset(); mockFileBytes.mockReset(); });
+  const makeLargeArtworkFixture = (): Uint8Array => {
+    const le = (n:number) => [n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255];
+    const body = Buffer.from('TITLE=FLAC After Large Picture', 'utf8');
+    const comments = [...le(0),...le(1),...le(body.length),...body];
+    const header = (type:number,length:number) => [type,(length>>>16)&255,(length>>>8)&255,length&255];
+    const picture = 1500*1024;
+    return Uint8Array.from([102,76,97,67,...header(0,34),...Array(34).fill(0),
+      ...header(6,picture),...Array(picture).fill(0xff),...header(132,comments.length),...comments]);
+  };
+
+  test('legacy content reads jump past artwork to the real Vorbis block without reading cover or audio payloads', async () => {
+    const bytes = makeLargeArtworkFixture();
+    mockReadAsStringAsync.mockImplementation(async (_uri,options) =>
+      Buffer.from(bytes.subarray(options.position??0,(options.position??0)+options.length)).toString('base64'));
+    const result = await parseId3FromUri('content://provider/opaque-flac', {maxHeadBytes:64,includeCover:false,inspectMissingFields:true});
+    expect(result).toEqual({title:'FLAC After Large Picture'});
+    const end = 46+1500*1024;
+    expect(mockReadAsStringAsync.mock.calls.map(([,options]) => [options.position??0,options.length])).toEqual([
+      [0,64],[end,4],[end+4,bytes.length-end-4],
+    ]);
+    expect(mockGetInfoAsync).not.toHaveBeenCalled();
+    expect(mockFileBytes).not.toHaveBeenCalled();
+  });
+
+  test('File.open fallback reads the same bounded FLAC metadata and closes the actual handle', async () => {
+    const bytes = makeLargeArtworkFixture();
+    mockReadAsStringAsync.mockRejectedValueOnce(Error('Legacy unavailable'));
+    mockGetInfoAsync.mockResolvedValueOnce({exists:true,size:bytes.length,isDirectory:false});
+    const close=jest.fn();
+    const handle={offset:0,close,readBytes:jest.fn((length:number)=>{
+      const result=bytes.subarray(handle.offset,handle.offset+length);handle.offset+=length;return result;
+    })};
+    mockOpen.mockReturnValueOnce(handle);
+    expect(await parseId3FromUri('file:///large.flac',{maxHeadBytes:64,includeCover:false,inspectMissingFields:true})).toEqual({title:'FLAC After Large Picture'});
+    expect(handle.readBytes.mock.calls.map(([length])=>length)).toEqual([64,4,bytes.length-(46+1500*1024)-4]);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(mockFileBytes).not.toHaveBeenCalled();
   });
 });

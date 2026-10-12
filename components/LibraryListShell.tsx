@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useOptionalAppTheme } from '../contexts/AppThemeContext';
 import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
 import { getLibraryListShellBackgroundColor } from '../utils/appThemeOverlays';
+import { useMiniPlayerViewport } from '../contexts/MiniPlayerViewportContext';
 
 interface LibraryListShellProps {
   children: ReactNode;
@@ -11,10 +12,11 @@ interface LibraryListShellProps {
 
 const LibraryListShell: React.FC<LibraryListShellProps> = ({ children, testID = 'library-list-shell' }) => {
   const appTheme = useOptionalAppTheme();
+  const { bottomInset } = useMiniPlayerViewport();
   const backgroundColor = getLibraryListShellBackgroundColor(appTheme?.appearance ?? DEFAULT_APP_APPEARANCE);
 
   return (
-    <View style={[styles.listShell, { backgroundColor }]} testID={testID}>
+    <View style={[styles.listShell, { backgroundColor, marginBottom: bottomInset }]} testID={testID}>
       {children}
     </View>
   );

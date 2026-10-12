@@ -15,10 +15,14 @@ import { TimeoutError, withTimeout } from '../../utils/withTimeout';
 import { prepareLibraryWaveforms } from '../../utils/libraryWaveformPreparation';
 import { isMetadataRefreshActive, resetMetadataRefreshActivityForTests } from '../../utils/metadataRefreshActivity';
 import { getLibraryScanOperation } from '../../utils/libraryScanOperation';
+import LibraryPreparationStatus from '../../components/LibraryPreparationStatus';
 
 jest.mock('../../utils/libraryWaveformPreparation', () => ({
   clearWaveformPreparation: jest.fn(), prepareLibraryWaveforms: jest.fn().mockResolvedValue(undefined),
+  useWaveformPreparation: () => ({ status: 'idle', failed: 0 }),
 }));
+jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => ({ theme: { palette: {
+  primary: '#eee', surfaceGlass: '#222', border: '#333', text: { primary: '#fff', secondary: '#ccc' } } } }) }));
 
 const folder = (id: string, enabled = true): ScanFolder => ({
   id,
@@ -45,6 +49,8 @@ const showAlert = jest.fn();
 const persistChangedFolderUpdates = jest.fn();
 
 interface HookHarnessProps {
+  fullScan?: boolean;
+  showScanSummary?: boolean;
   scanFolders?: ScanFolder[];
   songs?: Song[];
   songImport?: SongLibraryState;
@@ -59,6 +65,8 @@ interface HookHarnessProps {
 }
 
 const HookHarness = ({
+  fullScan = false,
+  showScanSummary = false,
   scanFolders = [],
   songs = [],
   songImport: providedSongImport,
@@ -99,8 +107,11 @@ const HookHarness = ({
   });
 
   return <>
-    <Button title="import" onPress={() => void actions.importFromDevice()} />
+    <Button title="import" onPress={() => void actions.importFromDevice({ refreshExisting: fullScan })} />
     <Button title="cancel import" onPress={() => actions.cancelImport()} />
+    {showScanSummary ? <LibraryPreparationStatus visible={false} onRetryScan={() => {
+      void actions.importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan });
+    }} /> : null}
   </>;
 };
 
@@ -112,6 +123,30 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+test.each([false, true])('retains a concrete library write error after the alert closes and retries the same mode (full: %s)', async fullScan => {
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const state = createSongLibraryState([]);
+  const persist = jest.fn().mockRejectedValueOnce(new Error('Speicher voll: Bibliothek nicht bestätigt'))
+    .mockImplementation(async read => read());
+  state.configurePersistence(persist);
+  const scan = jest.fn().mockResolvedValue({ songs: [song('retry-song')], errors: [] });
+  const screen = render(<HookHarness fullScan={fullScan} showScanSummary songImport={state}
+    scanFolders={[folder('music')]} importSongsFromSourcesImpl={scan} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ message: 'Speicher voll: Bibliothek nicht bestätigt' })));
+  showAlert.mockClear();
+  expect(getLibraryScanOperation()).toMatchObject({ status: 'failed', fullScan,
+    errorMessage: 'Speicher voll: Bibliothek nicht bestätigt' });
+  expect(screen.getByTestId('library-scan-summary-error').props.children).toBe('Speicher voll: Bibliothek nicht bestätigt');
+  jest.useFakeTimers(); act(() => jest.advanceTimersByTime(10000)); jest.useRealTimers();
+  expect(screen.getByText('Speicher voll: Bibliothek nicht bestätigt')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Scan erneut versuchen'));
+  await waitFor(() => expect(scan).toHaveBeenCalledTimes(2));
+  expect(scan).toHaveBeenLastCalledWith(expect.objectContaining({ refreshExisting: fullScan }));
+  await waitFor(() => expect(persist).toHaveBeenCalledTimes(2));
+  expect(getLibraryScanOperation().errorMessage).toBeUndefined();
 });
 
 test('user cancellation stops a stalled scan immediately and rejects late checkpoints and results', async () => {

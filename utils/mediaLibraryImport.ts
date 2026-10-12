@@ -18,6 +18,7 @@ import { runImportFileWorkers, withImportFileBudget } from './libraryImportBudge
 import { createImportCheckpointReporter, type ImportCheckpointHandler } from './libraryImportCheckpoint';
 import type { ImportScanStatistics, ImportSourceDecision } from './libraryImportStatistics';
 import { inspectEmbeddedArtwork } from './embeddedArtworkInspection';
+import { createQuickScanYieldBudget } from './libraryImportYield';
 
 const PAGE_SIZE = 200;
 const MAX_IMPORT_PAGES = 1000;
@@ -792,6 +793,7 @@ export const enrichMediaLibraryAssets = async (
   const selection = createImportSourceSelection(options);
   const progress = createImportFileProgressReporter(options.onFileProgress, signal, true);
   const checkpoint = createImportCheckpointReporter(options.onCheckpoint, signal);
+  const yieldKnownSource = createQuickScanYieldBudget();
   let accepted = 0;
   progress.addFiles(assets.length);
   const workerResult = await runImportFileWorkers(assets, {
@@ -802,14 +804,16 @@ export const enrichMediaLibraryAssets = async (
         size: (asset as { fileSize?: number }).fileSize, modificationTime: asset.modificationTime,
       }, childSignal, { previous: selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)?.fileInfo,
         verifyContent: options.refreshExisting });
-      await yieldToEventLoop();
       throwIfAborted(childSignal);
       const revisionCount = selection.getRevisionUpdates().length;
       const decision = selection.select(asset.uri, revision);
       if (!decision.include) {
         const update = selection.getRevisionUpdates()[revisionCount];
+        await yieldKnownSource(childSignal);
         return { song: update, decision };
       }
+      await yieldToEventLoop();
+      throwIfAborted(childSignal);
       const assetMimeType = (asset as { mimeType?: string }).mimeType;
       const assetExtension = deriveExtension(asset.filename ?? asset.uri);
       const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, childSignal, {
@@ -891,15 +895,20 @@ const importSafFile = async (uri: string, options: SafImportOptions,
 
 const readSafImportSource = async (uri: string, options: SafImportOptions,
   selection: ReturnType<typeof createImportSourceSelection>,
-  recordError: (error: unknown, recoverable: boolean) => void): Promise<{ song?: Song; imported: boolean; decision?: ImportSourceDecision }> => {
+  recordError: (error: unknown, recoverable: boolean) => void, yieldKnownSource: ReturnType<typeof createQuickScanYieldBudget>): Promise<{ song?: Song; imported: boolean; decision?: ImportSourceDecision }> => {
   const previous = selection.previousSources.get(getImportSourceKey(uri) ?? uri);
   const revision = await readImportFileRevision(uri, {}, options.signal,
     { previous: previous?.fileInfo, verifyContent: options.refreshExisting });
-  await yieldToEventLoop();
   throwIfAborted(options.signal);
   const revisionCount = selection.getRevisionUpdates().length;
   const decision = selection.select(uri, revision);
-  if (!decision.include) return { song: selection.getRevisionUpdates()[revisionCount], imported: false, decision };
+  if (!decision.include) {
+    const update = selection.getRevisionUpdates()[revisionCount];
+    await yieldKnownSource(options.signal);
+    return { song: update, imported: false, decision };
+  }
+  await yieldToEventLoop();
+  throwIfAborted(options.signal);
   const imported = await importSafFile(uri, options, recordError);
   throwIfAborted(options.signal);
   if (!imported) return { imported: false };
@@ -975,12 +984,13 @@ export const scanFromSafFolders = async (
 
     total += files.length;
     progress.addFiles(files.length);
+    const yieldKnownSource = createQuickScanYieldBudget();
     const workerResult = await runImportFileWorkers(files, {
       signal, perFileTimeoutMs: options.perFileTimeoutMs,
       read: async (uri, childSignal) => {
         progress.start(uri);
         const result = await readSafImportSource(uri, { ...options, signal: childSignal }, selection,
-          (error, recoverable) => recordSafSongBuildError(uri, error, recoverable, recordImportError, errorDetails, seenErrorDetails));
+          (error, recoverable) => recordSafSongBuildError(uri, error, recoverable, recordImportError, errorDetails, seenErrorDetails), yieldKnownSource);
         throwIfAborted(childSignal);
         processed += 1;
         if (result.song) {

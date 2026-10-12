@@ -9,6 +9,7 @@ import { prunePlaylists } from '../utils/playlistState';
 import { hasSameOrderedSongIds } from '../utils/playbackQueue';
 import { toPlayableSongs } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import { assertTagSourceAvailableForPlayback } from '../utils/tagPlaybackSafety';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import {
   mergeUniqueSongs,
@@ -119,6 +120,7 @@ const syncNativeQueueToLibrary = async (
     const applied = await runExclusiveNativeQueueReplacement(async ({ isCurrent }) => {
       if (isStaleSync() || !isCurrent()) return false;
 
+      playableQueue.forEach(song => assertTagSourceAvailableForPlayback(song.uri));
       await TrackPlayer.reset();
       didResetNativeQueue = true;
       nativeQueueRef.current = [];

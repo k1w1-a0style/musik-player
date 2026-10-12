@@ -9,6 +9,7 @@ const navigatorSource = fs.readFileSync(
 const deferredScreens = [
   'TrackInfo',
   'TagEditor',
+  'TagCleaner',
   'Equalizer',
   'Settings',
   'PlaylistDetail',

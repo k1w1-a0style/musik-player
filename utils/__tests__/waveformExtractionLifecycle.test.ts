@@ -4,6 +4,7 @@ import {
   WaveformSchedulerUnavailableError,
   WAVEFORM_EXTRACTION_DEBOUNCE_MS,
   waitForWaveformSchedulerAvailability, WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS,
+  isWaveformExtractionActive,
 } from '../waveformExtractionLifecycle';
 import { OperationAbortError, TimeoutError } from '../withTimeout';
 
@@ -43,6 +44,20 @@ describe('waveformExtractionLifecycle', () => {
     await flight;
     await wait;
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test('read-only busy observer retains detached native work after a UI timeout', async () => {
+    const native = deferred<NativeResult>();
+    expect(isWaveformExtractionActive()).toBe(false);
+    const flight = scheduleNativeWaveformExtraction('observed', () => native.promise,
+      new AbortController().signal, { timeoutMs: 10 }).catch(error => error);
+    expect(isWaveformExtractionActive()).toBe(true);
+    await jest.advanceTimersByTimeAsync(WAVEFORM_EXTRACTION_DEBOUNCE_MS + 10);
+    await expect(flight).resolves.toBeInstanceOf(TimeoutError);
+    expect(isWaveformExtractionActive()).toBe(true);
+    native.resolve(null);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(isWaveformExtractionActive()).toBe(false);
   });
 
   test('capacity wait times out instead of polling forever and cancellation removes its listener', async () => {

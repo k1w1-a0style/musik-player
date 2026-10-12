@@ -9,6 +9,7 @@ export interface LibraryScanOperation {
   status: LibraryScanStatus;
   progress?: ImportFileProgress;
   remainingCount?: number;
+  errorMessage?: string;
   folderPersistenceWarning?: {
     message: string;
     retrying: boolean;
@@ -61,9 +62,9 @@ export const setLibraryScanFolderWarning = (id: number | undefined,
   publish({ ...state, status, folderPersistenceWarning: warning });
 };
 
-export const stopLibraryScan = (id: number | undefined, status: 'cancelled' | 'failed'): void => {
+export const stopLibraryScan = (id: number | undefined, status: 'cancelled' | 'failed', errorMessage?: string): void => {
   if (!current(id)) return;
-  publish({ ...state, progress: pending, status });
+  publish({ ...state, progress: pending, status, errorMessage });
 };
 
 export const dismissLibraryScan = (): void => {

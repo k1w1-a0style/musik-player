@@ -6,6 +6,7 @@ import NowPlayingHeader from '../NowPlayingHeader';
 
 jest.mock('../../utils/storage', () => ({
   storage: {
+    get: jest.fn(() => Promise.resolve(null)),
     getAppAppearance: jest.fn(() => Promise.resolve('light')),
     getAppThemeSkin: jest.fn(() => Promise.resolve('graphite')),
     setAppAppearance: jest.fn(() => Promise.resolve(true)),
@@ -20,10 +21,10 @@ test('NowPlaying subcomponent renders with AppThemeProvider and applies hydrated
     </AppThemeProvider>,
   );
 
-  expect(getByText('Provider Album')).toBeTruthy();
+  expect(getByText('Album: Provider Album')).toBeTruthy();
 
   await waitFor(() => {
-    expect(JSON.stringify(getByText('Provider Album').props.style)).toContain(
+    expect(JSON.stringify(getByText('Album: Provider Album').props.style)).toContain(
       getAppTheme('light', 'graphite').palette.text.primary,
     );
   });

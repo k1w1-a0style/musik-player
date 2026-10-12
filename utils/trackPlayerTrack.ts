@@ -1,5 +1,6 @@
 import type { PlayableSong } from './playableSong';
 import { getSongArtworkUri } from './songArtwork';
+import { assertTagSourceAvailableForPlayback } from './tagPlaybackSafety';
 
 const normalizeOptionalText = (value?: string): string | undefined => {
   const trimmed = value?.trim();
@@ -13,6 +14,7 @@ export const resolvePlayableTrackUrl = (song: PlayableSong): string => normalize
 
 export const toTrackPlayerTrack = (song: PlayableSong) => {
   const url = resolvePlayableTrackUrl(song);
+  assertTagSourceAvailableForPlayback(url);
   return {
     id: normalizeRequiredText(song.id, 'unknown'),
     url,

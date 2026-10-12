@@ -1,8 +1,11 @@
 import React from 'react';
-import { Image } from 'react-native';
+import * as ReactNative from 'react-native';
+import { Image, StyleSheet } from 'react-native';
+import { beginPlaybackSelection, resetPlaybackSelectionForTests } from '../../utils/playbackSelectionStatus';
+import { getAppTheme } from '../../utils/appTheme';
 import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
-import { fireEvent, render } from '@testing-library/react-native';
-import MiniPlayer, { shouldShowMiniPlayerSecondaryControls } from '../MiniPlayer';
+import { act, fireEvent, render } from '@testing-library/react-native';
+import MiniPlayer, { getMiniPlayerMinimumHeight, shouldShowMiniPlayerSecondaryControls } from '../MiniPlayer';
 
 type MiniCtx = {
   currentSong: { id: string; title: string; artist: string; album?: string; cover?: string; uri?: string; fileInfo?: { filename?: string; uri?: string } } | null;
@@ -26,6 +29,8 @@ type PaletteCtx = {
     darkMuted?: string;
   } | null;
 };
+
+const nativeExports = jest.requireActual<typeof ReactNative>('react-native');
 
 const mockUseMiniPlayerMusicContext = jest.fn<MiniCtx, []>();
 const mockUseMusicContext = jest.fn<PaletteCtx, []>();
@@ -97,7 +102,9 @@ describe('MiniPlayer', () => {
     expect(shouldShowMiniPlayerSecondaryControls(390)).toBe(true);
   });
 
+  afterEach(() => jest.restoreAllMocks());
   beforeEach(() => {
+    jest.spyOn(nativeExports, 'useWindowDimensions').mockReturnValue({ width: 400, height: 800, scale: 1, fontScale: 1 });
     mockUseMiniPlayerMusicContext.mockReset();
     mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
     mockUseMusicContext.mockReset();
@@ -276,4 +283,33 @@ describe('MiniPlayer', () => {
 
     expect(queryByTestId('mini-player-open')).toBeNull();
   });
+});
+
+
+test('keeps artist metadata visible while native selection is pending', () => {
+  mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+  const view = render(<MiniPlayer onOpen={jest.fn()} />);
+  act(() => beginPlaybackSelection({ id: 'pending', title: 'Next title' }));
+  expect(view.getByText('Artist')).toBeTruthy();
+  expect(view.queryByText(/Wechsel zu/)).toBeNull();
+  act(resetPlaybackSelectionForTests);
+});
+
+test.each([['dark', 'graphite'], ['dark', 'minimal'], ['dark', 'neon-cover'], ['light', 'graphite'], ['light', 'minimal'], ['light', 'neon-cover']] as const)('reserves scaled text and 48 dp controls at 320 dp / font scale 2 in %s %s', (appearance, skin) => {
+  mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+  Object.assign(mockAppTheme.palette, getAppTheme(appearance, skin).palette);
+  const dimensions = jest.spyOn(nativeExports, 'useWindowDimensions').mockReturnValue({
+    width: 320, height: 640, scale: 2, fontScale: 2,
+  });
+  const view = render(<MiniPlayer onOpen={jest.fn()} />);
+  expect(getMiniPlayerMinimumHeight(2)).toBeGreaterThanOrEqual((17 + 14) * 2 + 16);
+  expect(StyleSheet.flatten(view.getByTestId('mini-player-open').props.style).minHeight).toBe(78);
+  expect(view.queryByTestId('mini-player-previous')).toBeNull();
+  expect(view.queryByTestId('mini-player-queue')).toBeNull();
+  for (const id of ['mini-player-next', 'mini-player-play-pause']) {
+    const style = StyleSheet.flatten(view.getByTestId(id).props.style);
+    expect(style.width).toBeGreaterThanOrEqual(48);
+    expect(style.height).toBeGreaterThanOrEqual(48);
+  }
+  dimensions.mockRestore();
 });

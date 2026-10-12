@@ -18,6 +18,7 @@ type LibraryMusicContextInput = Pick<
   | 'isReady'
   | 'isPlaying'
   | 'updateSongMetadata'
+  | 'updateSongMetadataConfirmed'
   | 'applySongMetadataPatches'
   | 'playlists'
   | 'createPlaylist'
@@ -73,7 +74,7 @@ export const buildLibraryMusicContextValue = ({
   addSongToQueue,
   isReady,
   isPlaying,
-  updateSongMetadata,
+  updateSongMetadata, updateSongMetadataConfirmed,
   applySongMetadataPatches,
   playlists,
   createPlaylist,
@@ -94,7 +95,7 @@ export const buildLibraryMusicContextValue = ({
   addSongToQueue,
   isReady,
   isPlaying,
-  updateSongMetadata,
+  updateSongMetadata, ...(updateSongMetadataConfirmed ? { updateSongMetadataConfirmed } : {}),
   applySongMetadataPatches,
   playlists,
   createPlaylist,

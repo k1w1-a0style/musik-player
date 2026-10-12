@@ -30,7 +30,8 @@ export interface LibrarySearchBarPropsBuilderOptions {
   setQuery: (query: string) => void;
 }
 
-export interface LibraryImportStatusPropsBuilderOptions {
+export interface LibraryImportStatusPropsBuilderOptions extends Pick<LibraryImportStatusProps,
+  'onRetryScan' | 'persistenceWarning' | 'onRetryPersistence'> {
   importStatus: string | null;
   cancelImport?: () => void;
   cancelMetadataRefresh?: () => void;
@@ -107,11 +108,13 @@ export const buildLibrarySearchBarProps = ({ query, setQuery }: LibrarySearchBar
   value: query,
 });
 
-export const buildLibraryImportStatusProps = ({ importStatus, cancelImport, cancelMetadataRefresh, resumeMetadataRefresh }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
+export const buildLibraryImportStatusProps = ({ importStatus, cancelImport, cancelMetadataRefresh, resumeMetadataRefresh,
+  onRetryScan, persistenceWarning, onRetryPersistence }: LibraryImportStatusPropsBuilderOptions): LibraryImportStatusProps => ({
   status: importStatus,
   onCancelScan: cancelImport,
   onCancelRefresh: cancelMetadataRefresh,
   onResumeRefresh: resumeMetadataRefresh,
+  onRetryScan, persistenceWarning, onRetryPersistence,
 });
 
 export const buildLibraryScreenVisibilityProps = ({ loading, searchOpen, refreshHasResumable }: LibraryScreenVisibilityPropsBuilderOptions): LibraryScreenVisibilityProps => ({

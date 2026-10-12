@@ -6,7 +6,9 @@ import { useOptionalAppTheme } from '../contexts/AppThemeContext';
 import { getAppTheme } from '../utils/appTheme';
 import { displayAlbum } from '../utils/libraryPresentation';
 import { getSongArtworkUri } from '../utils/songArtwork';
-import { mergeNativeAndFallbackPalette, pickReadableForeground } from '../utils/jsPaletteFallback';
+import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
+import { useAccentPreferences } from '../contexts/AccentPreferencesContext';
+import { readableAccentForeground, resolveAccentColor } from '../utils/accentPreferences';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -34,6 +36,7 @@ export const useNowPlayingPresentation = ({
   palette,
 }: UseNowPlayingPresentationArgs): NowPlayingPresentationState => {
   const appTheme = useOptionalAppTheme()?.theme ?? getAppTheme();
+  const { preferences } = useAccentPreferences();
 
   // Native palette wins per-field, JS fallback fills the gaps so the gradient
   // is never the hard black/green brand color and stays deterministic per song.
@@ -41,7 +44,8 @@ export const useNowPlayingPresentation = ({
     () => mergeNativeAndFallbackPalette(palette, currentSong),
     [palette, currentSong],
   );
-  const accent = effectivePalette.vibrant ?? effectivePalette.dominant ?? appTheme.palette.accent;
+  const accent = resolveAccentColor(preferences.playerAccent,
+    effectivePalette.vibrant ?? effectivePalette.dominant ?? appTheme.palette.accent);
   const accentDark = effectivePalette.darkVibrant ?? effectivePalette.darkMuted ?? appTheme.palette.backgroundDeep;
   const accentMuted = effectivePalette.muted ?? effectivePalette.darkMuted ?? appTheme.palette.surface;
   const gradientColors = useMemo<GradientColors>(
@@ -50,9 +54,9 @@ export const useNowPlayingPresentation = ({
   );
   const albumTitle = currentSong ? displayAlbum(currentSong) : 'Aus deiner Bibliothek';
   const artworkUri = getSongArtworkUri(currentSong);
-  const progressAccent = effectivePalette.vibrant ?? appTheme.palette.primary;
-  const progressAccentDark = effectivePalette.lightVibrant ?? appTheme.palette.primaryDark;
-  const foregroundOnAccent = pickReadableForeground(accent);
+  const progressAccent = accent;
+  const progressAccentDark = preferences.playerAccent === 'cover' ? effectivePalette.lightVibrant ?? appTheme.palette.primaryDark : accent;
+  const foregroundOnAccent = readableAccentForeground(accent);
 
   return {
     accent,

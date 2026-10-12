@@ -14,6 +14,7 @@ import { detectImageMimeFromBytes, normalizeImageMime } from './imageMime';
 import type { MetadataInspection } from '../types/Song';
 import { hasLegacyTailMetadata, inspectId3MissingFields } from './id3MetadataInspection';
 import { inspectMp4Metadata } from './mp4MetadataInspection';
+import { parseFlacVorbisMetadata, parseFlacVorbisMetadataByRange } from './flacVorbisMetadata';
 
 export interface Id3Tags {
   title?: string;
@@ -1073,7 +1074,8 @@ const createId3UriParseContext = (uri: string, options: ParseId3Options): Id3Uri
     options,
     isMp4Like: () => detectedMp4Like,
     parseHeadBytes: bytes => {
-      const id3 = parseId3Buffer(bytes, { includeCover });
+      const id3 = mergeMissingOrPlaceholderId3Tags(
+        parseId3Buffer(bytes, { includeCover }), parseFlacVorbisMetadata(bytes));
       detectedMp4Like = detectedMp4Like || hasMp4HeadEvidence(bytes);
       return detectedMp4Like
         ? mergeMissingOrPlaceholderId3Tags(
@@ -1103,6 +1105,10 @@ const mergeBoundedId3TextFrames = async (
   context: Id3UriParseContext,
   warnOnFailure: boolean,
 ): Promise<Id3Tags> => {
+  parsed = mergeMissingOrPlaceholderId3Tags(parsed, await parseFlacVorbisMetadataByRange(headBytes, readRange, {
+    signal: context.options.signal, maxMetadataOffsetBytes: context.maxFrameOffsetBytes,
+    maxExtraReadBytes: context.maxFrameBodyReadBytes,
+  }));
   if (parsed.cover || !isSupportedId3Header(headBytes)) return parsed;
   try {
     const ranged = await parseId3TextFramesByRange(headBytes, readRange, {

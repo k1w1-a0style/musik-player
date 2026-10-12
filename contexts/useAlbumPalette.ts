@@ -6,10 +6,11 @@ import {
   getAlbumPaletteArtworkUri,
   getCachedAlbumPalette,
 } from './albumPaletteHelpers';
+import { getSongPaletteIdentity } from './albumPaletteIdentity';
 import { mergeNativeAndFallbackPalette } from '../utils/jsPaletteFallback';
 
 interface NativePaletteResolution {
-  artworkUri: string;
+  key: string;
   palette: PaletteResult | null;
   status: 'resolved' | 'unavailable';
 }
@@ -36,14 +37,17 @@ export interface AlbumPaletteState {
 export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteState => {
   const [resolution, setResolution] = useState<NativePaletteResolution | null>(null);
   const currentArtworkUri = useMemo(() => getAlbumPaletteArtworkUri(currentSong), [currentSong]);
+  const identity = getSongPaletteIdentity(currentSong);
+  const paletteKey = identity.key;
+  const revision = identity.revision === '||' ? '' : identity.revision;
 
   const state = useMemo<AlbumPaletteState>(() => {
     if (!currentArtworkUri) {
       return { palette: null, isLoading: false };
     }
 
-    if (resolution?.artworkUri !== currentArtworkUri) {
-      const cached = getCachedAlbumPalette(currentArtworkUri);
+    if (!resolution || resolution.key !== paletteKey) {
+      const cached = getCachedAlbumPalette(currentArtworkUri, revision);
       if (cached) return { palette: mergeNativeAndFallbackPalette(cached, currentSong), isLoading: false };
       return { palette: null, isLoading: true };
     }
@@ -56,10 +60,10 @@ export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteStat
       palette: mergeNativeAndFallbackPalette(resolution.palette, currentSong),
       isLoading: false,
     };
-  }, [currentArtworkUri, currentSong, resolution]);
+  }, [currentArtworkUri, currentSong, paletteKey, resolution, revision]);
 
   useEffect(() => {
-    if (!currentArtworkUri) {
+    if (!currentArtworkUri || !paletteKey) {
       setResolution(null);
       return undefined;
     }
@@ -67,11 +71,11 @@ export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteStat
     const controller = new AbortController();
     const requestedArtworkUri = currentArtworkUri;
 
-    extractAlbumPalette(requestedArtworkUri, { signal: controller.signal }).then(nextPalette => {
+    extractAlbumPalette(requestedArtworkUri, { signal: controller.signal, revision }).then(nextPalette => {
       if (controller.signal.aborted) return;
 
       setResolution({
-        artworkUri: requestedArtworkUri,
+        key: paletteKey,
         palette: nextPalette,
         status: nextPalette ? 'resolved' : 'unavailable',
       });
@@ -80,7 +84,7 @@ export const useAlbumPaletteState = (currentSong: Song | null): AlbumPaletteStat
     return () => {
       controller.abort();
     };
-  }, [currentArtworkUri]);
+  }, [currentArtworkUri, paletteKey, revision]);
 
   return state;
 };

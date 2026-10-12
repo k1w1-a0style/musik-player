@@ -11,6 +11,7 @@ import {
 import { buildQueueReorderPlan } from '../utils/queueReorder';
 import { hasSameOrderedSongIds } from '../utils/playbackQueue';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import { assertTagSourceAvailableForPlayback } from '../utils/tagPlaybackSafety';
 import { getNativePlaybackIntent, recordNativePlaybackIntent, restoreNativePlaybackIntent } from '../utils/nativePlaybackIntent';
 import {
   type NativeHydrationCapture,
@@ -154,6 +155,7 @@ const replaceNativeQueueTracks = async (
   onProgress?: (progress: NativeQueueReplacementProgress) => void,
 ): Promise<boolean> => {
   const { isCurrent, beginNativeMutation } = context;
+  queue.forEach(song => assertTagSourceAvailableForPlayback(song.uri));
   beginNativeMutation();
   await TrackPlayer.reset();
   onProgress?.('reset-confirmed');

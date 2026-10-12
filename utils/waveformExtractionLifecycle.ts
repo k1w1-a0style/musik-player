@@ -398,6 +398,10 @@ export const scheduleNativeWaveformExtraction = (
   return awaitPending(pending, signal, priority, options.timeoutMs);
 };
 
+/** Read-only priority signal; detached native calls remain busy until actual settlement. */
+export const isWaveformExtractionActive = (): boolean =>
+  activeFlight !== null || pendingLatest !== null || detachedFlights.size > 0;
+
 export const getWaveformFailureBackoff = (sourceKey: string): FailureBackoff['reason'] | null => {
   const failure = failures.get(sourceKey);
   if (!failure) return null;

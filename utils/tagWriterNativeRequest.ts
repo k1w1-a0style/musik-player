@@ -15,8 +15,10 @@ export const buildNativeTagWriteRequest = (
   container: TagEditableContainer,
   maxFileSizeBytes: number,
   operationId?: string,
+  expectation?: Pick<AudioTagWriteRequest, 'expectedOriginalSizeBytes' | 'expectedOriginalSha256Hex'>,
 ): AudioTagWriteRequest => ({
   operationId,
+  ...expectation,
   tags: { ...draft.tags },
   container,
   removeCover: Boolean(draft.removeCover),

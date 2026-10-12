@@ -3,6 +3,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { validateAuditReport } = require('./npmAuditReportValidation.cjs');
+const { validateEffectPolicy } = require('./npmAuditEffectPolicy.cjs');
+const { verifyTooling } = require('../patches/patchToolingSecurity.cjs');
 
 const fail = message => {
   console.error(`npm audit policy failed: ${message}`);
@@ -65,6 +68,9 @@ const validateException = (entry, today) => {
         || !/^https:\/\/github\.com\/advisories\/GHSA-[a-z0-9-]+$/.test(advisory?.url))) {
     return `${entry.package}: advisories must bind each positive source id to a GitHub advisory URL`;
   }
+  if (entry.requiredToolingPatch !== undefined && entry.requiredToolingPatch !== entry.package) {
+    return `${entry.package}: compensating payload must bind the exact package`;
+  }
   if (typeof entry.issue !== 'string' || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(entry.issue)) {
     return `${entry.package}: issue must be a concrete GitHub issue URL`;
   }
@@ -106,18 +112,20 @@ const createBlockingAdvisoryPathResolver = vulnerabilities => {
 };
 
 const evaluateAudit = ({ audit, policy, lock, today }) => {
-  if (audit.auditReportVersion !== 2 || !audit.vulnerabilities || typeof audit.vulnerabilities !== 'object') {
+  if (!audit || audit.auditReportVersion !== 2 || !audit.vulnerabilities || typeof audit.vulnerabilities !== 'object') {
     return { failures: ['unsupported or incomplete npm audit JSON'], warnings: [] };
   }
-  if (policy.schemaVersion !== 2 || !Array.isArray(policy.exceptions)) {
+  if (!policy || policy.schemaVersion !== 2 || !Array.isArray(policy.exceptions)) {
     return { failures: ['unsupported npm audit exception policy'], warnings: [] };
   }
   if (!lock || typeof lock !== 'object' || !lock.packages || typeof lock.packages !== 'object') {
     return { failures: ['unsupported or incomplete package-lock JSON'], warnings: [] };
   }
 
-  const failures = [];
+  const failures = validateAuditReport(audit, lock);
   const warnings = [];
+  if (failures.length > 0) return { failures, warnings };
+  failures.push(...validateEffectPolicy(audit, policy, lock));
   const exceptions = new Map();
   for (const entry of policy.exceptions) {
     const invalid = validateException(entry, today);
@@ -161,6 +169,10 @@ const evaluateAudit = ({ audit, policy, lock, today }) => {
       continue;
     }
     usedExceptions.add(packageName);
+    if (exception.requiredToolingPatch && (!Array.isArray(exception.expectedDependencies)
+      || JSON.stringify(dependencyRootsFor(vulnerability)) !== JSON.stringify(exception.expectedDependencies))) {
+      failures.push(`${packageName}: advisory root dependencies changed`);
+    }
     if (exception.severity !== severity) {
       failures.push(`${packageName}: vulnerability severity changed from excepted ${exception.severity} to ${severity}`);
     }
@@ -218,9 +230,23 @@ const main = () => {
   const [auditPath, policyPath = 'security/npm-audit-exceptions.json', lockPath = 'package-lock.json'] = process.argv.slice(2);
   if (!auditPath) fail('usage: node scripts/ci/checkNpmAudit.cjs <audit.json> [policy.json] [package-lock.json]');
 
+  const policy = readJson(path.resolve(policyPath));
+  try {
+    const verified = verifyTooling(path.resolve('node_modules'));
+    const packages = new Set(verified.map(name => name.split('@')[0]));
+    for (const exception of policy.exceptions ?? []) {
+      if (exception.requiredToolingPatch && !packages.has(exception.requiredToolingPatch)) {
+        throw new Error(`${exception.package}: requested compensating payload was not verified`);
+      }
+    }
+    console.log(`npm audit policy: verified compensating payloads ${verified.join(', ')}`);
+  } catch (error) {
+    fail(`tooling patch integrity failed: ${error.message}`);
+  }
+
   const result = evaluateAudit({
     audit: readJson(path.resolve(auditPath)),
-    policy: readJson(path.resolve(policyPath)),
+    policy,
     lock: readJson(path.resolve(lockPath)),
     today: new Date().toISOString().slice(0, 10),
   });

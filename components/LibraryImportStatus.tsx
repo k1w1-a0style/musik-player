@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
@@ -16,6 +16,9 @@ export interface LibraryImportStatusProps {
   onCancelScan?: () => void;
   onCancelRefresh?: () => void;
   onResumeRefresh?: () => void;
+  persistenceWarning?: string | null;
+  onRetryPersistence?: () => void;
+  onRetryScan?: () => void;
 }
 
 type MetadataRefreshErrorDetail = {
@@ -159,15 +162,27 @@ const ScanFileProgress = ({ color }: { color: string }) => {
   </View>;
 };
 
-const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scanning = false, onCancelScan, onCancelRefresh, onResumeRefresh }) => {
+const PersistenceWarning = ({ warning, retry, color, actionColor }: {
+  warning?: string | null; retry?: () => void; color: string; actionColor: string;
+}) => warning ? <View testID="library-import-persistence-warning">
+  <Text style={[styles.progressText, { color }]}>{warning}</Text>
+  {retry ? <Pressable accessibilityRole="button" accessibilityLabel="Bibliothek erneut speichern"
+    onPress={retry} style={styles.actionButton}>
+    <Text style={[styles.actionLabel, { color: actionColor }]}>Erneut speichern</Text>
+  </Pressable> : null}
+</View> : null;
+
+const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scanning = false, onCancelScan, onCancelRefresh, onResumeRefresh,
+  persistenceWarning, onRetryPersistence }) => {
   const { theme } = useAppTheme();
+  const [details, setDetails] = useState(false);
   const operation = useMetadataRefreshOperation();
   const isRunning = operation.status === 'running';
   const isCancelling = operation.status === 'cancelling';
   const scanActive = scanning && !isRunning && !isCancelling;
   const showResume = canResumeMetadataRefresh(operation);
   const showSpinner = scanning || isRunning || isCancelling;
-  const baseStatus = status ?? (STATUS_LABEL_BY_STATE[operation.status] || libraryImportMessages.importRunning);
+  const baseStatus = status ?? persistenceWarning ?? (STATUS_LABEL_BY_STATE[operation.status] || libraryImportMessages.importRunning);
 
   return (
     <View
@@ -185,6 +200,10 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scann
         <Text style={[styles.statusText, { color: theme.palette.text.secondary }]} testID="library-import-status-text">
           {baseStatus}
         </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Scan-Details" accessibilityState={{ expanded: details }}
+          onPress={() => setDetails(value => !value)} style={styles.actionButton}>
+          <Text style={[styles.actionLabel, { color: theme.palette.primary }]}>Details</Text>
+        </Pressable>
         <RefreshAction
           isRunning={isRunning}
           isCancelling={isCancelling}
@@ -198,8 +217,18 @@ const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scann
           labelColor={theme.palette.text.onPrimary}
         />
       </View>
-      {scanActive ? <ScanFileProgress color={theme.palette.text.secondary} /> : null}
-      {!scanActive && <RefreshErrors errorDetails={operation.errorDetails} color={theme.palette.text.secondary} />}
+      <PersistenceWarning warning={persistenceWarning} retry={onRetryPersistence}
+        color={theme.palette.warning} actionColor={theme.palette.primary} />
+      {!scanActive && operation.failed > 0 ? <Text style={[styles.progressText, { color: theme.palette.warning }]}>
+        {`${operation.failed} Datei(en) nicht lesbar`}
+      </Text> : null}
+      {details && scanActive ? <ScanFileProgress color={theme.palette.text.secondary} /> : null}
+      {details && !scanActive ? <View>
+        <Text style={[styles.progressText, { color: theme.palette.text.secondary }]}>
+          {`${operation.processed}/${operation.total} geprüft · ${operation.updated} aktualisiert · ${operation.skipped} übersprungen`}
+        </Text>
+        <RefreshErrors errorDetails={operation.errorDetails} color={theme.palette.text.secondary} />
+      </View> : null}
     </View>
   );
 };

@@ -15,6 +15,21 @@ test('round trips Unicode, current custom EQ and playlist order without audio da
   expect(backup.songs[0]).not.toHaveProperty('cover');
   expect(backup.songs[0]).not.toHaveProperty('audioInfo');
 });
+
+test.each(['cover', 'green', 'cyan', 'turquoise', 'blue', 'violet', 'purple', 'pink', 'red', 'orange', 'yellow', 'neutral'] as const)(
+  'backup preserves the three separate %s accent selections and transition preference', accent => {
+    const backup = fixture();
+    backup.settings.accentPreferencesV4 = { appAccent: accent, playerAccent: accent, instantColors: true };
+    backup.settings.playerPresentationV3 = { quiet: false, density: 'compact', waveformAccent: accent };
+    expect(parseMusicBackup(serializeMusicBackup(backup)).settings).toEqual(backup.settings);
+  });
+test('unknown accent values or a partial preference record cannot enter restore', () => {
+  for (const preferences of [{ appAccent: 'unknown', playerAccent: 'cover', instantColors: false },
+    { appAccent: 'blue', playerAccent: 'cover' }]) {
+    const backup = fixture();
+    expect(() => parseMusicBackup(JSON.stringify({ ...backup, settings: { accentPreferencesV4: preferences } }))).toThrow();
+  }
+});
 test.each([
   ['unsupported version', { ...fixture(), version: 2 }],
   ['dangling playlist reference', { ...fixture(), playlists: [{ ...fixture().playlists[0], songIds: ['unknown'] }] }],

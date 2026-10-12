@@ -95,7 +95,8 @@ describe('useMusicProviderDomainActions', () => {
 
     const { result } = renderHook(() => useMusicProviderDomainActions(runtime));
 
-    expect(result.current).toBe(actions);
+    expect(result.current).toMatchObject(actions);
+    expect(result.current.updateSongMetadataConfirmed).toEqual(expect.any(Function));
     expect(mockedUseMusicProviderActions).toHaveBeenCalledWith({
       playback: {
         songsRef: runtime.refs.songsRef,

@@ -4,6 +4,8 @@ import {
   extractAlbumPalette,
   getAlbumPaletteArtworkUri,
   resetAlbumPaletteSingleFlightForTests,
+  getCachedAlbumPalette,
+  warmAlbumPalette,
 } from '../albumPaletteHelpers';
 import type { Song } from '../../types/Song';
 
@@ -137,10 +139,11 @@ describe('albumPaletteHelpers', () => {
     await expect(extractAlbumPalette('file:///cover.jpg')).resolves.toBeNull();
   });
 
-  test('releases a timed-out slot so the latest artwork can still resolve', async () => {
+  test('bounds the UI timeout while retaining actual native ownership until raw settlement', async () => {
+    let finish!: (value: { dominant: string }) => void;
     jest.useFakeTimers();
     jest.spyOn(SystemAudio, 'extractPalette')
-      .mockReturnValueOnce(new Promise(() => undefined))
+      .mockReturnValueOnce(new Promise(resolve => { finish = resolve; }))
       .mockResolvedValueOnce({ dominant: '#666666' });
 
     const result = extractAlbumPalette('file:///cover.jpg');
@@ -148,7 +151,12 @@ describe('albumPaletteHelpers', () => {
     await jest.advanceTimersByTimeAsync(ALBUM_PALETTE_EXTRACTION_TIMEOUT_MS);
 
     await expect(result).resolves.toBeNull();
+    expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
+    await warmAlbumPalette('file:///optional.jpg');
+    expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
+    finish({ dominant: '#111111' });
     await expect(latest).resolves.toEqual({ dominant: '#666666' });
+    expect(getCachedAlbumPalette('file:///cover.jpg')).toBeNull();
     expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(2);
   });
 
@@ -165,4 +173,23 @@ describe('albumPaletteHelpers', () => {
     await expect(result).resolves.toBeNull();
     jest.clearAllTimers();
   });
+});
+
+
+test('5000 foreground changes retain one actual native call and only the latest pending request', async () => {
+  jest.clearAllMocks(); jest.useFakeTimers(); resetAlbumPaletteSingleFlightForTests();
+  let finish!: (value: { dominant: string }) => void;
+  jest.spyOn(SystemAudio, 'extractPalette')
+    .mockReturnValueOnce(new Promise(resolve => { finish = resolve; }))
+    .mockResolvedValue({ dominant: '#223344' });
+  const requests = Array.from({ length: 5000 }, (_, index) => extractAlbumPalette(`file:///cover-${index}.jpg`));
+  await jest.advanceTimersByTimeAsync(6500);
+  expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(1);
+  await expect(Promise.all(requests)).resolves.toEqual(Array(5000).fill(null));
+  const current = extractAlbumPalette('file:///new-current.jpg');
+  finish({ dominant: '#111111' });
+  await expect(current).resolves.toEqual({ dominant: '#223344' });
+  expect(SystemAudio.extractPalette).toHaveBeenCalledTimes(2);
+  expect(SystemAudio.extractPalette).toHaveBeenLastCalledWith('file:///new-current.jpg');
+  resetAlbumPaletteSingleFlightForTests(); jest.useRealTimers();
 });

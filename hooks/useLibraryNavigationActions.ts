@@ -6,6 +6,7 @@ import type { AppStackParamList } from '../types/navigation';
 import { APP_STACK_ROUTES } from '../types/routes';
 
 export interface UseLibraryNavigationActionsResult {
+  openTagCleaner: (songIds: string[]) => void;
   openTrackInfo: (song: Song) => void;
   openEqualizer: () => void;
   openSettings: () => void;
@@ -31,5 +32,8 @@ export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult
     navigation.navigate('PlaylistDetail', { playlistId });
   }, [navigation]);
 
-  return { openTrackInfo, openEqualizer, openSettings, openPlaylistDetail };
+  const openTagCleaner = useCallback((songIds: string[]) => {
+    navigation.navigate('TagCleaner', { songIds });
+  }, [navigation]);
+  return { openTagCleaner, openTrackInfo, openEqualizer, openSettings, openPlaylistDetail };
 };

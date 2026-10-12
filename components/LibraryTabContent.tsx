@@ -50,7 +50,7 @@ const ResponsiveAlbumGrid = ({ albumGroups, emptyState, renderAlbumTile }: {
     </View>
   ), [renderAlbumTile, tileWidth]);
   return <FlatList key={`library-albums-grid-${columns}`} data={albumGroups}
-    keyExtractor={groupKeyExtractor} contentContainerStyle={styles.albumGridContent}
+    keyExtractor={groupKeyExtractor} contentContainerStyle={{ paddingBottom: 0 }}
     renderItem={renderGridItem} numColumns={columns} columnWrapperStyle={styles.albumColumn}
     initialNumToRender={8} windowSize={GROUP_WINDOW_SIZE}
     removeClippedSubviews={shouldRemoveClippedSubviews} ListEmptyComponent={emptyState} />;
@@ -127,6 +127,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   const { theme } = useAppTheme();
   const { fontScale } = useWindowDimensions();
   const { presentation } = usePlayerPresentation();
+  const listContent = { paddingBottom: 0 };
   const groupHeight = getLibraryGroupRowHeight(fontScale, presentation.density);
   const getGroupItemLayout = useCallback((_: ArrayLike<LibraryGroupItem | LibraryPlaylistItem> | null | undefined,
     index: number) => ({ length: groupHeight, offset: groupHeight * index, index }), [groupHeight]);
@@ -140,7 +141,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           key="library-folders-list"
           data={scanFolders}
           keyExtractor={folderKeyExtractor}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={listContent}
           renderItem={renderFolderItem}
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
@@ -166,7 +167,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
             key="library-albums-list"
             data={albumGroups}
             keyExtractor={groupKeyExtractor}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={listContent}
             renderItem={renderGroupItem}
             getItemLayout={getGroupItemLayout}
             initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
@@ -189,7 +190,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           key={`library-${activeTab}-groups-list`}
           data={groups}
           keyExtractor={groupKeyExtractor}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={listContent}
           renderItem={renderGroupItem}
           getItemLayout={getGroupItemLayout}
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
@@ -209,7 +210,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           key="library-playlists-list"
           data={playlistItems}
           keyExtractor={groupKeyExtractor}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={listContent}
           renderItem={renderPlaylistItem}
           initialNumToRender={GROUP_INITIAL_RENDER_COUNT}
           windowSize={GROUP_WINDOW_SIZE}
@@ -249,7 +250,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         keyExtractor={songKeyExtractor}
         numColumns={getLibrarySongViewColumns(songViewMode)}
         columnWrapperStyle={getLibrarySongViewColumns(songViewMode) > 1 ? styles.songGridColumn : undefined}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={listContent}
         renderItem={renderSongItem}
         removeClippedSubviews={shouldRemoveClippedSubviews}
         windowSize={SONG_WINDOW_SIZE}
@@ -265,8 +266,6 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
 
 const styles = StyleSheet.create({
   folderCount: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
-  listContent: { paddingBottom: 96 },
-  albumGridContent: { paddingBottom: 104 },
   albumColumn: { gap: ALBUM_GRID_GAP },
   songGridColumn: { gap: 12, paddingHorizontal: 12 },
 });

@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
+import { useLibraryCleanerMenu } from '../hooks/useLibraryCleanerMenu';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
@@ -15,6 +16,7 @@ export const getAlbumTileFallbackLetter = (title: string): string =>
 
 const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onPress }) => {
   const { theme } = useAppTheme();
+  const cleaner = useLibraryCleanerMenu();
   const [coverFailed, setCoverFailed] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const thumbnailUri = useArtworkThumbnail(album.cover, 256);
@@ -41,8 +43,10 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${album.title} abspielen`}
+      accessibilityHint={cleaner ? "Lange drücken für Tags bereinigen" : undefined}
       style={({ pressed }) => [styles.albumTile, pressed && styles.pressed]}
       onPress={handlePress}
+      onLongPress={cleaner ? () => cleaner.openSongsMenu(album.title, album.songs) : undefined}
       testID={`library-album-tile-${album.id}`}
     >
       <View

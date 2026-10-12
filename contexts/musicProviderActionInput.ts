@@ -2,7 +2,7 @@ import type { MusicContextValue } from './musicContextTypes';
 
 type ContextLibraryInput = Pick<
   MusicContextValue,
-  'setSongs' | 'addSongs' | 'updateSongMetadata' | 'applySongMetadataPatches'
+  'setSongs' | 'addSongs' | 'updateSongMetadata' | 'updateSongMetadataConfirmed' | 'applySongMetadataPatches'
 >;
 
 type ContextPlaylistInput = Pick<
@@ -27,7 +27,7 @@ interface ContextActionSections {
 export const buildMusicProviderContextActionsInput = ({
   setSongs,
   addSongs,
-  updateSongMetadata,
+  updateSongMetadata, updateSongMetadataConfirmed,
   applySongMetadataPatches,
   createPlaylist,
   saveQueueAsPlaylist,
@@ -41,7 +41,7 @@ export const buildMusicProviderContextActionsInput = ({
   library: {
     setSongs,
     addSongs,
-    updateSongMetadata,
+    updateSongMetadata, ...(updateSongMetadataConfirmed ? { updateSongMetadataConfirmed } : {}),
     applySongMetadataPatches,
   },
   playlists: {

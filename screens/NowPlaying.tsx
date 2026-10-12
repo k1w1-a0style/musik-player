@@ -3,7 +3,6 @@ import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'r
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import AppErrorBoundary from '../components/AppErrorBoundary';
-import PlaybackSelectionNotice from '../components/PlaybackSelectionNotice';
 import Screen from '../components/Screen';
 import NowPlayingBackdrop from './NowPlayingBackdrop';
 import NowPlayingHeader from './NowPlayingHeader';
@@ -140,7 +139,6 @@ const HydratedNowPlayingContent = ({ state }: { state: NowPlayingState }) => (
     {state.controlsMode === 'soundcloud'
       ? <SoundCloudNowPlayingContent state={state} />
       : <ClassicNowPlayingContent state={state} />}
-    <PlaybackSelectionNotice topInset={state.topInset} />
     <AdjacentWaveformPreloader nextSong={state.nextSong} previousSong={state.previousSong} />
   </>
 );

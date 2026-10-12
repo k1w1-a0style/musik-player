@@ -2,8 +2,13 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import PresentationSettings from '../components/PresentationSettings';
+import AccentSettings from '../components/AccentSettings';
 import BackupSettings from '../components/BackupSettings';
 import ResumeSettings from '../components/ResumeSettings';
+import TagCleanerSettings from '../components/TagCleanerSettings';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { AppStackParamList } from '../types/navigation';
+import { APP_STACK_ROUTES } from '../types/routes';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useNowPlayingControlsMode } from '../hooks/useNowPlayingControlsMode';
 import {
@@ -21,11 +26,14 @@ import {
   type NowPlayingPlayerLayout,
 } from '../utils/nowPlayingControlsMode';
 
-const Settings: React.FC = () => {
+type SettingsNavigation = NativeStackNavigationProp<AppStackParamList, 'Settings'>;
+const getOpenCleanerAction = (navigation?: SettingsNavigation): (() => void) | undefined =>
+  navigation ? () => navigation.navigate(APP_STACK_ROUTES.TAG_CLEANER) : undefined;
+
+const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation }) => {
   const { appearance, skin, theme, setAppearance, setSkin } = useAppTheme();
   const { mode: nowPlayingPlayerLayout, setMode: setNowPlayingPlayerLayout } = useNowPlayingControlsMode();
   const { fonts, radii, spacing } = theme.tokens;
-
   const optionTokenStyle = {
     borderRadius: radii.card,
     gap: spacing.xs,
@@ -128,8 +136,10 @@ const Settings: React.FC = () => {
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Wiedergabe</Text>
           <CoverBassPulseSetting /><ResumeSettings /></View>
+        <AccentSettings />
         <PresentationSettings />
         <BackupSettings />
+        <TagCleanerSettings onOpen={getOpenCleanerAction(navigation)} />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
           {APP_APPEARANCES.map(renderAppearanceOption)}
@@ -144,6 +154,17 @@ const Settings: React.FC = () => {
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Ansicht</Text>
           {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
+        <ThemePreview />
+      </ScrollView>
+    </View>
+    </AppBackground>
+  );
+};
+
+const ThemePreview = () => {
+  const { theme } = useAppTheme();
+  const { fonts, radii, spacing } = theme.tokens;
+  return (
         <View
           testID="settings-theme-preview"
           style={[
@@ -163,11 +184,8 @@ const Settings: React.FC = () => {
             <View style={[styles.previewLine, { backgroundColor: theme.palette.borderStrong }]} />
             <View style={[styles.previewPill, { backgroundColor: theme.palette.surfaceElevated, borderColor: theme.palette.border }]} />
           </View>
-          <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>So wirkt deine aktuelle Auswahl im Player und in der Bibliothek.</Text>
+          <Text style={[styles.optionSubtitle, { fontFamily: fonts.body }, { color: theme.palette.text.secondary }]}>So wirkt deine aktuelle Auswahl im Player und in der Bibliothek.</Text>
         </View>
-      </ScrollView>
-    </View>
-    </AppBackground>
   );
 };
 

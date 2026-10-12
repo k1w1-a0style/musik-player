@@ -495,3 +495,22 @@ test('finds add candidates without diacritics and accommodates safe areas and ke
   expect(StyleSheet.flatten(view.getByTestId('playlist-detail-add-keyboard').props.style).paddingTop).toBe(24);
   expect(StyleSheet.flatten(view.getByTestId('playlist-detail-add-panel').props.style).paddingBottom).toBe(28);
 });
+
+test('cleaner entry deduplicates contained sources and keeps playlist membership unchanged', () => {
+  mockPlaylists = [playlist('playlist-1', ['song-a','song-a','song-b','missing'])];
+  const before = mockPlaylists[0].songIds.slice();
+  const screen = render(<PlaylistDetail />);
+  const button = screen.getByTestId('playlist-detail-cleaner-button');
+  expect(button.props.accessibilityLabel).toBe('Tags von 2 Playlist-Titeln bereinigen');
+  expect(StyleSheet.flatten(button.props.style).minHeight).toBe(48);
+  fireEvent.press(button);
+  expect(mockNavigate).toHaveBeenCalledWith('TagCleaner', { songIds: ['song-a','song-b'] });
+  expect(mockPlaylists[0].songIds).toEqual(before);
+});
+
+test('cleaner entry is disabled when no playlist files are still available', () => {
+  mockPlaylists = [playlist('playlist-1', ['missing'])];
+  const screen = render(<PlaylistDetail />);
+  expect(screen.getByTestId('playlist-detail-cleaner-button').props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByTestId('playlist-detail-cleaner-button')); expect(mockNavigate).not.toHaveBeenCalled();
+});

@@ -10,6 +10,7 @@ import { writeTagsToSafContentUri } from './tagWriterSaf';
 import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS } from './tagWriterLimits';
 import { TagWriterError, tagWriterWarn } from './tagWriterError';
 import { LOCAL_FILE_TAG_WRITE_BLOCKED_REASON } from './tagWriteSafety';
+import type { SafTagWriteOptions } from './tagWriterSafPreflight';
 
 export const prepareTagEditPlan = (song: Song, draft: TagEditDraft): TagEditPlan =>
   createTagWriteOperationPlan(
@@ -51,7 +52,7 @@ const toWriteTagsFailureResult = (
   };
 };
 
-export type WriteTagsOptions = {
+export type WriteTagsOptions = SafTagWriteOptions & {
   adapter?: TagFileWriteAdapter;
   maxFileSizeBytes?: number;
   timeoutMs?: number;
@@ -79,6 +80,9 @@ export const writeTagsToFile = async (
       maxFileSizeBytes: options.maxFileSizeBytes,
       timeoutMs: options.timeoutMs ?? DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS,
       operationId: options.operationId,
+      preflight: options.preflight,
+      expectedOriginalSizeBytes: options.expectedOriginalSizeBytes,
+      expectedOriginalSha256Hex: options.expectedOriginalSha256Hex,
     });
   }
 

@@ -11,6 +11,8 @@ import {
 } from '../utils/appTheme';
 import { useHydratedStoredPreference } from '../hooks/useHydratedStoredPreference';
 import { storage } from '../utils/storage';
+import { useAccentPreferences } from './AccentPreferencesContext';
+import { applyAppAccent } from '../utils/accentPreferences';
 
 export interface AppThemeContextValue {
   appearance: AppAppearance;
@@ -42,6 +44,7 @@ const persistBassPulse = async (value: boolean): Promise<void> => {
 };
 
 export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) => {
+  const { preferences, coverAccent } = useAccentPreferences();
   const {
     value: appearance,
     setValue: setAppearance,
@@ -72,12 +75,12 @@ export const AppThemeProvider: React.FC<AppThemeProviderProps> = ({ children }) 
   const value = useMemo<AppThemeContextValue>(() => ({
     appearance,
     skin,
-    theme: getAppTheme(appearance, skin),
+    theme: applyAppAccent(getAppTheme(appearance, skin), preferences.appAccent, coverAccent),
     isHydrated: isAppearanceHydrated && isSkinHydrated,
     setAppearance,
     setSkin,
     bassPulseEnabled, isBassPulseHydrated, setBassPulseEnabled,
-  }), [appearance, bassPulseEnabled, isAppearanceHydrated, isBassPulseHydrated, isSkinHydrated, setAppearance, setBassPulseEnabled, setSkin, skin]);
+  }), [appearance, bassPulseEnabled, coverAccent, preferences.appAccent, isAppearanceHydrated, isBassPulseHydrated, isSkinHydrated, setAppearance, setBassPulseEnabled, setSkin, skin]);
 
   return <AppThemeContext.Provider value={value}>{children}</AppThemeContext.Provider>;
 };

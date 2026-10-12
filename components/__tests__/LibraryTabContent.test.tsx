@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { Pressable, StyleSheet, Text, FlatList } from 'react-native';
+import { MiniPlayerViewportProvider, useMiniPlayerViewport } from '../../contexts/MiniPlayerViewportContext';
 import LibraryTabContent from '../LibraryTabContent';
 
 const mockAppThemeContextValue = {
@@ -145,3 +146,19 @@ test('keeps playlist create UI visible when playlists exist', () => {
   expect(screen.getByText('Mix')).toBeTruthy();
   expect(renderPlaylistItem).toHaveBeenCalled();
 });
+
+const MeasureOverlay = () => {
+  const { reportHeight } = useMiniPlayerViewport();
+  return <Pressable testID="measure-overlay" onPress={() => reportHeight(78)} />;
+};
+test.each(['folders', 'albums', 'artists', 'genres', 'playlists', 'tracks', 'favorites'] as const)(
+  'shrinks the actual %s viewport around a 320 dp / font2 mini player without a duplicate footer', activeTab => {
+    const screen = render(<MiniPlayerViewportProvider safeAreaBottom={24}>
+      <MeasureOverlay /><LibraryTabContent {...baseProps} activeTab={activeTab} />
+    </MiniPlayerViewportProvider>);
+    fireEvent.press(screen.getByTestId('measure-overlay'));
+    const shell = screen.getByTestId(`library-${activeTab}-shell`);
+    expect(StyleSheet.flatten(shell.props.style).marginBottom).toBe(78 + 24 + 12 + 20);
+    const list = screen.UNSAFE_getByType(FlatList);
+    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(0);
+  });

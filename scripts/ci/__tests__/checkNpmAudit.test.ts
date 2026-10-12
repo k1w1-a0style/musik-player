@@ -8,7 +8,10 @@ const { evaluateAudit } = require(script) as {
 
 const lock = (versions: Record<string, string> = { 'node_modules/brace-expansion': '2.1.2' }) => ({
   packages: Object.fromEntries(
-    Object.entries(versions).map(([node, version]) => [node, { version }]),
+    Object.entries({
+      ...Object.fromEntries(['minimatch', 'glob', 'expo', 'tar', 'alpha', 'beta', 'dangerous', 'changed'].map(name => [`node_modules/${name}`, '1.0.0'])),
+      ...versions,
+    }).map(([node, version]) => [node, { version }]),
   ),
 });
 const policy = {
@@ -23,11 +26,15 @@ const policy = {
     reason: 'Legacy Expo and React Native CLI consumers remain build-time-only while compatible maintenance fixes are pending.',
   }],
 };
-const audit = (vulnerabilities: Record<string, unknown>) => ({
-  auditReportVersion: 2,
-  vulnerabilities,
-  metadata: { vulnerabilities: { critical: 0, high: 2, moderate: 13 } },
-});
+const audit = (vulnerabilities: Record<string, unknown>) => {
+  const counts: Record<string, number> = { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 };
+  for (const entry of Object.values(vulnerabilities)) {
+    const severity = (entry as { severity: string }).severity;
+    if (Object.hasOwn(counts, severity)) counts[severity] += 1;
+    counts.total += 1;
+  }
+  return { auditReportVersion: 2, vulnerabilities, metadata: { vulnerabilities: counts } };
+};
 
 const braceExpansion = {
   severity: 'high',
@@ -73,7 +80,7 @@ describe('npm audit policy gate', () => {
         expo: { severity: 'high', via: ['glob', 'tar'], nodes: ['node_modules/expo'] },
         tar: {
           severity: 'moderate',
-          via: [{ source: 1124000, name: 'tar', severity: 'moderate' }],
+          via: [{ source: 1124000, name: 'tar', severity: 'moderate', url: 'https://github.com/advisories/GHSA-aaaa-bbbb-dddd' }],
           nodes: ['node_modules/tar'],
         },
       }),
@@ -95,14 +102,14 @@ describe('npm audit policy gate', () => {
       today: '2026-07-26',
     });
     expect(result.failures).toContain(
-      'minimatch: blocking effect has no path to a known blocking advisory root [missing-root]',
+      'minimatch: unknown dependency effect missing-root',
     );
   });
 
   it('resolves dependency cycles with an exit to an advisory root regardless of order', () => {
     for (const entries of [
-      { alpha: { severity: 'high', via: ['beta', 'brace-expansion'] }, beta: { severity: 'high', via: ['alpha'] } },
-      { beta: { severity: 'high', via: ['alpha'] }, alpha: { severity: 'high', via: ['beta', 'brace-expansion'] } },
+      { alpha: { severity: 'high', via: ['beta', 'brace-expansion'], nodes: ['node_modules/alpha'] }, beta: { severity: 'high', via: ['alpha'], nodes: ['node_modules/beta'] } },
+      { beta: { severity: 'high', via: ['alpha'], nodes: ['node_modules/beta'] }, alpha: { severity: 'high', via: ['beta', 'brace-expansion'], nodes: ['node_modules/alpha'] } },
     ]) {
       const result = evaluateAudit({ audit: audit({ ...entries, 'brace-expansion': braceExpansion }),
         policy, lock: vulnerableLock(), today: '2026-07-26' });
@@ -223,4 +230,73 @@ describe('npm audit policy gate', () => {
     const result = evaluateAudit({ audit: audit({ 'brace-expansion': { ...braceExpansion, severity: 'critical' } }), policy, lock: vulnerableLock(), today: '2026-07-26' });
     expect(result.failures).toContain('brace-expansion: vulnerability severity changed from excepted high to critical');
   });
+  it.each([
+    { error: { code: 'EAUDITNOLOCK' } },
+    { vulnerabilities: { odd: { severity: 'unknown', via: [], nodes: [] } } },
+    { vulnerabilities: { odd: { severity: 'moderate', via: [{ source: 'bad' }], nodes: ['node_modules/odd'] } } },
+  ])('fails closed on malformed audit reports %p', malformed => {
+    const result = evaluateAudit({ audit: { ...audit({}), ...malformed },
+      policy: { schemaVersion: 2, exceptions: [] }, lock: lock(), today: '2026-07-26' });
+    expect(result.failures.length).toBeGreaterThan(0);
+  });
+
+  it('fails if one declared vulnerable lock node is missing even when another is known', () => {
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion }),
+      policy, lock: lock(), today: '2026-07-26' });
+    expect(result.failures.join(' ')).toContain('missing vulnerable lock node');
+  });
+
+  it('fails an unknown effect beside an otherwise accepted root', () => {
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion,
+      changed: { severity: 'high', via: ['brace-expansion', 'unknown'], nodes: ['node_modules/changed'] } }),
+      policy, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures.join(' ')).toContain('unknown dependency effect');
+  });
+
+  it('requires an exact effect graph for every compensated payload decision', () => {
+    const compensated = { ...policy, exceptions: [{ ...policy.exceptions[0], requiredToolingPatch: 'brace-expansion', expectedDependencies: [] }] };
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion }),
+      policy: compensated, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures).toContain('missing exact blocking dependency-effect policy');
+  });
+
+  it('rejects a newly introduced effect even when its root was already accepted', () => {
+    const compensated = { ...policy, expectedBlockingEffects: [],
+      exceptions: [{ ...policy.exceptions[0], requiredToolingPatch: 'brace-expansion', expectedDependencies: [] }] };
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion,
+      minimatch: { severity: 'high', via: ['brace-expansion'], nodes: ['node_modules/minimatch'] } }),
+      policy: compensated, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures.join(' ')).toContain('unexpected blocking dependency effect');
+  });
+
+  it('accepts only the exact effect nodes, versions, severities and edges', () => {
+    const effect = { package: 'minimatch', severity: 'high', via: ['brace-expansion'],
+      nodes: ['node_modules/minimatch'], versions: ['1.0.0'] };
+    const compensated = { ...policy, expectedBlockingEffects: [effect],
+      exceptions: [{ ...policy.exceptions[0], requiredToolingPatch: 'brace-expansion', expectedDependencies: [] }] };
+    const report = audit({ 'brace-expansion': braceExpansion,
+      minimatch: { severity: 'high', via: ['brace-expansion'], nodes: ['node_modules/minimatch'] } });
+    const result = evaluateAudit({ audit: report, policy: compensated, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures).toEqual([]);
+    const stale = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion }),
+      policy: compensated, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(stale.failures.join(' ')).toContain('stale blocking dependency effect');
+  });
+
+  it('rejects an error disguised as a clean report by zeroed counters', () => {
+    const report = audit({ 'brace-expansion': braceExpansion });
+    report.metadata.vulnerabilities.high = 0;
+    const result = evaluateAudit({ audit: report, policy, lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures.join(' ')).toContain('count differs from reported entries');
+  });
+
+  it('rejects additional recognized dependency edges on a compensated advisory root', () => {
+    const compensated = { ...policy, expectedBlockingEffects: [], exceptions: [{ ...policy.exceptions[0],
+      requiredToolingPatch: 'brace-expansion', expectedDependencies: [] }] };
+    const result = evaluateAudit({ audit: audit({ 'brace-expansion': { ...braceExpansion,
+      via: [...braceExpansion.via, 'brace-expansion'] } }), policy: compensated,
+      lock: vulnerableLock(), today: '2026-07-26' });
+    expect(result.failures.join(' ')).toContain('advisory root dependencies changed');
+  });
+
 });

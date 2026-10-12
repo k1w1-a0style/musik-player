@@ -63,3 +63,19 @@ test('quiet combines with the system motion setting and does not turn it off', a
   await act(async () => {});
   system.mockRestore();
 });
+
+
+test('generic color layers honor the operating-system reduced motion setting', async () => {
+  const system = jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+  const timing = jest.spyOn(Animated, 'timing');
+  const Probe = () => <Text testID="system-motion">{String(useReducedMotion())}</Text>;
+  const Child = ({ color }: { color: string }) => <><Probe />
+    <CrossfadeLayers value={color} valueKey={color} renderLayer={value => <Text>{value}</Text>} testID="generic-colors" /></>;
+  const view = render(<Child color="#112233" />);
+  await waitFor(() => expect(view.getByTestId('system-motion').props.children).toBe('true'));
+  timing.mockClear();
+  view.rerender(<Child color="#223344" />);
+  expect(timing).not.toHaveBeenCalled();
+  expect(view.queryByTestId('generic-colors-outgoing', { includeHiddenElements: true })).toBeNull();
+  system.mockRestore(); timing.mockRestore();
+});

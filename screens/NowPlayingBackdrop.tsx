@@ -7,7 +7,7 @@ import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 import { blendBackdropColor, getNowPlayingBackdropOverlayColors } from '../utils/appThemeOverlays';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
-import { useColorCrossfade, type ColorLayer } from '../hooks/useColorCrossfade';
+import { PLAYER_COLOR_CROSSFADE_MS, useColorCrossfade, type ColorLayer } from '../hooks/useColorCrossfade';
 
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
@@ -89,7 +89,7 @@ const NowPlayingBackdrop: React.FC<NowPlayingBackdropProps> = ({
     () => buildSnapshot({ gradientColors, accent, glowLeft, artworkUri }),
     [accent, artworkUri, glowLeft, gradientColors],
   );
-  const { active, outgoing, transition } = useColorCrossfade(incoming, incoming.key, reduceMotion ? 0 : 1000, 0,
+  const { active, outgoing, transition } = useColorCrossfade(incoming, incoming.key, reduceMotion ? 0 : PLAYER_COLOR_CROSSFADE_MS, 0,
     { maxOutgoingLayers: 2, mergeLayers: mergeBackdropLayers });
 
   return (

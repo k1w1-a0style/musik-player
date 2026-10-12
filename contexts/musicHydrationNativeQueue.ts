@@ -3,6 +3,7 @@ import TrackPlayer from 'react-native-track-player';
 import type { Song } from '../types/Song';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import { assertTagSourceAvailableForPlayback } from '../utils/tagPlaybackSafety';
 import {
   commitNativeQueueTruth,
   classifyNativeQueueRecoveryFailure,
@@ -377,6 +378,7 @@ const applyHydrationMutation = async ({
   context: HydrationExecutionContext;
 }): Promise<HydratedNativeQueueResult> => {
   try {
+    context.plan.playableQueue.forEach(song => assertTagSourceAvailableForPlayback(song.uri));
     await TrackPlayer.reset();
     if (context.isCancelled()) return cancelledResult(context.targets, 'mutation');
     if (context.plan.playableQueue.length === 0) logEmptyPlayableQueueHydration(context.plan);

@@ -1,7 +1,9 @@
 import { SOUNDCLOUD_PLAYER_COLORS } from './appThemeOverlays';
 import type { WaveformAccent } from './playerPresentation';
+import { ACCENT_COLORS } from './accentPreferences';
 
 const fixedColors = {
+  ...ACCENT_COLORS,
   neutral: SOUNDCLOUD_PLAYER_COLORS.waveformNeutral,
   orange: SOUNDCLOUD_PLAYER_COLORS.accent,
   blue: SOUNDCLOUD_PLAYER_COLORS.waveformBlue,
@@ -22,5 +24,5 @@ const readableCoverAccent = (accent?: string): string => {
 };
 export const getSoundCloudWaveformColors = (accent?: string, selection: WaveformAccent = 'cover') => ({
   unplayed: SOUNDCLOUD_PLAYER_COLORS.waveformRest,
-  played: selection === 'cover' ? readableCoverAccent(accent) : fixedColors[selection],
+  played: selection === 'cover' ? readableCoverAccent(accent) : readableCoverAccent(fixedColors[selection]),
 });

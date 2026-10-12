@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BackupSettings } from '../utils/backupFormat';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_APPEARANCE_LABELS, APP_THEME_SKIN_LABELS } from '../utils/appTheme';
-import { WAVEFORM_ACCENT_LABELS } from '../utils/playerPresentation';
+import { ACCENT_LABELS } from '../utils/accentPreferences';
 
 const labels: Record<keyof BackupSettings, string> = {
   appAppearance: 'Darstellung', appThemeSkin: 'Oberfläche', coverBassPulse: 'Cover-Puls zum Bass',
@@ -11,12 +11,15 @@ const labels: Record<keyof BackupSettings, string> = {
   albumViewMode: 'Albumansicht', volume: 'Lautstärke', repeatMode: 'Wiederholung', shuffle: 'Zufallswiedergabe',
   eqEnabled: 'Equalizer', eqPreset: 'EQ-Profil', eqBands: 'EQ-Werte (dB)', playerPresentationV3: 'Bewegung und Bibliotheksdichte',
   playbackResumeEnabled: 'Wiedergabe fortsetzen',
+  accentPreferencesV4: 'App- und Player-Farben',
 };
 const describe = (key: keyof BackupSettings, value: NonNullable<BackupSettings[keyof BackupSettings]>): string => {
   if (typeof value === 'boolean') return value ? 'Ein' : 'Aus';
   if (typeof value === 'number') return `${Math.round(value * 100)} %`;
   if (Array.isArray(value)) return value.join(' / ');
-  if (typeof value === 'object') return `${value.quiet ? 'Ruhig' : 'Normale Bewegung'}, ${value.density === 'compact' ? 'Kompakt' : 'Standard'}, ${WAVEFORM_ACCENT_LABELS[value.waveformAccent]}`;
+  if (typeof value === 'object' && 'appAccent' in value)
+    return `App: ${ACCENT_LABELS[value.appAccent]}, Player: ${ACCENT_LABELS[value.playerAccent]}, ${value.instantColors ? 'sofortige Farbwechsel' : 'weiche Farbwechsel'}`;
+  if (typeof value === 'object') return `${value.quiet ? 'Ruhig' : 'Normale Bewegung'}, ${value.density === 'compact' ? 'Kompakt' : 'Standard'}, ${ACCENT_LABELS[value.waveformAccent]}`;
   if (key === 'appAppearance') return APP_APPEARANCE_LABELS[value as keyof typeof APP_APPEARANCE_LABELS];
   if (key === 'appThemeSkin') return APP_THEME_SKIN_LABELS[value as keyof typeof APP_THEME_SKIN_LABELS];
   const names: Record<string, string> = { classic: 'Klassisch', soundcloud: 'SoundCloud', alphabet: 'A–Z', trackNumber: 'Disc/Track',

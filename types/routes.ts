@@ -3,6 +3,7 @@ export const APP_STACK_ROUTES = {
   NOW_PLAYING: 'NowPlaying',
   TRACK_INFO: 'TrackInfo',
   TAG_EDITOR: 'TagEditor',
+  TAG_CLEANER: 'TagCleaner',
   EQUALIZER: 'Equalizer',
   SETTINGS: 'Settings',
   PLAYLIST_DETAIL: 'PlaylistDetail',

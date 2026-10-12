@@ -24,7 +24,7 @@ export type UseLibraryComponentPropsOptions = LibraryTopBarPropsBuilderOptions
   & LibraryMenuModalPropsBuilderOptions
   & LibraryTabContentPropsBuilderOptions
   & LibraryScreenVisibilityPropsBuilderOptions
-  & Pick<LibraryScreenContentProps, 'songActionMenuProps' | 'songPlaylistPickerProps'>;
+  & Pick<LibraryScreenContentProps, 'songActionMenuProps' | 'songPlaylistPickerProps' | 'selectionScope'>;
 
 export type UseLibraryComponentPropsResult = LibraryScreenContentProps;
 
@@ -39,7 +39,7 @@ export const useLibraryComponentProps = ({
   genreGroups,
   getSongItemLayout,
   importFromDevice,
-  importStatus, cancelImport,
+  importStatus, cancelImport, onRetryScan, persistenceWarning, onRetryPersistence,
   isReady,
   loading,
   menuOpen,
@@ -77,7 +77,7 @@ export const useLibraryComponentProps = ({
   onCycleSongViewMode,
   toggleSearch,
   songActionMenuProps,
-  songPlaylistPickerProps,
+  songPlaylistPickerProps, selectionScope,
 }: UseLibraryComponentPropsOptions): UseLibraryComponentPropsResult => {
   const topBarProps = useMemo(() => buildLibraryTopBarProps({
     openMenu,
@@ -96,10 +96,10 @@ export const useLibraryComponentProps = ({
   }), [query, setQuery]);
 
   const importStatusProps = useMemo(() => ({ ...buildLibraryImportStatusProps({
-    importStatus, cancelImport,
+    importStatus, cancelImport, onRetryScan, persistenceWarning, onRetryPersistence,
     cancelMetadataRefresh,
     resumeMetadataRefresh,
-  }), scanning: loading }), [importStatus, cancelImport, cancelMetadataRefresh, resumeMetadataRefresh, loading]);
+  }), scanning: loading }), [importStatus, cancelImport, cancelMetadataRefresh, resumeMetadataRefresh, loading, onRetryScan, persistenceWarning, onRetryPersistence]);
 
   const visibilityProps = useMemo(() => buildLibraryScreenVisibilityProps({
     loading,
@@ -195,5 +195,5 @@ export const useLibraryComponentProps = ({
     refreshHasResumable,
   ]);
 
-  return { importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, songActionMenuProps, songPlaylistPickerProps, ...visibilityProps };
+  return { selectionScope, importStatusProps, menuModalProps, searchBarProps, tabContentProps, tabsProps, topBarProps, songActionMenuProps, songPlaylistPickerProps, ...visibilityProps };
 };

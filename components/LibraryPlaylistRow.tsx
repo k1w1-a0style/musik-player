@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ListMusic, Play } from 'lucide-react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
+import { useLibraryCleanerMenu } from '../hooks/useLibraryCleanerMenu';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 
@@ -13,6 +14,7 @@ interface LibraryPlaylistRowProps {
 
 const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onOpen, onPlay }) => {
   const { theme } = useAppTheme();
+  const cleaner = useLibraryCleanerMenu();
   const disabled = playlist.validCount === 0;
 
   return (
@@ -24,6 +26,8 @@ const LibraryPlaylistRow: React.FC<LibraryPlaylistRowProps> = ({ playlist, onOpe
         accessibilityRole="button"
         accessibilityLabel={`Playlist ${playlist.name}`}
         onPress={() => onOpen(playlist.id)}
+        onLongPress={cleaner ? () => cleaner.openSongsMenu(playlist.name, playlist.songs) : undefined}
+        accessibilityHint={cleaner ? "Lange drücken für Tags bereinigen" : undefined}
         style={({ pressed }) => [styles.openArea, pressed && styles.pressed]}
         testID={`open-playlist-${playlist.id}`}
       >

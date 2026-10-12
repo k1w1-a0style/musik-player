@@ -3,6 +3,7 @@ export type AppStackParamList = {
   NowPlaying: undefined;
   TrackInfo: { songId: string };
   TagEditor: { songId: string };
+  TagCleaner: { songIds?: string[] } | undefined;
   Equalizer: undefined;
   Settings: undefined;
   PlaylistDetail: { playlistId: string };

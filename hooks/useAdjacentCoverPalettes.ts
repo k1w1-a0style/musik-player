@@ -1,19 +1,19 @@
 import { useEffect } from 'react';
 import type { Song } from '../types/Song';
-import { getSongArtworkUri } from '../utils/songArtwork';
+import { getSongPaletteIdentity } from '../contexts/albumPaletteIdentity';
 import { warmAlbumPalette } from '../contexts/albumPaletteHelpers';
 
 export const useAdjacentCoverPalettes = (next: Song | null, previous: Song | null,
   paletteLoading: boolean | undefined) => {
-  const nextUri = getSongArtworkUri(next);
-  const previousUri = getSongArtworkUri(previous);
+  const { artworkUri: nextUri, revision: nextRevision } = getSongPaletteIdentity(next);
+  const { artworkUri: previousUri, revision: previousRevision } = getSongPaletteIdentity(previous);
   useEffect(() => {
     if (paletteLoading) return;
     let cancelled = false;
     const timer = setTimeout(() => { void (async () => {
-      await warmAlbumPalette(nextUri);
-      if (!cancelled) await warmAlbumPalette(previousUri);
+      await warmAlbumPalette(nextUri, { revision: nextRevision === '||' ? '' : nextRevision });
+      if (!cancelled) await warmAlbumPalette(previousUri, { revision: previousRevision === '||' ? '' : previousRevision });
     })(); }, 100);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [nextUri, paletteLoading, previousUri]);
+  }, [nextRevision, nextUri, paletteLoading, previousRevision, previousUri]);
 };

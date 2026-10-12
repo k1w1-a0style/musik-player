@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Library from '../screens/Library';
 import AppErrorBoundary from '../components/AppErrorBoundary';
 import MiniPlayer from '../components/MiniPlayer';
+import { MiniPlayerViewportProvider, MINI_PLAYER_BOTTOM_MARGIN } from '../contexts/MiniPlayerViewportContext';
 
 interface MainShellProps {
   openNowPlaying: () => void;
@@ -11,12 +12,13 @@ interface MainShellProps {
 
 // The MiniPlayer floats just above the safe-area bottom now that the bottom
 // tab bar is gone. This margin is independent of any tab bar inset.
-export const MAIN_SHELL_MINI_PLAYER_MARGIN = 12;
+export const MAIN_SHELL_MINI_PLAYER_MARGIN = MINI_PLAYER_BOTTOM_MARGIN;
 
 const MainShell: React.FC<MainShellProps> = ({ openNowPlaying }) => {
   const insets = useSafeAreaInsets();
 
   return (
+    <MiniPlayerViewportProvider safeAreaBottom={insets.bottom}>
     <View style={styles.root} testID="main-shell">
       <Library />
       <AppErrorBoundary
@@ -29,6 +31,7 @@ const MainShell: React.FC<MainShellProps> = ({ openNowPlaying }) => {
         <MiniPlayer onOpen={openNowPlaying} />
       </AppErrorBoundary>
     </View>
+    </MiniPlayerViewportProvider>
   );
 };
 

@@ -46,7 +46,7 @@ const NowPlayingHeader = React.memo(({
           {eyebrowLabel}
         </Text>
         <Text style={[styles.headerTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
-          {albumTitle}
+          Album: {albumTitle}
         </Text>
       </View>
       <Pressable
@@ -66,7 +66,7 @@ NowPlayingHeader.displayName = 'NowPlayingHeader';
 
 const styles = StyleSheet.create({
   headerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 2 },
-  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  headerBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { alignItems: 'center', flex: 1 },
   headerEyebrow: { fontSize: 10, letterSpacing: 1.8, fontFamily: APP_THEME_TOKENS.fonts.body },
   headerTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14, marginTop: 2 },

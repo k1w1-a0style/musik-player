@@ -1,5 +1,8 @@
 import { waitFor } from '@testing-library/react-native';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
+import { beginMetadataRefreshActivity, endMetadataRefreshActivity, resetMetadataRefreshActivityForTests } from '../metadataRefreshActivity';
+import { blockPersistenceForMaintenance, flushPersistenceOwners, releasePersistenceMaintenance, waitForPersistenceWork } from '../persistenceMaintenance';
+import { resetWaveformExtractionLifecycleForTests, scheduleNativeWaveformExtraction } from '../waveformExtractionLifecycle';
 import {
   createCoverCacheProtection,
   cleanupCoverCache,
@@ -40,9 +43,79 @@ const stringifyWarnCalls = (warnSpy: jest.SpyInstance): string => JSON.stringify
 describe('coverCacheCleanup', () => {
   beforeEach(() => {
     resetCoverCacheCleanupForTests();
+    resetMetadataRefreshActivityForTests();
+    resetWaveformExtractionLifecycleForTests();
     jest.clearAllMocks();
     (LegacyFileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true });
     (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue([]);
+  });
+
+  test('defers autonomous cleanup with one timer during scan/refresh/waveform work', async () => {
+    jest.useFakeTimers();
+    beginMetadataRefreshActivity();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg']);
+    const cleanup = cleanupCoverCache([]);
+    await jest.advanceTimersByTimeAsync(3000);
+    expect(LegacyFileSystem.getInfoAsync).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(1);
+    endMetadataRefreshActivity();
+    await jest.advanceTimersByTimeAsync(1000);
+    await cleanup;
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
+
+  test('backup flushing drains a paused cleanup and tracks its actual deletion settlement', async () => {
+    jest.useFakeTimers();
+    beginMetadataRefreshActivity();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockResolvedValue(['aaa-bbb.jpg']);
+    const held = createDeferred<void>();
+    (LegacyFileSystem.deleteAsync as jest.Mock).mockImplementationOnce(() => held.promise);
+    const cleanup = cleanupCoverCache([]);
+    await jest.advanceTimersByTimeAsync(0);
+    flushPersistenceOwners();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(LegacyFileSystem.deleteAsync).toHaveBeenCalledTimes(1);
+    let done = false;
+    const flush = waitForPersistenceWork().then(() => { done = true; });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(done).toBe(false);
+    held.resolve(); await Promise.all([cleanup, flush]);
+    endMetadataRefreshActivity();
+    expect(jest.getTimerCount()).toBe(0);
+    jest.useRealTimers();
+  });
+
+  test('foreground playback decoding holds priority through actual settlement after a waiter timeout', async () => {
+    jest.useFakeTimers();
+    const native = createDeferred<null>();
+    const waiter = scheduleNativeWaveformExtraction('playing', () => native.promise,
+      new AbortController().signal, { timeoutMs: 10 }).catch(error => error);
+    await jest.advanceTimersByTimeAsync(130); await waiter;
+    const cleanup = cleanupCoverCache([]);
+    await jest.advanceTimersByTimeAsync(2000);
+    expect(LegacyFileSystem.getInfoAsync).not.toHaveBeenCalled();
+    native.resolve(null); await jest.advanceTimersByTimeAsync(1000); await cleanup;
+    expect(LegacyFileSystem.getInfoAsync).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
+
+  test('reset cancels the deferral timer and an obsolete epoch cannot delete restored covers', async () => {
+    jest.useFakeTimers(); beginMetadataRefreshActivity();
+    const cleanup = cleanupCoverCache([]);
+    await jest.advanceTimersByTimeAsync(0);
+    resetCoverCacheCleanupForTests();
+    await cleanup;
+    expect(jest.getTimerCount()).toBe(0);
+    endMetadataRefreshActivity();
+    const read = createDeferred<string[]>();
+    (LegacyFileSystem.readDirectoryAsync as jest.Mock).mockImplementationOnce(() => read.promise);
+    const staleCleanup = cleanupCoverCache([]);
+    await jest.advanceTimersByTimeAsync(0);
+    blockPersistenceForMaintenance(); releasePersistenceMaintenance();
+    read.resolve(['aaa-bbb.jpg']); await staleCleanup;
+    expect(LegacyFileSystem.deleteAsync).not.toHaveBeenCalled();
+    jest.useRealTimers();
   });
 
   test('builds cover cache directory from legacy document directory', () => {

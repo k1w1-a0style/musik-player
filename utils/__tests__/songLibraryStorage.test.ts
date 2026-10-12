@@ -9,6 +9,7 @@ import {
   writeStoredSongLibrary,
 } from '../songLibraryStorage';
 import { hashString128 } from '../stringHash';
+import { flushSongLibraryMaintenance } from '../songLibraryMaintenance';
 
 const legacySongsKey = '@musikplayer:songs';
 
@@ -112,6 +113,7 @@ describe('chunked song library storage', () => {
     jest.spyOn(AsyncStorage, 'removeItem').mockRejectedValueOnce(new Error('legacy cleanup failed'));
 
     await storage.set(StorageKeys.SONGS, newSongs);
+    await flushSongLibraryMaintenance();
     const manifest = JSON.parse((await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY))!);
     await AsyncStorage.setItem(manifest.chunks[0].key, 'corrupt');
 
@@ -223,6 +225,7 @@ describe('chunked song library storage', () => {
     await expect(AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).resolves.toBe(oldManifest);
     await expect(readStoredSongLibrary(legacySongsKey)).resolves.toEqual({ source: 'chunked', serialized: oldSerialized });
     await writeStoredSongLibrary(legacySongsKey, replacement);
+    await flushSongLibraryMaintenance();
     await expect(readStoredSongLibrary(legacySongsKey)).resolves.toEqual({ source: 'chunked', serialized: replacement });
     const committed = JSON.parse((await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY))!);
     const active = new Set(committed.chunks.map((chunk: { key: string }) => chunk.key));
@@ -259,9 +262,11 @@ describe('chunked song library storage', () => {
     const stale = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(SONG_LIBRARY_CHUNK_PREFIX));
     jest.spyOn(AsyncStorage, 'multiRemove').mockRejectedValueOnce(new Error('cleanup busy'));
     await writeStoredSongLibrary(legacySongsKey, currentSerialized);
+    await flushSongLibraryMaintenance();
     await expect(readStoredSongLibrary(legacySongsKey)).resolves.toEqual({ source: 'chunked', serialized: currentSerialized });
     expect(await AsyncStorage.getAllKeys()).toEqual(expect.arrayContaining(stale));
     await writeStoredSongLibrary(legacySongsKey, currentSerialized);
+    await flushSongLibraryMaintenance();
     expect((await AsyncStorage.getAllKeys()).some(key => stale.includes(key))).toBe(false);
   });
 });

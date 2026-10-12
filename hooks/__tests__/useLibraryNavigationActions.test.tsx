@@ -69,3 +69,11 @@ test('openPlaylistDetail navigates to playlist detail with playlist id', () => {
 
   expect(navigate).toHaveBeenCalledWith(APP_STACK_ROUTES.PLAYLIST_DETAIL, { playlistId: 'playlist-1' });
 });
+
+
+test('selected library IDs enter the same separate tag cleaner route', () => {
+  const navigate = jest.fn(); mockedUseNavigation.mockReturnValue({ navigate } as never);
+  const { result } = renderHook(() => useLibraryNavigationActions());
+  act(() => result.current.openTagCleaner(['song-a','song-b']));
+  expect(navigate).toHaveBeenCalledWith('TagCleaner', { songIds: ['song-a','song-b'] });
+});

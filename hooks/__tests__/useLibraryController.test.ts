@@ -1,5 +1,7 @@
 import React from 'react';
-import { act, renderHook } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
+import LibraryPreparationStatus from '../../components/LibraryPreparationStatus';
+import { beginLibraryScan, stopLibraryScan, dismissLibraryScan } from '../../utils/libraryScanOperation';
 import { useLibraryController } from '../useLibraryController';
 import { useLibraryMusicContext } from '../../contexts/MusicContext';
 import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
@@ -26,6 +28,8 @@ import { useLibraryViewState } from '../useLibraryViewState';
 import { runPlaybackUiAction } from '../../utils/playbackUiActions';
 
 const mockSetSortMode = jest.fn();
+jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => ({ theme: { palette: {
+  primary: '#eee', surfaceGlass: '#222', border: '#333', text: { primary: '#fff', secondary: '#ccc' } } } }) }));
 
 type MockLibraryMusicContext = ReturnType<typeof useLibraryMusicContext>;
 
@@ -79,6 +83,7 @@ const mockMetadataRefreshActions: UseLibraryMetadataRefreshActionsResult = {
 };
 
 const mockNavigationActions: UseLibraryNavigationActionsResult = {
+  openTagCleaner: jest.fn(),
   openTrackInfo: fn,
   openEqualizer: fn,
   openSettings: fn,
@@ -439,6 +444,38 @@ test('routes song-menu queue actions through the playback rejection boundary', a
     expect.any(Function),
     { dropIfPending: false },
   );
+});
+
+test.each([false, true])('public retry button restarts the same scan mode (full: %s) through real status props', fullScan => {
+  jest.mocked(useLibraryComponentProps).mockImplementationOnce(options =>
+    jest.requireActual('../useLibraryComponentProps').useLibraryComponentProps(options));
+  const { result, rerender } = renderHook(() => useLibraryController());
+  const id = beginLibraryScan(fullScan); stopLibraryScan(id, 'failed');
+  const screen = render(React.createElement(LibraryPreparationStatus, { visible: false, ...result.current.importStatusProps }));
+  fireEvent.press(screen.getByLabelText('Scan erneut versuchen'));
+  expect(mockImportActions.importFromDevice).toHaveBeenLastCalledWith({ refreshExisting: fullScan });
+  const firstRetry = result.current.importStatusProps.onRetryScan;
+  jest.mocked(useLibraryComponentProps).mockImplementationOnce(options =>
+    jest.requireActual('../useLibraryComponentProps').useLibraryComponentProps(options));
+  rerender(undefined);
+  expect(result.current.importStatusProps.onRetryScan).toBe(firstRetry);
+  act(dismissLibraryScan);
+});
+
+test('status props memo refreshes retry callbacks and persistence warnings', () => {
+  renderHook(() => useLibraryController());
+  const options = jest.mocked(useLibraryComponentProps).mock.calls.at(-1)![0];
+  const hook = jest.requireActual('../useLibraryComponentProps').useLibraryComponentProps as typeof useLibraryComponentProps;
+  const retry = jest.fn(); const save = jest.fn();
+  const { result, rerender } = renderHook(({ warning, retryScan }: { warning: string; retryScan: () => void }) =>
+    hook({ ...options, persistenceWarning: warning, onRetryScan: retryScan, onRetryPersistence: save }),
+  { initialProps: { warning: 'Speicherung offen', retryScan: retry } });
+  const first = result.current.importStatusProps;
+  expect(first.onRetryScan).toBe(retry); expect(first.onRetryPersistence).toBe(save);
+  const nextRetry = jest.fn(); rerender({ warning: 'Speicher voll', retryScan: nextRetry });
+  expect(result.current.importStatusProps).not.toBe(first);
+  expect(result.current.importStatusProps.persistenceWarning).toBe('Speicher voll');
+  expect(result.current.importStatusProps.onRetryScan).toBe(nextRetry);
 });
 
 test('creates playlist with trimmed name and clears input', () => {

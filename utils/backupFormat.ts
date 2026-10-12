@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ACCENT_IDS } from './accentPreferences';
 
 export const MAX_BACKUP_CODE_UNITS = 4 * 1024 * 1024;
 const id = z.string().min(1).max(512).refine(value => value === value.trim());
@@ -19,7 +20,9 @@ export const backupSettingsSchema = z.object({
   eqPreset: z.enum(['flat', 'rock', 'pop', 'jazz', 'bassBoost', 'vocal', 'electronic', 'custom']).optional(),
   eqBands: z.array(z.number().finite().min(-12).max(12)).length(10).optional(),
   playerPresentationV3: z.object({ quiet: z.boolean(), density: z.enum(['standard', 'compact']),
-    waveformAccent: z.enum(['cover', 'neutral', 'orange', 'blue']) }).strict().optional(),
+    waveformAccent: z.enum(ACCENT_IDS) }).strict().optional(),
+  accentPreferencesV4: z.object({ appAccent: z.enum(ACCENT_IDS), playerAccent: z.enum(ACCENT_IDS),
+    instantColors: z.boolean() }).strict().optional(),
   playbackResumeEnabled: z.boolean().optional(),
 }).strict();
 export type BackupSettings = z.infer<typeof backupSettingsSchema>;

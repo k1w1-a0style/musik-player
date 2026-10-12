@@ -1,4 +1,6 @@
 import React from 'react';
+import { LibrarySelectionProvider, type LibrarySelectionScope } from '../contexts/LibrarySelectionContext';
+import LibrarySelectionActions from './LibrarySelectionActions';
 import type { LibraryImportStatusProps } from './LibraryImportStatus';
 import LibraryPreparationStatus from './LibraryPreparationStatus';
 import LibraryMenuModal, { type LibraryMenuModalProps } from './LibraryMenuModal';
@@ -15,6 +17,7 @@ export interface LibraryScreenVisibilityProps {
 }
 
 export interface LibraryScreenContentProps extends LibraryScreenVisibilityProps {
+  selectionScope?: LibrarySelectionScope;
   importStatusProps: LibraryImportStatusProps;
   menuModalProps: LibraryMenuModalProps;
   searchBarProps: LibrarySearchBarProps;
@@ -25,7 +28,7 @@ export interface LibraryScreenContentProps extends LibraryScreenVisibilityProps 
   songPlaylistPickerProps: React.ComponentProps<typeof SongPlaylistPickerModal>;
 }
 
-const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
+const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
   importStatusProps,
   menuModalProps,
   searchBarProps,
@@ -41,6 +44,7 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
     <LibraryTopBar {...topBarProps} />
 
     <LibraryTabs {...tabsProps} />
+    <LibrarySelectionActions />
 
     {showSearchBar && <LibrarySearchBar {...searchBarProps} />}
     <LibraryPreparationStatus visible={showImportStatus} {...importStatusProps} />
@@ -53,4 +57,7 @@ const LibraryScreenContent: React.FC<LibraryScreenContentProps> = ({
   </>
 );
 
+const LibraryScreenContent: React.FC<LibraryScreenContentProps> = props => props.selectionScope
+  ? <LibrarySelectionProvider {...props.selectionScope}><LibraryScreenSections {...props} /></LibrarySelectionProvider>
+  : <LibraryScreenSections {...props} />;
 export default LibraryScreenContent;

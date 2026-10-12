@@ -15,6 +15,8 @@ const getTrackInfoScreen = (): typeof import('../screens/TrackInfo').default =>
   require('../screens/TrackInfo').default;
 const getTagEditorScreen = (): typeof import('../screens/TagEditor').default =>
   require('../screens/TagEditor').default;
+const getTagCleanerScreen = (): typeof import('../screens/TagCleaner').default =>
+  require('../screens/TagCleaner').default;
 const getEqualizerScreen = (): typeof import('../screens/Equalizer').default =>
   require('../screens/Equalizer').default;
 const getSettingsScreen = (): typeof import('../screens/Settings').default =>
@@ -63,6 +65,8 @@ const RootNavigator: React.FC = () => {
         getComponent={getEqualizerScreen}
         options={{ headerShown: true, title: 'Equalizer' }}
       />
+      <Stack.Screen name={APP_STACK_ROUTES.TAG_CLEANER} getComponent={getTagCleanerScreen}
+        options={{ headerShown: true, title: 'Tags bereinigen' }} />
       <Stack.Screen
         name={APP_STACK_ROUTES.SETTINGS}
         getComponent={getSettingsScreen}

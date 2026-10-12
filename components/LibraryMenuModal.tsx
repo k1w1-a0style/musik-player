@@ -1,8 +1,9 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, ScrollView, useWindowDimensions } from 'react-native';
 import { FolderPlus, ListMusic, Music, Settings, SlidersHorizontal } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
+import { useLibrarySelection } from '../contexts/LibrarySelectionContext';
 import LibraryMenuItem from './LibraryMenuItem';
 
 export interface LibraryMenuModalProps {
@@ -36,6 +37,8 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   onOpenEqualizer,
 }) => {
   const { theme, appearance } = useAppTheme();
+  const selection = useLibrarySelection();
+  const { height } = useWindowDimensions();
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
@@ -56,6 +59,8 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
           ]}
           testID="library-menu-card"
         >
+          <ScrollView style={[styles.menuScroll, { maxHeight: Math.max(48, height - 80) }]} contentContainerStyle={styles.menuContent}>
+          {selection ? <LibraryMenuItem icon={ListMusic} label="Auswählen" onPress={() => { selection.store.start(); onClose(); }} /> : null}
           <LibraryMenuItem icon={Music} label="Schnellscan / Import" description="Neue oder geänderte Dateien einlesen."
             onPress={onImport} disabled={loading || !isReady} />
           {onDeepScan ? <LibraryMenuItem icon={Music} label="Vollständiger Scan" description="Alle Dateien und ihren Inhalt erneut prüfen."
@@ -65,6 +70,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
           <View style={[styles.divider, { backgroundColor: theme.palette.border }]} testID="library-menu-section-divider" />
           <LibraryMenuItem icon={SlidersHorizontal} label="Equalizer" onPress={onOpenEqualizer} />
           <LibraryMenuItem icon={Settings} label="Einstellungen" onPress={onOpenSettings} />
+          </ScrollView>
         </View>
       </Pressable>
     </Modal>
@@ -82,6 +88,8 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 10,
   },
+  menuScroll: { maxHeight: 480 },
+  menuContent: { paddingBottom: 4 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: 6, marginHorizontal: 16 },
 });
 

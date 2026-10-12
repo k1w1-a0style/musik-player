@@ -23,6 +23,7 @@ import type { Song } from '../types/Song';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useReorderableSongListDrag } from '../hooks/useNowPlayingQueueDrag';
 import { getQueuePreviewOffset } from '../utils/soundCloudPlayer';
+import PlaylistCleanerButton from '../components/PlaylistCleanerButton';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
 import PlaylistDetailSongRow, { PLAYLIST_DETAIL_ROW_HEIGHT } from './PlaylistDetailSongRow';
 
@@ -235,6 +236,7 @@ const PlaylistDetail: React.FC = () => {
             </Text>
             <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>{playlistTrackLabel(playlistSongs.length)}</Text>
             <View style={styles.actionRow}>
+              <PlaylistCleanerButton songs={playlistSongs} onOpen={ids => navigation.navigate('TagCleaner', { songIds: ids })} />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Playlist ${playlist.name} abspielen`}

@@ -72,6 +72,13 @@ const reportLibraryImportFailure = (
   showAlert(getImportStoppedAlert(error));
 };
 
+const recordScanFailure = (error: unknown, generation: ImportGeneration): void => {
+  const cancelled = isAbortError(error);
+  // Keep the existing translated Error/fallback message after the alert closes.
+  stopLibraryScan(generation.scanOperationId, cancelled ? 'cancelled' : 'failed',
+    cancelled ? undefined : getImportStoppedAlert(error).message);
+};
+
 export const useLibraryImportActions = ({
   scanFolders, songs, songImport, setSongs, setActiveTab, setMenuOpen,
   setLoading, setImportStatus, showAlert,
@@ -137,7 +144,7 @@ export const useLibraryImportActions = ({
       completeLibraryScan(generation.scanOperationId);
       scanCompleted = true;
     } catch (error) {
-      stopLibraryScan(generation.scanOperationId, isAbortError(error) ? 'cancelled' : 'failed');
+      recordScanFailure(error, generation);
       reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
     } finally {
       generation.coverCacheProtection?.release();

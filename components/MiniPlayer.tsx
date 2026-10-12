@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +14,11 @@ import { useMiniPlayerProgressSnapshot } from '../hooks/useMiniPlayerProgress';
 import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useWaveformPreload } from '../hooks/useWaveformPreload';
 import type { Song } from '../types/Song';
+import type { PaletteResult } from 'expo-system-audio';
 import CrossfadeLayers from './CrossfadeLayers';
-import { getPlaybackSelectionSnapshot, subscribeToPlaybackSelection } from '../utils/playbackSelectionStatus';
+import { MINI_PLAYER_BOTTOM_MARGIN, useMiniPlayerViewport } from '../contexts/MiniPlayerViewportContext';
+import { useAccentPreferences } from '../contexts/AccentPreferencesContext';
+import { resolveAccentColor } from '../utils/accentPreferences';
 
 const CurrentWaveformPreloader = memo(({ song }: { song: Song }) => {
   useWaveformPreload(song);
@@ -24,7 +27,8 @@ const CurrentWaveformPreloader = memo(({ song }: { song: Song }) => {
 
 CurrentWaveformPreloader.displayName = 'MiniPlayerCurrentWaveformPreloader';
 
-export const shouldShowMiniPlayerSecondaryControls = (width: number): boolean => width >= 390;
+export const shouldShowMiniPlayerSecondaryControls = (width: number, fontScale = 1): boolean => width >= 390 && fontScale < 1.4;
+export const getMiniPlayerMinimumHeight = (fontScale: number): number => Math.max(64, Math.ceil(31 * fontScale + 16));
 
 interface MiniPlayerControlsProps {
   color: string;
@@ -84,13 +88,21 @@ const MiniPlayerAccentBorder = memo(({ color, radius, testID }: { color: string;
 
 MiniPlayerAccentBorder.displayName = 'MiniPlayerAccentBorder';
 
+const useMiniPlayerAccent = (palette: PaletteResult | null, currentSong: Song | null, primary: string, border: string) => {
+  const { preferences } = useAccentPreferences();
+  const effectivePalette = useMemo(() => mergeNativeAndFallbackPalette(palette, currentSong), [palette, currentSong]);
+  const coverAccent = resolveAccentColor(preferences.playerAccent, effectivePalette.vibrant ?? primary);
+  return { coverAccent, coverAccentMuted: preferences.playerAccent === 'cover' ? effectivePalette.muted ?? border : coverAccent };
+};
+
 const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const { currentSong, isPlaying, togglePlayPause, next, previous,
     canSkipNext, canSkipPrevious, palette } = useMiniPlayerMusicContext();
   const insets = useSafeAreaInsets();
   const { theme: appTheme } = useAppTheme();
-  const { width } = useWindowDimensions();
-  const showSecondaryControls = shouldShowMiniPlayerSecondaryControls(width);
+  const { width, fontScale } = useWindowDimensions();
+  const { reportHeight } = useMiniPlayerViewport();
+  const showSecondaryControls = shouldShowMiniPlayerSecondaryControls(width, fontScale);
   const [coverFailed, setCoverFailed] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const artworkUri = getSongArtworkUri(currentSong);
@@ -99,20 +111,19 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const artworkSource = useMemo(() => getArtworkSource(coverFailed ? undefined : displayArtworkUri),
     [displayArtworkUri, coverFailed]);
   const displayTitleText = currentSong ? displayTitle(currentSong) : 'Unbekannter Titel';
-  const selection = useSyncExternalStore(subscribeToPlaybackSelection, getPlaybackSelectionSnapshot);
-  const displayArtistName = selection.target ? `Wechsel zu „${selection.target.title}“ …`
-    : currentSong ? displayArtist(currentSong) : '';
-  const effectivePalette = useMemo(
-    () => mergeNativeAndFallbackPalette(palette, currentSong),
-    [palette, currentSong],
-  );
-  const coverAccent = effectivePalette.vibrant ?? appTheme.palette.primary;
-  const coverAccentMuted = effectivePalette.muted ?? appTheme.palette.borderStrong;
+  const displayArtistName = currentSong ? displayArtist(currentSong) : '';
+  const { coverAccent, coverAccentMuted } = useMiniPlayerAccent(palette, currentSong, appTheme.palette.primary, appTheme.palette.borderStrong);
 
   useEffect(() => {
     setCoverFailed(false);
     setThumbnailFailed(false);
   }, [currentSong?.id, artworkUri]);
+
+  const hasCurrentSong = currentSong !== null;
+  useEffect(() => {
+    if (!hasCurrentSong) reportHeight(0);
+    return () => reportHeight(0);
+  }, [hasCurrentSong, reportHeight]);
 
   const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
@@ -134,10 +145,11 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   if (!currentSong) return null;
 
   return (
-    <View style={[styles.wrap, { bottom: insets.bottom + 12 }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { bottom: insets.bottom + MINI_PLAYER_BOTTOM_MARGIN }]} pointerEvents="box-none"
+      onLayout={event => reportHeight(event.nativeEvent.layout.height)} testID="mini-player-viewport">
       <CurrentWaveformPreloader song={currentSong} />
       <Pressable onPress={onOpen} style={[styles.container, { backgroundColor: appTheme.palette.surfaceGlass,
-        borderColor: appTheme.palette.border }]} testID="mini-player-open" accessibilityRole="button"
+        borderColor: appTheme.palette.border, minHeight: getMiniPlayerMinimumHeight(fontScale) }]} testID="mini-player-open" accessibilityRole="button"
         accessibilityLabel="Wiedergabe öffnen">
         <View style={[styles.thumb, { backgroundColor: appTheme.palette.surfaceElevated,
           borderColor: appTheme.palette.border }]}>
@@ -179,13 +191,13 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   container: {
-    height: 58,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    gap: 10,
+    gap: 8,
+    paddingVertical: 8,
     overflow: 'hidden',
   },
   thumb: {
@@ -202,20 +214,22 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: staticTokens.fonts.heading,
     fontSize: 14,
+    lineHeight: 17,
   },
   artist: {
     fontFamily: staticTokens.fonts.body,
     fontSize: 11,
+    lineHeight: 14,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 0,
   },
-  transportButton: { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
+  transportButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   playBtn: {
-    width: 34,
-    height: 34,
+    width: 48,
+    height: 48,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',

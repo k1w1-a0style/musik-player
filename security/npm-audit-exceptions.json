@@ -15,7 +15,9 @@
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/396",
       "expiresOn": "2026-10-21",
-      "reason": "No patched upstream release as rechecked on 2026-10-11 against the npm registry and GitHub Advisory Database. Exact Metro/Jest build-tool dependency via micromatch; repository-controlled glob patterns, not player inputs. Android Hermes export source map contains no braces or micromatch. Independent read-only CI jobs have no signing secrets; update/remove before expiry in issue #396."
+      "reason": "Local exact-payload compensating patch verified on 2026-10-12: bounded parser/AST depth, cycles, parent chains and shared-DAG visit budget. Upstream release remains vulnerable in npm audit. Android Hermes excludes this tooling package. Exact advisory, payload and dependency-effect graph remain bound to issue #396; expiry 2026-10-21 is unchanged.",
+      "requiredToolingPatch": "braces",
+      "expectedDependencies": []
     },
     {
       "package": "node-forge",
@@ -31,7 +33,302 @@
       ],
       "issue": "https://github.com/k1w1-a0style/musik-player/issues/396",
       "expiresOn": "2026-10-21",
-      "reason": "No patched upstream release as rechecked on 2026-10-11 against the npm registry and GitHub Advisory Database. Expo CLI/code-signing tooling dependency only; Android Hermes source map contains no node-forge. No remote certificate/signature inputs or signing secrets in quality/native CI. Local tooling must use trusted certificate inputs until compatible upstream replacement; exact advisory/version exception expires and is tracked by issue #396."
+      "reason": "Local exact-payload compensating patch verified on 2026-10-12: canonical DER DigestInfo verification for lib/rsa.js and both distributed bundles, including NULL payload and non-minimal length rejection. Upstream release remains vulnerable in npm audit. Android Hermes excludes this tooling package. Exact advisory, payload and dependency-effect graph remain bound to issue #396; expiry 2026-10-21 is unchanged.",
+      "requiredToolingPatch": "node-forge",
+      "expectedDependencies": []
+    }
+  ],
+  "expectedBlockingEffects": [
+    {
+      "package": "@expo/cli",
+      "severity": "high",
+      "via": [
+        "@expo/code-signing-certificates",
+        "@expo/metro",
+        "@expo/metro-config",
+        "node-forge"
+      ],
+      "nodes": [
+        "node_modules/expo/node_modules/@expo/cli"
+      ],
+      "versions": [
+        "57.0.28"
+      ]
+    },
+    {
+      "package": "@expo/code-signing-certificates",
+      "severity": "high",
+      "via": [
+        "node-forge"
+      ],
+      "nodes": [
+        "node_modules/@expo/code-signing-certificates"
+      ],
+      "versions": [
+        "0.0.6"
+      ]
+    },
+    {
+      "package": "@expo/metro",
+      "severity": "high",
+      "via": [
+        "metro",
+        "metro-config",
+        "metro-file-map",
+        "metro-transform-worker"
+      ],
+      "nodes": [
+        "node_modules/@expo/metro"
+      ],
+      "versions": [
+        "56.0.2"
+      ]
+    },
+    {
+      "package": "@expo/metro-config",
+      "severity": "high",
+      "via": [
+        "@expo/metro"
+      ],
+      "nodes": [
+        "node_modules/expo/node_modules/@expo/metro-config"
+      ],
+      "versions": [
+        "57.0.13"
+      ]
+    },
+    {
+      "package": "@jest/environment",
+      "severity": "high",
+      "via": [
+        "@jest/fake-timers"
+      ],
+      "nodes": [
+        "node_modules/@jest/environment"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "@jest/fake-timers",
+      "severity": "high",
+      "via": [
+        "jest-message-util"
+      ],
+      "nodes": [
+        "node_modules/@jest/fake-timers"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "@jest/transform",
+      "severity": "high",
+      "via": [
+        "babel-plugin-istanbul",
+        "jest-haste-map",
+        "micromatch"
+      ],
+      "nodes": [
+        "node_modules/@jest/transform"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "@react-native/community-cli-plugin",
+      "severity": "high",
+      "via": [
+        "metro",
+        "metro-config"
+      ],
+      "nodes": [
+        "node_modules/@react-native/community-cli-plugin"
+      ],
+      "versions": [
+        "0.86.3"
+      ]
+    },
+    {
+      "package": "@react-native/jest-preset",
+      "severity": "high",
+      "via": [
+        "babel-jest",
+        "jest-environment-node"
+      ],
+      "nodes": [
+        "node_modules/@react-native/jest-preset"
+      ],
+      "versions": [
+        "0.86.3"
+      ]
+    },
+    {
+      "package": "@react-native/virtualized-lists",
+      "severity": "high",
+      "via": [
+        "react-native"
+      ],
+      "nodes": [
+        "node_modules/@react-native/virtualized-lists"
+      ],
+      "versions": [
+        "0.86.3"
+      ]
+    },
+    {
+      "package": "babel-jest",
+      "severity": "high",
+      "via": [
+        "@jest/transform",
+        "babel-plugin-istanbul"
+      ],
+      "nodes": [
+        "node_modules/babel-jest"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "expo",
+      "severity": "high",
+      "via": [
+        "@expo/cli",
+        "@expo/metro",
+        "@expo/metro-config"
+      ],
+      "nodes": [
+        "node_modules/expo"
+      ],
+      "versions": [
+        "57.0.27"
+      ]
+    },
+    {
+      "package": "jest-environment-node",
+      "severity": "high",
+      "via": [
+        "@jest/environment",
+        "@jest/fake-timers"
+      ],
+      "nodes": [
+        "node_modules/jest-environment-node"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "jest-haste-map",
+      "severity": "high",
+      "via": [
+        "micromatch"
+      ],
+      "nodes": [
+        "node_modules/jest-haste-map"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "jest-message-util",
+      "severity": "high",
+      "via": [
+        "micromatch"
+      ],
+      "nodes": [
+        "node_modules/jest-message-util"
+      ],
+      "versions": [
+        "29.7.0"
+      ]
+    },
+    {
+      "package": "metro",
+      "severity": "high",
+      "via": [
+        "metro-config",
+        "metro-file-map",
+        "metro-transform-worker"
+      ],
+      "nodes": [
+        "node_modules/metro"
+      ],
+      "versions": [
+        "0.84.5"
+      ]
+    },
+    {
+      "package": "metro-config",
+      "severity": "high",
+      "via": [
+        "metro"
+      ],
+      "nodes": [
+        "node_modules/metro-config"
+      ],
+      "versions": [
+        "0.84.5"
+      ]
+    },
+    {
+      "package": "metro-file-map",
+      "severity": "high",
+      "via": [
+        "micromatch"
+      ],
+      "nodes": [
+        "node_modules/metro-file-map"
+      ],
+      "versions": [
+        "0.84.5"
+      ]
+    },
+    {
+      "package": "metro-transform-worker",
+      "severity": "high",
+      "via": [
+        "metro"
+      ],
+      "nodes": [
+        "node_modules/metro-transform-worker"
+      ],
+      "versions": [
+        "0.84.5"
+      ]
+    },
+    {
+      "package": "micromatch",
+      "severity": "high",
+      "via": [
+        "braces"
+      ],
+      "nodes": [
+        "node_modules/micromatch"
+      ],
+      "versions": [
+        "4.0.8"
+      ]
+    },
+    {
+      "package": "react-native",
+      "severity": "high",
+      "via": [
+        "@react-native/community-cli-plugin",
+        "@react-native/jest-preset",
+        "@react-native/virtualized-lists"
+      ],
+      "nodes": [
+        "node_modules/react-native"
+      ],
+      "versions": [
+        "0.86.3"
+      ]
     }
   ]
 }

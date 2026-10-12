@@ -25,6 +25,8 @@ test('retains an honest completed scan summary after the import and preparation 
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => { updateLibraryScanProgress(id, progress); recordLibraryScanResult(id, { statistics }); completeLibraryScan(id); });
   expect(view.getByText('Schnellscan – abgeschlossen')).toBeTruthy();
+  expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
+  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
   expect(view.getByTestId('library-scan-summary-counts').props.children).toBe('Neu: 1 · Geändert: 2 · Unverändert: 3 · Ungeprüft: 4 · Leseprobleme: 1');
   expect(view.getByText(/bekannte Dateien ohne verlässliche Änderungsdaten/)).toBeTruthy();
   expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
@@ -41,6 +43,7 @@ test('cancellation flushes the newest internal counters and rejects old-generati
   expect(view.queryByText(/12 von/)).toBeNull();
   act(() => stopLibraryScan(first, 'cancelled'));
   expect(view.getByText('Schnellscan – abgebrochen')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
   expect(view.getByText('12 von 20 gefundenen Dateien verarbeitet')).toBeTruthy();
   let second = 0;
   act(() => { second = beginLibraryScan(true); });
@@ -50,6 +53,7 @@ test('cancellation flushes the newest internal counters and rejects old-generati
   act(() => { updateLibraryScanProgress(second, progress); recordLibraryScanResult(second, { statistics, completed: false, remainingCount: 9 }); completeLibraryScan(second); });
   expect(view.getByText('Vollständiger Scan – teilweise abgeschlossen')).toBeTruthy();
   expect(view.getByText('9 Datei(en) noch nicht geprüft')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
   expect(view.getByText(/umfasst auch neue\/geänderte Dateien/)).toBeTruthy();
 });
 
@@ -58,6 +62,16 @@ test('does not report a completed scan when permission/confirmation ended the im
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => { recordLibraryScanResult(id, {}); completeLibraryScan(id); });
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
+});
+
+test('retains a failure before file enumeration without inventing counters', () => {
+  jest.useFakeTimers();
+  const id = beginLibraryScan(false); stopLibraryScan(id, 'failed');
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  act(() => jest.advanceTimersByTime(10000));
+  expect(view.getByText('Schnellscan – fehlgeschlagen')).toBeTruthy();
+  expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
+  jest.useRealTimers();
 });
 
 test('shows failed scan counters, but keeps them separate from an active metadata refresh', () => {
@@ -74,7 +88,8 @@ test('does not dismiss a running scan or duplicate its progress bar', () => {
   updateLibraryScanProgress(id, { ...progress, statistics: emptyImportScanStatistics() });
   const view = render(<LibraryPreparationStatus visible scanning status="Dateien prüfen…" />);
   act(dismissLibraryScan);
-  expect(view.getByText('Vollständiger Scan – läuft')).toBeTruthy();
+  expect(view.queryByTestId('library-scan-summary')).toBeNull();
+  expect(view.getByText('Dateien prüfen…')).toBeTruthy();
   expect(view.queryByLabelText('Scan-Ergebnis ausblenden')).toBeNull();
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
   expect(view.queryByText(/Ungeprüft: bekannte/)).toBeNull();
@@ -94,4 +109,55 @@ test('keeps a folder-state warning visible without fabricated file counters and 
   act(() => setLibraryScanFolderWarning(id, { message: 'Ordnerstatus fehlt, Titel bleiben gespeichert.', retrying: true, retry }));
   fireEvent.press(view.getByLabelText('Ordnerdaten erneut speichern'));
   expect(retry).toHaveBeenCalledTimes(1);
+});
+
+test('auto-hides a fully processed clean success after four seconds and pauses while details are open', () => {
+  jest.useFakeTimers();
+  const id = beginLibraryScan(false);
+  const clean = { ...emptyImportScanStatistics(), unchangedCount: 10 };
+  updateLibraryScanProgress(id, { processed: 10, total: 10, currentTitle: '', statistics: clean });
+  recordLibraryScanResult(id, { statistics: clean }); completeLibraryScan(id);
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  act(() => jest.advanceTimersByTime(3999));
+  expect(view.getByTestId('library-scan-summary')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
+  act(() => jest.advanceTimersByTime(10000));
+  expect(view.getByTestId('library-scan-summary')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
+  act(() => jest.advanceTimersByTime(4000));
+  expect(view.queryByTestId('library-scan-summary')).toBeNull();
+  jest.useRealTimers();
+});
+
+test.each(['unverified', 'errors', 'incomplete', 'partial'])(
+  'keeps %s outcomes visible instead of hiding a misleading success', kind => {
+    jest.useFakeTimers();
+    const id = beginLibraryScan(false);
+    const stats = { ...emptyImportScanStatistics(), unverifiedCount: kind === 'unverified' ? 1 : 0,
+      errorCount: kind === 'errors' ? 1 : 0 };
+    updateLibraryScanProgress(id, { processed: kind === 'incomplete' ? 9 : 10, total: 10, currentTitle: '', statistics: stats });
+    recordLibraryScanResult(id, { statistics: stats, completed: kind !== 'partial' }); completeLibraryScan(id);
+    const retry = jest.fn();
+    const view = render(<LibraryPreparationStatus visible={false} onRetryScan={retry} />);
+    act(() => jest.advanceTimersByTime(10000));
+    expect(view.getByTestId('library-scan-summary')).toBeTruthy();
+    fireEvent.press(view.getByLabelText('Scan erneut versuchen'));
+    expect(retry).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  },
+);
+
+test('an unconfirmed library save remains visible with its retry even after scan controls disappear', () => {
+  jest.useFakeTimers();
+  const id = beginLibraryScan(false); const stats = emptyImportScanStatistics();
+  updateLibraryScanProgress(id, { processed: 1, total: 1, currentTitle: '', statistics: stats });
+  recordLibraryScanResult(id, { statistics: stats }); completeLibraryScan(id);
+  const retry = jest.fn();
+  const view = render(<LibraryPreparationStatus visible={false} persistenceWarning="Speicherung noch offen" onRetryPersistence={retry} />);
+  act(() => jest.advanceTimersByTime(10000));
+  expect(view.getByTestId('library-import-persistence-warning')).toBeTruthy();
+  expect(view.getByTestId('library-scan-summary')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Bibliothek erneut speichern'));
+  expect(retry).toHaveBeenCalledTimes(1);
+  jest.useRealTimers();
 });

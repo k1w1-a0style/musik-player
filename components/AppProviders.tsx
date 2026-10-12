@@ -6,6 +6,8 @@ import { MusicProvider } from '../contexts/MusicContext';
 import { PlaybackProgressProvider } from '../contexts/PlaybackProgressContext';
 import { PlayerPresentationProvider } from '../contexts/PlayerPresentationContext';
 import { PlaybackResumeProvider } from '../contexts/PlaybackResumeContext';
+import { AccentPreferencesProvider } from '../contexts/AccentPreferencesContext';
+import { PaletteRuntimeBridge } from '../contexts/PaletteRuntimeBridge';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -14,13 +16,16 @@ interface AppProvidersProps {
 const AppProviders: React.FC<AppProvidersProps> = ({ children }) => (
   <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
+      <AccentPreferencesProvider>
       <AppThemeProvider>
         <PlayerPresentationProvider>
           <PlaybackResumeProvider><MusicProvider>
+            <PaletteRuntimeBridge />
             <PlaybackProgressProvider>{children}</PlaybackProgressProvider>
           </MusicProvider></PlaybackResumeProvider>
         </PlayerPresentationProvider>
       </AppThemeProvider>
+      </AccentPreferencesProvider>
     </SafeAreaProvider>
   </GestureHandlerRootView>
 );

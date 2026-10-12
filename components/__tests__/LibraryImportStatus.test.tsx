@@ -98,7 +98,8 @@ test('renders error list when failed files are reported', () => {
     ],
   });
   completeMetadataRefreshOperation('resumable');
-  const { getByText, getByTestId } = render(<LibraryImportStatus status={null} />);
+  const { getByText, getByTestId, getByLabelText } = render(<LibraryImportStatus status={null} />);
+  fireEvent.press(getByLabelText('Scan-Details'));
   expect(getByTestId('library-import-status-errors')).toBeTruthy();
   expect(getByText(/broken\.mp3 – timeout/)).toBeTruthy();
 });
@@ -118,7 +119,8 @@ test('limits rendered error rows and reports the remaining count', () => {
   });
   completeMetadataRefreshOperation('resumable');
 
-  const { getByText, queryByText } = render(<LibraryImportStatus status={null} />);
+  const { getByText, queryByText, getByLabelText } = render(<LibraryImportStatus status={null} />);
+  fireEvent.press(getByLabelText('Scan-Details'));
 
   expect(getByText('… und 2 weitere')).toBeTruthy();
   expect(queryByText(/four\.mp3/)).toBeNull();

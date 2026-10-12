@@ -14,6 +14,8 @@ import { getSongCardHeight } from '../utils/libraryRendererHelpers';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 import { useSongPreparation } from '../hooks/useSongPreparation';
 import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
+import { useLibrarySongSelection } from '../contexts/LibrarySelectionContext';
+import SongSelectionBadge from './SongSelectionBadge';
 
 interface SongCardProps {
   song: Song;
@@ -88,7 +90,8 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     rail: theme.palette.borderStrong,
   }), [theme.palette.borderStrong, theme.palette.primary, theme.palette.primaryGlow, theme.palette.text.primary]);
 
-  const handlePress = useCallback(() => { onPressSong(song); }, [onPressSong, song]);
+  const selection = useLibrarySongSelection(song, onPressSong, isCurrent);
+  const handlePress = selection.onPress;
 
   const handleInfoPress = useCallback((event?: GestureResponderEvent) => {
     event?.stopPropagation();
@@ -111,6 +114,7 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       <Image source={artworkSource} style={styles.coverImage}
         onError={onArtworkError}
         resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false} />
+      <SongSelectionBadge state={selection.state} />
       {isPlaying ? <View style={[styles.playingBadge, { backgroundColor: theme.palette.primary }]}>
         <AudioLines size={11} color={theme.palette.surface} />
       </View> : null}
@@ -149,10 +153,10 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
       ]}>
       <Pressable
         testID={`song-card-${songTestId}`}
-        accessibilityRole="button"
+        accessibilityRole={selection.accessibilityRole}
         accessibilityLabel={`${song.title} von ${song.artist}`}
-        accessibilityState={{ selected: isCurrent }}
-        onPress={handlePress}
+        accessibilityState={selection.accessibilityState}
+        onPress={handlePress} onLongPress={selection.onLongPress}
         style={({ pressed }) => [styles.tileContent, pressed && styles.pressed]}
       >
         <View testID={`song-card-content-${songTestId}`}
@@ -202,9 +206,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
             isPlaying && { backgroundColor: selectedColors.accent },
           ]}
         />
-        <Pressable testID={`song-card-${songTestId}`} accessibilityRole="button"
+        <Pressable testID={`song-card-${songTestId}`} accessibilityRole={selection.accessibilityRole}
           accessibilityLabel={`${song.title} von ${song.artist}`}
-          accessibilityState={{ selected: isCurrent }} onPress={handlePress}
+          accessibilityState={selection.accessibilityState} onPress={handlePress} onLongPress={selection.onLongPress}
           style={({ pressed }) => [styles.playArea, pressed && styles.pressed]}>
         {cover}
         <View style={styles.infoContainer}>

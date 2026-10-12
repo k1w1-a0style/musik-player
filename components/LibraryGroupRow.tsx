@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Play } from 'lucide-react-native';
+import { useLibraryCleanerMenu } from '../hooks/useLibraryCleanerMenu';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
@@ -15,6 +16,7 @@ interface LibraryGroupRowProps {
 
 const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPress }) => {
   const { theme } = useAppTheme();
+  const cleaner = useLibraryCleanerMenu();
   const { presentation } = usePlayerPresentation();
   const { fontScale } = useWindowDimensions();
   const [coverFailed, setCoverFailed] = useState(false);
@@ -43,12 +45,14 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${group.title} abspielen`}
+      accessibilityHint={cleaner ? "Lange drücken für Tags bereinigen" : undefined}
       style={({ pressed }) => [
         styles.groupRow,
         { borderBottomColor: theme.palette.border, height: getLibraryGroupRowHeight(fontScale, presentation.density) },
         pressed && styles.pressed,
       ]}
       onPress={handlePress}
+      onLongPress={cleaner ? () => cleaner.openSongsMenu(group.title, group.songs) : undefined}
       testID={`library-group-row-${group.id}`}
     >
       <View style={[styles.groupIcon, { backgroundColor: theme.palette.surfaceGlass }]}>

@@ -1,13 +1,12 @@
-import SystemAudio, { type AudioTagWriteRequest, type AudioTagWriteResult } from 'expo-system-audio';
+import SystemAudio, { type AudioTagWriteResult } from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import type { TagEditDraft, WriteTagsResult } from '../types/TagEdit';
 import { runSafWriteOperation, type SafWriteOperationStatus } from './tagWriterLocks';
 import { getSupportedContainer } from './tagEditCapability';
-import { normalizeTagWriterErrorCode, TagWriterError } from './tagWriterError';
-import { validateTagWriteDraftOrThrow } from './tagWriterValidation';
-import { buildNativeTagWriteRequest, changedFieldsForNativeTagDraft } from './tagWriterNativeRequest';
-import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS, resolveSafeTagWriteMaxFileSizeBytes } from './tagWriterLimits';
+import { normalizeTagWriterErrorCode } from './tagWriterError';
+import { DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS } from './tagWriterLimits';
 import { ensureTagWriteStartupReady } from './tagWriterRecovery';
+import { executeSafNativeWrite, type SafTagWriteOptions } from './tagWriterSafPreflight';
 
 const failureStatus = (code?: string): WriteTagsResult['status'] => {
   if (code === 'MissingWritePermission') return 'permissionDenied';
@@ -129,7 +128,7 @@ const toResult = (nativeResult: AudioTagWriteResult, warnings: string[] = []): W
 export const writeTagsToSafContentUri = async (
   song: Song,
   draft: TagEditDraft,
-  options?: { maxFileSizeBytes?: number; timeoutMs?: number; operationId?: string },
+  options?: SafTagWriteOptions,
 ): Promise<WriteTagsResult> => {
   const uri = song.fileInfo?.uri ?? song.uri;
   if (!uri) {
@@ -139,46 +138,8 @@ export const writeTagsToSafContentUri = async (
   const recoveryFailure = await waitForTagWriteRecovery(uri);
   if (recoveryFailure) return recoveryFailure;
 
-  const execution = await runSafWriteOperation(uri, async (operationId): Promise<WriteTagsResult> => {
-    const container = getSupportedContainer(song);
-    const changedFields = changedFieldsForNativeTagDraft(draft);
-    if (!SystemAudio.hasNativeTagWriter) {
-      return toResult({
-        success: false,
-        uri,
-        changedFields: [],
-        failedFields: changedFields,
-        errorCode: 'WriteNotImplemented',
-        message: 'Native streaming SAF audio tag writer is unavailable. A new Development Build/APK is required.',
-        verified: false,
-        operationId, phase: 'FAILED', terminal: true, retryable: false,
-      });
-    }
-
-    try {
-      validateTagWriteDraftOrThrow(draft);
-      const maxBytes = resolveSafeTagWriteMaxFileSizeBytes(options?.maxFileSizeBytes);
-      const request: AudioTagWriteRequest = buildNativeTagWriteRequest(draft, container, maxBytes, operationId);
-      return toResult(await SystemAudio.writeAudioTags(uri, request));
-    } catch (error) {
-      if (error instanceof TagWriterError) {
-        return {
-          status: failureStatus(error.code),
-          sourceUri: uri,
-          warnings: [],
-          errorCode: error.code,
-          errorMessage: error.message,
-        };
-      }
-      return {
-        status: 'writeFailed',
-        sourceUri: uri,
-        warnings: [],
-        errorCode: 'WriteNotImplemented',
-        errorMessage: String(error),
-      };
-    }
-  }, {
+  const execution = await runSafWriteOperation(uri, operationId =>
+    executeSafNativeWrite(uri, draft, getSupportedContainer(song), operationId, options ?? {}, toResult), {
     ...options,
     timeoutMs: options?.timeoutMs ?? DEFAULT_SAF_TAG_WRITE_TIMEOUT_MS,
     phaseForResult: phaseForWriteResult,

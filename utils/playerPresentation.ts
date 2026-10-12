@@ -1,5 +1,7 @@
+import { ACCENT_LABELS, isAccentId, type AccentId } from './accentPreferences';
+
 export type LibraryDensity = 'standard' | 'compact';
-export type WaveformAccent = 'cover' | 'neutral' | 'orange' | 'blue';
+export type WaveformAccent = AccentId;
 export interface PlayerPresentation {
   quiet: boolean;
   density: LibraryDensity;
@@ -12,10 +14,9 @@ export const DEFAULT_PLAYER_PRESENTATION: Readonly<PlayerPresentation> = Object.
 export const normalizePlayerPresentation = (value: unknown): PlayerPresentation => {
   const source = value && typeof value === 'object' ? value as Partial<PlayerPresentation> : {};
   return { quiet: source.quiet === true, density: source.density === 'compact' ? 'compact' : 'standard',
-    waveformAccent: ['cover', 'neutral', 'orange', 'blue'].includes(source.waveformAccent ?? '')
-      ? source.waveformAccent! : 'cover' };
+    waveformAccent: isAccentId(source.waveformAccent) ? source.waveformAccent : 'cover' };
 };
 export const WAVEFORM_ACCENT_LABELS: Record<WaveformAccent, string> = {
-  cover: 'Cover-Farbe', neutral: 'Neutral', orange: 'Orange', blue: 'Blau',
+  ...ACCENT_LABELS, cover: 'Cover-Farbe',
 };
 export const getVisibleProgressInterval = (quiet: boolean): number => quiet ? 1000 : 500;

@@ -88,7 +88,7 @@ describe('CrossfadeLayers', () => {
     expect(mountedAtStart).toEqual([true]);
   });
 
-  test('still gently blends colors when Android reduces system motion', () => {
+  test('switches colors immediately when Android reduces system motion', () => {
     mockReduceMotion = true;
     const timing = jest.spyOn(Animated, 'timing');
     const { getByTestId, queryByTestId, rerender } = render(
@@ -99,12 +99,9 @@ describe('CrossfadeLayers', () => {
     rerender(<CrossfadeLayers value="blue" valueKey="blue" renderLayer={renderValue}
       testID="color-transition" />);
 
-    expect(queryByTestId('color-transition-outgoing', { includeHiddenElements: true })).not.toBeNull();
+    expect(queryByTestId('color-transition-outgoing', { includeHiddenElements: true })).toBeNull();
     expect(getByTestId('value-blue')).toBeTruthy();
-    expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      duration: 1000,
-      useNativeDriver: true,
-    }));
+    expect(timing).not.toHaveBeenCalled();
   });
 
   test('retargets immediately from the visible mixture and ignores stale completions', () => {

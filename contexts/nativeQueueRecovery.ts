@@ -7,6 +7,7 @@ import {
 } from '../utils/currentSongPersistence';
 import { isPlayableSong } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
+import { assertTagSourceAvailableForPlayback } from '../utils/tagPlaybackSafety';
 import { getNativePlaybackIntent, restoreNativePlaybackIntent, resolveNativePlaybackIntent } from '../utils/nativePlaybackIntent';
 import { NativePlaybackTimeoutError } from '../utils/nativePlaybackWatchdog';
 
@@ -364,6 +365,7 @@ export const executeNativeQueueRollback = async (
 ): Promise<void> => {
   const assertCurrent = () => { if (!isCurrent()) throw new NativePlaybackTimeoutError('queue'); };
   assertCurrent();
+  snapshot.nativeQueue.forEach(song => assertTagSourceAvailableForPlayback(song.uri ?? ''));
   await TrackPlayer.reset();
   assertCurrent();
   if (snapshot.nativeQueue.length === 0) return;

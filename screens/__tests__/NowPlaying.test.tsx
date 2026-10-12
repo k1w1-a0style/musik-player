@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import NowPlaying from '../NowPlaying';
+import { beginPlaybackSelection, finishPlaybackSelection, getPlaybackSelectionSnapshot, resetPlaybackSelectionForTests } from '../../utils/playbackSelectionStatus';
 
 const mockAppThemeContextValue = {
   appearance: 'dark',
@@ -354,4 +355,20 @@ describe('NowPlaying cover fallback', () => {
 
     expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
+});
+
+
+test('normal playback selection stays invisible in the real player while newer revisions survive older completion', async () => {
+  mockNowPlayingStateCrash = false; mockPlayerLayout = 'classic'; mockPlayerLayoutHydrated = true;
+  resetPlaybackSelectionForTests();
+  const view = render(<NowPlaying />);
+  await act(async () => undefined);
+  let older!: number; let newer!: number;
+  act(() => { older = beginPlaybackSelection({ id: 'one', title: 'One' }); });
+  act(() => { newer = beginPlaybackSelection({ id: 'two', title: 'Two' }); });
+  act(() => { expect(finishPlaybackSelection(older)).toBe(false); });
+  expect(view.queryByTestId('playback-selection-notice')).toBeNull();
+  expect(view.queryByText(/Wechsel zu/)).toBeNull();
+  expect(getPlaybackSelectionSnapshot().target?.id).toBe('two');
+  act(() => { expect(finishPlaybackSelection(newer)).toBe(true); });
 });

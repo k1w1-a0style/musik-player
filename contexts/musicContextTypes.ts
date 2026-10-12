@@ -15,6 +15,7 @@ export interface MusicContextValue {
   setSongs: (s: Song[]) => void;
   addSongs: (s: Song[]) => void;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  updateSongMetadataConfirmed?: (songId: string, patch: Partial<Song>) => Promise<void>;
   applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   currentSong: Song | null;
   playbackQueue: Song[];
@@ -69,6 +70,7 @@ export interface LibraryMusicContextValue {
   isReady: boolean;
   isPlaying: boolean;
   updateSongMetadata: (songId: string, patch: Partial<Song>) => void;
+  updateSongMetadataConfirmed?: (songId: string, patch: Partial<Song>) => Promise<void>;
   applySongMetadataPatches: (patchesBySongId: SongMetadataPatchesById) => void;
   playlists: Playlist[];
   createPlaylist: (name: string) => Playlist;

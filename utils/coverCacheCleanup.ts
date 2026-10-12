@@ -1,6 +1,9 @@
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as FileSystem from 'expo-file-system';
 import type { Song } from '../types/Song';
+import { isMetadataRefreshActive } from './metadataRefreshActivity';
+import { isWaveformExtractionActive } from './waveformExtractionLifecycle';
+import { capturePersistenceEpoch, registerPersistenceFlusher, trackPersistenceWork } from './persistenceMaintenance';
 
 type CacheFileSystem = {
   documentDirectory?: string | null;
@@ -16,6 +19,10 @@ const CACHE_FILE_NAME_RE = /^[a-f0-9]+-[a-f0-9]+\.(?:jpg|jpeg|png|webp)$/i;
 let latestCleanupRequestId = 0;
 let latestCleanupSongs: Song[] | undefined;
 let cleanupDrainPromise: Promise<void> | undefined;
+let priorityTimer: ReturnType<typeof setTimeout> | undefined;
+let releasePriorityWait: (() => void) | undefined;
+let forceCleanup = false;
+let latestCleanupEpoch = 0;
 type CoverCacheProtectionToken = symbol;
 type CleanupFailureReason = 'cache_info_failed' | 'cache_read_failed' | 'cache_delete_failed' | 'cleanup_failed';
 
@@ -53,6 +60,23 @@ export type CoverCacheProtection = {
 const activeCoverProtections = new Map<CoverCacheProtectionToken, Set<string>>();
 
 const isLatestCleanupRequest = (requestId: number): boolean => requestId === latestCleanupRequestId;
+const wakePriorityWait = (): void => {
+  if (priorityTimer) clearTimeout(priorityTimer);
+  priorityTimer = undefined;
+  const release = releasePriorityWait;
+  releasePriorityWait = undefined;
+  release?.();
+};
+const waitForCleanupPriority = async (requestId: number, owner: number): Promise<boolean> => {
+  while (!forceCleanup && (isMetadataRefreshActive() || isWaveformExtractionActive()) && isLatestCleanupRequest(requestId)) {
+    await new Promise<void>(resolve => {
+      releasePriorityWait = resolve;
+      priorityTimer = setTimeout(wakePriorityWait, 1000);
+    });
+  }
+  return isLatestCleanupRequest(requestId) && owner === capturePersistenceEpoch();
+};
+registerPersistenceFlusher(() => { if (cleanupDrainPromise) { forceCleanup = true; wakePriorityWait(); } });
 
 const getFileSystem = (): CacheFileSystem => LegacyFileSystem as CacheFileSystem;
 
@@ -106,12 +130,14 @@ const deleteFilesInBatches = async (
   eraseFile: (uri: string, options?: { idempotent?: boolean }) => Promise<void>,
   shouldContinue: () => boolean,
   isProtected: (fileName: string) => boolean,
+  waitForPriority: () => Promise<boolean>,
 ): Promise<void> => {
   const safeFileNames = fileNames.filter(isSafeCoverCacheFileName);
   for (let i = 0; i < safeFileNames.length; i += CLEANUP_DELETE_BATCH_SIZE) {
     if (!shouldContinue()) return;
     const batch = safeFileNames.slice(i, i + CLEANUP_DELETE_BATCH_SIZE);
     for (const fileName of batch) {
+      if (!await waitForPriority()) return;
       if (!shouldContinue()) return;
       if (isProtected(fileName)) continue;
       await withCleanupFailureReason(
@@ -122,9 +148,9 @@ const deleteFilesInBatches = async (
   }
 };
 
-const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<void> => {
+const runCleanupCoverCache = async (songs: Song[], requestId: number, owner: number): Promise<void> => {
   await Promise.resolve();
-  if (!isLatestCleanupRequest(requestId)) return;
+  if (!await waitForCleanupPriority(requestId, owner)) return;
   const directory = getCoverCacheDirectory();
   if (!directory) return;
 
@@ -138,6 +164,7 @@ const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<v
 
     const info = await withCleanupFailureReason(getInfo(directory), 'cache_info_failed');
     if (!info.exists || !isLatestCleanupRequest(requestId)) return;
+    if (!await waitForCleanupPriority(requestId, owner)) return;
 
     const referencedFileNames = getReferencedFileNames(songs, directory);
     const cachedFileNames = await withCleanupFailureReason(readDirectory(directory), 'cache_read_failed');
@@ -151,6 +178,7 @@ const runCleanupCoverCache = async (songs: Song[], requestId: number): Promise<v
       eraseFile,
       () => isLatestCleanupRequest(requestId),
       fileName => referencedFileNames.has(fileName) || isCoverFileProtected(fileName),
+      () => waitForCleanupPriority(requestId, owner),
     );
   } catch (error) {
     // Best-effort cache maintenance must not break library hydration or persistence.
@@ -163,7 +191,7 @@ const drainLatestCleanup = async (): Promise<void> => {
     const requestId = latestCleanupRequestId;
     const songs = latestCleanupSongs;
     if (!songs) return;
-    await runCleanupCoverCache(songs, requestId);
+    await runCleanupCoverCache(songs, requestId, latestCleanupEpoch);
     if (requestId === latestCleanupRequestId) return;
   }
 };
@@ -171,6 +199,8 @@ const drainLatestCleanup = async (): Promise<void> => {
 export const resetCoverCacheCleanupForTests = (): void => {
   latestCleanupRequestId += 1;
   latestCleanupSongs = undefined;
+  forceCleanup = false;
+  wakePriorityWait();
 };
 
 export const createCoverCacheProtection = (): CoverCacheProtection => {
@@ -212,10 +242,13 @@ export const waitForCoverCacheCleanupIdle = async (): Promise<void> => {
 export const cleanupCoverCache = async (songs: Song[]): Promise<void> => {
   latestCleanupRequestId += 1;
   latestCleanupSongs = songs;
+  latestCleanupEpoch = capturePersistenceEpoch();
+  wakePriorityWait();
   if (!cleanupDrainPromise) {
-    cleanupDrainPromise = drainLatestCleanup().finally(() => {
+    cleanupDrainPromise = trackPersistenceWork(drainLatestCleanup().finally(() => {
       cleanupDrainPromise = undefined;
-    });
+      forceCleanup = false;
+    }));
   }
   await cleanupDrainPromise;
 };

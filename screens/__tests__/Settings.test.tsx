@@ -2,6 +2,8 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import Settings from '../Settings';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { AppStackParamList } from '../../types/navigation';
 import {
   APP_APPEARANCES,
   APP_THEME_SKINS,
@@ -52,6 +54,13 @@ jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
 }));
 
 describe('Settings', () => {
+  test('opens the separate collection cleaner from its settings entry', () => {
+    const navigate = jest.fn();
+    const navigation = { navigate } as unknown as NativeStackNavigationProp<AppStackParamList, 'Settings'>;
+    const screen = render(<Settings navigation={navigation} />);
+    fireEvent.press(screen.getByTestId('settings-tag-cleaner'));
+    expect(navigate).toHaveBeenCalledWith('TagCleaner');
+  });
   beforeEach(() => {
     mockSetAppearance.mockClear();
     mockSetSkin.mockClear();

@@ -47,7 +47,8 @@ const fixture = count => Array.from({ length: count }, (_, index) => ({ id: `son
   title: `Track ${index}`, artist: 'Benchmark', uri: `content://benchmark/document/song-${index}.mp3`,
   fileInfo: { size: 4_000_000, modificationTime: dated ? 1_700_000_000_000 : undefined,
     importedAt: 1_700_000_100_000 } }));
-const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
+const sampleCount = 20;
 const run = async songs => {
   calls = { directory: 0, providerStat: 0, stream: 0, tags: 0, audioInfo: 0, cover: 0, coverWrite: 0, checkpoint: 0 };
   let processed = 0;
@@ -71,22 +72,23 @@ const run = async songs => {
 (async () => {
   const workloads = [];
   for (dated of [true, false]) {
-    for (const count of [500, 2000, 5000]) {
+    for (const count of [10, 500, 2000, 5000]) {
       const songs = fixture(count);
       entries = songs.map(song => song.uri);
       await run(songs);
       const samples = [];
       let outcome;
-      for (let sample = 0; sample < 3; sample++) {
+      for (let sample = 0; sample < sampleCount; sample++) {
         const started = performance.now();
         outcome = await run(songs);
         samples.push(+(performance.now() - started).toFixed(3));
       }
-      workloads.push({ songs: count, providerDates: dated, hostMsMedian: median(samples), samplesMs: samples, ...outcome });
+      workloads.push({ songs: count, providerDates: dated, hostMsP50: percentile(samples, 0.50), hostMsP95: percentile(samples, 0.95), samplesMs: samples, ...outcome });
     }
   }
   const result = { revision: revision ?? 'working-tree', baseCommit: execFileSync('git', ['rev-parse', 'HEAD'],
-    { cwd: root, encoding: 'utf8' }).trim(), node: process.version, samples: 3,
+    { cwd: root, encoding: 'utf8' }).trim(), node: process.version, recordedAt: new Date().toISOString(), samples: sampleCount,
+    quantiles: 'nearest rank over 20 measured runs after one warm-up per workload',
     scope: 'Flat SAF folder. Real JS import path; immediate provider boundary doubles. No physical I/O, React commits, Android RAM/jank or device speed claim.', workloads };
   if (output) fs.writeFileSync(path.resolve(root, output), JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result, null, 2));

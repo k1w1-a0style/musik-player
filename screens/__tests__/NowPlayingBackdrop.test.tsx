@@ -49,7 +49,7 @@ describe('NowPlayingBackdrop', () => {
     expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       toValue: 1,
       delay: 0,
-      duration: 1000,
+      duration: 250,
       useNativeDriver: true,
     }));
 
