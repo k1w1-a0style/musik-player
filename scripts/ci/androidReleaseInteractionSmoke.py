@@ -16,6 +16,7 @@ PACKAGE = 'com.k1w1a0style.musikplayer'
 OUT = Path('ci-logs/release-interaction')
 CHECKS = []
 PLAYBACK_PROOFS = []
+SCROLL_PROOFS = []
 DEVICE = None
 LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
@@ -25,6 +26,7 @@ RETEST_ONLY_PATHS = frozenset({
     'scripts/ci/androidReleaseInteractionSmoke_test.py',
     '.github/workflows/android-release-retest.yml',
     'docs/CODEX-V3-IMPLEMENTATION.md', 'docs/CODEX-V5-IMPLEMENTATION.md',
+    'docs/CODEX-V5-CHECKPOINTS.md',
 })
 
 
@@ -70,7 +72,7 @@ def pixel_launcher_close_button(root):
 
 
 def rect(node):
-    values = [int(value) for value in re.findall(r'\d+', node.get('bounds', ''))]
+    values = [int(value) for value in re.findall(r'-?\d+', node.get('bounds', ''))]
     assert len(values) == 4 and values[2] > values[0] and values[3] > values[1], 'UI element has no touch area'
     return values
 
@@ -136,16 +138,44 @@ def back():
     time.sleep(.5)
 
 
+def vertical_scroll_surface(root, key):
+    surfaces = [node for node in root.iter('node')
+                if node.get('scrollable') == 'true'
+                and 'HorizontalScrollView' not in node.get('class', '')
+                and visible(node) and rect(node)[2]-rect(node)[0] >= 50
+                and rect(node)[3]-rect(node)[1] >= 50]
+    containing = [node for node in surfaces
+                  if any(matches(child, key) for child in node.iter('node'))]
+    selected = containing if containing else surfaces
+    assert len(selected) == 1, 'Vertical scroll surface absent or ambiguous: ' + key
+    return selected[0]
+
+
+def vertical_swipe_coordinates(root, key, down=False):
+    # Status cards, font scale and the mini player change the actual viewport.
+    # Never start in a header/card or drag through unrelated controls.
+    x1, y1, x2, y2 = rect(vertical_scroll_surface(root, key))
+    inset = max(16, int((y2-y1)*.15))
+    x, upper, lower = (x1+x2)//2, y1+inset, y2-inset
+    assert lower-upper >= 16, 'Vertical scroll surface is too small: ' + key
+    return (x, upper, x, lower) if down else (x, lower, x, upper)
+
+
 def scroll_to(key, top=False, limit=24):
-    if top:
-        for _ in range(10):
-            adb('shell', 'input', 'swipe', '240', '250', '240', '780', '180')
-    for _ in range(limit):
-        found = candidate(key)
+    for down in ([True]*10 if top else []) + [False]*limit:
+        frame = tree()
+        found = candidate(key, frame)
         if found is not None:
             return found
-        adb('shell', 'input', 'swipe', '240', '760', '240', '270', '300')
+        coordinates = vertical_swipe_coordinates(frame, key, down=down)
+        SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
+                             'surfaceBounds': rect(vertical_scroll_surface(frame, key)),
+                             'coordinates': coordinates})
+        adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '300')
         time.sleep(.2)
+    found = candidate(key)
+    if found is not None:
+        return found
     raise AssertionError('Scrollable UI not reachable: ' + key)
 
 
@@ -666,7 +696,7 @@ def main():
         logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
         assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
-                  'playbackProofs': PLAYBACK_PROOFS,
+                  'playbackProofs': PLAYBACK_PROOFS, 'scrollProofs': SCROLL_PROOFS,
                   'pixelLauncherDialogs': LAUNCHER_DIALOGS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',

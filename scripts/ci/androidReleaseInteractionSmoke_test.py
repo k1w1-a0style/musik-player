@@ -41,8 +41,9 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
     def test_retest_allows_only_test_documentation_changes(self):
         jobs = self.source_jobs()
         validate_retest_provenance('a'*40, ['scripts/ci/androidReleaseInteractionSmoke.py'], jobs)
+        validate_retest_provenance('a'*40, ['docs/CODEX-V5-CHECKPOINTS.md'], jobs)
         for path in ('App.tsx','package-lock.json','modules/expo-system-audio/android/build.gradle',
-                     '.github/workflows/ci.yml'):
+                     '.github/workflows/ci.yml', 'docs/unreviewed-script.py'):
             with self.assertRaises(AssertionError):
                 validate_retest_provenance('a'*40, [path], jobs)
 
@@ -130,6 +131,51 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                 else:
                     with self.assertRaises(AssertionError):
                         smoke.assert_duration(90)
+
+    def scroll_frame(self, bounds='[12,688][468,924]', target=False):
+        # Measured bounds from failed retest artifact 11732627939: the two
+        # status cards leave only this small vertical song viewport.
+        button = '<node content-desc="Wanted" bounds="[28,743][290,826]"/>' if target else ''
+        return ET.fromstring('<hierarchy><node class="android.widget.HorizontalScrollView" '
+                             'scrollable="true" bounds="[0,137][480,195]"/>'
+                             '<node class="android.widget.ScrollView" scrollable="true" '
+                             f'bounds="{bounds}">{button}</node></hierarchy>')
+
+    def test_scroll_uses_observed_vertical_bounds_and_excludes_horizontal_tabs(self):
+        root = self.scroll_frame()
+        self.assertEqual(smoke.vertical_swipe_coordinates(root, 'Wanted'), (240,889,240,723))
+        self.assertEqual(smoke.vertical_swipe_coordinates(root, 'Wanted', down=True), (240,723,240,889))
+
+    def test_scroll_recalculates_bounds_when_scan_cards_disappear(self):
+        for bounds, expected in (('[12,618][468,924]', (240,879,240,663)),
+                                 ('[12,220][468,780]', (240,696,240,304))):
+            self.assertEqual(smoke.vertical_swipe_coordinates(self.scroll_frame(bounds), 'Wanted'), expected)
+
+    def test_scroll_never_guesses_between_ambiguous_unrelated_vertical_surfaces(self):
+        root = self.scroll_frame()
+        root.append(ET.fromstring('<node class="androidx.recyclerview.widget.RecyclerView" '
+                                 'scrollable="true" bounds="[20,220][460,500]"/>'))
+        with self.assertRaises(AssertionError):
+            smoke.vertical_swipe_coordinates(root, 'Wanted')
+        target = ET.SubElement(root[1], 'node', {'content-desc':'Wanted','bounds':'[0,970][100,1020]'})
+        self.assertEqual(smoke.vertical_swipe_coordinates(root, 'Wanted'), (240,889,240,723))
+
+    def test_visible_target_is_used_without_any_unnecessary_scroll(self):
+        root = self.scroll_frame(target=True)
+        with patch.object(smoke, 'tree', return_value=root), patch.object(smoke, 'adb') as adb:
+            self.assertEqual(smoke.scroll_to('Wanted', top=True).get('content-desc'), 'Wanted')
+            adb.assert_not_called()
+
+    def test_real_scroll_to_swipes_inside_current_surface_and_rechecks_target(self):
+        empty, found = self.scroll_frame(), self.scroll_frame(target=True)
+        with patch.object(smoke, 'tree', side_effect=[empty,found]), patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+            self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
+            adb.assert_called_once_with('shell','input','swipe','240','889','240','723','300')
+
+    def test_missing_or_offscreen_vertical_surface_is_not_touched(self):
+        for bounds in ('[12,970][468,1100]', '[-20,220][468,780]', '[12,688][468,710]'):
+            with self.assertRaises(AssertionError):
+                smoke.vertical_swipe_coordinates(self.scroll_frame(bounds), 'Wanted')
 
     def playing_session(self, title='V3 FLAC', state=3, package=smoke.PACKAGE):
         return f'package={package}\nstate=PlaybackState {{state={state}, position=4000}}\nmetadata: description={title}, V3 Proof'
