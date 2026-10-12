@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 PACKAGE = 'com.k1w1a0style.musikplayer'
 OUT = Path('ci-logs/release-interaction')
 CHECKS = []
+PLAYBACK_PROOFS = []
 DEVICE = None
 LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
@@ -246,20 +247,58 @@ def assert_duration(seconds):
     deadline = time.monotonic() + 25
     while time.monotonic() < deadline:
         root = tree()
-        values = [node.get('text', '') for node in root.iter('node') if re.fullmatch(r'\d+:\d{2}', node.get('text', ''))]
-        expected = f'{seconds//60}:{seconds%60:02}'
-        if expected in values:
+        try:
+            _, duration = timeline_values(root)
+        except AssertionError:
+            time.sleep(.4)
+            continue
+        # MP3's actual decoded duration can be a fraction below the fixture's
+        # requested duration. Floor-to-mm:ss is allowed; other tracks still fail.
+        if abs(duration-seconds) <= 1:
             return
         time.sleep(.4)
     raise AssertionError('Native decoded duration not visible: ' + str(seconds))
 
 
 def classic_position(seconds):
-    root = find('waveform-scrubber')
-    labels = [node.get('text', '') for node in root.iter('node') if re.fullmatch(r'\d+:\d{2}', node.get('text', ''))]
-    values = [int(value.split(':')[0])*60+int(value.split(':')[1]) for value in labels]
-    assert seconds in values and len(values) >= 2, 'Decoded progress and duration are not visible in the waveform'
-    return next(value for value in values if value != seconds)
+    find('Audiospur-Fortschritt')
+    position, duration = timeline_values(tree())
+    assert abs(duration-seconds) <= 1, 'Decoded duration belongs to another track'
+    return position
+
+
+def time_seconds(label):
+    assert re.fullmatch(r'(?:\d+:)?\d+:\d{2}', label), 'Native time has no valid M:SS/H:MM:SS value'
+    parts = list(map(int, label.split(':')))
+    assert parts[-1] < 60 and (len(parts) == 2 or parts[-2] < 60), 'Native time component exceeds 59'
+    return sum(value * 60**index for index, value in enumerate(reversed(parts)))
+
+
+def app_time_values(root):
+    labels = [node.get('text', '') for node in root.iter('node') if node.get('package') == PACKAGE
+              and re.fullmatch(r'(?:\d+:)?\d+:\d{2}', node.get('text', ''))]
+    return [time_seconds(value) for value in labels]
+
+
+def timeline_values(root):
+    # Scope duration to the actual player timeline. A system clock, background
+    # list label or elapsed time close to the fixture length is never proof.
+    current = candidate('soundcloud-waveform-current-time', root)
+    total = candidate('soundcloud-waveform-total-time', root)
+    if current is not None and total is not None:
+        assert current.get('package') == total.get('package') == PACKAGE, 'Timeline is not app-owned'
+        return time_seconds(current.get('text', '')), time_seconds(total.get('text', ''))
+    surface = candidate('Audiospur-Fortschritt', root)
+    assert surface is not None and surface.get('package') == PACKAGE, 'Native player timeline is absent'
+    parents = {child: parent for parent in root.iter() for child in parent}
+    ancestor = parents.get(surface)
+    while ancestor is not None:
+        values = app_time_values(ancestor)
+        if len(values) >= 2:
+            assert len(values) == 2, 'Player timeline times are ambiguous'
+            return values[0], values[1]
+        ancestor = parents.get(ancestor)
+    raise AssertionError('Decoded progress and duration are not visible in the timeline')
 
 
 def prepare_collection():
@@ -276,6 +315,7 @@ def prepare_collection():
         tap('mini-player-open')
         assert_duration(duration)
         find('controls-play-pause')
+        assert_native_playback(TITLES[index], duration)
         screenshot('format-' + str(index))
         tap('controls-play-pause')
         back()
@@ -292,6 +332,7 @@ def prepare_collection():
     play_title('V3 SAF')
     tap('mini-player-open')
     assert_duration(80)
+    assert_native_playback('V3 SAF', 80)
     tap('controls-play-pause')
     screenshot('01-saf-import-and-playback')
     back()
@@ -358,8 +399,7 @@ def resume_acceptance():
     assert candidate('Wiedergabe fortsetzen?') is None, 'Disabled Resume still prompts'
     tap('mini-player-open')
     current = find('soundcloud-waveform-current-time').get('text', '')
-    minutes, seconds = map(int, current.split(':'))
-    assert minutes*60+seconds < 15, 'Disabled Resume applied an old saved position'
+    assert time_seconds(current) < 15, 'Disabled Resume applied an old saved position'
     screenshot('05-resume-off-starts-at-beginning')
     tap('soundcloud-swipe-hitbox')
     find('soundcloud-play-button')
@@ -408,9 +448,7 @@ def backup_acceptance():
 
 def soundcloud_seconds():
     value = find('soundcloud-waveform-current-time').get('text', '')
-    assert re.fullmatch(r'\d+:\d{2}', value), 'Native progress has no valid time'
-    minutes, seconds = map(int, value.split(':'))
-    return minutes*60+seconds
+    return time_seconds(value)
 
 
 def app_media_session():
@@ -420,6 +458,51 @@ def app_media_session():
     assert len(matching) == 1, 'Native media session missing or ambiguous'
     (OUT / 'media-session.txt').write_text(matching[0])
     return matching[0]
+
+
+def validate_playing_session(session, title):
+    assert re.search(r'\bpackage=' + re.escape(PACKAGE) + r'(?:\s|$)', session), 'Native session belongs to another app'
+    assert re.search(r'PlaybackState\s*\{state=3\b', session), 'Native playback is not playing'
+    assert title in session, 'Native session selected another track: ' + title
+
+
+def wait_playing_session(title, timeout=15):
+    deadline = time.monotonic() + timeout
+    last_error = 'Native session not checked'
+    while time.monotonic() < deadline:
+        try:
+            session = app_media_session()
+            validate_playing_session(session, title)
+            return session
+        except AssertionError as error:
+            last_error = str(error)
+        time.sleep(.4)
+    raise AssertionError(last_error)
+
+
+def assert_native_playback(title, duration, position_reader=None):
+    # Read both public UI progress and Android's actual session. Metadata and a
+    # visible play/pause button alone can pass even when a decoder never starts.
+    read_position = position_reader or (lambda: classic_position(duration))
+    wait_playing_session(title)
+    before, started = read_position(), time.monotonic()
+    time.sleep(4)
+    after = read_position()
+    elapsed = time.monotonic()-started
+    assert before+2 <= after <= before+elapsed+3, 'Native position did not advance plausibly: ' + title
+    validate_playing_session(app_media_session(), title)
+    PLAYBACK_PROOFS.append({'title': title, 'expectedDurationSeconds': duration,
+                           'beforeSeconds': before, 'afterSeconds': after,
+                           'elapsedSeconds': round(elapsed, 3), 'nativeState': 3})
+    print(f'Native playback: {title}: {before}s -> {after}s, state=3', flush=True)
+
+
+def horizontal_swipe_coordinates(node):
+    x1, y1, x2, y2 = rect(node)
+    assert visible(node) and x2-x1 >= 120, 'Cover swipe area is absent or too narrow'
+    # Swipe right across the cover, away from waveform/transport controls.
+    y = (y1+y2)//2
+    return int(x1+(x2-x1)*.15), y, int(x1+(x2-x1)*.85), y
 
 
 def queue_node(root, title):
@@ -478,10 +561,24 @@ def background_and_queue_acceptance():
     if candidate('soundcloud-queue-close') is not None:
         tap('soundcloud-queue-close')
     assert_duration(FORMAT_DURATIONS[1])
-    time.sleep(3)
-    assert soundcloud_seconds() >= 1, 'Selected queue track is not advancing'
-    assert TITLES[1] in app_media_session(), 'Native session did not select the actual queue track'
+    assert_native_playback(TITLES[1], FORMAT_DURATIONS[1], soundcloud_seconds)
     screenshot('11-native-queue-track-selection')
+    tap('soundcloud-open-queue')
+    frame = tree()
+    left, right = queue_node(frame, TITLES[0]), queue_node(frame, TITLES[1])
+    rows = sorted((node for node in frame.iter('node') if visible(node)
+                   and node.get('resource-id', '').split(':id/')[-1].startswith('queue-row-')),
+                  key=lambda node: rect(node)[1])
+    target_index = rows.index(right)
+    assert target_index > 0 and rows[target_index-1] is left, 'Swipe predecessor is not the confirmed reordered MP3'
+    tap('soundcloud-queue-close')
+    start_x, start_y, end_x, end_y = horizontal_swipe_coordinates(find('soundcloud-swipe-hitbox'))
+    adb('shell', 'input', 'swipe', str(start_x), str(start_y), str(end_x), str(end_y), '320')
+    wait_playing_session(TITLES[0])
+    assert_duration(FORMAT_DURATIONS[0])
+    assert_native_playback(TITLES[0], FORMAT_DURATIONS[0], soundcloud_seconds)
+    screenshot('12-real-horizontal-cover-swipe')
+    CHECKS.append('real-horizontal-cover-swipe-selects-previous-native-track-and-advances')
     tap('soundcloud-swipe-hitbox')
     find('soundcloud-play-button')
     back()
@@ -554,6 +651,7 @@ def main():
         logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
         assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
+                  'playbackProofs': PLAYBACK_PROOFS,
                   'pixelLauncherDialogs': LAUNCHER_DIALOGS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',

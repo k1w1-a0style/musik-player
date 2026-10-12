@@ -17,6 +17,14 @@ test('a complete hash is revision proof without trusting display text or derived
   expect(getResumeSource({ ...hashed, title: 'New title', duration: 0 })).toBe(getResumeSource(hashed));
   expect(getResumeSource({ ...hashed, fileInfo: { contentHash: 'b'.repeat(64) } })).not.toBe(getResumeSource(hashed));
 });
+test('a changed known legacy MD5 revision invalidates a position even if size and time stay equal', () => {
+  const original = { ...song, fileInfo: { ...song.fileInfo, contentHash: 'a'.repeat(32) } };
+  const changed = { ...original, fileInfo: { ...original.fileInfo, contentHash: 'b'.repeat(32) } };
+  const saved = { ...entry, source: getResumeSource(original)! };
+  expect(getResumeSource(changed)).not.toBe(saved.source);
+  expect(findResumeEntry(changed, [saved], now)).toBeUndefined();
+  expect(getResumeSource({ ...original, fileInfo: { contentHash: 'a'.repeat(32) } })).toBeNull();
+});
 test.each([[10000, 3600000, false], [120000, 600000, false], [3580000, 3600000, false],
   [120000, 1200000, true], [Infinity, 1200000, false], [120000, NaN, false]])('position %s in duration %s is useful: %s', (position, duration, expected) => {
   expect(isUsefulResumePosition(position, duration)).toBe(expected);

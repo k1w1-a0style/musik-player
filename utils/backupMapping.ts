@@ -11,7 +11,8 @@ export const toBackupSongReference = (song: Song): BackupSongReference => ({
   contentHash: /^[a-f0-9]{64}$/i.test(song.fileInfo?.contentHash ?? '') ? song.fileInfo!.contentHash!.toLowerCase() : undefined,
 });
 const hasSameRevision = (left: BackupSongReference, right: BackupSongReference): boolean => {
-  if (left.contentHash && right.contentHash) return left.contentHash.toLowerCase() === right.contentHash.toLowerCase();
+  if (left.contentHash || right.contentHash) return Boolean(left.contentHash && right.contentHash
+    && left.contentHash.toLowerCase() === right.contentHash.toLowerCase());
   return Boolean(left.size && right.size && left.modificationTime && right.modificationTime
     && left.size === right.size && left.modificationTime === right.modificationTime);
 };

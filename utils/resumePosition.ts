@@ -17,14 +17,18 @@ const entrySchema = z.object({ songId: z.string().min(1).max(512), source: z.str
   positionMs: z.number().finite().nonnegative(), durationMs: z.number().finite().positive(),
   updatedAt: z.number().finite().nonnegative() }).strict();
 const storeSchema = z.object({ version: z.literal(1), entries: z.array(entrySchema).max(RESUME_MAX_ENTRIES) }).strict();
+const getDatedResumeRevision = (size: number | undefined, time: number | undefined, legacyHash: string | undefined) =>
+  legacyHash ? ['size-time', size, time, 'md5-revision', legacyHash] : ['size-time', size, time];
 export const getResumeSource = (song: Song): string | null => {
   const uri = getSongSourceKey(song.fileInfo?.uri ?? song.uri);
   const size = song.fileInfo?.size;
   const time = song.fileInfo?.modificationTime;
-  const hash = /^[a-f0-9]{64}$/i.test(song.fileInfo?.contentHash ?? '') ? song.fileInfo!.contentHash!.toLowerCase() : undefined;
+  const digest = (song.fileInfo?.contentHash ?? '').toLowerCase();
+  const hash = /^[a-f0-9]{64}$/.test(digest) ? digest : undefined;
+  const legacyHash = /^[a-f0-9]{32}$/.test(digest) ? digest : undefined;
   const dated = Number.isSafeInteger(size) && size! > 0 && Number.isFinite(time) && time! > 0;
   if (!song.id.trim() || !uri || (!hash && !dated)) return null;
-  const source = JSON.stringify([song.id, uri, hash ? ['sha256', hash] : ['size-time', size, time]]);
+  const source = JSON.stringify([song.id, uri, hash ? ['sha256', hash] : getDatedResumeRevision(size, time, legacyHash)]);
   return song.id.length <= 512 && source.length <= 8192 ? source : null;
 };
 export const isUsefulResumePosition = (positionMs: number, durationMs: number): boolean =>

@@ -43,6 +43,11 @@ test('a unique full hash survives a folder move, duplicate strong matches remain
   expect(mapBackupSongs(fixture([old]), [moved])[0].song).toBe(moved);
   expect(mapBackupSongs(fixture([old]), [moved, { ...moved, id: 'duplicate' }])[0].status).toBe('conflict');
 });
+test('a known full hash never silently falls back to size and time when one side is unverified', () => {
+  const hashed = { ...a, fileInfo: { ...a.fileInfo, contentHash: 'a'.repeat(64) } };
+  expect(mapBackupSongs(fixture([hashed]), [a])[0].status).toBe('conflict');
+  expect(mapBackupSongs(fixture([a]), [hashed])[0].status).toBe('conflict');
+});
 test('manual mapping and explicit skip preserve live lists, merge favorites and retain order', () => {
   const backup = fixture([a, song('b', 'file:///Missing.mp3'), song('c', 'file:///Other.mp3')]);
   const current = song('current', 'file:///Selected.mp3');

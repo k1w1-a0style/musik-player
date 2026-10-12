@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-12",
+  "baseCommit": "8662eb321b59f5fca9e12e2dd5c53cfa9daeac3a",
+  "before": {
+    "suites": 2,
+    "failed": 2,
+    "passed": 22
+  },
+  "afterTargeted": {
+    "suites": 2,
+    "passed": 24
+  },
+  "fullHost": {
+    "suites": 404,
+    "tests": 3934,
+    "seconds": 194.175,
+    "coverage": [
+      93.61,
+      85.2,
+      95.22,
+      96.09
+    ]
+  },
+  "pythonDiagnostics": 31,
+  "nativeAcceptance": "pending-new-app-source",
+  "limitations": [
+    "No physical A50",
+    "Compact V5 has CSV tags but no original MP3 audio",
+    "No final V5 APK accepted"
+  ],
+  "knownIssues": [
+    "Optional postcommit Storage maintenance blocks save acknowledgement (being fixed)",
+    "F25 remains open; expiry 2026-10-21"
+  ]
+}

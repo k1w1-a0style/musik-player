@@ -2,8 +2,11 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import androidReleaseInteractionSmoke as smoke
 from androidReleaseInteractionSmoke import (validate_target, rect, matches,
-    validate_retest_provenance, import_confirmation_button, pixel_launcher_close_button, FORMAT_DURATIONS)
+    validate_retest_provenance, import_confirmation_button, pixel_launcher_close_button, app_time_values, FORMAT_DURATIONS,
+    time_seconds, timeline_values, validate_playing_session, horizontal_swipe_coordinates, assert_native_playback)
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
@@ -76,6 +79,95 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             root = ET.fromstring(f'<hierarchy><node resource-id="android:id/alertTitle" text="{title}"/>'
                                   '<node resource-id="android:id/aerr_close" text="Close app"/></hierarchy>')
             self.assertIsNone(pixel_launcher_close_button(root))
+
+    def test_decoded_time_excludes_system_clock_and_song_metadata_labels(self):
+        root = ET.fromstring('<hierarchy><node package="com.android.systemui" text="10:34"/>'
+                             '<node package="com.k1w1a0style.musikplayer" text="0:42"/>'
+                             '<node package="com.k1w1a0style.musikplayer" text="1:29"/>'
+                             '<node package="com.k1w1a0style.musikplayer" text="1:30 • MP3 • 32 kbps"/></hierarchy>')
+        self.assertEqual(app_time_values(root), [42,89])
+
+    def test_time_parser_matches_native_hours_and_rejects_invalid_components(self):
+        self.assertEqual(time_seconds('1:01:01'), 3661)
+        self.assertEqual(time_seconds('21:00'), 1260)
+        self.assertEqual(time_seconds('0:00'), 0)
+        for label in ('1:60', '1:60:00', '90 seconds', '1:30 • MP3', '-1:01'):
+            with self.assertRaises(AssertionError):
+                time_seconds(label)
+
+    def test_classic_timeline_reads_slider_sibling_times_and_ignores_background(self):
+        root = ET.fromstring('<hierarchy><node package="com.android.systemui" text="1:30"/>'
+                             '<node package="com.k1w1a0style.musikplayer" text="0:01"/>'
+                             '<node><node package="com.k1w1a0style.musikplayer" content-desc="Audiospur-Fortschritt" bounds="[21,548][459,635]"/>'
+                             '<node package="com.k1w1a0style.musikplayer" text="0:42"/>'
+                             '<node package="com.k1w1a0style.musikplayer" text="1:29"/></node></hierarchy>')
+        self.assertEqual(timeline_values(root), (42,89))
+
+    def test_soundcloud_total_is_not_confused_with_elapsed_or_system_clock(self):
+        root = ET.fromstring('<hierarchy><node package="com.android.systemui" text="1:30"/>'
+                             '<node package="com.k1w1a0style.musikplayer" resource-id="soundcloud-waveform-current-time" text="1:30" bounds="[0,0][50,30]"/>'
+                             '<node package="com.k1w1a0style.musikplayer" resource-id="soundcloud-waveform-total-time" text="2:00" bounds="[300,0][350,30]"/></hierarchy>')
+        self.assertEqual(timeline_values(root), (90,120))
+        with patch.object(smoke, 'tree', return_value=root), patch.object(smoke.time, 'monotonic', side_effect=[0,0,26]), patch.object(smoke.time, 'sleep'):
+            with self.assertRaises(AssertionError):
+                smoke.assert_duration(90)
+
+    def test_one_time_label_or_ambiguous_player_times_cannot_prove_a_timeline(self):
+        for values in ('<node package="com.k1w1a0style.musikplayer" text="1:30"/>',
+                       '<node package="com.k1w1a0style.musikplayer" text="0:00"/><node package="com.k1w1a0style.musikplayer" text="1:30"/><node package="com.k1w1a0style.musikplayer" text="2:00"/>'):
+            root = ET.fromstring('<hierarchy><node package="com.k1w1a0style.musikplayer" content-desc="Audiospur-Fortschritt" bounds="[0,0][50,30]"/>' + values + '</hierarchy>')
+            with self.assertRaises(AssertionError):
+                timeline_values(root)
+
+    def test_duration_codec_tolerance_is_bounded_to_one_second(self):
+        for duration in (88,89,90,91,92):
+            root = ET.fromstring('<hierarchy><node><node package="com.k1w1a0style.musikplayer" content-desc="Audiospur-Fortschritt" bounds="[0,0][50,30]"/>'
+                                 '<node package="com.k1w1a0style.musikplayer" text="0:04"/>'
+                                 f'<node package="com.k1w1a0style.musikplayer" text="1:{duration-60:02}"/></node></hierarchy>')
+            with patch.object(smoke, 'tree', return_value=root), patch.object(smoke.time, 'monotonic', side_effect=[0,0,26]), patch.object(smoke.time, 'sleep'):
+                if duration in (89,90,91):
+                    smoke.assert_duration(90)
+                else:
+                    with self.assertRaises(AssertionError):
+                        smoke.assert_duration(90)
+
+    def playing_session(self, title='V3 FLAC', state=3, package=smoke.PACKAGE):
+        return f'package={package}\nstate=PlaybackState {{state={state}, position=4000}}\nmetadata: description={title}, V3 Proof'
+
+    def test_native_session_requires_own_app_playing_and_actual_title(self):
+        validate_playing_session(self.playing_session(), 'V3 FLAC')
+        for session in (self.playing_session(state=2), self.playing_session(title='V3 M4A'),
+                        self.playing_session(package=smoke.PACKAGE+'.other')):
+            with self.assertRaises(AssertionError):
+                validate_playing_session(session, 'V3 FLAC')
+
+    def test_metadata_only_or_stalled_progress_fails_playback_proof(self):
+        for positions in ((4,4), (4,5), (4,40)):
+            with patch.object(smoke, 'wait_playing_session'), patch.object(smoke, 'app_media_session', return_value=self.playing_session()), patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=[0,4]):
+                with self.assertRaises(AssertionError):
+                    assert_native_playback('V3 FLAC', 150, iter(positions).__next__)
+        with patch.object(smoke, 'wait_playing_session'), patch.object(smoke, 'app_media_session', return_value=self.playing_session(state=2)), patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=[0,4]):
+            with self.assertRaises(AssertionError):
+                assert_native_playback('V3 FLAC', 150, iter((4,8)).__next__)
+
+    def test_advancing_progress_and_confirmed_session_record_evidence(self):
+        previous = list(smoke.PLAYBACK_PROOFS)
+        try:
+            with patch.object(smoke, 'wait_playing_session') as wait, patch.object(smoke, 'app_media_session', return_value=self.playing_session()), patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=[0,4]):
+                assert_native_playback('V3 FLAC', 150, iter((4,8)).__next__)
+                wait.assert_called_once_with('V3 FLAC')
+            self.assertEqual(smoke.PLAYBACK_PROOFS[-1]['beforeSeconds'], 4)
+            self.assertEqual(smoke.PLAYBACK_PROOFS[-1]['afterSeconds'], 8)
+            self.assertEqual(smoke.PLAYBACK_PROOFS[-1]['nativeState'], 3)
+        finally:
+            smoke.PLAYBACK_PROOFS[:] = previous
+
+    def test_horizontal_cover_swipe_is_rightwards_inside_visible_cover(self):
+        node = ET.fromstring('<node bounds="[0,210][480,760]"/>')
+        self.assertEqual(horizontal_swipe_coordinates(node), (72,485,408,485))
+        for bounds in ('[0,210][80,760]', '[0,210][480,980]'):
+            with self.assertRaises(AssertionError):
+                horizontal_swipe_coordinates(ET.fromstring(f'<node bounds="{bounds}"/>'))
 
 if __name__ == '__main__':
     unittest.main()
