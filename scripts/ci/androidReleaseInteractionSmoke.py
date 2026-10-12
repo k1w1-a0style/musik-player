@@ -4,6 +4,7 @@
 No Metro, run-as, private database writes, injected playlists or debug APK.
 """
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,11 @@ DEVICE = None
 LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
 FORMAT_DURATIONS = (90, 120, 150, 1260)
+ACCENT_IDS = ('cover', 'green', 'cyan', 'turquoise', 'blue', 'violet', 'purple', 'pink', 'red', 'orange', 'yellow', 'neutral')
+CLEANER_TITLE = 'V5  Cleaner'
+CLEANER_ARTIST = 'V5  Proof'
+CLEANER_TARGET = '/sdcard/Music/V5OnlySAF/V5-cleaner.mp3'
+V5_PROOFS = {}
 RETEST_ONLY_PATHS = frozenset({
     'scripts/ci/androidReleaseInteractionSmoke.py',
     'scripts/ci/androidReleaseInteractionSmoke_test.py',
@@ -437,6 +443,34 @@ def resume_acceptance():
     CHECKS.append('resume-On-kill-restart-choice-and-Off-regular-start')
 
 
+def validate_playlist_contents(root, expected_ids, expected_titles):
+    assert candidate('playlist-detail-screen', root) is not None, 'Playlist details are not visible'
+    rows = [node for node in root.iter('node') if node.get('package') == PACKAGE
+            and node.get('resource-id', '').split(':id/')[-1].startswith('playlist-detail-song-')]
+    identifiers = [node.get('resource-id', '').split(':id/')[-1].removeprefix('playlist-detail-song-') for node in rows]
+    assert identifiers == expected_ids, 'Restored playlist song identities or order differ from confirmed export'
+    assert len(rows) == len(expected_titles), 'Playlist contains missing or unexpected songs'
+    for index, (row, title) in enumerate(zip(rows, expected_titles)):
+        expected = f'{title} von V3 Proof abspielen. Position {index+1} von {len(rows)}'
+        assert row.get('content-desc') == expected, 'Restored playlist metadata or count differs'
+
+
+def assert_restored_collection(expected_ids, suffix):
+    library_tab('playlists')
+    for name in ('V3Backup', 'V3Backup (Backup)'):
+        select('Playlist ' + name)
+        find('playlist-detail-screen')
+        for song_id in expected_ids:
+            find('playlist-detail-song-' + song_id)
+        validate_playlist_contents(tree(), expected_ids, TITLES[:2])
+        screenshot('backup-content-' + suffix + '-' + ('restored' if '(Backup)' in name else 'original'))
+        back()
+    library_tab('favorites')
+    find(TITLES[0] + ' von V3 Proof')
+    screenshot('backup-favorite-' + suffix)
+    library_tab('tracks')
+
+
 def backup_acceptance():
     settings()
     select('backup-create', top=True)
@@ -472,7 +506,13 @@ def backup_acceptance():
     find('Playlist V3Backup')
     find('Playlist V3Backup (Backup)')
     screenshot('08-backup-added-with-original-preserved')
-    library_tab('tracks')
+    expected_ids = backup['playlists'][0]['songIds']
+    assert_restored_collection(expected_ids, 'applied')
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
+    find('library-open-menu', timeout=60)
+    assert_restored_collection(expected_ids, 'cold-start')
+    CHECKS.append('restore-original-and-copy-playlist-content-order-ids-and-favorite-survive-cold-start')
     CHECKS.append('SAF-backup-export-readback-read-only-inspection-preview-restore-preserves-original')
 
 
@@ -630,6 +670,215 @@ def background_and_queue_acceptance():
     CHECKS.append('real-queue-drag-preserves-playing-position-and-selects-native-track')
 
 
+def synchsafe(value):
+    assert 0 <= value < (1 << 28), 'ID3 length is outside its encoding'
+    return bytes((value >> shift) & 127 for shift in (21, 14, 7, 0))
+
+
+def id3_frames(data):
+    """Independent fixture verifier; rejects truncated/unsupported ID3 layouts."""
+    assert data[:3] == b'ID3' and data[3] in (3, 4) and data[5] == 0
+    assert all(value < 128 for value in data[6:10]), 'Invalid ID3 tag length'
+    end = 10 + sum(value << shift for value, shift in zip(data[6:10], (21, 14, 7, 0)))
+    assert end <= len(data), 'Truncated ID3 tag'
+    frames, start = {}, 10
+    while start < end and data[start] != 0:
+        header = data[start:start+10]
+        assert len(header) == 10 and re.fullmatch(rb'[A-Z0-9]{4}', header[:4]) and header[8:] == b'\x00\x00'
+        size = int.from_bytes(header[4:8], 'big') if data[3] == 3 else sum(value << shift for value, shift in zip(header[4:8], (21, 14, 7, 0)))
+        assert start + 10 + size <= end, 'Truncated ID3 frame'
+        frames.setdefault(header[:4].decode(), []).append(data[start+10:start+10+size])
+        start += 10 + size
+    assert not any(data[start:end]), 'Nonzero data after ID3 padding'
+    return frames, data[end:]
+
+
+def dirty_cleaner_fixture():
+    path = OUT / 'audio' / 'V5-cleaner.mp3'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=550:sample_rate=22050',
+                    '-t', '75', '-c:a', 'libmp3lame', '-id3v2_version', '0', '-write_id3v1', '0', str(path)], check=True)
+    image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1cAAAAASUVORK5CYII=')
+    values = [('TIT2', b'\x00' + CLEANER_TITLE.encode()), ('TPE1', b'\x00' + CLEANER_ARTIST.encode()),
+              ('TALB', b'\x00V5 Acceptance'), ('TRCK', b'\x0001/01'), ('TPUB', b'\x00Beatfreakz Records'),
+              ('WXXX', b'\x00\x00https://pro.beatport.com'), ('APIC', b'\x00image/png\x00\x03\x00' + image),
+              ('XKIW', b'Unknown frame must survive V5')]
+    body = b''.join(key.encode() + len(value).to_bytes(4, 'big') + b'\x00\x00' + value for key, value in values)
+    path.write_bytes(b'ID3\x03\x00\x00' + synchsafe(len(body)) + body + path.read_bytes())
+    return path
+
+
+def validate_cleaner_write(before, after):
+    original, original_audio = id3_frames(before)
+    updated, updated_audio = id3_frames(after)
+    assert before != after, 'Physical cleaner apply did not change the synthetic original'
+    assert original_audio == updated_audio, 'Encoded audio bytes changed'
+    for field in ('APIC', 'TPUB', 'WXXX', 'XKIW'):
+        assert original[field] == updated.get(field), 'Preserved frame changed: ' + field
+    for field, expected in (('TIT2', 'V5 Cleaner'), ('TPE1', 'V5 Proof')):
+        payloads = updated.get(field, [])
+        assert len(payloads) == 1, 'Changed text frame missing or duplicated'
+        encoding = {0: 'latin1', 1: 'utf-16', 2: 'utf-16-be', 3: 'utf-8'}.get(payloads[0][0])
+        assert encoding is not None and payloads[0][1:].decode(encoding).rstrip('\x00') == expected, 'Unexpected cleaned text: ' + field
+    return {'beforeSha256': hashlib.sha256(before).hexdigest(), 'afterSha256': hashlib.sha256(after).hexdigest(),
+            'audioSha256': hashlib.sha256(original_audio).hexdigest(), 'preservedFrames': ['APIC', 'TPUB', 'WXXX', 'XKIW']}
+
+
+def public_cold_start():
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
+    find('library-open-menu', timeout=60)
+
+
+def assert_radio_selected(root, key):
+    node = candidate(key, root)
+    assert node is not None and node.get('checked') == 'true', 'Radio choice not selected: ' + key
+
+
+def accent_acceptance():
+    settings()
+    for field in ('waveform-accent', 'appAccent', 'playerAccent'):
+        for index, color in enumerate(ACCENT_IDS):
+            key = f'settings-{field}-{color}'
+            select(key, top=index == 0)
+            assert_radio_selected(tree(), key)
+    # Distinct persisted values prove that the three preferences do not alias.
+    for field, color in (('appAccent', 'purple'), ('playerAccent', 'cyan'), ('waveform-accent', 'blue')):
+        key = f'settings-{field}-{color}'
+        select(key, top=True)
+        assert_radio_selected(tree(), key)
+    checkbox('settings-instant-colors', True)
+    screenshot('v5-three-independent-accent-preferences')
+    back()
+    public_cold_start()
+    settings()
+    for field, color in (('appAccent', 'purple'), ('playerAccent', 'cyan'), ('waveform-accent', 'blue')):
+        key = f'settings-{field}-{color}'
+        scroll_to(key, top=True)
+        assert_radio_selected(tree(), key)
+    assert scroll_to('settings-instant-colors', top=True).get('checked') == 'true', 'Instant colors lost on cold start'
+    for layout, control in (('classic', 'controls-play-pause'), ('soundcloud', 'soundcloud-play-button')):
+        select('settings-player-layout-' + layout, top=True)
+        back()
+        tap('mini-player-open')
+        find(control)
+        screenshot('v5-independent-accents-' + layout)
+        back()
+        settings()
+    back()
+    V5_PROOFS['accents'] = {'choicesPerPreference': 12, 'persisted': {'appAccent': 'purple', 'playerAccent': 'cyan', 'waveformAccent': 'blue', 'instantColors': True}, 'layouts': ['classic', 'soundcloud']}
+    CHECKS.append('V5-36-public-radio-choices-independent-preferences-cold-start-both-player-layouts')
+
+
+def open_cleaner_from_song(title, artist):
+    node = scroll_to(title + ' von ' + artist, top=True)
+    x1, y1, x2, y2 = rect(node)
+    adb('shell', 'input', 'swipe', str((x1+x2)//2), str((y1+y2)//2), str((x1+x2)//2), str((y1+y2)//2), '900')
+    find('library-selection-actions')
+    tap('Tags bereinigen')
+    find('tag-cleaner-analyze')
+
+
+def validate_cleaner_result(root, mode):
+    expected_status = 'Anzeige gespeichert' if mode == 'display' else 'Datei geändert'
+    result_text = [node.get('text', '') for node in root.iter('node')]
+    assert any(text.endswith(': ' + expected_status) for text in result_text), 'Cleaner did not confirm durable success'
+    assert any(re.fullmatch(r'1 geprüft · \d+ unverändert · 1 geändert · 0 übersprungen · \d+ Konflikte · 0 fehlgeschlagen · 0 offen / unterbrochen', text)
+               for text in result_text), 'Cleaner result contains unresolved or failed operations'
+
+
+def cleaner_apply_dialog(mode):
+    select('tag-cleaner-apply', top=True)
+    root = tree()
+    expected = 'Bibliotheksanzeige speichern' if mode == 'display' else 'Originaldatei-Tags schreiben'
+    assert any(node.get('text') == expected for node in root.iter('node')), 'Wrong cleaner apply confirmation'
+    button = candidate('android:id/button1', root)
+    assert button is not None and button.get('text', '').lower() == 'ausgewählte änderungen anwenden', 'Exact cleaner apply action absent'
+    tap_node(button)
+    find('tag-cleaner-result', timeout=90)
+    # A rendered result is insufficient: the acknowledged per-file outcome must pass.
+    validate_cleaner_result(tree(), mode)
+
+
+def select_cleaner_safe_playback_queue():
+    # Public playlist playback replaces the queue with two known other sources.
+    # Pausing alone would leave an automatic-next candidate unsafe to write.
+    backup = json.loads((OUT / 'exported-backup.json').read_text())
+    expected_ids = backup['playlists'][0]['songIds']
+    library_tab('playlists')
+    select('Playlist V3Backup')
+    tap('playlist-detail-song-' + expected_ids[0])
+    wait_playing_session(TITLES[0])
+    tap('soundcloud-open-queue')
+    rows = [node for node in tree().iter('node')
+            if node.get('resource-id', '').split(':id/')[-1].startswith('queue-row-')]
+    actual_ids = [node.get('resource-id', '').split(':id/')[-1].removeprefix('queue-row-') for node in rows]
+    assert actual_ids == expected_ids, 'Public playlist playback did not exclude the cleaner fixture from its queue'
+    tap('soundcloud-queue-close')
+    tap('soundcloud-swipe-hitbox')
+    find('soundcloud-play-button')
+    back()
+    back()
+    library_tab('tracks')
+
+
+def cleaner_acceptance():
+    path = dirty_cleaner_fixture()
+    original = path.read_bytes()
+    adb('shell', 'mkdir', '-p', '/sdcard/Music/V5OnlySAF')
+    adb('push', str(path), CLEANER_TARGET)
+    tap('library-open-menu')
+    tap('library-menu-item-ordner-hinzuf-gen')
+    choose_folder(['Music', 'V5OnlySAF'])
+    find('V5 Cleaner von V5 Proof', timeout=150)
+    select_cleaner_safe_playback_queue()
+    open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
+    select('tag-cleaner-analyze')
+    find('tag-cleaner-select-safe', timeout=90)
+    screenshot('v5-cleaner-read-only-display-preview')
+    pulled = OUT / 'audio' / 'V5-after-preview.mp3'
+    adb('pull', CLEANER_TARGET, str(pulled))
+    assert pulled.read_bytes() == original, 'Analysis modified the original file'
+    select('tag-cleaner-select-safe', top=True)
+    cleaner_apply_dialog('display')
+    screenshot('v5-cleaner-confirmed-display-result')
+    adb('pull', CLEANER_TARGET, str(pulled))
+    assert pulled.read_bytes() == original, 'Display-only apply modified the original file'
+    public_cold_start()
+    library_tab('tracks')
+    find('V5 Cleaner von V5 Proof', timeout=60)
+    open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
+    select('tag-cleaner-analyze')
+    find('tag-cleaner-select-safe', timeout=90)
+    assert any('bereits sauber' in node.get('text', '') for node in tree().iter('node')), 'Display cleanup lost its acknowledged correction on cold start'
+    assert find('tag-cleaner-apply').get('enabled') == 'false', 'Already clean display fields can be applied again'
+    select('Regeln ändern', top=True)
+    select('tag-cleaner-mode-file', top=True)
+    select('tag-cleaner-analyze', top=True)
+    find('tag-cleaner-select-safe', timeout=90)
+    root = tree()
+    assert any(node.get('text') == 'Vorher: ' + CLEANER_TITLE for node in root.iter('node')), 'File preview omitted original raw whitespace'
+    screenshot('v5-cleaner-raw-file-preview')
+    adb('pull', CLEANER_TARGET, str(pulled))
+    assert pulled.read_bytes() == original, 'File-tag analysis modified the original'
+    select('tag-cleaner-select-safe', top=True)
+    cleaner_apply_dialog('file')
+    screenshot('v5-cleaner-confirmed-saf-file-result')
+    adb('pull', CLEANER_TARGET, str(pulled))
+    V5_PROOFS['cleaner'] = validate_cleaner_write(original, pulled.read_bytes())
+    probe = subprocess.run(['ffprobe', '-v', 'error', '-show_format', '-show_streams', '-of', 'json', str(pulled)], check=True, capture_output=True)
+    (OUT / 'v5-cleaner-independent-ffprobe.json').write_bytes(probe.stdout)
+    public_cold_start()
+    library_tab('tracks')
+    find('V5 Cleaner von V5 Proof', timeout=60)
+    V5_PROOFS['cleaner'].update({'readOnlyPreviewExactBytes': True, 'displayApplyExactOriginalBytes': True, 'coldStartPersisted': True, 'fixture': 'generated synthetic SAF MP3, no user music'})
+    settings()
+    select('settings-tag-cleaner', top=True)
+    find('Welche Musik möchtest du aufräumen?')
+    back()
+    back()
+    CHECKS.append('V5-settings-longpress-selection-raw-preview-display-ack-cold-start-real-SAF-write-audio-APIC-unknown-frames-preserved')
+
+
 def ui_matrix():
     for scale in ('1.0', '1.3', '2.0'):
         adb('shell', 'settings', 'put', 'system', 'font_scale', scale)
@@ -691,13 +940,17 @@ def main():
         background_and_queue_acceptance()
         print('Stage: SAF backup export, inspection and restore', flush=True)
         backup_acceptance()
+        print('Stage: V5 independent accents and persistence', flush=True)
+        accent_acceptance()
+        print('Stage: V5 cleaner synthetic SAF transaction', flush=True)
+        cleaner_acceptance()
         print('Stage: font, theme and density matrix', flush=True)
         ui_matrix()
         logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
         assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
                   'playbackProofs': PLAYBACK_PROOFS, 'scrollProofs': SCROLL_PROOFS,
-                  'pixelLauncherDialogs': LAUNCHER_DIALOGS,
+                  'pixelLauncherDialogs': LAUNCHER_DIALOGS, 'v5Proofs': V5_PROOFS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',
                              'Provider faults and restore journal interruptions covered separately by host/native tests']}

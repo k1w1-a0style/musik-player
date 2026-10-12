@@ -177,6 +177,23 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 smoke.vertical_swipe_coordinates(self.scroll_frame(bounds), 'Wanted')
 
+    def playlist_frame(self, ids=('a','b'), titles=('MP3','M4A'), package=smoke.PACKAGE):
+        root = ET.fromstring('<hierarchy><node resource-id="playlist-detail-screen" bounds="[0,0][480,900]"/></hierarchy>')
+        for index, (identifier, title) in enumerate(zip(ids,titles)):
+            ET.SubElement(root[0], 'node', {'package':package,'resource-id':'playlist-detail-song-'+identifier,
+                'content-desc':f'{title} von V3 Proof abspielen. Position {index+1} von {len(ids)}'})
+        return root
+
+    def test_backup_restore_requires_real_playlist_ids_order_metadata_and_count(self):
+        smoke.validate_playlist_contents(self.playlist_frame(), ['a','b'], ['MP3','M4A'])
+        for frame in (self.playlist_frame(ids=('b','a')),self.playlist_frame(titles=('MP3','Wrong')),
+                      self.playlist_frame(ids=('a',),titles=('MP3',)),self.playlist_frame(package='com.other.app')):
+            with self.assertRaises(AssertionError):
+                smoke.validate_playlist_contents(frame,['a','b'],['MP3','M4A'])
+        frame=self.playlist_frame();frame[0][0].set('content-desc','MP3 von V3 Proof abspielen. Position 1 von 3')
+        with self.assertRaises(AssertionError):
+            smoke.validate_playlist_contents(frame,['a','b'],['MP3','M4A'])
+
     def playing_session(self, title='V3 FLAC', state=3, package=smoke.PACKAGE):
         return f'package={package}\nstate=PlaybackState {{state={state}, position=4000}}\nmetadata: description={title}, V3 Proof'
 
@@ -261,6 +278,82 @@ Audio playback (lastly played comes first)
         for bounds in ('[0,210][80,760]', '[0,210][480,980]'):
             with self.assertRaises(AssertionError):
                 horizontal_swipe_coordinates(ET.fromstring(f'<node bounds="{bounds}"/>'))
+
+    def cleaner_bytes(self, title='V5  Cleaner', artist='V5  Proof', audio=b'encoded-MP3-audio', replacements=None):
+        values = {'TIT2': b'\x00' + title.encode(), 'TPE1': b'\x00' + artist.encode(), 'APIC': b'cover',
+                  'TPUB': b'publisher', 'WXXX': b'website', 'XKIW': b'unknown'}
+        values.update(replacements or {})
+        body = b''.join(key.encode() + len(value).to_bytes(4, 'big') + b'\x00\x00' + value for key, value in values.items())
+        return b'ID3\x03\x00\x00' + smoke.synchsafe(len(body)) + body + audio
+
+    def test_independent_cleaner_proof_requires_audio_and_preserved_frames(self):
+        before = self.cleaner_bytes()
+        after = self.cleaner_bytes('V5 Cleaner', 'V5 Proof')
+        proof = smoke.validate_cleaner_write(before, after)
+        self.assertNotEqual(proof['beforeSha256'], proof['afterSha256'])
+        self.assertEqual(proof['audioSha256'], hashlib.sha256(b'encoded-MP3-audio').hexdigest())
+        for corrupted in [before, self.cleaner_bytes('V5 Cleaner', 'V5 Proof', audio=b'changed audio'),
+                          self.cleaner_bytes('V5 Wrong', 'V5 Proof')] + [
+                          self.cleaner_bytes('V5 Cleaner', 'V5 Proof', replacements={field: b'changed'})
+                          for field in ('APIC', 'TPUB', 'WXXX', 'XKIW')]:
+            with self.assertRaises(AssertionError):
+                smoke.validate_cleaner_write(before, corrupted)
+
+    def test_independent_cleaner_parser_rejects_truncated_or_unsupported_input(self):
+        valid = self.cleaner_bytes()
+        for malformed in [valid[:8], valid[:20], valid.replace(b'ID3', b'BAD', 1),
+                          valid[:3] + b'\x02' + valid[4:], valid[:5] + b'\x80' + valid[6:]]:
+            with self.assertRaises(AssertionError):
+                smoke.id3_frames(malformed)
+        frames, audio = smoke.id3_frames(valid)
+        self.assertEqual(frames['XKIW'], [b'unknown'])
+        self.assertEqual(audio, b'encoded-MP3-audio')
+
+    def test_v5_radios_require_the_exact_checked_visible_public_control(self):
+        key = 'settings-appAccent-purple'
+        for checked, identifier, bounds in [('true', key, '[10,20][110,90]'),
+                                           ('false', key, '[10,20][110,90]'),
+                                           ('true', 'settings-playerAccent-purple', '[10,20][110,90]'),
+                                           ('true', key, '[10,20][110,1000]')]:
+            root = ET.fromstring(f'<hierarchy><node resource-id="{identifier}" checked="{checked}" bounds="{bounds}"/></hierarchy>')
+            if checked == 'true' and identifier == key and bounds.endswith('90]'):
+                smoke.assert_radio_selected(root, key)
+            else:
+                with self.assertRaises(AssertionError):
+                    smoke.assert_radio_selected(root, key)
+        self.assertEqual(len(smoke.ACCENT_IDS), 12)
+        self.assertEqual(len(set(smoke.ACCENT_IDS)), 12)
+
+    def test_cleaner_confirms_only_the_expected_mode_and_exact_apply_action(self):
+        result = ET.fromstring('<hierarchy><node text="synthetic: Anzeige gespeichert"/>'
+                              '<node text="1 geprüft · 0 unverändert · 1 geändert · 0 übersprungen · 0 Konflikte · 0 fehlgeschlagen · 0 offen / unterbrochen"/></hierarchy>')
+        for title, action, mode in [('Bibliotheksanzeige speichern', 'Ausgewählte Änderungen anwenden', 'display'),
+                                    ('Originaldatei-Tags schreiben', 'Ausgewählte Änderungen anwenden', 'display'),
+                                    ('Bibliotheksanzeige speichern', 'Löschen', 'display')]:
+            dialog = ET.fromstring(f'<hierarchy><node text="{title}"/>'
+                                  f'<node resource-id="android:id/button1" text="{action}" bounds="[1,1][80,80]"/></hierarchy>')
+            with patch.object(smoke, 'select'), patch.object(smoke, 'find'), patch.object(smoke, 'tap_node') as tapped, patch.object(smoke, 'tree', side_effect=[dialog, result]):
+                if title == 'Bibliotheksanzeige speichern' and action.startswith('Ausgewählte'):
+                    smoke.cleaner_apply_dialog(mode)
+                    tapped.assert_called_once()
+                else:
+                    with self.assertRaises(AssertionError):
+                        smoke.cleaner_apply_dialog(mode)
+                    tapped.assert_not_called()
+
+    def test_cleaner_result_rejects_failed_pending_skipped_or_other_mode_success(self):
+        summary = '1 geprüft · 0 unverändert · 1 geändert · 0 übersprungen · 0 Konflikte · 0 fehlgeschlagen · 0 offen / unterbrochen'
+        valid = ET.fromstring(f'<hierarchy><node text="synthetic: Datei geändert"/><node text="{summary}"/></hierarchy>')
+        smoke.validate_cleaner_result(valid, 'file')
+        for status, text in [('synthetic: Datei geändert', summary.replace('0 fehlgeschlagen', '1 fehlgeschlagen')),
+                             ('synthetic: Datei geändert', summary.replace('0 offen / unterbrochen', '1 offen / unterbrochen')),
+                             ('synthetic: Datei geändert', summary.replace('0 übersprungen', '1 übersprungen')),
+                             ('synthetic: Datei geändert', summary.replace('1 geprüft', '11 geprüft')),
+                             ('synthetic: Anzeige gespeichert', summary),
+                             ('synthetic: fehlgeschlagen', summary)]:
+            root = ET.fromstring(f'<hierarchy><node text="{status}"/><node text="{text}"/></hierarchy>')
+            with self.assertRaises(AssertionError):
+                smoke.validate_cleaner_result(root, 'file')
 
 if __name__ == '__main__':
     unittest.main()
