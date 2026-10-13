@@ -145,3 +145,10 @@ Swipe-Diagnose38464358299 / Job115527341141:85Harness-Tests grün, MediaStore-Re
 - Reveal the field by tapping only the visible, unique IME navigation dismiss control. No Activity BACK, blind retry, private state mutation or weaker name/focus/created-playlist assertions. Exact retained value and focused field are still mandatory before public Done.
 - Local uncommitted work recovered to evidence/recovered-local-driver-before-c286.patch; equivalent driver work is already preserved in the QA commit chain. Local execution resumed after transport outage.
 - Targeted local Python suite: 89 tests passed. This is harness-only, reusing source 70275c7 / SHA256 f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807. Focused swipe diagnostic remains non-release acceptance; remaining V5 stages pending.
+
+
+### 2026-10-13 – Focused public two-track cover swipe accepted
+- Run 38467354001 / job 115537456984 completed successfully, harness 53ddf9fb15eb7ca7041211c0c15a050f13d864e1. 89 driver regressions passed before device work. Evidence artifact 11849780959 independently downloaded and ZIP SHA256 dc14a8df5bd5b6657c21f8b475fff0756bcef00b793c081e57b8dd5a1b29b64c verified.
+- Actual public playlist creation retained the exact input after IME dismissal. Both additions were acknowledged. Native queue remained two before/after; M4A advanced 4→10 s; one settled 600 ms public cover swipe selected MP3, which advanced 1→7 s. No app FATAL/ErrorBoundary/own ANR in saved logcat.
+- Status endpoint lagged behind an already uploaded result artifact; read the immutable evidence rather than wait indefinitely on that status alone. Pixel Launcher system ANR was recorded and dismissed once under the existing strict guard, not attributed to the app.
+- Diagnostic-only result remains releaseAccepted=false. Now request the complete original V5 flow, including backup cold restart, accent colours, synthetic SAF cleaner and 36-case presentation matrix. Same inspected APK and all source/provenance gates unchanged.
