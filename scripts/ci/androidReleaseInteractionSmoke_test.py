@@ -10,6 +10,19 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_queue_probe_requires_the_actual_native_queue_size(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'screenshot'), patch.object(smoke, 'adb', return_value=b'fixture notifications'):
+            for count in (0, 2, 3, 4):
+                session = f'package={smoke.PACKAGE}\nqueueTitle=null, size={count}'
+                with patch.object(smoke, 'app_media_session', return_value=session):
+                    if count == 2:
+                        smoke.queue_probe_snapshot('paused-two', 2)
+                        self.assertEqual((Path(directory) / 'paused-two-session.txt').read_text(), session)
+                    else:
+                        with self.assertRaises(AssertionError):
+                            smoke.queue_probe_snapshot('paused-two', 2)
+
     def resume_dialog(self):
         return ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" text="Wiedergabe fortsetzen?"/>'
                              f'<node package="{smoke.PACKAGE}" resource-id="android:id/button1" text="FORTSETZEN" enabled="true" bounds="[260,448][426,520]"/></hierarchy>')

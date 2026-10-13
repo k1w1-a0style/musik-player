@@ -9,19 +9,20 @@ permissions:
   actions: read
 
 concurrency:
-  group: inspected-preview-ui-retest-${{ contains(github.event.head_commit.message, '[retest apk]') && 'requested' || github.sha }}
+  group: inspected-preview-ui-retest-${{ (contains(github.event.head_commit.message, '[retest apk]') || contains(github.event.head_commit.message, '[probe apk]')) && 'requested' || github.sha }}
   cancel-in-progress: true
 
 jobs:
   retest-inspected-apk:
     name: Retest same inspected APK with corrected public UI harness
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[retest apk]') }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && (contains(github.event.head_commit.message, '[retest apk]') || contains(github.event.head_commit.message, '[probe apk]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
       ANDROID_API: '35'
+      APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
       REVIEWED_APK_SOURCE_COMMIT: 2689eb20556e544ee3b838ad24eb1dc11bd5780a
       EXPECTED_APK_SHA256: 2544b53dd51e73f93f543d69f29be7721264330cf5907052a18b37dd5765be6f
     steps:

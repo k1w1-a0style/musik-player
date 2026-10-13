@@ -407,7 +407,7 @@ def timeline_values(root):
     raise AssertionError('Decoded progress and duration are not visible in the timeline')
 
 
-def prepare_collection():
+def import_public_collection():
     tap('library-open-menu')
     tap('library-menu-item-schnellscan-import')
     find('Musik importieren', timeout=60)
@@ -416,6 +416,10 @@ def prepare_collection():
     find(TITLES[0] + ' von V3 Proof', timeout=150)
     screenshot('01-mediastore-import')
     CHECKS.append('MediaStore-import-public-UI')
+
+
+def prepare_collection():
+    import_public_collection()
     for index, duration in enumerate(FORMAT_DURATIONS[:3]):
         play_title(TITLES[index])
         tap('mini-player-open')
@@ -534,6 +538,62 @@ def resume_acceptance():
     find('soundcloud-play-button')
     back()
     CHECKS.append('resume-On-kill-restart-choice-and-Off-regular-start')
+
+
+def queue_probe_snapshot(name, expected_size):
+    session = app_media_session()
+    match = re.search(r'queueTitle=[^\n]*, size=(\d+)', session)
+    assert match and int(match[1]) == expected_size, 'Probe did not establish its public queue: ' + name
+    (OUT / (name + '-session.txt')).write_text(session)
+    (OUT / (name + '-notifications.txt')).write_bytes(adb('shell', 'dumpsys', 'notification', '--noredact'))
+    screenshot(name)
+    print('Queue probe: ' + name + ': ' + session, flush=True)
+
+
+def queue_replacement_probe():
+    """Diagnostic only: reproduce a nonempty 2 -> 4 public queue replacement."""
+    import_public_collection()
+    library_tab('playlists')
+    tap('library-playlist-name-input')
+    adb('shell', 'input', 'text', 'QueueProbe')
+    back()
+    tap('library-playlist-create-button')
+    tap('Playlist QueueProbe')
+    tap('playlist-detail-add-button')
+    for title in (TITLES[0], TITLES[2]):
+        tap(title + ' zur Playlist hinzufügen')
+    tap('playlist-detail-add-close')
+    for attempt in range(2):
+        if attempt:
+            library_tab('playlists')
+            select('Playlist QueueProbe')
+        row = next((node for node in tree().iter('node') if
+                    node.get('resource-id', '').split(':id/')[-1].startswith('playlist-detail-song-')
+                    and node.get('content-desc', '').startswith(TITLES[0] + ' von V3 Proof abspielen.')), None)
+        assert row is not None and visible(row), 'Probe playlist target absent'
+        tap_node(row)
+        wait_playing_session(TITLES[0])
+        find('controls-play-pause')
+        assert_native_playback(TITLES[0], 90)
+        tap('controls-play-pause')
+        queue_probe_snapshot(f'probe-{attempt}-paused-two', 2)
+        back()
+        back()
+        library_tab('tracks')
+        play_title(TITLES[1])
+        queue_probe_snapshot(f'probe-{attempt}-selected-four', 4)
+        tap('mini-player-open')
+        assert_duration(120)
+        assert_native_playback(TITLES[1], 120)
+        queue_probe_snapshot(f'probe-{attempt}-playing-four', 4)
+        tap('controls-play-pause')
+        back()
+    (OUT / 'diagnostic-result.json').write_text(json.dumps({
+        'mode': 'queue-replacement-probe', 'status': 'diagnostic-only',
+        'sourceCommit': os.environ['REVIEWED_APK_SOURCE_COMMIT'],
+        'harnessCommit': os.environ['GITHUB_SHA'], 'playbackProofs': PLAYBACK_PROOFS,
+        'releaseAccepted': False,
+    }, indent=2))
 
 
 def validate_playlist_contents(root, expected_ids, expected_titles):
@@ -1046,6 +1106,10 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'queue-replacement-probe':
+            print('Diagnostic only: public two-to-four queue replacement; no release acceptance.', flush=True)
+            queue_replacement_probe()
+            return
         print('Stage: public scan, formats and collection', flush=True)
         prepare_collection()
         print('Stage: resume and real process restart', flush=True)
