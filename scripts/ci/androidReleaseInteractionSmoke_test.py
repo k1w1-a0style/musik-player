@@ -579,6 +579,23 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                              '<node class="android.widget.ScrollView" scrollable="true" '
                              f'bounds="{bounds}">{button}</node></hierarchy>')
 
+    def test_precise_settings_scroll_uses_short_slow_drag_and_exact_public_control(self):
+        empty = ET.fromstring('<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"/></hierarchy>')
+        full = ET.fromstring('<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node resource-id="settings-instant-colors" bounds="[387,600][459,641]" checked="false"/></node></hierarchy>')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[empty,empty,full]), patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+            self.assertEqual(smoke.scroll_to('settings-instant-colors', limit=1).get('checked'), 'false')
+            adb.assert_called_once_with('shell','input','swipe','240','708','240','372','800')
+
+    def test_precise_scroll_keeps_overlapping_viewports_and_native_owner_bounds(self):
+        for bounds in ('[12,491][468,742]', '[0,120][480,960]'):
+            root = self.scroll_frame(bounds)
+            coordinates = smoke.vertical_swipe_coordinates(root, 'Wanted', precise=True)
+            x1,y1,x2,y2 = smoke.scroll_bounds(root, 'Wanted')
+            self.assertTrue(y1 < coordinates[3] < coordinates[1] < y2)
+            self.assertLessEqual(coordinates[1]-coordinates[3], .4*(y2-y1)+2)
+            self.assertEqual(coordinates[0], (x1+x2)//2)
+
     def test_scroll_uses_observed_vertical_bounds_and_excludes_horizontal_tabs(self):
         root = self.scroll_frame()
         self.assertEqual(smoke.vertical_swipe_coordinates(root, 'Wanted'), (240,889,240,723))

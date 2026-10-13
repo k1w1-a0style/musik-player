@@ -235,11 +235,11 @@ def scroll_candidate(key, root):
     return node
 
 
-def vertical_swipe_coordinates(root, key, down=False):
+def vertical_swipe_coordinates(root, key, down=False, precise=False):
     # Status cards, font scale and the mini player change the actual viewport.
     # Never start in a header/card or drag through unrelated controls.
     x1, y1, x2, y2 = scroll_bounds(root, key)
-    inset = max(16, int((y2-y1)*.15))
+    inset = max(16, int((y2-y1)*(.30 if precise else .15)))
     x, upper, lower = (x1+x2)//2, y1+inset, y2-inset
     assert lower-upper >= 16, 'Vertical scroll surface is too small: ' + key
     return (x, upper, x, lower) if down else (x, lower, x, upper)
@@ -265,7 +265,7 @@ def scroll_query_frame(key):
                     for n in frame.iter('node') if 'Switch' in n.get('class', '') or matches(n, key)]
         texts = [n.get('text') for n in frame.iter('node') if n.get('text')]
         print('INSTANT_SCROLL ' + json.dumps({'full': full_required, 'controls': controls,
-              'firstTexts': texts[:4], 'lastTexts': texts[-4:]}, ensure_ascii=False), flush=True)
+              'texts': texts}, ensure_ascii=False), flush=True)
         (OUT / ('instant-scroll-frame-' + str(UI_SNAPSHOTS['compact'] + UI_SNAPSHOTS['full']) + '.xml')).write_text(ET.tostring(frame, encoding='unicode'))
     return frame
 
@@ -284,11 +284,12 @@ def scroll_to(key, top=False, limit=24):
                 down = False
             elif y1 < sy1:
                 down = True
-        coordinates = vertical_swipe_coordinates(frame, key, down=down)
+        precise = key.startswith('settings-')
+        coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
         SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
                              'surfaceBounds': rect(vertical_scroll_surface(frame, key)),
                              'coordinates': coordinates})
-        adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '300')
+        adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '800' if precise else '300')
         time.sleep(.2)
     found = scroll_candidate(key, scroll_query_frame(key))
     if found is not None:

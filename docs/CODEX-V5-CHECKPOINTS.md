@@ -161,3 +161,9 @@ Swipe-Diagnose38464358299 / Job115527341141:85Harness-Tests grün, MediaStore-Re
 - Local executor again returned explicit 409 environment_offline; continued via GitHub. Valuable prior work and the exact APK are already committed/artifact-backed; QA Wolf unused.
 
 - Added bounded native switch/viewport observations at each exact instant-colors scroll query, so the focused test exposes actual missing-control vs scroll movement vs clipping evidence. A new negative clipping fixture was corrected from inside-parent to beyond-parent coordinates before any device work could pass the mandatory regression gate.
+
+
+### 2026-10-13 – Native scroll observations change the diagnosis method
+- Probe 38472353815 / 115554381118: all 91 regressions and pinned source gates passed. Exact full native trees still did not locate instant-colors, so compact-target pruning alone is insufficient.
+- Recorded viewport sequence jumps from the colour choices to the quiet-profile section, then reaches the bottom repeatedly. Source places the instant-colors row between those sections. Switches elsewhere (bass pulse, resume, quiet profile) are exposed correctly with exact native IDs, checked state and bounds.
+- Change settings gestures from long 300 ms flings to 40%-viewport 800 ms drags, preserving clipped-target, owner and checked-state assertions. Overlapping native viewport geometry and exact swipe input have targeted regressions before the next focused device test. Full native text observations remain captured; no identical blind emulator retry and no app/APK modification.
