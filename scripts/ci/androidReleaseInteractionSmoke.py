@@ -297,19 +297,40 @@ def checkbox(key, checked):
 
 def library_tab(name):
     key = 'library-tab-' + name
-    for direction in (False, True):
-        for _ in range(6):
-            node = candidate(key)
-            if node is not None:
+    deadline = time.monotonic() + 30
+    previous, stable, swipes = None, 0, 0
+    while time.monotonic() < deadline:
+        frame = tree()
+        node = candidate(key, frame)
+        area = candidate('library-tabs', frame)
+        bounds = (rect(node), rect(area)) if node is not None and area is not None else None
+        stable = stable + 1 if bounds is not None and bounds == previous else 0
+        previous = bounds
+        if node is not None and node.get('enabled') == 'true' and stable >= 2:
+            assert node.get('package') == PACKAGE, 'Library tab does not belong to app'
+            (OUT / ('tab-' + name + '-before.xml')).write_text(ET.tostring(frame, encoding='unicode'))
+            if node.get('selected') != 'true':
                 tap_node(node)
-                time.sleep(.5)
-                return
-            area = rect(find('library-tabs'))
-            y = (area[1]+area[3])//2
-            start, end = (60, 420) if direction else (420, 60)
-            adb('shell', 'input', 'swipe', str(start), str(y), str(end), str(y), '250')
-    raise AssertionError('Library tab not reachable: ' + name)
-
+            confirmed = 0
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                after = tree()
+                selected = candidate(key, after)
+                confirmed = confirmed + 1 if selected is not None and selected.get('selected') == 'true' else 0
+                if confirmed >= 2:
+                    return
+                time.sleep(.25)
+            (OUT / ('tab-' + name + '-unconfirmed.xml')).write_text(ET.tostring(after, encoding='unicode'))
+            raise AssertionError('Library tab selection was not acknowledged: ' + name)
+        if node is None and area is not None:
+            assert swipes < 12, 'Library tab not reachable: ' + name
+            _, y1, _, y2 = rect(area)
+            begin, finish = (420, 60) if swipes < 6 else (60, 420)
+            adb('shell', 'input', 'swipe', str(begin), str((y1+y2)//2), str(finish), str((y1+y2)//2), '250')
+            swipes += 1
+            previous, stable = None, 0
+        time.sleep(.25)
+    raise AssertionError('Library tab never established stable enabled geometry: ' + name)
 
 
 def tree_grant_button(root, folder):

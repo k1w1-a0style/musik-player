@@ -127,10 +127,10 @@ jobs:
           for name in ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','transport-recovery.json'):
               path = root / name
               if path.is_file() and path.stat().st_size <= 300000:
-                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':name,'text':path.read_text()}), flush=True)
+                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
           for path in root.glob('playlist-add-*-geometry.json'):
               if path.stat().st_size <= 30000:
-                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':path.name,'text':path.read_text()}), flush=True)
+                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':path.name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
           path = root / 'final.png'
           if path.is_file() and path.stat().st_size <= 500000:
               print('V5_IMAGE_DIAGNOSTIC ' + json.dumps({'name':path.name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)

@@ -12,6 +12,38 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def tab_frame(self, bounds='[223,137][329,195]', selected='false'):
+        return ET.fromstring(f'<hierarchy><node resource-id="library-tabs" bounds="[0,137][480,195]">'
+            f'<node resource-id="library-tab-playlists" package="{smoke.PACKAGE}" enabled="true"'
+            f' selected="{selected}" bounds="{bounds}"/></node></hierarchy>')
+
+    def test_library_tab_waits_for_stable_geometry_and_native_selection(self):
+        moving = self.tab_frame('[223,157][329,215]')
+        stable = self.tab_frame()
+        selected = self.tab_frame(selected='true')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[moving, stable, stable, stable, selected, selected]), \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke, 'tap_node') as tap:
+            smoke.library_tab('playlists')
+            self.assertEqual(smoke.rect(tap.call_args.args[0]), [223,137,329,195])
+            tap.assert_called_once()
+
+    def test_library_tab_does_not_treat_a_sent_tap_as_a_selected_tab(self):
+        clock = iter(range(100))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=self.tab_frame()), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)), patch.object(smoke, 'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError, 'selection was not acknowledged'):
+                smoke.library_tab('playlists')
+            tap.assert_called_once()
+
+    def test_already_selected_library_tab_is_confirmed_without_an_extra_tap(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=self.tab_frame(selected='true')), \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke, 'tap_node') as tap:
+            smoke.library_tab('playlists')
+            tap.assert_not_called()
+
     def add_modal(self, bounds, package=smoke.PACKAGE, scrollable='true'):
         return ET.fromstring(f'<hierarchy><node resource-id="playlist-detail-add-list" scrollable="{scrollable}" class="android.widget.ScrollView" bounds="[10,200][470,650]">'
             f'<node resource-id="playlist-detail-add-song-first" package="{package}" enabled="true"'
