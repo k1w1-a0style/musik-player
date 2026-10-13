@@ -332,19 +332,27 @@ export const removeStoredSongLibrary = async (legacyKey: string): Promise<void> 
   const owner = capturePersistenceEpoch();
   return trackPersistenceWork(runSerializedMutation(async () => {
     assertPersistenceEpoch(owner);
-    await flushSongLibraryMaintenance();
-    assertPersistenceEpoch(owner);
-    await AsyncStorage.removeItem(legacyKey);
-    const keys = await AsyncStorage.getAllKeys();
-    assertPersistenceEpoch(owner);
-    const libraryKeys = keys.filter(key =>
-      key === SONG_LIBRARY_MANIFEST_KEY
-      || key.startsWith(SONG_LIBRARY_CHUNK_PREFIX),
-    );
-    if (libraryKeys.length > 0) {
-      await AsyncStorage.multiRemove(libraryKeys);
-    }
-    setActiveSongLibraryKeys([]);
+    // Optional cleanup must not delete the rollback key during this operation.
+    const release = protectSongLibraryKeys([legacyKey]);
+    try {
+      await flushSongLibraryMaintenance();
+      assertPersistenceEpoch(owner);
+      // Enumerate before any destructive I/O: failure keeps legacy-only data.
+      const keys = await AsyncStorage.getAllKeys();
+      assertPersistenceEpoch(owner);
+      const libraryKeys = keys.filter(key =>
+        key === SONG_LIBRARY_MANIFEST_KEY
+        || key.startsWith(SONG_LIBRARY_CHUNK_PREFIX),
+      );
+      if (libraryKeys.length > 0) {
+        // Android AsyncStorage deletes the complete set in one SQLite transaction.
+        // Never remove the rollback separately before a failed manifest/chunk delete.
+        await AsyncStorage.multiRemove([legacyKey, ...libraryKeys]);
+      } else {
+        await AsyncStorage.removeItem(legacyKey);
+      }
+      setActiveSongLibraryKeys([]);
+    } finally { release(); }
   }));
 };
 

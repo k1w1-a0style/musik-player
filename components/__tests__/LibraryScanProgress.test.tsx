@@ -56,6 +56,8 @@ test('keeps only a compact scan control; only unfinished tracks animate', () => 
 test('shows bounded file progress only while the metadata scan is active', () => {
   const view = render(<LibraryImportStatus scanning status="Metadaten werden gelesen…" />);
   act(() => publishImportFileProgress({ currentTitle: 'Älterer Mix.mp3', processed: 4, total: 10 }));
+  expect(view.queryByText('Metadaten: 4/10')).toBeNull();
+  fireEvent.press(view.getByLabelText('Scan-Details'));
   expect(view.getByText('Metadaten: 4/10')).toBeTruthy();
   expect(view.getByText('Älterer Mix.mp3')).toBeTruthy();
   view.rerender(<LibraryImportStatus scanning={false} status="Bibliothek gespeichert" />);

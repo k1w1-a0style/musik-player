@@ -29,3 +29,17 @@ Neue vollständige CI für diesen abgeschlossenen SDK-/Harness-Folgecommit; fehl
 ## Wiederherstellbare Paketobjekte
 
 Auswahl d2a3a74; Cleaner b765c5f; UI449955e; Scan91db509; Performance0eab324; Retryf04e827; F2508c3e074; FLACfb1550e; Harnessa8a145f. Diese IDs sind Quellencheckpoint-Referenzen; die Featureintegration ist e8c30d3. Keine abgeschlossenen V3/V4-Analysen wiederholen.
+
+## Fortsetzung 13.10.2026 – fünf CI-Blocker behoben
+
+Ausgangs-HEAD 332249f77dbc7768434019ccc27bc7d7f1920104; main geprüft unverändert auf b62b91b59c7400fd310a5db8fcbf9fc6444ff393. Saubere neue Arbeitskopie, keine erreichbaren anderen Git-Worktrees und keine aktiven GitHub-Runs. Alter Chat-/Workspacezustand nicht zugänglich. Ausgangsstand zusätzlich unter backup/codex-before-v5-resume-20261013-332249f gesichert.
+
+- Alle fünf CI-Fehler lokal reproduziert: 5 fehlgeschlagene Tests / 235 Tests.
+- Scan-Tests öffnen nun die standardmäßig eingeklappten Details; Cancel, bestätigte Titel und verspätete Veröffentlichungen bleiben geprüft.
+- Ungültige Akzentwerte werden wirklich unbekannt gewählt; Lila-Speicherung/Provider-Neustart zusätzlich geprüft. Nur die zentrale Akzent-/Kontrastquelle in der Farbarchitektur freigegeben; übriges Farbverbot unverändert.
+- storage.test.ts wartete nicht auf die vom vorherigen Test angeforderte optionale Wartung. Diese verbrauchte den einmaligen removeItem-Fehler. Wartung wird vor Testreset vollständig abgewickelt und der Speicherbesitz zurückgesetzt; keine produktive Fehlerunterdrückung ergänzt.
+- Zusätzlich zwei reale Datenverlustregressionen zunächst rot nachgewiesen: fehlgeschlagene Enumeration verlor eine Legacy-Bibliothek; fehlgeschlagenes Chunk-Delete verlor die Rückfallkopie. Fix: Legacykey vor Wartung schützen, vor Löschung enumerieren, Chunkmanifest/Chunks/Legacy gemeinsam per Android-SQLite-multiRemove-Transaktion entfernen. Keine separate vorzeitige Rollbacklöschung. Fehler propagieren weiter. Epochwechsel und verzögerte native Löschung mit anschließendem Write extra geprüft.
+- Gezielte ursprüngliche fünf + drei Speicherdateien: 8 Suiten / 278 Tests bestanden. Anschließende V5-Nachbarn einschließlich finaler vier neuer Löschtests: 11 Suiten / 84 Tests bestanden (Überlappungen nicht addieren).
+- Typecheck, lint:ci und unveränderte Complexity-Grenzen (4206 Produktionsfunktionen) bestanden. Python-Harness: 47 Tests bestanden; dies ersetzt keine APK-Abnahme.
+
+Nächster Schritt: vollständige CI mit Preview-APK auf diesem Paketcommit, anschließend öffentliche Android-UI auf exakt dieser geprüften APK. Security F25, Frist21.10.2026 und Hardwaregrenzen bleiben offen ausgewiesen; Originalmusik wurde nicht verändert.

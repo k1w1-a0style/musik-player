@@ -187,3 +187,52 @@ test('explicit library removal drains delayed cleanup before removing the commit
   await jest.advanceTimersByTimeAsync(2000);
   expect(await AsyncStorage.getAllKeys()).toEqual([]);
 });
+
+test('failed explicit key enumeration preserves a legacy-only library', async () => {
+  await AsyncStorage.setItem(legacyKey, snapshot);
+  jest.spyOn(AsyncStorage, 'getAllKeys').mockRejectedValueOnce(new Error('enumeration failed'));
+  await expect(removeStoredSongLibrary(legacyKey)).rejects.toThrow('enumeration failed');
+  await expect(readStoredSongLibrary(legacyKey)).resolves.toEqual({ source: 'legacy', serialized: snapshot });
+});
+
+test('failed explicit chunk deletion preserves the committed library and its legacy rollback', async () => {
+  await AsyncStorage.setItem(legacyKey, snapshot);
+  await writeStoredSongLibrary(legacyKey, value('new'), { removeLegacy: false });
+  await flushSongLibraryMaintenance();
+  jest.spyOn(AsyncStorage, 'multiRemove').mockRejectedValueOnce(new Error('delete failed'));
+  await expect(removeStoredSongLibrary(legacyKey)).rejects.toThrow('delete failed');
+  expect(await AsyncStorage.getItem(legacyKey)).toBe(snapshot);
+  await expect(readStoredSongLibrary(legacyKey)).resolves.toEqual({ source: 'chunked', serialized: value('new') });
+  await removeStoredSongLibrary(legacyKey);
+  await expect(readStoredSongLibrary(legacyKey)).resolves.toEqual({ source: 'missing', serialized: null });
+});
+
+test('an epoch change during explicit enumeration leaves the legacy library untouched', async () => {
+  await AsyncStorage.setItem(legacyKey, snapshot);
+  const held = deferred(); const started = deferred();
+  jest.spyOn(AsyncStorage, 'getAllKeys').mockImplementationOnce(async () => {
+    started.resolve(); await held.promise; return [legacyKey];
+  });
+  const removal = removeStoredSongLibrary(legacyKey);
+  const rejection = expect(removal).rejects.toThrow('abgelösten Appzustand');
+  await started.promise;
+  blockPersistenceForMaintenance(); releasePersistenceMaintenance();
+  held.resolve(); await rejection;
+  expect(await AsyncStorage.getItem(legacyKey)).toBe(snapshot);
+});
+
+test('a later library write waits for explicit native deletion to settle', async () => {
+  await writeStoredSongLibrary(legacyKey, snapshot);
+  await flushSongLibraryMaintenance();
+  const held = deferred(); const started = deferred();
+  const remove = (AsyncStorage.multiRemove as jest.Mock).getMockImplementation()!;
+  jest.spyOn(AsyncStorage, 'multiRemove').mockImplementationOnce(async keys => {
+    started.resolve(); await held.promise; return remove(keys);
+  });
+  const removal = removeStoredSongLibrary(legacyKey); await started.promise;
+  let committed = false;
+  const replacement = writeStoredSongLibrary(legacyKey, value('replacement')).then(() => { committed = true; });
+  await tick(); expect(committed).toBe(false);
+  held.resolve(); await Promise.all([removal, replacement]);
+  await expect(readStoredSongLibrary(legacyKey)).resolves.toEqual({ source: 'chunked', serialized: value('replacement') });
+});

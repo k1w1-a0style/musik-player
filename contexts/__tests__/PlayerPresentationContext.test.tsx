@@ -28,7 +28,7 @@ test('all three preferences survive a provider restart and malformed fields fall
   await waitFor(() => expect(second.result.current.isHydrated).toBe(true));
   expect(second.result.current.presentation).toEqual(first.result.current.presentation);
   second.unmount();
-  (storage.get as jest.Mock).mockResolvedValue({ quiet: 'false', density: 'unknown', waveformAccent: 'purple' });
+  (storage.get as jest.Mock).mockResolvedValue({ quiet: 'false', density: 'unknown', waveformAccent: 'invalid-accent' });
   const invalid = renderHook(usePlayerPresentation, { wrapper });
   await waitFor(() => expect(invalid.result.current.isHydrated).toBe(true));
   expect(invalid.result.current.presentation).toEqual(DEFAULT_PLAYER_PRESENTATION);
@@ -52,4 +52,17 @@ test('failed storage rolls the visible setting back to the last confirmed value'
   await waitFor(() => expect(warn).toHaveBeenCalled());
   expect(hook.result.current.presentation.quiet).toBe(false);
   warn.mockRestore();
+});
+
+test('purple is persisted and hydrated after a provider restart', async () => {
+  const first = renderHook(usePlayerPresentation, { wrapper });
+  await waitFor(() => expect(first.result.current.isHydrated).toBe(true));
+  act(() => first.result.current.setPresentation?.(previous => ({ ...previous, waveformAccent: 'purple' })));
+  await waitFor(() => expect(storage.set).toHaveBeenLastCalledWith(PLAYER_PRESENTATION_KEY,
+    { ...DEFAULT_PLAYER_PRESENTATION, waveformAccent: 'purple' }));
+  (storage.get as jest.Mock).mockResolvedValue((storage.set as jest.Mock).mock.calls.at(-1)[1]);
+  first.unmount();
+  const second = renderHook(usePlayerPresentation, { wrapper });
+  await waitFor(() => expect(second.result.current.isHydrated).toBe(true));
+  expect(second.result.current.presentation.waveformAccent).toBe('purple');
 });

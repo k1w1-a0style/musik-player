@@ -15,6 +15,8 @@ const productionRoots = [
 
 const allowedHardcodedColorFiles = new Set([
   path.normalize('utils/appTheme.ts'),
+  // Shared app/player/waveform palette and contrast tokens.
+  path.normalize('utils/accentPreferences.ts'),
   path.normalize('utils/appThemeOverlays.ts'),
   path.normalize('utils/jsPaletteFallback.ts'),
 ]);

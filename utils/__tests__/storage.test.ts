@@ -18,7 +18,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { EqPresetName, Playlist, RepeatMode, Song } from '../../types/Song';
-import { SONG_LIBRARY_MANIFEST_KEY } from '../songLibraryStorage';
+import { flushSongLibraryMaintenance } from '../songLibraryMaintenance';
+import { resetSongLibraryStorageForTests, SONG_LIBRARY_MANIFEST_KEY } from '../songLibraryStorage';
 
 describe('storage', () => {
   const storageTestKey = (key: string): string => `@musikplayer:${key}`;
@@ -54,7 +55,10 @@ describe('storage', () => {
     }
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Drain real maintenance ownership before replacing the backing store/mocks.
+    await flushSongLibraryMaintenance();
+    resetSongLibraryStorageForTests();
     (AsyncStorage as unknown as { __reset: () => void }).__reset();
     jest.restoreAllMocks();
   });
