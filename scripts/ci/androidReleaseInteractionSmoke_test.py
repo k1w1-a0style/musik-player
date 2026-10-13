@@ -12,6 +12,33 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def swipe_frame(self, bounds='[0,306][480,585]', overlay=False):
+        root = ET.fromstring(f'<hierarchy><node resource-id="soundcloud-swipe-hitbox" package="{smoke.PACKAGE}" enabled="true" bounds="{bounds}"/></hierarchy>')
+        if overlay:
+            ET.SubElement(root, 'node', {'resource-id':'soundcloud-queue-close','bounds':'[400,100][460,170]'})
+        return root
+
+    def test_cover_swipe_requires_settled_uncovered_geometry_and_exact_native_ack(self):
+        moving = self.swipe_frame('[0,286][480,565]', overlay=True)
+        stable = self.swipe_frame()
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[moving,stable,stable,stable]), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'app_media_session', return_value='owned baseline'), \
+             patch.object(smoke, 'adb') as adb, patch.object(smoke, 'wait_playing_session') as ack:
+            smoke.perform_public_cover_swipe(smoke.TITLES[0])
+            adb.assert_called_once_with('shell','input','swipe','72','445','408','445','600')
+            ack.assert_called_once_with(smoke.TITLES[0])
+
+    def test_cover_swipe_does_not_retry_or_accept_a_wrong_native_track(self):
+        stable = self.swipe_frame()
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=stable), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'app_media_session', return_value='owned baseline'), patch.object(smoke, 'adb') as adb, \
+             patch.object(smoke, 'wait_playing_session', side_effect=AssertionError('another track')):
+            with self.assertRaisesRegex(AssertionError, 'another track'):
+                smoke.perform_public_cover_swipe(smoke.TITLES[0])
+            adb.assert_called_once()
+
     def indexed_fixture_rows(self):
         names = ('V3-0.mp3', 'V3-1.m4a', 'V3-2.flac', 'V3-3.mp3')
         return '\n'.join(f'Row: {i} _id={i+1}, _display_name={name}, title={title}, duration=90000, is_music=1'

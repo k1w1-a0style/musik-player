@@ -930,6 +930,63 @@ def queue_node(root, title):
     return nodes[0]
 
 
+def perform_public_cover_swipe(expected_title):
+    deadline = time.monotonic() + 20
+    previous, stable = None, 0
+    while time.monotonic() < deadline:
+        frame = tree()
+        hitbox = candidate('soundcloud-swipe-hitbox', frame)
+        closing_queue = candidate('soundcloud-queue-close', frame)
+        bounds = rect(hitbox) if hitbox is not None and closing_queue is None else None
+        stable = stable + 1 if bounds is not None and bounds == previous else 0
+        if stable >= 2:
+            break
+        previous = bounds
+        time.sleep(.25)
+    else:
+        raise AssertionError('Cover swipe geometry did not settle outside queue overlay')
+    assert hitbox.get('package') == PACKAGE and hitbox.get('enabled') == 'true', 'Cover gesture is not app-owned or enabled'
+    (OUT / 'cover-swipe-before.xml').write_text(ET.tostring(frame, encoding='unicode'))
+    (OUT / 'cover-swipe-before-session.txt').write_text(app_media_session())
+    coordinates = horizontal_swipe_coordinates(hitbox)
+    (OUT / 'cover-swipe-input.json').write_text(json.dumps({'bounds':bounds,'coordinates':coordinates,'durationMs':600,'expectedNativeTitle':expected_title}, indent=2))
+    adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '600')
+    wait_playing_session(expected_title)
+
+
+def cover_swipe_probe():
+    import_public_collection()
+    library_tab('playlists')
+    create_public_playlist('SwipeProbe')
+    tap('Playlist SwipeProbe')
+    tap('playlist-detail-add-button')
+    add_public_playlist_songs(TITLES[:2])
+    tap('playlist-detail-add-close')
+    back()
+    library_tab('tracks')
+    settings()
+    select('settings-player-layout-soundcloud', top=True)
+    back()
+    library_tab('playlists')
+    select('Playlist SwipeProbe')
+    row = next((node for node in tree().iter('node') if
+                node.get('resource-id', '').split(':id/')[-1].startswith('playlist-detail-song-')
+                and node.get('content-desc', '').startswith(TITLES[1] + ' von V3 Proof abspielen.')), None)
+    assert row is not None and visible(row), 'Diagnostic M4A playlist row missing'
+    tap_node(row)
+    wait_playing_session(TITLES[1])
+    queue_probe_snapshot('cover-probe-two-before', 2)
+    assert_native_playback(TITLES[1], 120, soundcloud_seconds)
+    perform_public_cover_swipe(TITLES[0])
+    assert_duration(90)
+    assert_native_playback(TITLES[0], 90, soundcloud_seconds)
+    queue_probe_snapshot('cover-probe-two-after', 2)
+    (OUT / 'diagnostic-result.json').write_text(json.dumps({
+        'mode':'cover-swipe-probe','status':'diagnostic-only','releaseAccepted':False,
+        'sourceCommit':os.environ['REVIEWED_APK_SOURCE_COMMIT'],'harnessCommit':os.environ['GITHUB_SHA'],
+        'playbackProofs':PLAYBACK_PROOFS}, indent=2))
+
+
 def background_and_queue_acceptance():
     # Resume is already OFF. A real playing native position must advance while
     # the app is offscreen; a metadata-only duration cannot satisfy this check.
@@ -988,9 +1045,7 @@ def background_and_queue_acceptance():
     target_index = rows.index(right)
     assert target_index > 0 and rows[target_index-1] is left, 'Swipe predecessor is not the confirmed reordered MP3'
     tap('soundcloud-queue-close')
-    start_x, start_y, end_x, end_y = horizontal_swipe_coordinates(find('soundcloud-swipe-hitbox'))
-    adb('shell', 'input', 'swipe', str(start_x), str(start_y), str(end_x), str(end_y), '320')
-    wait_playing_session(TITLES[0])
+    perform_public_cover_swipe(TITLES[0])
     assert_duration(FORMAT_DURATIONS[0])
     assert_native_playback(TITLES[0], FORMAT_DURATIONS[0], soundcloud_seconds)
     screenshot('12-real-horizontal-cover-swipe')
@@ -1268,6 +1323,10 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'cover-swipe-probe':
+            print('Diagnostic only: two-track public cover swipe; no release acceptance.', flush=True)
+            cover_swipe_probe()
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'queue-replacement-probe':
             print('Diagnostic only: public two-to-four queue replacement; no release acceptance.', flush=True)
             queue_replacement_probe()

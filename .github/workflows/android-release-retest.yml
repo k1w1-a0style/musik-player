@@ -22,7 +22,7 @@ jobs:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
       ANDROID_API: '35'
-      APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
+      APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe swipe]') && 'cover-swipe-probe' || contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
       REVIEWED_APK_SOURCE_COMMIT: 70275c7a66aa9d24e5c2a33421388d93ad9a20d6
       EXPECTED_APK_SHA256: f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807
     steps:
@@ -118,22 +118,27 @@ jobs:
 
       - name: Emit bounded public diagnostic observations
         if: always()
+        timeout-minutes: 1
         shell: bash
         run: |
           python3 - <<'PYCODE'
           from pathlib import Path
           import base64, json
           root = Path('ci-logs/release-interaction')
-          for name in ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','transport-recovery.json','fixture-mediastore.txt'):
+          names = ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','fixture-mediastore.txt','cover-swipe-before.xml','cover-swipe-before-session.txt','cover-swipe-input.json')
+          for name in names:
               path = root / name
               if path.is_file() and path.stat().st_size <= 300000:
-                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
-          for path in root.glob('playlist-add-*-geometry.json'):
-              if path.stat().st_size <= 30000:
-                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':path.name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
+                  encoded = base64.b64encode(path.read_bytes()).decode()
+                  chunks = [encoded[i:i+6000] for i in range(0,len(encoded),6000)]
+                  for index, chunk in enumerate(chunks):
+                      print('V5_DIAG_CHUNK ' + json.dumps({'name':name,'index':index,'count':len(chunks),'base64':chunk}), flush=True)
           path = root / 'final.png'
           if path.is_file() and path.stat().st_size <= 500000:
-              print('V5_IMAGE_DIAGNOSTIC ' + json.dumps({'name':path.name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
+              encoded = base64.b64encode(path.read_bytes()).decode()
+              chunks = [encoded[i:i+6000] for i in range(0,len(encoded),6000)]
+              for index, chunk in enumerate(chunks):
+                  print('V5_DIAG_CHUNK ' + json.dumps({'name':'final.png','index':index,'count':len(chunks),'base64':chunk}), flush=True)
           PYCODE
 
       - name: Upload release acceptance evidence
