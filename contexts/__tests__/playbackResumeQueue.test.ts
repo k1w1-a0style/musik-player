@@ -23,6 +23,7 @@ test.each([122000, 0])('queue reuse pauses, selects, seeks to %s and then plays 
   await TrackPlayer.play(); jest.clearAllMocks();
   const result = await runPlaySongQueueAction({ ...inputs(songs), song: songs[1], startPositionMs });
   expect(result.status).toBe('applied'); expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  expect(TrackPlayer.setQueue).not.toHaveBeenCalled();
   const order = [TrackPlayer.pause, TrackPlayer.skip, TrackPlayer.seekTo, TrackPlayer.play].map(fn => (fn as jest.Mock).mock.invocationCallOrder[0]);
   expect(order).toEqual([...order].sort((a, b) => a - b)); expect(TrackPlayer.seekTo).toHaveBeenCalledWith(startPositionMs / 1000);
 });
@@ -40,11 +41,18 @@ test('a changed source does not receive an older position and causes no native m
   const input = inputs([songs[0], changed]); input.songsRef.current = [songs[0], changed];
   const result = await runPlaySongQueueAction({ ...input, song: changed, startPositionMs: 122000, resumeSource: source });
   expect(result.status).toBe('stale'); expect(TrackPlayer.reset).not.toHaveBeenCalled(); expect(TrackPlayer.seekTo).not.toHaveBeenCalled();
+  expect(TrackPlayer.setQueue).not.toHaveBeenCalled();
 });
 test('a native queue with the same ID but an older source is rebuilt before seeking', async () => {
-  const old = { ...songs[1], fileInfo: { ...songs[1].fileInfo, size: 9 } };
+  const old = { ...songs[1], uri: 'file:///older-mix.mp3', fileInfo: { ...songs[1].fileInfo, size: 9 } };
   await TrackPlayer.add([songs[0], old].map(song => ({ ...song, url: song.uri! }))); jest.clearAllMocks();
   const input = inputs(songs); input.nativeQueueRef.current = [songs[0], old];
   const result = await runPlaySongQueueAction({ ...input, song: songs[1], startPositionMs: 122000 });
-  expect(result.status).toBe('applied'); expect(TrackPlayer.reset).toHaveBeenCalled();
+  expect(result.status).toBe('applied');
+  expect(TrackPlayer.setQueue).toHaveBeenCalledWith(songs.map(song => expect.objectContaining({ id: song.id, url: song.uri })));
+  expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  await expect(TrackPlayer.getActiveTrack()).resolves.toMatchObject({ id: songs[1].id, url: songs[1].uri });
+  expect(TrackPlayer.seekTo).toHaveBeenCalledWith(122);
+  expect((TrackPlayer.setQueue as jest.Mock).mock.invocationCallOrder[0])
+    .toBeLessThan((TrackPlayer.seekTo as jest.Mock).mock.invocationCallOrder[0]);
 });
