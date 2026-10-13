@@ -395,6 +395,35 @@ def choose_folder(parts):
     time.sleep(.8)
 
 
+def fixture_media_store_ready(raw):
+    names = ('V3-0.mp3', 'V3-1.m4a', 'V3-2.flac', 'V3-3.mp3')
+    for name, title in zip(names, TITLES):
+        rows = [line for line in raw.splitlines()
+                if re.search(r'_display_name=' + re.escape(name) + r'(?:,|$)', line)]
+        if len(rows) != 1:
+            return False
+        row = rows[0]
+        duration = re.search(r'\bduration=(\d+)(?:,|$)', row)
+        if not duration or int(duration[1]) <= 0 or not re.search(r'\bis_music=1(?:,|$)', row):
+            return False
+        if not re.search(r'\btitle=' + re.escape(title) + r'(?:,|$)', row):
+            return False
+    return True
+
+
+def wait_for_fixture_media_store(timeout=120):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        raw = adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media',
+                  '--projection', '_id:_display_name:title:duration:is_music').decode(errors='replace')
+        (OUT / 'fixture-mediastore.txt').write_text(raw)
+        if fixture_media_store_ready(raw):
+            print('Four synthetic audio fixtures confirmed by read-only public MediaStore query.', flush=True)
+            return
+        time.sleep(1)
+    raise AssertionError('Synthetic audio fixture MediaStore registration did not complete')
+
+
 def generated_audio():
     fixture = OUT / 'audio'
     fixture.mkdir(exist_ok=True)
@@ -1233,6 +1262,7 @@ def main():
     assert DEVICE_BOOT_ID, 'Missing emulator boot identity'
     DEVICE = uiautomator2.connect(DEVICE_SERIAL)
     generated_audio()
+    wait_for_fixture_media_store()
     adb('install', '-r', str(apk), timeout=180)
     adb('shell', 'pm', 'grant', PACKAGE, 'android.permission.READ_MEDIA_AUDIO')
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')

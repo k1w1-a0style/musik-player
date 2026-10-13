@@ -12,6 +12,36 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def indexed_fixture_rows(self):
+        names = ('V3-0.mp3', 'V3-1.m4a', 'V3-2.flac', 'V3-3.mp3')
+        return '\n'.join(f'Row: {i} _id={i+1}, _display_name={name}, title={title}, duration=90000, is_music=1'
+                         for i, (name, title) in enumerate(zip(names, smoke.TITLES)))
+
+    def test_fixture_media_store_requires_all_four_unique_indexed_audio_rows(self):
+        ready = self.indexed_fixture_rows()
+        self.assertTrue(smoke.fixture_media_store_ready(ready))
+        for bad in ('No result found.', '\n'.join(ready.splitlines()[:3]),
+                    ready.replace('duration=90000', 'duration=0', 1),
+                    ready.replace('is_music=1', 'is_music=0', 1),
+                    ready.replace(smoke.TITLES[0], 'Wrong metadata'),
+                    ready + '\n' + ready.splitlines()[0]):
+            self.assertFalse(smoke.fixture_media_store_ready(bad))
+
+    def test_fixture_media_store_wait_is_read_only_and_does_not_accept_pending_rows(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'adb', side_effect=[b'No result found.', self.indexed_fixture_rows().encode()]) as adb, \
+             patch.object(smoke.time, 'monotonic', side_effect=[0,0,1]), patch.object(smoke.time, 'sleep'):
+            smoke.wait_for_fixture_media_store()
+            self.assertEqual(adb.call_count, 2)
+            self.assertTrue(all(call.args[:3] == ('shell','content','query') for call in adb.call_args_list))
+
+    def test_fixture_media_store_deadline_fails_before_app_import(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'adb', return_value=b'No result found.'), \
+             patch.object(smoke.time, 'monotonic', side_effect=[0,0,121]), patch.object(smoke.time, 'sleep'):
+            with self.assertRaisesRegex(AssertionError, 'registration did not complete'):
+                smoke.wait_for_fixture_media_store()
+
     def test_scroll_falls_back_to_full_topology_before_touching_a_pruned_surface(self):
         compact = ET.fromstring('<hierarchy><node class="android.widget.HorizontalScrollView" scrollable="true" bounds="[0,137][480,195]"/></hierarchy>')
         full = self.scroll_frame('[12,491][468,742]')

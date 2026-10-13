@@ -124,7 +124,7 @@ jobs:
           from pathlib import Path
           import base64, json
           root = Path('ci-logs/release-interaction')
-          for name in ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','transport-recovery.json'):
+          for name in ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','transport-recovery.json','fixture-mediastore.txt'):
               path = root / name
               if path.is_file() and path.stat().st_size <= 300000:
                   print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
