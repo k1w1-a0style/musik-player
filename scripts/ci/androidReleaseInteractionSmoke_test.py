@@ -127,7 +127,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         compact = self.scroll_frame()
         full = self.scroll_frame(target=True)
         target = next(n for n in full.iter('node') if n.get('content-desc') == 'Wanted')
-        target.set('bounds', '[30,800][430,900]')
+        target.set('bounds', '[30,900][430,950]')
         with patch.object(smoke, 'tree', side_effect=[compact,full]):
             frame = smoke.scroll_query_frame('Wanted')
             self.assertIsNone(smoke.scroll_candidate('Wanted', frame))
