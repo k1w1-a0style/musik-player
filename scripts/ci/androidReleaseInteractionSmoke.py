@@ -676,10 +676,25 @@ def focus_public_input(key):
     raise AssertionError('Public input did not acknowledge focus: ' + key)
 
 
+def reveal_public_input(key):
+    frame = tree(compressed=False)
+    if candidate(key, frame) is not None:
+        return find(key)
+    ime = [node for node in frame.iter('node')
+           if node.get('resource-id') == 'android:id/input_method_nav_back'
+           and node.get('package') in ('com.google.android.inputmethod.latin', 'com.android.inputmethod.latin')
+           and node.get('enabled') == 'true' and visible(node)]
+    assert len(ime) == 1, 'Obscured input has no unique public keyboard dismiss button'
+    (OUT / 'public-input-keyboard-before.xml').write_text(ET.tostring(frame, encoding='unicode'))
+    # Touch the IME's own dismiss button, never send Activity BACK.
+    tap_node(ime[0])
+    return find(key)
+
+
 def create_public_playlist(name):
     focus_public_input('library-playlist-name-input')
     adb('shell', 'input', 'text', name)
-    field = find('library-playlist-name-input')
+    field = reveal_public_input('library-playlist-name-input')
     assert field.get('text') == name, 'Playlist name input did not retain the requested value'
     # PlaylistCreateForm exposes onSubmitEditing with returnKeyType=done.
     # BACK can finish the Activity when Android already hid its soft keyboard.

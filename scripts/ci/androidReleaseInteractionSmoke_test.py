@@ -12,6 +12,29 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
+        root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
+        field = ET.fromstring('<node text="SwipeProbe" focused="true"/>')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=root), patch.object(smoke, 'find', return_value=field) as find, \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'back') as back:
+            self.assertIs(smoke.reveal_public_input('library-playlist-name-input'), field)
+            self.assertEqual(tap.call_args.args[0].get('package'), 'com.google.android.inputmethod.latin')
+            tap.assert_called_once()
+            find.assert_called_once_with('library-playlist-name-input')
+            back.assert_not_called()
+
+    def test_obscured_input_rejects_app_back_and_ambiguous_keyboard_buttons(self):
+        for packages in [(smoke.PACKAGE,), ('com.google.android.inputmethod.latin',)*2, ()]:
+            root = ET.Element('hierarchy')
+            for package in packages:
+                ET.SubElement(root, 'node', {'resource-id':'android:id/input_method_nav_back',
+                    'package':package,'enabled':'true','bounds':'[21,888][204,960]'})
+            with patch.object(smoke, 'tree', return_value=root), patch.object(smoke, 'tap_node') as tap:
+                with self.assertRaisesRegex(AssertionError, 'no unique public keyboard'):
+                    smoke.reveal_public_input('library-playlist-name-input')
+                tap.assert_not_called()
+
     def input_frame(self, bounds='[36,636][272,707]', focused='false'):
         return ET.fromstring(f'<hierarchy><node resource-id="library-playlist-name-input" package="{smoke.PACKAGE}" enabled="true" focused="{focused}" bounds="{bounds}"/></hierarchy>')
 
@@ -291,7 +314,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_playlist_creation_uses_public_done_action_without_back_navigation(self):
         field = ET.fromstring('<node text="QueueProbe" focused="true" bounds="[28,300][380,360]"/>')
-        with patch.object(smoke, 'tap'), patch.object(smoke, 'focus_public_input'), patch.object(smoke, 'find', return_value=field) as find, \
+        with patch.object(smoke, 'tap'), patch.object(smoke, 'focus_public_input'), patch.object(smoke, 'reveal_public_input', return_value=field), patch.object(smoke, 'find', return_value=field) as find, \
              patch.object(smoke, 'tap_node'), patch.object(smoke, 'adb') as adb, patch.object(smoke, 'back') as back:
             smoke.create_public_playlist('QueueProbe')
             adb.assert_any_call('shell', 'input', 'text', 'QueueProbe')
