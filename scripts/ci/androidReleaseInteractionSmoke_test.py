@@ -1,8 +1,10 @@
 import hashlib
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+import json
 import androidReleaseInteractionSmoke as smoke
 from androidReleaseInteractionSmoke import (validate_target, rect, matches,
     validate_retest_provenance, import_confirmation_button, pixel_launcher_close_button, app_time_values, FORMAT_DURATIONS,
@@ -10,6 +12,77 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_transport_recovery_is_once_same_boot_and_never_restarts_app(self):
+        original = Mock()
+        original.dump_hierarchy.side_effect = json.JSONDecodeError('empty HTTP response', '', 0)
+        restored = Mock()
+        restored.dump_hierarchy.return_value = '<hierarchy/>'
+        connector = Mock(connect=Mock(return_value=restored))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE', original), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
+             patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash']) as adb, \
+             patch.dict('sys.modules', {'uiautomator2': connector}):
+            self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
+            connector.connect.assert_called_once_with('emulator-5554')
+            adb.assert_any_call('-s', 'emulator-5554', 'wait-for-device', timeout=30)
+            self.assertFalse(any('force-stop' in call.args or 'install' in call.args for call in adb.call_args_list))
+            proof = json.loads((Path(directory) / 'transport-recovery.json').read_text())
+            self.assertEqual(proof[0]['status'], 'recovered-same-boot-no-app-restart')
+            restored.dump_hierarchy.side_effect = json.JSONDecodeError('second loss', '', 0)
+            with self.assertRaises(json.JSONDecodeError):
+                smoke.dump_hierarchy(True)
+            connector.connect.assert_called_once()
+
+    def test_transport_recovery_rejects_reboot_or_runtime_failure(self):
+        for boot, logs in [('different-boot', b'no crash'), ('same-boot', b'FATAL EXCEPTION: main'),
+                           ('same-boot', ('ANR in ' + smoke.PACKAGE).encode())]:
+            device = Mock()
+            device.dump_hierarchy.side_effect = json.JSONDecodeError('empty response', '', 0)
+            connector = Mock()
+            with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+                 patch.object(smoke, 'DEVICE', device), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
+                 patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
+                 patch.object(smoke, 'adb', side_effect=[b'', boot.encode(), logs]), \
+                 patch.dict('sys.modules', {'uiautomator2': connector}):
+                with self.assertRaises(AssertionError):
+                    smoke.dump_hierarchy(True)
+                connector.connect.assert_not_called()
+
+    def test_ui_assertions_are_not_transport_failures(self):
+        device = Mock()
+        device.dump_hierarchy.side_effect = AssertionError('UI not reachable')
+        with patch.object(smoke, 'DEVICE', device), patch.object(smoke, 'adb') as adb:
+            with self.assertRaisesRegex(AssertionError, 'UI not reachable'):
+                smoke.dump_hierarchy(True)
+            adb.assert_not_called()
+
+    def test_transport_reconnection_deadline_remains_a_failure(self):
+        device = Mock()
+        device.dump_hierarchy.side_effect = json.JSONDecodeError('empty response', '', 0)
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE', device), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
+             patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
+             patch.object(smoke, 'adb', side_effect=subprocess.TimeoutExpired('adb wait-for-device', 30)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                smoke.dump_hierarchy(True)
+
+    def test_adb_commands_have_finite_response_budgets(self):
+        with patch.object(smoke.subprocess, 'run', return_value=Mock(stdout=b'ok')) as run:
+            smoke.adb('shell', 'input', 'tap', '1', '2')
+            self.assertEqual(run.call_args.kwargs['timeout'], 30)
+            smoke.adb('install', '-r', 'fixture.apk', timeout=180)
+            self.assertEqual(run.call_args.kwargs['timeout'], 180)
+
+    def test_malformed_xml_is_not_accepted_as_a_transport_recovery(self):
+        device = Mock()
+        device.dump_hierarchy.return_value = 'not XML'
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE', device), patch.object(smoke, 'TRANSPORT_RECOVERIES', []):
+            with self.assertRaises(ET.ParseError):
+                smoke.tree()
+            self.assertEqual(smoke.TRANSPORT_RECOVERIES, [])
+
     def test_release_replacement_requires_two_native_queues_and_real_playback(self):
         root = ET.Element('hierarchy')
         ET.SubElement(root, 'node', {'resource-id': 'playlist-detail-song-one',

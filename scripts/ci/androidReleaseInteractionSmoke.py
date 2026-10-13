@@ -4,6 +4,7 @@
 No Metro, run-as, private database writes, injected playlists or debug APK.
 """
 import hashlib
+import http.client
 import base64
 import json
 import os
@@ -19,6 +20,9 @@ CHECKS = []
 PLAYBACK_PROOFS = []
 SCROLL_PROOFS = []
 DEVICE = None
+DEVICE_SERIAL = None
+DEVICE_BOOT_ID = None
+TRANSPORT_RECOVERIES = []
 LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
 FORMAT_DURATIONS = (90, 120, 150, 1260)
@@ -37,8 +41,8 @@ RETEST_ONLY_PATHS = frozenset({
 })
 
 
-def adb(*args, check=True):
-    return subprocess.run(['adb', *args], check=check, capture_output=True).stdout
+def adb(*args, check=True, timeout=30):
+    return subprocess.run(['adb', *args], check=check, capture_output=True, timeout=timeout).stdout
 
 
 def validate_target(apk, expected_sha, reviewed_commit, artifact_commit, emulator):
@@ -89,9 +93,41 @@ def matches(node, key):
                for attr in ('resource-id', 'text', 'content-desc'))
 
 
+def transport_error(error):
+    return isinstance(error, (json.JSONDecodeError, http.client.RemoteDisconnected,
+                              ConnectionResetError, BrokenPipeError)) or \
+        (type(error).__module__, type(error).__name__) in {
+            ('uiautomator2.exceptions', 'HTTPError'), ('adbutils.errors', 'AdbError')}
+
+
+def dump_hierarchy(compressed):
+    global DEVICE
+    try:
+        return DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
+    except Exception as error:
+        if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or TRANSPORT_RECOVERIES:
+            raise
+        record = {'error': repr(error), 'serial': DEVICE_SERIAL, 'bootId': DEVICE_BOOT_ID, 'status': 'attempting'}
+        TRANSPORT_RECOVERIES.append(record)
+        (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
+        adb('-s', DEVICE_SERIAL, 'wait-for-device', timeout=30)
+        boot_id = adb('-s', DEVICE_SERIAL, 'shell', 'cat', '/proc/sys/kernel/random/boot_id').decode().strip()
+        assert boot_id == DEVICE_BOOT_ID, 'Emulator rebooted during UI transport failure'
+        logs = adb('-s', DEVICE_SERIAL, 'logcat', '-d', '-v', 'threadtime').decode(errors='replace')
+        (OUT / 'transport-recovery-logcat.txt').write_text(logs)
+        assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'Runtime failure before UI transport recovery'
+        import uiautomator2
+        DEVICE = uiautomator2.connect(DEVICE_SERIAL)
+        raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
+        record['status'] = 'recovered-same-boot-no-app-restart'
+        (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
+        print('Recovered UI transport once on the same emulator boot; app not restarted.', flush=True)
+        return raw
+
+
 def tree(compressed=True):
     started = time.perf_counter()
-    raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
+    raw = dump_hierarchy(compressed)
     UI_SNAPSHOTS['compact' if compressed else 'full'] += 1
     UI_SNAPSHOTS['seconds'] += time.perf_counter() - started
     (OUT / 'latest-ui.xml').write_text(raw)
@@ -241,7 +277,7 @@ def select(key, top=False):
 
 def screenshot(name):
     (OUT / (name + '.png')).write_bytes(adb('exec-out', 'screencap', '-p'))
-    (OUT / (name + '.xml')).write_text(DEVICE.dump_hierarchy(compressed=False, max_depth=80))
+    (OUT / (name + '.xml')).write_text(dump_hierarchy(False))
 
 
 def settings():
@@ -1101,7 +1137,7 @@ def ui_matrix():
 
 
 def main():
-    global DEVICE
+    global DEVICE, DEVICE_SERIAL, DEVICE_BOOT_ID
     apk = Path('preview-input/musik-player-preview.apk')
     sha = (Path('preview-input') / 'apk-sha256.txt').read_text().split()[0]
     commit = os.environ.get('REVIEWED_APK_SOURCE_COMMIT', os.environ['GITHUB_SHA'])
@@ -1110,9 +1146,12 @@ def main():
     validate_target(apk, sha, commit, Path('preview-input/source-commit.txt').read_text(), adb('shell', 'getprop', 'ro.kernel.qemu').decode())
     import uiautomator2
     OUT.mkdir(parents=True, exist_ok=True)
-    DEVICE = uiautomator2.connect()
+    DEVICE_SERIAL = adb('get-serialno').decode().strip()
+    DEVICE_BOOT_ID = adb('shell', 'cat', '/proc/sys/kernel/random/boot_id').decode().strip()
+    assert DEVICE_BOOT_ID, 'Missing emulator boot identity'
+    DEVICE = uiautomator2.connect(DEVICE_SERIAL)
     generated_audio()
-    adb('install', '-r', str(apk))
+    adb('install', '-r', str(apk), timeout=180)
     adb('shell', 'pm', 'grant', PACKAGE, 'android.permission.READ_MEDIA_AUDIO')
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
@@ -1140,6 +1179,7 @@ def main():
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
                   'playbackProofs': PLAYBACK_PROOFS, 'scrollProofs': SCROLL_PROOFS,
                   'pixelLauncherDialogs': LAUNCHER_DIALOGS, 'v5Proofs': V5_PROOFS, 'uiSnapshots': UI_SNAPSHOTS,
+                  'transportRecoveries': TRANSPORT_RECOVERIES,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',
                              'Provider faults and restore journal interruptions covered separately by host/native tests']}

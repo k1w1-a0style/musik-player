@@ -2,7 +2,7 @@ name: Retest inspected release APK
 
 on:
   push:
-    branches: [codex]
+    branches: [codex, 'qa/v5-acceptance/**']
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   retest-inspected-apk:
     name: Retest same inspected APK with corrected public UI harness
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && (contains(github.event.head_commit.message, '[retest apk]') || contains(github.event.head_commit.message, '[probe apk]')) }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/codex' || startsWith(github.ref, 'refs/heads/qa/v5-acceptance/')) && (contains(github.event.head_commit.message, '[retest apk]') || contains(github.event.head_commit.message, '[probe apk]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -32,6 +32,9 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify the acceptance harness regressions before device work
+        run: python3 -m unittest discover -s scripts/ci -p '*_test.py'
 
       - name: Download existing inspected APK without rebuilding it
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -90,7 +93,7 @@ jobs:
             --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
           mkdir -p ci-logs
           nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
+            -gpu swiftshader -no-metrics -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
           echo $! > ci-logs/emulator.pid
           timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
