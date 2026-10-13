@@ -6,6 +6,7 @@ import { getAppTheme } from '../../utils/appTheme';
 import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import MiniPlayer, { getMiniPlayerMinimumHeight, shouldShowMiniPlayerSecondaryControls } from '../MiniPlayer';
+import { MiniPlayerViewportProvider, useMiniPlayerViewport } from '../../contexts/MiniPlayerViewportContext';
 
 type MiniCtx = {
   currentSong: { id: string; title: string; artist: string; album?: string; cover?: string; uri?: string; fileInfo?: { filename?: string; uri?: string } } | null;
@@ -97,6 +98,42 @@ const makeCtx = (overrides: Partial<MiniCtx> = {}): MiniCtx => ({
 });
 
 describe('MiniPlayer', () => {
+  test('retains a native layout measurement delivered before visibility effects settle', () => {
+    const OriginalView = nativeExports.View;
+    const LayoutView = React.forwardRef<ReactNative.View, ReactNative.ViewProps>((props, ref) => {
+      const { testID, onLayout } = props;
+      const layoutCallback = React.useRef(onLayout);
+      layoutCallback.current = onLayout;
+      React.useLayoutEffect(() => {
+        if (testID === 'mini-player-viewport') {
+          layoutCallback.current?.({ nativeEvent: { layout: { x: 0, y: 0, width: 300, height: 78 } } } as ReactNative.LayoutChangeEvent);
+        }
+      }, [testID]);
+      return <OriginalView {...props} ref={ref} />;
+    });
+    jest.spyOn(nativeExports, 'View', 'get').mockReturnValue(LayoutView as unknown as typeof ReactNative.View);
+    const Probe = () => <ReactNative.Text testID="viewport-inset">{useMiniPlayerViewport().bottomInset}</ReactNative.Text>;
+    const tree = (visible = true) => <MiniPlayerViewportProvider safeAreaBottom={24}>
+      <Probe />{visible ? <MiniPlayer onOpen={jest.fn()} /> : null}
+    </MiniPlayerViewportProvider>;
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ currentSong: null }));
+    const view = render(tree());
+    expect(view.getByTestId('viewport-inset').props.children).toBe(20);
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+    view.rerender(tree());
+    expect(view.getByTestId('viewport-inset').props.children).toBe(134);
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ currentSong: { id: 's2', title: 'Next', artist: 'Artist' } }));
+    view.rerender(tree());
+    expect(view.getByTestId('viewport-inset').props.children).toBe(134);
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx({ currentSong: null }));
+    view.rerender(tree());
+    expect(view.getByTestId('viewport-inset').props.children).toBe(20);
+    mockUseMiniPlayerMusicContext.mockReturnValue(makeCtx());
+    view.rerender(tree());
+    expect(view.getByTestId('viewport-inset').props.children).toBe(134);
+    view.rerender(tree(false));
+    expect(view.getByTestId('viewport-inset').props.children).toBe(20);
+  });
   test('keeps secondary controls off narrow phones to preserve title space', () => {
     expect(shouldShowMiniPlayerSecondaryControls(360)).toBe(false);
     expect(shouldShowMiniPlayerSecondaryControls(390)).toBe(true);

@@ -122,8 +122,10 @@ const MiniPlayerComponent: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const hasCurrentSong = currentSong !== null;
   useEffect(() => {
     if (!hasCurrentSong) reportHeight(0);
-    return () => reportHeight(0);
   }, [hasCurrentSong, reportHeight]);
+  // A visibility-effect cleanup can run after the new native onLayout event.
+  // Clear only when hidden or unmounted, never when the player first appears.
+  useEffect(() => () => reportHeight(0), [reportHeight]);
 
   const handleTogglePlayPause = useCallback((event: GestureResponderEvent) => {
     event.stopPropagation();
