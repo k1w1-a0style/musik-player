@@ -12,6 +12,58 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def add_modal(self, bounds, package=smoke.PACKAGE, scrollable='true'):
+        return ET.fromstring(f'<hierarchy><node resource-id="playlist-detail-add-list" scrollable="{scrollable}" class="android.widget.ScrollView" bounds="[10,200][470,650]">'
+            f'<node resource-id="playlist-detail-add-song-first" package="{package}" enabled="true"'
+            f' content-desc="{smoke.TITLES[0]} zur Playlist hinzufügen" bounds="{bounds}"/></node></hierarchy>')
+
+    def test_playlist_add_waits_for_modal_reflow_and_requires_membership_ack(self):
+        moving = self.add_modal('[320,250][455,310]')
+        stable = self.add_modal('[320,350][455,410]')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[moving, stable, stable, stable, ET.fromstring('<hierarchy/>')]), \
+             patch.object(smoke, 'scroll_to'), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'PLAYLIST_ADD_PROOFS', []):
+            smoke.add_public_playlist_songs([smoke.TITLES[0]])
+            self.assertEqual(smoke.rect(tap.call_args.args[0]), [320, 350, 455, 410])
+            tap.assert_called_once()
+            proof = json.loads((Path(directory) / 'playlist-add-proofs.json').read_text())[0]
+            self.assertEqual(proof['ack'], 'candidate-removed')
+            self.assertNotEqual(proof['geometrySamples'][0], proof['stableBounds'])
+
+    def test_playlist_add_does_not_accept_a_missed_tap_or_retry_it(self):
+        stable = self.add_modal('[320,350][455,410]')
+        clock = iter(range(100))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=stable), patch.object(smoke, 'scroll_to'), \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)), \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'PLAYLIST_ADD_PROOFS', []):
+            with self.assertRaisesRegex(AssertionError, 'addition was not acknowledged'):
+                smoke.add_public_playlist_songs([smoke.TITLES[0]])
+            tap.assert_called_once()
+            proof = json.loads((Path(directory) / 'playlist-add-proofs.json').read_text())[0]
+            self.assertEqual(proof['ack'], 'not-yet-confirmed')
+
+    def test_playlist_add_rejects_clipped_or_foreign_actions(self):
+        for frame in (self.add_modal('[320,630][455,690]'), self.add_modal('[320,350][455,410]', 'other.app')):
+            clock = iter(range(100))
+            with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+                 patch.object(smoke, 'tree', return_value=frame), patch.object(smoke, 'scroll_to'), \
+                 patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)), \
+                 patch.object(smoke, 'tap_node') as tap:
+                with self.assertRaises(AssertionError):
+                    smoke.add_public_playlist_songs([smoke.TITLES[0]])
+                tap.assert_not_called()
+
+    def test_playlist_add_accepts_a_fitting_list_without_faking_scrollability(self):
+        stable = self.add_modal('[320,350][455,410]', scrollable='false')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[stable, stable, stable, ET.fromstring('<hierarchy/>')]), \
+             patch.object(smoke, 'scroll_to'), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'PLAYLIST_ADD_PROOFS', []):
+            smoke.add_public_playlist_songs([smoke.TITLES[0]])
+            tap.assert_called_once()
+
     def test_transport_recovery_is_once_same_boot_and_never_restarts_app(self):
         original = Mock()
         original.dump_hierarchy.side_effect = json.JSONDecodeError('empty HTTP response', '', 0)

@@ -116,6 +116,26 @@ jobs:
         if: always()
         run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
 
+      - name: Emit bounded public diagnostic observations
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import base64, json
+          root = Path('ci-logs/release-interaction')
+          for name in ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','transport-recovery.json'):
+              path = root / name
+              if path.is_file() and path.stat().st_size <= 300000:
+                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':name,'text':path.read_text()}), flush=True)
+          for path in root.glob('playlist-add-*-geometry.json'):
+              if path.stat().st_size <= 30000:
+                  print('V5_TEXT_DIAGNOSTIC ' + json.dumps({'name':path.name,'text':path.read_text()}), flush=True)
+          path = root / 'final.png'
+          if path.is_file() and path.stat().st_size <= 500000:
+              print('V5_IMAGE_DIAGNOSTIC ' + json.dumps({'name':path.name,'base64':base64.b64encode(path.read_bytes()).decode()}), flush=True)
+          PYCODE
+
       - name: Upload release acceptance evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

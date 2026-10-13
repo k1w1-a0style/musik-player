@@ -18,6 +18,7 @@ PACKAGE = 'com.k1w1a0style.musikplayer'
 OUT = Path('ci-logs/release-interaction')
 CHECKS = []
 PLAYBACK_PROOFS = []
+PLAYLIST_ADD_PROOFS = []
 SCROLL_PROOFS = []
 DEVICE = None
 DEVICE_SERIAL = None
@@ -489,8 +490,7 @@ def prepare_collection():
     create_public_playlist('V3Backup')
     tap('Playlist V3Backup')
     tap('playlist-detail-add-button')
-    for title in TITLES[:2]:
-        tap(title + ' zur Playlist hinzufügen')
+    add_public_playlist_songs(TITLES[:2])
     tap('playlist-detail-add-close')
     screenshot('02-playlist-before-backup')
     playlist_to_library_replacement('acceptance', 5)
@@ -595,6 +595,54 @@ def create_public_playlist(name):
     find('Playlist ' + name)
 
 
+def add_public_playlist_songs(titles):
+    for index, title in enumerate(titles):
+        key = title + ' zur Playlist hinzufügen'
+        scroll_to(key)
+        previous, stable = None, 0
+        deadline = time.monotonic() + 20
+        samples = []
+        while time.monotonic() < deadline:
+            frame = tree()
+            target = scroll_candidate(key, frame)
+            surface = candidate('playlist-detail-add-list', frame)
+            if target is not None and surface is None:
+                frame = tree(compressed=False)
+                target = scroll_candidate(key, frame)
+                surface = candidate('playlist-detail-add-list', frame)
+            bounds = (rect(target), rect(surface)) if target is not None and surface is not None else None
+            if bounds is not None:
+                (x1, y1, x2, y2), (sx1, sy1, sx2, sy2) = bounds
+                if not (sx1 <= x1 and sy1 <= y1 and x2 <= sx2 and y2 <= sy2):
+                    bounds = None
+            samples.append(bounds)
+            stable = stable + 1 if bounds is not None and bounds == previous else 0
+            if stable >= 2:
+                break
+            previous = bounds
+            time.sleep(.2)
+        else:
+            (OUT / f'playlist-add-{index}-geometry.json').write_text(json.dumps(samples))
+            raise AssertionError('Playlist add button never established stable touch geometry: ' + title)
+        assert target.get('package') == PACKAGE and target.get('enabled') == 'true', 'Playlist add action is not enabled or app-owned'
+        (OUT / f'playlist-add-{index}-before.xml').write_text(ET.tostring(frame, encoding='unicode'))
+        proof = {'title': title, 'actionId': target.get('resource-id'), 'stableBounds': bounds,
+                 'geometrySamples': samples, 'ack': 'not-yet-confirmed'}
+        PLAYLIST_ADD_PROOFS.append(proof)
+        (OUT / 'playlist-add-proofs.json').write_text(json.dumps(PLAYLIST_ADD_PROOFS, indent=2))
+        tap_node(target)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            after = tree()
+            if not any(matches(node, key) for node in after.iter('node')):
+                break
+            time.sleep(.2)
+        else:
+            raise AssertionError('Playlist addition was not acknowledged: ' + title)
+        proof['ack'] = 'candidate-removed'
+        (OUT / 'playlist-add-proofs.json').write_text(json.dumps(PLAYLIST_ADD_PROOFS, indent=2))
+
+
 def queue_replacement_probe():
     """Diagnostic only: reproduce a nonempty 2 -> 4 public queue replacement."""
     import_public_collection()
@@ -602,8 +650,7 @@ def queue_replacement_probe():
     create_public_playlist('QueueProbe')
     tap('Playlist QueueProbe')
     tap('playlist-detail-add-button')
-    for title in (TITLES[0], TITLES[2]):
-        tap(title + ' zur Playlist hinzufügen')
+    add_public_playlist_songs((TITLES[0], TITLES[2]))
     tap('playlist-detail-add-close')
     for attempt in range(2):
         if attempt:
@@ -1179,7 +1226,7 @@ def main():
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
                   'playbackProofs': PLAYBACK_PROOFS, 'scrollProofs': SCROLL_PROOFS,
                   'pixelLauncherDialogs': LAUNCHER_DIALOGS, 'v5Proofs': V5_PROOFS, 'uiSnapshots': UI_SNAPSHOTS,
-                  'transportRecoveries': TRANSPORT_RECOVERIES,
+                  'transportRecoveries': TRANSPORT_RECOVERIES, 'playlistAdds': PLAYLIST_ADD_PROOFS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',
                              'Provider faults and restore journal interruptions covered separately by host/native tests']}
