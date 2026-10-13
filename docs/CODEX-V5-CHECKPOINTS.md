@@ -167,3 +167,10 @@ Swipe-Diagnose38464358299 / Job115527341141:85Harness-Tests grün, MediaStore-Re
 - Probe 38472353815 / 115554381118: all 91 regressions and pinned source gates passed. Exact full native trees still did not locate instant-colors, so compact-target pruning alone is insufficient.
 - Recorded viewport sequence jumps from the colour choices to the quiet-profile section, then reaches the bottom repeatedly. Source places the instant-colors row between those sections. Switches elsewhere (bass pulse, resume, quiet profile) are exposed correctly with exact native IDs, checked state and bounds.
 - Change settings gestures from long 300 ms flings to 40%-viewport 800 ms drags, preserving clipped-target, owner and checked-state assertions. Overlapping native viewport geometry and exact swipe input have targeted regressions before the next focused device test. Full native text observations remain captured; no identical blind emulator retry and no app/APK modification.
+
+
+### 2026-10-13 – Controlled native settings scroll verified
+- Run 38473495903 / 115558290626 succeeded: 93 regressions before device work; source gates and pinned APK bytes unchanged. Evidence artifact 11853641107.
+- Exact native android.widget.Switch ID settings-instant-colors appears under controlled scrolling. Initial checked=false, public toggle and actual cold restart yield checked=true. Source/harness/result identity exact; diagnostic-only result remains releaseAccepted=false.
+- Independent APK bundle contains both exact control ID and accessibility label; no alternative platform component exists. 35 full snapshots from prior long-fling probe lacked the entire intermediate instant-colors row, confirming overshoot rather than a missing feature. Short settings gestures solved the same native case without app changes or weaker assertions.
+- Resume the complete V5 acceptance with this tested driver. Backup cold-start is already independently verified in previous full run; all full-flow assertions remain active, including cleaner byte guards and presentation matrix.
