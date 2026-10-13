@@ -434,7 +434,9 @@ def prepare_collection():
     tap('library-open-menu')
     tap('library-menu-item-ordner-hinzuf-gen')
     choose_folder(['Music', 'V3OnlySAF'])
-    find('V3 SAF von V3 Proof', timeout=150)
+    # Import does not imply visibility: the measured mini-player viewport can
+    # legitimately place this fifth row offscreen. play_title scrolls to the
+    # whole touchable card and requires the exact native selection ACK.
     play_title('V3 SAF')
     tap('mini-player-open')
     assert_duration(80)

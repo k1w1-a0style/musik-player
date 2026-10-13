@@ -10,6 +10,33 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_saf_import_below_viewport_must_scroll_and_prove_native_playback(self):
+        row = ET.fromstring('<node bounds="[28,520][290,603]"/>')
+        class ReachedSafProof(Exception):
+            pass
+        def visible_find(key, **kwargs):
+            if key == 'V3 SAF von V3 Proof':
+                raise AssertionError('Imported SAF row is below the measured viewport')
+            return row
+        def native_proof(title, duration):
+            if title == 'V3 SAF':
+                self.assertEqual(duration, 80)
+                raise ReachedSafProof()
+        with patch.object(smoke, 'find', side_effect=visible_find), \
+             patch.object(smoke, 'tap'), patch.object(smoke, 'tap_node'), \
+             patch.object(smoke, 'back'), patch.object(smoke, 'screenshot'), \
+             patch.object(smoke, 'tree'), patch.object(smoke, 'import_confirmation_button'), \
+             patch.object(smoke, 'choose_folder'), patch.object(smoke, 'adb'), \
+             patch.object(smoke.subprocess, 'run'), patch.object(smoke, 'assert_duration') as duration, \
+             patch.object(smoke, 'scroll_to', return_value=row) as scroll, \
+             patch.object(smoke, 'wait_selected_session') as selected, \
+             patch.object(smoke, 'assert_native_playback', side_effect=native_proof):
+            with self.assertRaises(ReachedSafProof):
+                smoke.prepare_collection()
+            scroll.assert_any_call('V3 SAF von V3 Proof', top=True)
+            selected.assert_any_call('V3 SAF')
+            duration.assert_any_call(80)
+
     def test_refuses_physical_devices_and_wrong_artifact_source_or_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / 'preview.apk'
