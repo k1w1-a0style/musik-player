@@ -43,3 +43,12 @@ Ausgangs-HEAD 332249f77dbc7768434019ccc27bc7d7f1920104; main geprüft unverände
 - Typecheck, lint:ci und unveränderte Complexity-Grenzen (4206 Produktionsfunktionen) bestanden. Python-Harness: 47 Tests bestanden; dies ersetzt keine APK-Abnahme.
 
 Nächster Schritt: vollständige CI mit Preview-APK auf diesem Paketcommit, anschließend öffentliche Android-UI auf exakt dieser geprüften APK. Security F25, Frist21.10.2026 und Hardwaregrenzen bleiben offen ausgewiesen; Originalmusik wurde nicht verändert.
+
+
+## Öffentliche APK-Abnahme und gezielter Harness-Fix
+
+Quellcommitf861e88e889203237c065ef1ab49e08213584a5b: CI38337505996 Quality426Suiten/4124Tests, Security und Native168SystemAudio+10RNTP erfolgreich. APK100823781Bytes, SHA25609e99ae725d53b1a82a0c1e8b65885bf3ee6a1c3e410782fa4b381c47543a45b; Manifest/ABIs/v2-Signatur geprüft. APKArtifact11786046328. Keine finale Freigabe: UIJob115104595609 scheitert nach erfolgreicher MP3/M4A/FLAC-Abnahme beim SAF-Dauervergleich80s.
+
+UIArtifact11786586774 zeigt SAF korrekt als1:20 importiert, Player aber nochV3FLAC2:30. Die Accessibilityhierarchie liefert Songbounds[28,746][290,829] teilweise hinter MiniPlayer[18,808][462,906]. Bisheriger Treiber behandelte jede bildschirmweite Node als touchbar, ohne Parentclip/Overlayprüfung, und wartete nur auf einen schon vorhandenen MiniPlayer statt auf den ausgewählten nativen Titel.
+
+Drei neue Harness-Negativtests zuerst rot; korrigierte Parentclip-/MiniPlayergrenze und richtige Scrollrichtung plus app-eigener nativerTitle/PLAYING-ACK bestehen50PythonTests. Am tatsächlichen Fehler-XML unabhängig reproduziert: alte Targetprüfung akzeptiert den verdeckten Knoten, neue lehnt ihn ab und scrollt innerhalb[12,279][468,808]. Dauertoleranz bleibtmax1s; falscher Titel bleibt Fehler. Retestworkflow pinnt nun exaktf861-APK/Hash/CI38337505996; alle3ursprünglichen Quellgates und Produktivquellenidentität werden unverändert streng verlangt. APK und Appcode unverändert; neue komplette öffentliche Abnahme noch erforderlich.

@@ -172,6 +172,34 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
             adb.assert_called_once_with('shell','input','swipe','240','889','240','723','300')
 
+    def test_scroll_rejects_a_target_partly_covered_by_the_mini_player(self):
+        hidden = self.scroll_frame('[12,279][468,894]', target=True)
+        hidden[1][0].set('bounds', '[28,746][290,829]')
+        ET.SubElement(hidden, 'node', {'resource-id':'mini-player-viewport', 'bounds':'[18,808][462,906]'})
+        clear = self.scroll_frame('[12,279][468,894]', target=True)
+        clear[1][0].set('bounds', '[28,500][290,583]')
+        ET.SubElement(clear, 'node', {'resource-id':'mini-player-viewport', 'bounds':'[18,808][462,906]'})
+        for top in (False, True):
+            with self.subTest(top=top), patch.object(smoke, 'tree', side_effect=[hidden,clear]), patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+                result = smoke.scroll_to('Wanted', top=top, limit=1)
+                self.assertEqual(result.get('bounds'), '[28,500][290,583]')
+                adb.assert_called_once_with('shell','input','swipe','240','729','240','358','300')
+
+    def test_scroll_rejects_a_target_outside_its_native_parent_viewport(self):
+        clipped = self.scroll_frame('[12,279][468,600]', target=True)
+        clear = self.scroll_frame('[12,279][468,600]', target=True)
+        clear[1][0].set('bounds','[28,450][290,533]')
+        with patch.object(smoke, 'tree', side_effect=[clipped,clear]), patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+            self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('bounds'), '[28,450][290,533]')
+            adb.assert_called_once()
+
+    def test_public_song_tap_requires_its_native_title_ack_before_opening_player(self):
+        node = ET.fromstring('<node bounds="[28,500][290,583]"/>')
+        with patch.object(smoke,'scroll_to',return_value=node), patch.object(smoke,'tap_node') as tap, patch.object(smoke,'wait_playing_session') as ack, patch.object(smoke,'find'):
+            smoke.play_title('V3 SAF')
+            tap.assert_called_once_with(node)
+            ack.assert_called_once_with('V3 SAF')
+
     def test_missing_or_offscreen_vertical_surface_is_not_touched(self):
         for bounds in ('[12,970][468,1100]', '[-20,220][468,780]', '[12,688][468,710]'):
             with self.assertRaises(AssertionError):

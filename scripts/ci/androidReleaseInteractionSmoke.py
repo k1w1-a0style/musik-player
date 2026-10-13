@@ -157,10 +157,37 @@ def vertical_scroll_surface(root, key):
     return selected[0]
 
 
+def scroll_bounds(root, key):
+    x1, y1, x2, y2 = rect(vertical_scroll_surface(root, key))
+    mini = candidate('mini-player-viewport', root)
+    if mini is not None:
+        mx1, my1, mx2, _ = rect(mini)
+        if mx1 < x2 and mx2 > x1 and y1 < my1 < y2:
+            y2 = my1
+    return x1, y1, x2, y2
+
+
+def scroll_candidate(key, root):
+    node = candidate(key, root)
+    if node is None:
+        return None
+    parents = {child: parent for parent in root.iter() for child in parent}
+    ancestor = parents.get(node)
+    while ancestor is not None:
+        if ancestor.get('scrollable') == 'true' and 'HorizontalScrollView' not in ancestor.get('class', ''):
+            sx1, sy1, sx2, sy2 = scroll_bounds(root, key)
+            x1, y1, x2, y2 = rect(node)
+            # Android reports child bounds outside the parent clip and behind
+            # the mini player. Such a label is not proof of a usable touch area.
+            return node if sx1 <= x1 and sy1 <= y1 and x2 <= sx2 and y2 <= sy2 else None
+        ancestor = parents.get(ancestor)
+    return node
+
+
 def vertical_swipe_coordinates(root, key, down=False):
     # Status cards, font scale and the mini player change the actual viewport.
     # Never start in a header/card or drag through unrelated controls.
-    x1, y1, x2, y2 = rect(vertical_scroll_surface(root, key))
+    x1, y1, x2, y2 = scroll_bounds(root, key)
     inset = max(16, int((y2-y1)*.15))
     x, upper, lower = (x1+x2)//2, y1+inset, y2-inset
     assert lower-upper >= 16, 'Vertical scroll surface is too small: ' + key
@@ -170,16 +197,24 @@ def vertical_swipe_coordinates(root, key, down=False):
 def scroll_to(key, top=False, limit=24):
     for down in ([True]*10 if top else []) + [False]*limit:
         frame = tree()
-        found = candidate(key, frame)
+        found = scroll_candidate(key, frame)
         if found is not None:
             return found
+        clipped = candidate(key, frame)
+        if clipped is not None:
+            _, sy1, _, sy2 = scroll_bounds(frame, key)
+            _, y1, _, y2 = rect(clipped)
+            if y2 > sy2:
+                down = False
+            elif y1 < sy1:
+                down = True
         coordinates = vertical_swipe_coordinates(frame, key, down=down)
         SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
                              'surfaceBounds': rect(vertical_scroll_surface(frame, key)),
                              'coordinates': coordinates})
         adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '300')
         time.sleep(.2)
-    found = candidate(key)
+    found = scroll_candidate(key, tree())
     if found is not None:
         return found
     raise AssertionError('Scrollable UI not reachable: ' + key)
@@ -276,6 +311,9 @@ def generated_audio():
 def play_title(title):
     node = scroll_to(title + ' von V3 Proof', top=True)
     tap_node(node)
+    # Existing mini-player UI can still represent the previous selection.
+    # Require the exact app-owned native title/PLAYING ACK before opening it.
+    wait_playing_session(title)
     find('mini-player-open')
 
 

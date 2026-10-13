@@ -22,8 +22,8 @@ jobs:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
       ANDROID_API: '35'
-      REVIEWED_APK_SOURCE_COMMIT: 8a47be64e6e813b606c5516e285d00922e3a13a6
-      EXPECTED_APK_SHA256: b075699a70c5d17b7f77b00d880640d0960aa8bf701236c02de450310243c0ba
+      REVIEWED_APK_SOURCE_COMMIT: f861e88e889203237c065ef1ab49e08213584a5b
+      EXPECTED_APK_SHA256: 09e99ae725d53b1a82a0c1e8b65885bf3ee6a1c3e410782fa4b381c47543a45b
     steps:
       - name: Checkout immutable acceptance harness
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -35,8 +35,8 @@ jobs:
       - name: Download existing inspected APK without rebuilding it
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: musik-player-preview-8a47be64e6e813b606c5516e285d00922e3a13a6
-          run-id: 38194320051
+          name: musik-player-preview-f861e88e889203237c065ef1ab49e08213584a5b
+          run-id: 38337505996
           github-token: ${{ github.token }}
           path: preview-input
 
@@ -52,7 +52,7 @@ jobs:
           source = os.environ['REVIEWED_APK_SOURCE_COMMIT']
           changed = subprocess.check_output(['git', 'diff', '--name-only', source, os.environ['GITHUB_SHA']], text=True).splitlines()
           request = urllib.request.Request(
-              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38194320051/jobs?per_page=100',
+              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38337505996/jobs?per_page=100',
               headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'], 'Accept':'application/vnd.github+json'})
           with urllib.request.urlopen(request, timeout=30) as response:
               jobs = json.load(response)['jobs']
