@@ -450,10 +450,7 @@ def prepare_collection():
     back()
     CHECKS.append('SAF-import-and-playback-public-UI')
     library_tab('playlists')
-    tap('library-playlist-name-input')
-    adb('shell', 'input', 'text', 'V3Backup')
-    back()
-    tap('library-playlist-create-button')
+    create_public_playlist('V3Backup')
     tap('Playlist V3Backup')
     tap('playlist-detail-add-button')
     for title in TITLES[:2]:
@@ -550,14 +547,23 @@ def queue_probe_snapshot(name, expected_size):
     print('Queue probe: ' + name + ': ' + session, flush=True)
 
 
+def create_public_playlist(name):
+    tap('library-playlist-name-input')
+    adb('shell', 'input', 'text', name)
+    field = find('library-playlist-name-input')
+    assert field.get('text') == name, 'Playlist name input did not retain the requested value'
+    # PlaylistCreateForm exposes onSubmitEditing with returnKeyType=done.
+    # BACK can finish the Activity when Android already hid its soft keyboard.
+    tap_node(field)
+    adb('shell', 'input', 'keyevent', '66')
+    find('Playlist ' + name)
+
+
 def queue_replacement_probe():
     """Diagnostic only: reproduce a nonempty 2 -> 4 public queue replacement."""
     import_public_collection()
     library_tab('playlists')
-    tap('library-playlist-name-input')
-    adb('shell', 'input', 'text', 'QueueProbe')
-    back()
-    tap('library-playlist-create-button')
+    create_public_playlist('QueueProbe')
     tap('Playlist QueueProbe')
     tap('playlist-detail-add-button')
     for title in (TITLES[0], TITLES[2]):

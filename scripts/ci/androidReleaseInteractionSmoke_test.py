@@ -10,6 +10,21 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_playlist_creation_uses_public_done_action_without_back_navigation(self):
+        field = ET.fromstring('<node text="QueueProbe" bounds="[28,300][380,360]"/>')
+        with patch.object(smoke, 'tap'), patch.object(smoke, 'find', return_value=field) as find, \
+             patch.object(smoke, 'tap_node'), patch.object(smoke, 'adb') as adb, patch.object(smoke, 'back') as back:
+            smoke.create_public_playlist('QueueProbe')
+            adb.assert_any_call('shell', 'input', 'text', 'QueueProbe')
+            adb.assert_any_call('shell', 'input', 'keyevent', '66')
+            find.assert_any_call('Playlist QueueProbe')
+            back.assert_not_called()
+            field.set('text', 'lost characters')
+            adb.reset_mock()
+            with self.assertRaises(AssertionError):
+                smoke.create_public_playlist('QueueProbe')
+            self.assertNotIn(unittest.mock.call('shell', 'input', 'keyevent', '66'), adb.call_args_list)
+
     def test_queue_probe_requires_the_actual_native_queue_size(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
              patch.object(smoke, 'screenshot'), patch.object(smoke, 'adb', return_value=b'fixture notifications'):
