@@ -1,4 +1,6 @@
-import { renderHook } from '@testing-library/react-native';
+import { act, renderHook } from '@testing-library/react-native';
+import { useState } from 'react';
+import type { LibraryTab } from '../../utils/libraryTabs';
 import { useLibraryImportStateUpdate } from '../useLibraryImportStateUpdate';
 import { buildImportedSongsUpdate } from '../../utils/libraryImportFlow';
 import { createImportProgressCallbacks } from '../../utils/libraryImportProgressCallbacks';
@@ -16,6 +18,28 @@ const setup = (songs: Song[], ensureCurrentImport = jest.fn()) => {
   return { state, setSongs, ...view };
 };
 const generation = (id = 1) => ({ id, controller: new AbortController() });
+
+test('later scan publications preserve the tab chosen while creating a playlist', async () => {
+  const state = createSongLibraryState([]);
+  state.configurePersistence(async read => read());
+  const setSongs = jest.fn((next: Song[]) => state.setSongs(next));
+  state.configureImportPublication(setSongs);
+  const view = renderHook(() => {
+    const [tab, setTab] = useState<LibraryTab>('tracks');
+    const actions = useLibraryImportStateUpdate({ songs: [], setSongs, songImport: state,
+      setActiveTab: setTab, ensureCurrentImport: jest.fn() });
+    return { tab, setTab, ...actions };
+  });
+  const active = generation();
+  await act(async () => { await view.result.current.applyImportedSongsUpdate(buildImportedSongsUpdate([], [song('first')]), active); });
+  act(() => view.result.current.setTab('playlists'));
+  await act(async () => { await view.result.current.applyImportedSongsUpdate(buildImportedSongsUpdate([], [song('second')]), active); });
+  act(() => { view.result.current.publishImportedSongs(active); });
+  expect(view.result.current.tab).toBe('playlists');
+  expect(state.getSnapshot().map(item => item.id)).toEqual(['first', 'second']);
+  await act(async () => { await view.result.current.applyImportedSongsUpdate(buildImportedSongsUpdate([], [song('next')]), generation(2)); });
+  expect(view.result.current.tab).toBe('tracks');
+});
 
 // Persistence is the boundary double here; separate provider tests use real storage.
 test('an immediately restarted import retains confirmed chunks before song props rerender', async () => {

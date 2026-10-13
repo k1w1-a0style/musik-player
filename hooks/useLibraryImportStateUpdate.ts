@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
 import type { LibraryTab } from '../utils/libraryTabs';
@@ -22,11 +22,17 @@ export const useLibraryImportStateUpdate = ({
   songImport,
   timeoutMs = DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS,
 }: UseLibraryImportStateUpdateOptions) => {
+  const publishedGenerations = useRef(new WeakSet<ImportGeneration>());
   const publishImportedSongs = useCallback((generation: ImportGeneration): Song[] => {
     ensureCurrentImport(generation);
     if (!songImport) throw new Error('Bibliothek ist noch nicht bereit. Bitte den Import erneut starten.');
     const visible = songImport.publishImport();
-    setActiveTab('tracks');
+    // Show confirmed results once. Later checkpoints must not steal navigation
+    // from a user editing a playlist while this same import is still running.
+    if (!publishedGenerations.current.has(generation)) {
+      publishedGenerations.current.add(generation);
+      setActiveTab('tracks');
+    }
     return visible;
   }, [ensureCurrentImport, setActiveTab, songImport]);
   const applyImportedSongsUpdate = useCallback(async (update: ImportedSongsStateUpdate,
