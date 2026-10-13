@@ -465,6 +465,24 @@ def prepare_collection():
     back()
 
 
+def resume_confirmation_button(root):
+    assert any(node.get('package') == PACKAGE and node.get('text') == 'Wiedergabe fortsetzen?'
+               for node in root.iter('node')), 'Exact app-owned resume dialog missing'
+    buttons = [node for node in root.iter('node') if node.get('package') == PACKAGE
+               and matches(node, 'android:id/button1') and node.get('text', '').casefold() == 'fortsetzen'
+               and node.get('enabled') == 'true' and visible(node)]
+    assert len(buttons) == 1, 'Exact enabled positive resume action missing or ambiguous'
+    return buttons[0]
+
+
+def validate_resumed_position(before, after, elapsed):
+    # Native playback keeps advancing while the UI snapshots are collected.
+    # Match the saved seek plus measured playback time, with the same 3-second
+    # clock/whole-second allowance used by the native progress proof.
+    assert elapsed >= 0 and abs(after-before-elapsed) <= 3, \
+        f'Resume seek or native progress differs: {before} -> {after}, elapsed {elapsed:.3f}s'
+
+
 def resume_acceptance():
     settings()
     checkbox('settings-resume-enabled', True)
@@ -489,10 +507,13 @@ def resume_acceptance():
     tap('mini-player-play-pause')
     find('Wiedergabe fortsetzen?')
     screenshot('03-resume-after-process-kill')
-    tap('Fortsetzen')
+    tap_node(resume_confirmation_button(tree()))
+    wait_playing_session(TITLES[3])
+    resumed_at = time.monotonic()
     tap('mini-player-open')
     after = classic_position(1260)
-    assert abs(after-before) < 12, f'Resume did not confirm the saved native position: {before} -> {after}'
+    validate_resumed_position(before, after, time.monotonic()-resumed_at)
+    validate_playing_session(app_media_session(), TITLES[3])
     screenshot('04-resume-applied')
     tap('controls-play-pause')
     back()
@@ -921,7 +942,8 @@ def cleaner_acceptance():
     tap('library-open-menu')
     tap('library-menu-item-ordner-hinzuf-gen')
     choose_folder(['Music', 'V5OnlySAF'])
-    find('V5 Cleaner von V5 Proof', timeout=150)
+    # The following public long-press selection scrolls to the imported row;
+    # import success does not require a fifth/sixth row to start onscreen.
     select_cleaner_safe_playback_queue()
     open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
     select('tag-cleaner-analyze')

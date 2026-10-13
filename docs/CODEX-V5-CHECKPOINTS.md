@@ -76,3 +76,13 @@ Geräteversuch 1 (Job 115330022195, Artefakt 11820170287) bestand MP3, scheitert
 Neue Flow-Regression zuerst rot, nach Entfernen ausschließlich dieser redundanten Abfrage grün: Der reale folgende play_title-Vertrag verlangt unverändert vollständige Touchbarkeit nach Scrollen und den exakt ausgewählten nativen Titel; Dauer/PLAYING/Positionsfortschritt bleiben Pflicht. 58 Python-Tests erfolgreich. Retestworkflow exakt auf neue APK, Quellcommit und drei erfolgreiche Quellgates gepinnt. Kein neues Produktivdelta, daher kein neuer APK-Build angefordert.
 
 Kein laufender lokaler Emulator und keine Limrun-Instanz beim Zustandsabgleich. Plugins als Ursache nicht belegt. Die beobachtete lange Buildphase fand vor Emulatorstart statt. Originalmusik und main unverändert. Bei erneut gleichem Fehler nach zwei gezielten Versuchen Diagnosemethode wechseln.
+
+## SAF abgenommen; Resume-/Cleaner-Treiber gezielt korrigiert
+
+Retest 38410323215, Job 115340616211, Artefakt 11822726097: MP3 33→53 s, M4A 30→48 s, FLAC 24→37 s und SAF 19→32 s mit exakter app-eigener nativer PLAYING-Session bestanden. SAF-Import, Scrollen, Auswahl und Wiedergabe damit nachgewiesen. Kein neuer Produktivfix erforderlich.
+
+Nächster Stop bei Resume: Dialog nach echtem Kill/Restart zeigt gespeicherte 4:19 und aktiviertem android:id/button1 mit Text FORTSETZEN. Treiber suchte JS-Schreibweise Fortsetzen. Flow-Regression zuerst rot; nun exakter app-eigener Dialogtitel + aktivierter positiver Button und semantisch exakter Text (Android-Großschreibung zulässig). Andere Dialoge, fremde Apps, Von-vorn/Cancel-Buttons und deaktivierte Aktionen werden abgelehnt.
+
+Positionsnachweis berücksichtigt nun tatsächlich gemessene Wiedergabezeit während UI-Abfragen: gespeicherter Start + verstrichene Zeit mit derselben 3-s-Clock-/Sekundenauflösungsgrenze wie die Native-Progress-Prüfung. Die realen Formatproben benötigen durch UI-Abfragen 13–20 s; eine starre absolute 12-s-Differenz würde korrekte Wiedergabe ablehnen und zugleich Stillstand am gespeicherten Punkt akzeptieren. Zusätzliche Pflicht: nativer exakter Titel und PLAYING vor und nach der UI-Positionsmessung. Negativtests lehnen Stillstand, falschen Start, Reset und Sprung ab; keine pauschale Toleranzerweiterung.
+
+Beim Cleaner-Import denselben bereits nachgewiesenen redundanten Sichtbarkeitswait entfernt. Die nachfolgende reale Longpress-Auswahl scrollt und prüft weiterhin die vollständig touchbare importierte Karte; Dry-Run-Bytevergleich und native Schreib-/Audio-/Framebelege unverändert. Zweite Flow-Regression dafür zuerst rot. Insgesamt 62 Python-Tests grün. APK weiterhin exakt 2689eb2 / SHA256 2544b53dd51e73f93f543d69f29be7721264330cf5907052a18b37dd5765be6f; finale V5-Abnahme noch offen.

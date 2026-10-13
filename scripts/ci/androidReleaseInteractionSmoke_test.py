@@ -10,6 +10,70 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def resume_dialog(self):
+        return ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" text="Wiedergabe fortsetzen?"/>'
+                             f'<node package="{smoke.PACKAGE}" resource-id="android:id/button1" text="FORTSETZEN" enabled="true" bounds="[260,448][426,520]"/></hierarchy>')
+
+    def test_resume_flow_selects_the_observed_uppercase_positive_action(self):
+        dialog = self.resume_dialog()
+        class ReachedConfirmation(Exception):
+            pass
+        def tap(key):
+            if key == 'Fortsetzen':
+                raise AssertionError('Android exposes FORTSETZEN, not the JS source spelling')
+        def confirm(node):
+            self.assertEqual(node.get('resource-id'), 'android:id/button1')
+            self.assertEqual(node.get('text'), 'FORTSETZEN')
+            raise ReachedConfirmation()
+        with patch.object(smoke, 'settings'), patch.object(smoke, 'checkbox'), \
+             patch.object(smoke, 'back'), patch.object(smoke, 'play_title'), \
+             patch.object(smoke, 'assert_duration'), patch.object(smoke, 'find', return_value=ET.fromstring('<node bounds="[21,548][459,635]"/>')), \
+             patch.object(smoke, 'adb'), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'classic_position', return_value=259), \
+             patch.object(smoke, 'screenshot'), patch.object(smoke, 'tree', return_value=dialog), \
+             patch.object(smoke, 'tap', side_effect=tap), patch.object(smoke, 'tap_node', side_effect=confirm):
+            with self.assertRaises(ReachedConfirmation):
+                smoke.resume_acceptance()
+
+    def test_cleaner_import_below_viewport_reaches_real_selection_before_analysis(self):
+        class ReachedAnalysis(Exception):
+            pass
+        def find(key, **kwargs):
+            if key == 'V5 Cleaner von V5 Proof':
+                raise AssertionError('Imported cleaner row is below viewport')
+            if key == 'tag-cleaner-analyze':
+                raise ReachedAnalysis()
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / 'synthetic.mp3'
+            fixture.write_bytes(b'synthetic original')
+            with patch.object(smoke, 'dirty_cleaner_fixture', return_value=fixture), \
+                 patch.object(smoke, 'adb'), patch.object(smoke, 'tap'), \
+                 patch.object(smoke, 'choose_folder'), patch.object(smoke, 'find', side_effect=find), \
+                 patch.object(smoke, 'select_cleaner_safe_playback_queue'), \
+                 patch.object(smoke, 'scroll_to', return_value=ET.fromstring('<node bounds="[28,520][290,603]"/>')) as scroll:
+                with self.assertRaises(ReachedAnalysis):
+                    smoke.cleaner_acceptance()
+                scroll.assert_called_once_with('V5 Cleaner von V5 Proof', top=True)
+                self.assertEqual(fixture.read_bytes(), b'synthetic original')
+
+    def test_resume_confirmation_rejects_other_dialogs_actions_owners_and_disabled_buttons(self):
+        root = self.resume_dialog()
+        self.assertEqual(smoke.resume_confirmation_button(root).get('text'), 'FORTSETZEN')
+        for index, attribute, value in [(0, 'text', 'Backup gespeichert'), (0, 'package', 'other.app'),
+                                         (1, 'text', 'VON VORN'), (1, 'enabled', 'false'),
+                                         (1, 'resource-id', 'android:id/button2'), (1, 'package', 'other.app')]:
+            changed = self.resume_dialog()
+            list(changed.iter('node'))[index].set(attribute, value)
+            with self.assertRaises(AssertionError):
+                smoke.resume_confirmation_button(changed)
+
+    def test_resume_position_uses_actual_elapsed_time_and_rejects_stall_reset_or_jump(self):
+        smoke.validate_resumed_position(259, 279, 20)
+        smoke.validate_resumed_position(259, 269, 10.5)
+        for position, elapsed in [(259, 20), (20, 20), (300, 20), (270, 20), (279, -1)]:
+            with self.assertRaises(AssertionError):
+                smoke.validate_resumed_position(259, position, elapsed)
+
     def test_saf_import_below_viewport_must_scroll_and_prove_native_playback(self):
         row = ET.fromstring('<node bounds="[28,520][290,603]"/>')
         class ReachedSafProof(Exception):
