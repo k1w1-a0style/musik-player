@@ -209,7 +209,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_public_song_tap_requires_its_native_title_ack_before_opening_player(self):
         node = ET.fromstring('<node bounds="[28,500][290,583]"/>')
-        with patch.object(smoke,'scroll_to',return_value=node), patch.object(smoke,'tap_node') as tap, patch.object(smoke,'wait_playing_session') as ack, patch.object(smoke,'find'):
+        with patch.object(smoke,'scroll_to',return_value=node), patch.object(smoke,'tap_node') as tap, patch.object(smoke,'wait_selected_session') as ack, patch.object(smoke,'find'):
             smoke.play_title('V3 SAF')
             tap.assert_called_once_with(node)
             ack.assert_called_once_with('V3 SAF')
@@ -238,6 +238,15 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def playing_session(self, title='V3 FLAC', state=3, package=smoke.PACKAGE):
         return f'package={package}\nstate=PlaybackState {{state={state}, position=4000}}\nmetadata: description={title}, V3 Proof'
+
+    def test_selection_ack_is_exact_and_does_not_claim_decoder_playback(self):
+        selected = self.playing_session(title='V3 M4A',state=0)
+        smoke.validate_selected_session(selected,'V3 M4A')
+        with self.assertRaises(AssertionError):
+            validate_playing_session(selected,'V3 M4A')
+        for title, package in [('V3 M4A extra',smoke.PACKAGE),('V3 FLAC',smoke.PACKAGE),('V3 M4A','com.other.app')]:
+            with self.assertRaises(AssertionError):
+                smoke.validate_selected_session(self.playing_session(title=title,package=package),'V3 M4A')
 
     def test_native_session_requires_own_app_playing_and_actual_title(self):
         validate_playing_session(self.playing_session(), 'V3 FLAC')

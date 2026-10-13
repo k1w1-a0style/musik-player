@@ -316,8 +316,8 @@ def play_title(title):
     node = scroll_to(title + ' von V3 Proof', top=True)
     tap_node(node)
     # Existing mini-player UI can still represent the previous selection.
-    # Require the exact app-owned native title/PLAYING ACK before opening it.
-    wait_playing_session(title)
+    # Require the exact app-owned title ACK; decoder playback is proved below.
+    wait_selected_session(title)
     find('mini-player-open')
 
 
@@ -586,11 +586,31 @@ def app_media_session():
     return matching[0]
 
 
+
+def validate_selected_session(session, title):
+    assert re.search(r'^[ \t]*package=' + re.escape(PACKAGE) + r'[ \t]*$', session, re.M), 'Native session belongs to another app'
+    assert re.search(r'^[ \t]*metadata:[^\n]*description=' + re.escape(title) + r'(?:,|[ \t]*$)', session, re.M), 'Native session selected another track: ' + title
+
+
+def wait_selected_session(title, timeout=15):
+    deadline = time.monotonic() + timeout
+    last_error = 'Native selection not checked'
+    while time.monotonic() < deadline:
+        try:
+            session = app_media_session()
+            validate_selected_session(session, title)
+            return session
+        except AssertionError as error:
+            last_error = str(error)
+        time.sleep(.4)
+    raise AssertionError(last_error)
+
+
 def validate_playing_session(session, title):
     assert re.search(r'^[ \t]*package=' + re.escape(PACKAGE) + r'[ \t]*$', session, re.M), 'Native session belongs to another app'
     state = re.search(r'PlaybackState\s*\{state=(?:([A-Z_]+)\((\d+)\)|(\d+))(?=[,\s}])', session)
     assert state and ((state[1], state[2]) == ('PLAYING', '3') or state[3] == '3'), 'Native playback is not playing'
-    assert title in session, 'Native session selected another track: ' + title
+    validate_selected_session(session, title)
 
 
 def wait_playing_session(title, timeout=15):
