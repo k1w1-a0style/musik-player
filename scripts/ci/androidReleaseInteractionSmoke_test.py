@@ -172,6 +172,20 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
             adb.assert_called_once_with('shell','input','swipe','240','889','240','723','300')
 
+    def test_system_picker_uses_innermost_nested_scroll_surface(self):
+        root = ET.fromstring('<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,36][480,960]">'
+                            '<node class="android.widget.GridView" resource-id="com.google.android.documentsui:id/dir_list" '
+                            'scrollable="true" bounds="[0,36][480,960]"><node text="Music" bounds="[317,734][374,763]"/></node></node></hierarchy>')
+        self.assertEqual(smoke.vertical_scroll_surface(root,'Music').get('class'),'android.widget.GridView')
+        self.assertEqual(smoke.scroll_candidate('Music',root).get('text'),'Music')
+
+    def test_duplicate_targets_on_unrelated_scroll_surfaces_stay_ambiguous(self):
+        root = self.scroll_frame(target=True)
+        other = ET.SubElement(root,'node',{'class':'android.widget.ScrollView','scrollable':'true','bounds':'[12,220][468,500]'})
+        ET.SubElement(other,'node',{'content-desc':'Wanted','bounds':'[28,250][290,333]'})
+        with self.assertRaises(AssertionError):
+            smoke.vertical_scroll_surface(root,'Wanted')
+
     def test_scroll_rejects_a_target_partly_covered_by_the_mini_player(self):
         hidden = self.scroll_frame('[12,279][468,894]', target=True)
         hidden[1][0].set('bounds', '[28,746][290,829]')

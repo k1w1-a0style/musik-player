@@ -153,6 +153,10 @@ def vertical_scroll_surface(root, key):
     containing = [node for node in surfaces
                   if any(matches(child, key) for child in node.iter('node'))]
     selected = containing if containing else surfaces
+    # The system tree picker nests a native GridView inside a ScrollView.
+    # Its innermost surface owns the touch; unrelated sibling surfaces stay ambiguous.
+    selected = [node for node in selected if not any(
+        other is not node and other in node.iter('node') for other in selected)]
     assert len(selected) == 1, 'Vertical scroll surface absent or ambiguous: ' + key
     return selected[0]
 
