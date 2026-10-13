@@ -596,6 +596,42 @@ def validate_resumed_position(before, after, elapsed):
         f'Resume seek or native progress differs: {before} -> {after}, elapsed {elapsed:.3f}s'
 
 
+def native_position_clock(session, title, state):
+    validate_selected_session(session, title)
+    match = re.search(r'PlaybackState\s*\{state=' + state +
+                      r'\(\d+\), position=(\d+),[^}]*speed=([0-9.]+), updated=(\d+)', session)
+    assert match, 'Exact native position, speed and Android clock missing'
+    position, speed, updated = float(match[1])/1000, float(match[2]), int(match[3])/1000
+    assert speed == (1.0 if state == 'PLAYING' else 0.0), 'Native playback speed differs'
+    return position, updated
+
+
+def wait_paused_session(title, timeout=15):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        session = app_media_session()
+        try:
+            native_position_clock(session, title, 'PAUSED')
+            return session
+        except AssertionError:
+            time.sleep(.4)
+    raise AssertionError('Exact selected native session did not acknowledge pause')
+
+
+def validate_resume_clock(before, resumed, paused, ui_position, title):
+    start, started = native_position_clock(resumed, title, 'PLAYING')
+    finish, stopped = native_position_clock(paused, title, 'PAUSED')
+    # All playback timing comes from the same Android elapsedRealtime clock.
+    # Freeze the public timeline before comparing it, so RPC transfer time cannot
+    # turn an earlier UI frame into a false seek/progress regression.
+    validate_resumed_position(before, start, 0)
+    assert finish-start >= 2, 'Resumed native playback did not advance'
+    validate_resumed_position(start, finish, stopped-started)
+    assert abs(ui_position-finish) <= 3, 'Paused public timeline differs from native position'
+    return {'savedSeconds': before, 'resumedSeconds': start, 'pausedSeconds': finish,
+            'nativeElapsedSeconds': stopped-started, 'uiSeconds': ui_position}
+
+
 def resume_acceptance():
     settings()
     checkbox('settings-resume-enabled', True)
@@ -621,14 +657,16 @@ def resume_acceptance():
     find('Wiedergabe fortsetzen?')
     screenshot('03-resume-after-process-kill')
     tap_node(resume_confirmation_button(tree()))
-    wait_playing_session(TITLES[3])
-    resumed_at = time.monotonic()
+    resumed = wait_playing_session(TITLES[3])
     tap('mini-player-open')
-    after = classic_position(1260)
-    validate_resumed_position(before, after, time.monotonic()-resumed_at)
-    validate_playing_session(app_media_session(), TITLES[3])
-    screenshot('04-resume-applied')
+    time.sleep(4)
     tap('controls-play-pause')
+    paused = wait_paused_session(TITLES[3])
+    after = classic_position(1260)
+    proof = validate_resume_clock(before, resumed, paused, after, TITLES[3])
+    (OUT / 'resume-clock-proof.json').write_text(json.dumps(proof, indent=2))
+    print('Resume Android clock proof: ' + json.dumps(proof), flush=True)
+    screenshot('04-resume-applied')
     back()
     settings()
     checkbox('settings-resume-enabled', False)

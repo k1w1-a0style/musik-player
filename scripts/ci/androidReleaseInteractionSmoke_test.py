@@ -421,6 +421,37 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 smoke.validate_resumed_position(259, position, elapsed)
 
+    def resume_session(self, state, position, updated, title=None, speed=None):
+        if speed is None:
+            speed = 1.0 if state == 'PLAYING' else 0.0
+        return (f'package={smoke.PACKAGE}\nmetadata: size=5, description={title or smoke.TITLES[3]}, V3 Proof\n'
+                f'state=PlaybackState {{state={state}({3 if state == "PLAYING" else 2}), '
+                f'position={position}, buffered position=524225, speed={speed}, updated={updated}}}')
+
+    def test_resume_uses_android_clock_and_paused_ui_despite_slow_rpc(self):
+        resumed = self.resume_session('PLAYING', 259000, 538815)
+        paused = self.resume_session('PAUSED', 276686, 556876)
+        # Real failing artifact: 273 was an earlier frame; host RPC returned later.
+        # The paused frame now matches the actual native endpoint on Android.
+        proof = smoke.validate_resume_clock(259, resumed, paused, 276, smoke.TITLES[3])
+        self.assertAlmostEqual(proof['nativeElapsedSeconds'], 18.061)
+        self.assertAlmostEqual(proof['pausedSeconds'], 276.686)
+
+    def test_resume_native_clock_rejects_wrong_seek_stall_jump_clock_and_stale_ui(self):
+        resumed = self.resume_session('PLAYING', 259000, 538815)
+        good = self.resume_session('PAUSED', 276686, 556876)
+        for initial, final, ui in [
+            (self.resume_session('PLAYING', 1000, 538815), good, 276),
+            (resumed, self.resume_session('PAUSED', 259000, 556876), 259),
+            (resumed, self.resume_session('PAUSED', 320000, 556876), 320),
+            (resumed, self.resume_session('PAUSED', 276686, 537000), 276),
+            (resumed, good, 259),
+            (self.resume_session('PLAYING', 259000, 538815, title='Another track'), good, 276),
+            (self.resume_session('PLAYING', 259000, 538815, speed=0), good, 276),
+        ]:
+            with self.subTest(initial=initial, final=final, ui=ui), self.assertRaises(AssertionError):
+                smoke.validate_resume_clock(259, initial, final, ui, smoke.TITLES[3])
+
     def test_saf_import_below_viewport_must_scroll_and_prove_native_playback(self):
         row = ET.fromstring('<node bounds="[28,520][290,603]"/>')
         class ReachedSafProof(Exception):
