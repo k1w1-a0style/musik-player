@@ -172,6 +172,35 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
             adb.assert_called_once_with('shell','input','swipe','240','889','240','723','300')
 
+    def test_system_folder_grant_waits_through_empty_transition_and_is_exact(self):
+        empty = ET.fromstring('<hierarchy><node text="3:30"/></hierarchy>')
+        grant = ET.fromstring('<hierarchy><node text="Allow k1w1-Musik to access files in V3OnlySAF?"/>'
+                             '<node resource-id="android:id/button1" text="ALLOW" enabled="true" bounds="[333,536][432,608]"/></hierarchy>')
+        with patch.object(smoke,'tree',side_effect=[empty,grant]), patch.object(smoke.time,'monotonic',side_effect=[0,0,1]), patch.object(smoke.time,'sleep'):
+            self.assertEqual(smoke.wait_tree_grant('V3OnlySAF').get('text'),'ALLOW')
+        self.assertIsNone(smoke.tree_grant_button(grant,'OtherFolder'))
+        grant[1].set('enabled','false')
+        self.assertIsNone(smoke.tree_grant_button(grant,'V3OnlySAF'))
+
+    def test_missing_folder_grant_times_out_without_any_confirmation_tap(self):
+        with patch.object(smoke,'tree',return_value=ET.fromstring('<hierarchy/>')), patch.object(smoke.time,'monotonic',side_effect=[0,0,26]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tapped:
+            with self.assertRaises(AssertionError):
+                smoke.wait_tree_grant('V3OnlySAF')
+            tapped.assert_not_called()
+
+    def test_compact_action_lookup_keeps_full_fallback_for_pruned_marker(self):
+        compact = ET.fromstring('<hierarchy/>')
+        full = ET.fromstring('<hierarchy><node resource-id="settings-screen" bounds="[0,36][480,900]"/></hierarchy>')
+        with patch.object(smoke,'tree',side_effect=[compact,full]) as capture:
+            self.assertEqual(smoke.find('settings-screen').get('resource-id'),'settings-screen')
+            self.assertEqual(capture.call_args_list[-1].kwargs,{'compressed':False})
+
+    def test_compact_mini_player_button_still_protects_occluded_song_rows(self):
+        root = self.scroll_frame('[12,279][468,894]',target=True)
+        root[1][0].set('bounds','[28,746][290,829]')
+        ET.SubElement(root,'node',{'resource-id':'mini-player-open','bounds':'[18,808][462,906]'})
+        self.assertIsNone(smoke.scroll_candidate('Wanted',root))
+
     def test_system_picker_uses_innermost_nested_scroll_surface(self):
         root = ET.fromstring('<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,36][480,960]">'
                             '<node class="android.widget.GridView" resource-id="com.google.android.documentsui:id/dir_list" '

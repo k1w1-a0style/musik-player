@@ -27,6 +27,7 @@ CLEANER_TITLE = 'V5  Cleaner'
 CLEANER_ARTIST = 'V5  Proof'
 CLEANER_TARGET = '/sdcard/Music/V5OnlySAF/V5-cleaner.mp3'
 V5_PROOFS = {}
+UI_SNAPSHOTS = {"compact": 0, "full": 0, "seconds": 0.0}
 RETEST_ONLY_PATHS = frozenset({
     'scripts/ci/androidReleaseInteractionSmoke.py',
     'scripts/ci/androidReleaseInteractionSmoke_test.py',
@@ -88,8 +89,11 @@ def matches(node, key):
                for attr in ('resource-id', 'text', 'content-desc'))
 
 
-def tree():
-    raw = DEVICE.dump_hierarchy(compressed=False, max_depth=80)
+def tree(compressed=True):
+    started = time.perf_counter()
+    raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
+    UI_SNAPSHOTS['compact' if compressed else 'full'] += 1
+    UI_SNAPSHOTS['seconds'] += time.perf_counter() - started
     (OUT / 'latest-ui.xml').write_text(raw)
     return ET.fromstring(raw)
 
@@ -122,6 +126,10 @@ def find(key, timeout=25):
             time.sleep(.6)
             continue
         found = candidate(key, frame)
+        if found is None:
+            # Noninteractive test-ID containers may be pruned by Android's
+            # compact hierarchy. Retain a full, exact fallback for those markers.
+            found = candidate(key, tree(compressed=False))
         if found is not None:
             print('UI: ' + key, flush=True)
             return found
@@ -164,6 +172,8 @@ def vertical_scroll_surface(root, key):
 def scroll_bounds(root, key):
     x1, y1, x2, y2 = rect(vertical_scroll_surface(root, key))
     mini = candidate('mini-player-viewport', root)
+    if mini is None:
+        mini = candidate('mini-player-open', root)
     if mini is not None:
         mx1, my1, mx2, _ = rect(mini)
         if mx1 < x2 and mx2 > x1 and y1 < my1 < y2:
@@ -264,6 +274,26 @@ def library_tab(name):
     raise AssertionError('Library tab not reachable: ' + name)
 
 
+
+def tree_grant_button(root, folder):
+    expected = f'Allow k1w1-Musik to access files in {folder}?'
+    if not any(node.get('text') == expected for node in root.iter('node')):
+        return None
+    return next((node for node in root.iter('node') if matches(node, 'android:id/button1')
+                 and node.get('text', '').lower() == 'allow'
+                 and node.get('enabled') == 'true' and visible(node)), None)
+
+
+def wait_tree_grant(folder, timeout=25):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        button = tree_grant_button(tree(), folder)
+        if button is not None:
+            return button
+        time.sleep(.3)
+    raise AssertionError('Exact system folder grant confirmation missing: ' + folder)
+
+
 def choose_folder(parts):
     # Exercise the real system tree picker. Only exact system navigation labels
     # and known generated fixture folders are touched.
@@ -287,11 +317,9 @@ def choose_folder(parts):
     use = next((node for node in root.iter('node') if node.get('text', '').lower() == 'use this folder'), None)
     assert use is not None, 'System folder permission button missing'
     tap_node(use)
-    time.sleep(.4)
-    root = tree()
-    allow = next((node for node in root.iter('node') if node.get('text', '').lower() == 'allow'), None)
-    assert allow is not None, 'System folder grant confirmation missing'
-    tap_node(allow)
+    # The actual failure captured only SystemUI during the transition, then
+    # the exact ALLOW dialog in the final diagnostic frame. Never assume .4s.
+    tap_node(wait_tree_grant(parts[-1]))
     time.sleep(.8)
 
 
@@ -1012,7 +1040,7 @@ def main():
         assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
         result = {'status': 'passed', 'commit': commit, 'harnessCommit': os.environ['GITHUB_SHA'], 'apkSha256': sha, 'checks': CHECKS,
                   'playbackProofs': PLAYBACK_PROOFS, 'scrollProofs': SCROLL_PROOFS,
-                  'pixelLauncherDialogs': LAUNCHER_DIALOGS, 'v5Proofs': V5_PROOFS,
+                  'pixelLauncherDialogs': LAUNCHER_DIALOGS, 'v5Proofs': V5_PROOFS, 'uiSnapshots': UI_SNAPSHOTS,
                   'device': 'isolated API 35 x86_64 emulator, 480x960 pixels / density 240 = 320dp',
                   'limits': ['No A50 baseline performance comparison', 'No actual spoken TalkBack verification',
                              'Provider faults and restore journal interruptions covered separately by host/native tests']}
