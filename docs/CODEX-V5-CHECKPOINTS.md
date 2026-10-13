@@ -152,3 +152,10 @@ Swipe-Diagnose38464358299 / Job115527341141:85Harness-Tests grün, MediaStore-Re
 - Actual public playlist creation retained the exact input after IME dismissal. Both additions were acknowledged. Native queue remained two before/after; M4A advanced 4→10 s; one settled 600 ms public cover swipe selected MP3, which advanced 1→7 s. No app FATAL/ErrorBoundary/own ANR in saved logcat.
 - Status endpoint lagged behind an already uploaded result artifact; read the immutable evidence rather than wait indefinitely on that status alone. Pixel Launcher system ANR was recorded and dismissed once under the existing strict guard, not attributed to the app.
 - Diagnostic-only result remains releaseAccepted=false. Now request the complete original V5 flow, including backup cold restart, accent colours, synthetic SAF cleaner and 36-case presentation matrix. Same inspected APK and all source/provenance gates unchanged.
+
+
+### 2026-10-13 – Backup cold restart accepted; exact Switch lookup diagnosed
+- Full run 38468629833 / job 115541658625 progressed successfully through actual formats/SAF, public playlist and native queue replacement, resume process kills, background/queue/cover gestures and backup export/read-only preview/restore including original+copy IDs/order/favorite after cold restart. Evidence artifact 11851893045.
+- New failure only in accent stage: settings-instant-colors not reachable. Source component exposes the exact ID. The scroll driver previously requested a full hierarchy only for missing/ambiguous scroll owners; a pruned target with an intact owner was never searched in the full tree, unlike normal find().
+- Require the full exact target hierarchy before issuing any swipe on a compact miss. Parent/mini-player clipping and owner ambiguity assertions remain mandatory. Targeted native Switch probe follows regression suite, preserving exact checked-state and real cold-start persistence assertions. No new APK/app-source changes.
+- Local executor again returned explicit 409 environment_offline; continued via GitHub. Valuable prior work and the exact APK are already committed/artifact-backed; QA Wolf unused.

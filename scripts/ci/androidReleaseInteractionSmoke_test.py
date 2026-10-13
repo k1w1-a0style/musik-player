@@ -115,6 +115,23 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, 'registration did not complete'):
                 smoke.wait_for_fixture_media_store()
 
+    def test_scroll_checks_full_target_even_when_compact_owner_is_present(self):
+        compact = self.scroll_frame()
+        full = self.scroll_frame(target=True)
+        with patch.object(smoke, 'tree', side_effect=[compact,full]) as tree, patch.object(smoke, 'adb') as adb:
+            self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
+            tree.assert_called_with(compressed=False)
+            adb.assert_not_called()
+
+    def test_full_target_lookup_keeps_parent_clipping_assertion(self):
+        compact = self.scroll_frame()
+        full = self.scroll_frame(target=True)
+        target = next(n for n in full.iter('node') if n.get('content-desc') == 'Wanted')
+        target.set('bounds', '[30,800][430,900]')
+        with patch.object(smoke, 'tree', side_effect=[compact,full]):
+            frame = smoke.scroll_query_frame('Wanted')
+            self.assertIsNone(smoke.scroll_candidate('Wanted', frame))
+
     def test_scroll_falls_back_to_full_topology_before_touching_a_pruned_surface(self):
         compact = ET.fromstring('<hierarchy><node class="android.widget.HorizontalScrollView" scrollable="true" bounds="[0,137][480,195]"/></hierarchy>')
         full = self.scroll_frame('[12,491][468,742]')

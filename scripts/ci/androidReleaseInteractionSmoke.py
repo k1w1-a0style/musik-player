@@ -247,12 +247,15 @@ def vertical_swipe_coordinates(root, key, down=False):
 
 def scroll_query_frame(key):
     frame = tree()
+    full_required = candidate(key, frame) is None
     try:
         if scroll_candidate(key, frame) is None:
             vertical_scroll_surface(frame, key)
     except AssertionError:
-        # Compact accessibility trees can omit a layout container while an
-        # import/status card reflows. Full topology must still prove one owner.
+        full_required = True
+    if full_required:
+        # Compact trees can prune either the owner OR a target control.
+        # Check the exact full tree before scrolling past an omitted switch.
         frame = tree(compressed=False)
         if scroll_candidate(key, frame) is None:
             vertical_scroll_surface(frame, key)
@@ -1164,6 +1167,27 @@ def assert_radio_selected(root, key):
     assert node is not None and node.get('checked') == 'true', 'Radio choice not selected: ' + key
 
 
+def settings_switch_probe():
+    """Public native switch diagnosis only; never release acceptance."""
+    settings()
+    node = scroll_to('settings-instant-colors', top=True)
+    assert node.get('package') == PACKAGE and node.get('checked') == 'false', 'Unexpected native instant-colors initial state'
+    screenshot('instant-colors-before')
+    checkbox('settings-instant-colors', True)
+    screenshot('instant-colors-after')
+    back()
+    public_cold_start()
+    settings()
+    node = scroll_to('settings-instant-colors', top=True)
+    assert node.get('checked') == 'true', 'Instant-colors switch did not persist'
+    screenshot('instant-colors-cold')
+    (OUT / 'diagnostic-result.json').write_text(json.dumps({
+        'mode': 'settings-switch-probe', 'status': 'diagnostic-only', 'releaseAccepted': False,
+        'sourceCommit': os.environ['REVIEWED_APK_SOURCE_COMMIT'], 'harnessCommit': os.environ['GITHUB_SHA'],
+        'control': 'settings-instant-colors', 'initialChecked': False, 'coldChecked': True,
+        'nativeBounds': rect(node)}, indent=2))
+
+
 def accent_acceptance():
     settings()
     for field in ('waveform-accent', 'appAccent', 'playerAccent'):
@@ -1367,6 +1391,10 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'settings-switch-probe':
+            print('Diagnostic only: public native instant-colors switch and cold persistence.', flush=True)
+            settings_switch_probe()
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'cover-swipe-probe':
             print('Diagnostic only: two-track public cover swipe; no release acceptance.', flush=True)
             cover_swipe_probe()
