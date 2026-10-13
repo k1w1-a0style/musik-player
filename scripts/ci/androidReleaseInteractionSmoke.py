@@ -457,8 +457,8 @@ def prepare_collection():
         tap(title + ' zur Playlist hinzufügen')
     tap('playlist-detail-add-close')
     screenshot('02-playlist-before-backup')
-    back()
-    library_tab('tracks')
+    playlist_to_library_replacement('acceptance', 5)
+    CHECKS.append('public-nonempty-queue-replacement-two-to-five-native-playing')
     play_title(TITLES[0])
     tap('mini-player-open')
     tap('Titel favorisieren')
@@ -573,33 +573,38 @@ def queue_replacement_probe():
         if attempt:
             library_tab('playlists')
             select('Playlist QueueProbe')
-        row = next((node for node in tree().iter('node') if
-                    node.get('resource-id', '').split(':id/')[-1].startswith('playlist-detail-song-')
-                    and node.get('content-desc', '').startswith(TITLES[0] + ' von V3 Proof abspielen.')), None)
-        assert row is not None and visible(row), 'Probe playlist target absent'
-        tap_node(row)
-        wait_playing_session(TITLES[0])
-        find('controls-play-pause')
-        assert_native_playback(TITLES[0], 90)
-        tap('controls-play-pause')
-        queue_probe_snapshot(f'probe-{attempt}-paused-two', 2)
-        back()
-        back()
-        library_tab('tracks')
-        play_title(TITLES[1])
-        queue_probe_snapshot(f'probe-{attempt}-selected-four', 4)
-        tap('mini-player-open')
-        assert_duration(120)
-        assert_native_playback(TITLES[1], 120)
-        queue_probe_snapshot(f'probe-{attempt}-playing-four', 4)
-        tap('controls-play-pause')
-        back()
+        playlist_to_library_replacement(f'probe-{attempt}', 4)
     (OUT / 'diagnostic-result.json').write_text(json.dumps({
         'mode': 'queue-replacement-probe', 'status': 'diagnostic-only',
         'sourceCommit': os.environ['REVIEWED_APK_SOURCE_COMMIT'],
         'harnessCommit': os.environ['GITHUB_SHA'], 'playbackProofs': PLAYBACK_PROOFS,
         'releaseAccepted': False,
     }, indent=2))
+
+
+def playlist_to_library_replacement(prefix, library_size):
+    """Public playlist selection must establish two items before replacement."""
+    row = next((node for node in tree().iter('node') if
+                    node.get('resource-id', '').split(':id/')[-1].startswith('playlist-detail-song-')
+                    and node.get('content-desc', '').startswith(TITLES[0] + ' von V3 Proof abspielen.')), None)
+    assert row is not None and visible(row), 'Public playlist target absent'
+    tap_node(row)
+    wait_playing_session(TITLES[0])
+    find('controls-play-pause')
+    assert_native_playback(TITLES[0], 90)
+    tap('controls-play-pause')
+    queue_probe_snapshot(prefix + '-paused-two', 2)
+    back()
+    back()
+    library_tab('tracks')
+    play_title(TITLES[1])
+    queue_probe_snapshot(prefix + '-selected-library', library_size)
+    tap('mini-player-open')
+    assert_duration(120)
+    assert_native_playback(TITLES[1], 120)
+    queue_probe_snapshot(prefix + '-playing-library', library_size)
+    tap('controls-play-pause')
+    back()
 
 
 def validate_playlist_contents(root, expected_ids, expected_titles):

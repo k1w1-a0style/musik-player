@@ -4,7 +4,7 @@ import { addEventListener, registerPlaybackService, setRemoteCommandGuard } from
 export * from './types';
 export * from './hooks';
 export {
-  setupPlayer, updateOptions, play, pause, stop, reset, seekTo, seekBy, add,
+  setupPlayer, updateOptions, play, pause, stop, reset, setQueue, seekTo, seekBy, add,
   skip, skipToNext, skipToPrevious, move, updateMetadataForTrack,
   setRepeatMode, setVolume, getQueue, getNavigationSnapshot, getActiveTrack, getActiveTrackIndex,
   getProgress, getPlayWhenReady, getPlaybackState, getRepeatMode, getAudioSessionId,

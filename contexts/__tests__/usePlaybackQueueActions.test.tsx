@@ -108,7 +108,7 @@ describe('usePlaybackQueueActions', () => {
     await waitFor(() => expect(getByTestId('current').props.children).toBe('s2'));
     expect(getByTestId('queue').props.children).toBe('s1,s2,s3');
     expect(trackPlayerMock.__getQueue().map(track => track.id)).toEqual(['s1', 's2', 's3']);
-    expect(TrackPlayer.reset).toHaveBeenCalled();
+    expect(TrackPlayer.setQueue).toHaveBeenCalled();
     expect(TrackPlayer.play).toHaveBeenCalled();
     expect(getByTestId('action-status').props.children).toBe('applied');
   });
@@ -127,7 +127,7 @@ describe('usePlaybackQueueActions', () => {
 
     expect(getByTestId('shuffle').props.children).toBe('true');
     expect(getByTestId('queue').props.children.split(',').sort()).toEqual(['s1', 's2', 's3']);
-    expect(TrackPlayer.add).toHaveBeenCalled();
+    expect(TrackPlayer.setQueue).toHaveBeenCalled();
     expect(getByTestId('action-status').props.children).toBe('applied');
   });
 
@@ -151,12 +151,13 @@ describe('usePlaybackQueueActions', () => {
   });
 
   test('keeps a queued public intent bound to its original hydration generation', async () => {
+    const nativeSetQueue = (TrackPlayer.setQueue as jest.Mock).getMockImplementation()!;
     const resetStarted = deferred();
     const releaseReset = deferred();
-    (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
+    (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
       resetStarted.resolve();
       await releaseReset.promise;
-      trackPlayerMock.__reset();
+      await nativeSetQueue(...values);
     });
     const { getByTestId } = render(<QueueActionsProbe />);
 
@@ -168,6 +169,6 @@ describe('usePlaybackQueueActions', () => {
     releaseReset.resolve();
 
     await waitFor(() => expect(getByTestId('action-status').props.children).toBe('failed'));
-    expect(TrackPlayer.reset).toHaveBeenCalledTimes(1);
+    expect(TrackPlayer.setQueue).toHaveBeenCalledTimes(1);
   });
 });

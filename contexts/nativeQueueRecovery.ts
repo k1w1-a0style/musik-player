@@ -67,7 +67,7 @@ export const classifyNativeQueueRecoveryFailure = (
 };
 
 export type NativeQueueReplacementProgress =
-  | 'not-started' | 'reset-confirmed' | 'add-started' | 'queue-replacement-confirmed'
+  | 'not-started' | 'reset-confirmed' | 'add-started' | 'queue-replacement-started' | 'queue-replacement-confirmed'
   | 'active-track-confirmed' | 'progress-confirmed' | 'playback-confirmed';
 
 export type NativeQueueShuffleStrategy =
@@ -287,6 +287,10 @@ const resolveReplacementShuffleState = (
   queue: Song[],
 ): boolean => {
   const replacementStarted = strategy.progress !== 'not-started' && strategy.progress !== 'reset-confirmed';
+  // A rejected atomic setter can leave the old queue untouched. An identical
+  // target order alone cannot prove that a new shuffle intention was applied.
+  if (strategy.progress === 'queue-replacement-started'
+    && hasSameNormalizedQueueOrder(queue, strategy.snapshotQueue)) return strategy.snapshotEnabled;
   if (replacementStarted && hasSameNormalizedQueueOrder(queue, strategy.targetQueue)) return strategy.requestedEnabled;
   return strategy.snapshotEnabled;
 };

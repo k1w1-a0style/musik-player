@@ -10,6 +10,28 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_release_replacement_requires_two_native_queues_and_real_playback(self):
+        root = ET.Element('hierarchy')
+        ET.SubElement(root, 'node', {'resource-id': 'playlist-detail-song-one',
+            'content-desc': smoke.TITLES[0] + ' von V3 Proof abspielen. Position 1 von 2',
+            'bounds': '[20,300][400,400]'})
+        with patch.object(smoke, 'tree', return_value=root), patch.object(smoke, 'tap_node'), \
+             patch.object(smoke, 'wait_playing_session'), patch.object(smoke, 'find'), \
+             patch.object(smoke, 'tap'), patch.object(smoke, 'back'), patch.object(smoke, 'library_tab'), \
+             patch.object(smoke, 'play_title') as play, patch.object(smoke, 'assert_duration') as duration, \
+             patch.object(smoke, 'assert_native_playback') as playback, \
+             patch.object(smoke, 'queue_probe_snapshot') as queue:
+            smoke.playlist_to_library_replacement('acceptance', 5)
+            self.assertEqual(queue.call_args_list, [unittest.mock.call('acceptance-paused-two', 2),
+                unittest.mock.call('acceptance-selected-library', 5), unittest.mock.call('acceptance-playing-library', 5)])
+            self.assertEqual(playback.call_args_list, [unittest.mock.call(smoke.TITLES[0], 90),
+                unittest.mock.call(smoke.TITLES[1], 120)])
+            play.assert_called_once_with(smoke.TITLES[1])
+            duration.assert_called_once_with(120)
+            root.clear()
+            with self.assertRaises(AssertionError):
+                smoke.playlist_to_library_replacement('missing', 5)
+
     def test_playlist_creation_uses_public_done_action_without_back_navigation(self):
         field = ET.fromstring('<node text="QueueProbe" bounds="[28,300][380,360]"/>')
         with patch.object(smoke, 'tap'), patch.object(smoke, 'find', return_value=field) as find, \

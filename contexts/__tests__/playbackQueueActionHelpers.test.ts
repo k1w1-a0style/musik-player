@@ -29,7 +29,7 @@ const player = TrackPlayer as unknown as {
   __reset: () => void; __getQueue: () => Song[]; __getActiveTrackIndex: () => number; __getState: () => State;
 };
 const nativeAdd = (TrackPlayer.add as jest.Mock).getMockImplementation();
-const nativeReset = (TrackPlayer.reset as jest.Mock).getMockImplementation();
+const nativeSetQueue = (TrackPlayer.setQueue as jest.Mock).getMockImplementation();
 const restoreNativeMocks = () => {
   (TrackPlayer.getQueue as jest.Mock).mockImplementation(async () => player.__getQueue());
   (TrackPlayer.getActiveTrack as jest.Mock).mockImplementation(async () => player.__getQueue()[player.__getActiveTrackIndex()]);
@@ -62,7 +62,7 @@ const readyCapture = () => {
   return captureRequiredNativeHydration();
 };
 
-test('Play: add succeeds and skip fails, then reconciles native truth', async () => {
+test('Play: replacement succeeds and skip fails, then reconciles native truth', async () => {
   const input = args([]);
   (TrackPlayer.skip as jest.Mock).mockRejectedValueOnce(new Error('skip failed'));
   const result = await runPlaySongQueueAction({ ...input, song: songs[1] });
@@ -71,7 +71,7 @@ test('Play: add succeeds and skip fails, then reconciles native truth', async ()
   expect(input.setCurrentSong).toHaveBeenCalledWith(songs[0]);
 });
 
-test('Play: add succeeds and seekTo fails, then reconciles native truth', async () => {
+test('Play: replacement succeeds and seekTo fails, then reconciles native truth', async () => {
   const input = args([]);
   (TrackPlayer.seekTo as jest.Mock).mockRejectedValueOnce(new Error('seek failed'));
   const result = await runPlaySongQueueAction({ ...input, song: songs[0] });
@@ -79,7 +79,7 @@ test('Play: add succeeds and seekTo fails, then reconciles native truth', async 
   expect(input.nativeQueueRef.current).toEqual([...songs, extra]);
 });
 
-test('Play: add succeeds and play fails, then reconciles native truth', async () => {
+test('Play: replacement succeeds and play fails, then reconciles native truth', async () => {
   const input = args([]);
   (TrackPlayer.play as jest.Mock).mockRejectedValueOnce(new Error('play failed'));
   const result = await runPlaySongQueueAction({ ...input, song: songs[0] });
@@ -152,6 +152,7 @@ test('a newer replacement intent aborts shuffle during snapshot preparation', as
   const [shuffleResult] = await Promise.all([shuffle, newer]);
   expect(shuffleResult.status).toBe('stale');
   expect(TrackPlayer.reset).not.toHaveBeenCalled();
+  expect(TrackPlayer.setQueue).not.toHaveBeenCalled();
   expect(TrackPlayer.add).not.toHaveBeenCalled();
   expect(newerStarted).toBe(true);
 });
@@ -212,13 +213,13 @@ test('insert completes truth commit when hydration changes after add begins', as
   expect(input.queueContextRef.current.map(song => song.id)).toEqual(['s1', 's2']);
 });
 
-test('play rebuild completes truth commit when hydration changes after reset begins', async () => {
+test('play rebuild completes truth commit when hydration changes after replacement begins', async () => {
   await seed([songs[0]]);
   const input = args([songs[0]]);
   const hydrationCapture = readyCapture();
   const started = deferred(); const release = deferred();
-  (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
-    started.resolve(); await release.promise; return nativeReset?.(...values);
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
+    started.resolve(); await release.promise; return nativeSetQueue?.(...values);
   });
 
   const play = runPlaySongQueueAction({ ...input, song: songs[1], hydrationCapture });
@@ -256,10 +257,10 @@ test('Shuffle-On and Shuffle-Off preserve explicit intent when random order is i
 test.each([
   ['Shuffle-On', false],
   ['Shuffle-Off', true],
-] as const)('%s reset rejection preserves snapshot shuffle intent', async (_label, enabled) => {
+] as const)('%s replacement rejection preserves snapshot shuffle intent', async (_label, enabled) => {
   await seed(songs);
   const input = args(songs); input.shuffleRef.current = enabled;
-  (TrackPlayer.reset as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+  (TrackPlayer.setQueue as jest.Mock).mockRejectedValueOnce(new Error('replacement failed'));
   const result = await runShuffleQueueAction({ ...input, shuffle: enabled, currentSongId: 's1' });
   expect(result.status).toBe('reconciled');
   expect(input.shuffleRef.current).toBe(enabled);
@@ -267,33 +268,50 @@ test.each([
   expect(input.queueContextRef.current).toEqual(songs);
 });
 
-test('shuffle add rejection without side effect preserves snapshot intent and confirmed empty queue', async () => {
+test('shuffle replacement rejection without side effect preserves snapshot intent and old queue', async () => {
   await seed(songs); const input = args(songs);
-  (TrackPlayer.add as jest.Mock).mockRejectedValueOnce(new Error('add failed'));
+  (TrackPlayer.setQueue as jest.Mock).mockRejectedValueOnce(new Error('replacement failed'));
+  const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
+  expect(result.status).toBe('reconciled');
+  expect(input.shuffleRef.current).toBe(false);
+  expect(input.queueContextRef.current).toEqual(songs);
+});
+
+test('shuffle replacement rejection reconciles an independently emptied controller without inventing a queue', async () => {
+  await seed(songs); const input = args(songs);
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async () => {
+    await TrackPlayer.reset();
+    throw new Error('controller cleared before failed replacement');
+  });
   const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
   expect(result.status).toBe('reconciled');
   expect(input.shuffleRef.current).toBe(false);
   expect(input.queueContextRef.current).toEqual([]);
+  expect(input.nativeQueueRef.current).toEqual([]);
+  expect(input.setCurrentSong).toHaveBeenLastCalledWith(null);
 });
 
-test('shuffle full add side effect followed by rejection confirms requested intent', async () => {
+test('shuffle full replacement side effect followed by rejection confirms requested intent', async () => {
   await seed(songs); const input = args(songs);
-  const add = (TrackPlayer.add as jest.Mock).getMockImplementation()!;
-  (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (...callArgs: unknown[]) => {
-    await add(...callArgs); throw new Error('add acknowledgement failed');
+  const random = jest.spyOn(Math, 'random').mockReturnValue(0);
+  const add = (TrackPlayer.setQueue as jest.Mock).getMockImplementation()!;
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (...callArgs: unknown[]) => {
+    await add(...callArgs); throw new Error('replacement acknowledgement failed');
   });
   const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
   expect(result.status).toBe('reconciled');
   expect(input.shuffleRef.current).toBe(true);
   expect(input.setShuffle).toHaveBeenLastCalledWith(true);
   expect(input.queueContextRef.current).toHaveLength(songs.length);
+  expect(input.queueContextRef.current).not.toEqual(songs);
+  random.mockRestore();
 });
 
-test('shuffle partial add rejection never confirms requested intent', async () => {
+test('shuffle partial replacement rejection never confirms requested intent', async () => {
   await seed(songs); const input = args(songs);
-  const add = (TrackPlayer.add as jest.Mock).getMockImplementation()!;
-  (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (tracks: unknown[]) => {
-    await add([tracks[0]]); throw new Error('partial add');
+  const add = (TrackPlayer.setQueue as jest.Mock).getMockImplementation()!;
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (tracks: unknown[]) => {
+    await add([tracks[0]]); throw new Error('partial replacement');
   });
   const result = await runShuffleQueueAction({ ...input, shuffle: false, currentSongId: 's1' });
   expect(result.status).toBe('reconciled');

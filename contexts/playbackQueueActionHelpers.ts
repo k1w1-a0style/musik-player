@@ -157,14 +157,15 @@ const replaceNativeQueueTracks = async (
   const { isCurrent, beginNativeMutation } = context;
   queue.forEach(song => assertTagSourceAvailableForPlayback(song.uri));
   beginNativeMutation();
-  await TrackPlayer.reset();
-  onProgress?.('reset-confirmed');
-  if (!isCurrent()) return false;
-  nativeQueueRef.current = [];
   if (queue.length > 0) {
-    onProgress?.('add-started');
-    await TrackPlayer.add(queue.map(toTrackPlayerTrack));
+    onProgress?.('queue-replacement-started');
+    await TrackPlayer.setQueue(queue.map(toTrackPlayerTrack));
     onProgress?.('queue-replacement-confirmed');
+  } else {
+    await TrackPlayer.reset();
+    onProgress?.('reset-confirmed');
+    if (!isCurrent()) return false;
+    nativeQueueRef.current = [];
   }
   return isCurrent();
 };

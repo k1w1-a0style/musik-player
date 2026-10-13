@@ -72,6 +72,20 @@ export const reset = (): Promise<void> => mutate(async () => {
   await acknowledge(() => Player.clear());
 });
 
+/** Replace a nonempty queue without publishing an empty MediaSession queue. */
+export const setQueue = (tracks: Track[]): Promise<void> => mutate(async () => {
+  const items = tracks.map(toMediaItem);
+  if (!items.length) {
+    await acknowledge(() => Player.stop());
+    await acknowledge(() => Player.clear());
+    return;
+  }
+  // Freeze old playback before replacement; the domain restores the latest
+  // acknowledged user/remote intent after selection and seek.
+  await acknowledge(() => Player.pause());
+  await acknowledge(() => Player.setMediaItems(items, 0));
+});
+
 const requireFinite = (value: number, name: string): void => {
   if (!Number.isFinite(value)) throw new Error(`${name} must be finite.`);
 };

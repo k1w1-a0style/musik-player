@@ -10,8 +10,7 @@ import { requestLatestSeek, resetSeekControllerForTests, isSeekDrainingForTests 
 import { enqueuePlaybackIntent } from '../playbackIntentScheduler';
 
 const player = TrackPlayer as typeof TrackPlayer & { __reset: () => void; __getState: () => State };
-const nativeAdd = (TrackPlayer.add as jest.Mock).getMockImplementation()!;
-const nativeReset = (TrackPlayer.reset as jest.Mock).getMockImplementation()!;
+const nativeSetQueue = (TrackPlayer.setQueue as jest.Mock).getMockImplementation()!;
 const songs: Song[] = Array.from({ length: 40 }, (_, index) => ({
   id: `s${index}`, title: `Song ${index}`, artist: 'Test', uri: `file:///s${index}.mp3`,
 }));
@@ -67,11 +66,11 @@ test('timed-out native writer stays held, fences late commit, and exposes truthf
   expect(acknowledgeNativePlaybackRecovery()).toBe(true);
 });
 
-test('a late add after timeout cannot play or commit the old target', async () => {
+test('a late replacement after timeout cannot play or commit the old target', async () => {
   jest.useFakeTimers();
   const release = deferred(); const started = deferred(); const args = queueArgs([]);
-  (TrackPlayer.add as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
-    started.resolve(); await release.promise; await nativeAdd(...values);
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
+    started.resolve(); await release.promise; await nativeSetQueue(...values);
   });
   const operation = runPlaySongQueueAction({ ...args, song: songs[3] });
   await started.promise;
@@ -85,12 +84,12 @@ test('a late add after timeout cannot play or commit the old target', async () =
   expect(getNativePlaybackWatchdogSnapshot().status).toBe('retry-required');
 });
 
-test('a late reset does not overwrite the last confirmed JS queue after timeout', async () => {
+test('a late replacement does not overwrite the last confirmed JS queue after timeout', async () => {
   await seed(songs.slice(0, 2));
   jest.useFakeTimers();
   const release = deferred(); const started = deferred(); const args = queueArgs(songs.slice(0, 2));
-  (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
-    started.resolve(); await release.promise; await nativeReset();
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
+    started.resolve(); await release.promise; await nativeSetQueue(...values);
   });
   const operation = runPlaySongQueueAction({ ...args, song: songs[3] });
   await started.promise;
@@ -174,11 +173,11 @@ test('deferred seek rejects the same song id after its source URI changes', asyn
   expect(seek).not.toHaveBeenCalled();
 });
 
-test('a pause requested during reset wins over play-song restoration', async () => {
+test('a pause requested during replacement wins over play-song restoration', async () => {
   await seed(songs.slice(0, 2)); await TrackPlayer.play(); jest.clearAllMocks();
   const started = deferred(); const release = deferred(); const args = queueArgs(songs.slice(0, 2));
-  (TrackPlayer.reset as jest.Mock).mockImplementationOnce(async () => {
-    started.resolve(); await release.promise; await nativeReset();
+  (TrackPlayer.setQueue as jest.Mock).mockImplementationOnce(async (...values: unknown[]) => {
+    started.resolve(); await release.promise; await nativeSetQueue(...values);
   });
   const play = runPlaySongQueueAction({ ...args, song: songs[5] });
   await started.promise;

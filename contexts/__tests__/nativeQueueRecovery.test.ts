@@ -247,6 +247,7 @@ test.each([
 
 test.each([
   ['reset failed', 'not-started', false],
+  ['atomic replacement unacknowledged', 'queue-replacement-started', false],
   ['replacement confirmed', 'queue-replacement-confirmed', true],
 ] as const)('identical snapshot and target queue uses progress when %s', async (_label, progress, expected) => {
   const committed = await commitNativeQueueTruth({

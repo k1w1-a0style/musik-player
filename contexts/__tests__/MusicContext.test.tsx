@@ -299,11 +299,11 @@ describe('MusicContext', () => {
     fireEvent.press(getByTestId('play-s2'));
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s2'));
 
-    const resetCallsAfterFirstPlay = (TrackPlayer.reset as jest.Mock).mock.calls.length;
+    const replacementCallsAfterFirstPlay = (TrackPlayer.setQueue as jest.Mock).mock.calls.length;
     fireEvent.press(getByTestId('play-s3-subset'));
 
     await waitFor(() => expect(getByTestId('probe-current').props.children).toBe('s3'));
-    expect((TrackPlayer.reset as jest.Mock).mock.calls.length).toBe(resetCallsAfterFirstPlay + 1);
+    expect((TrackPlayer.setQueue as jest.Mock).mock.calls.length).toBe(replacementCallsAfterFirstPlay + 1);
     expect(getByTestId('probe-playback-queue').props.children).toBe('s3,s4');
   });
 

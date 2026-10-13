@@ -78,6 +78,13 @@ const TrackPlayer = {
       trigger(Event.PlaybackActiveTrackChanged, { track: queue[0] });
     }
   }),
+  setQueue: jest.fn(async tracks => {
+    queue = tracks.slice();
+    currentIdx = queue.length ? 0 : -1;
+    state = queue.length ? State.Paused : State.None;
+    playWhenReady = false;
+    if (queue.length) trigger(Event.PlaybackActiveTrackChanged, { track: queue[0] });
+  }),
   play: jest.fn(async () => {
     playWhenReady = true;
     state = State.Playing;

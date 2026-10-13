@@ -25,7 +25,7 @@ const createNative = () => ({
   getActiveMediaItem: jest.fn<MediaItem | null, []>().mockReturnValue(null),
   getActiveMediaItemIndex: jest.fn().mockReturnValue(null),
   getRepeatMode: jest.fn().mockReturnValue('off'),
-  addMediaItems: jest.fn(), insertMediaItems: jest.fn(),
+  addMediaItems: jest.fn(), insertMediaItems: jest.fn(), setMediaItems: jest.fn(),
   skipToIndex: jest.fn(), moveMediaItem: jest.fn(), updateMetadata: jest.fn(),
   setRepeatMode: jest.fn(), setVolume: jest.fn(), setCommands: jest.fn(),
   play: jest.fn(), pause: jest.fn(), stop: jest.fn(), clear: jest.fn(),
@@ -289,6 +289,40 @@ test('reset waits for stop before clearing the queue and dropping play intent', 
   await reset;
   expect(native.clear).toHaveBeenCalledTimes(1);
   expect(native.awaitPlaybackCommands).toHaveBeenCalledTimes(2);
+});
+
+test('nonempty replacement acknowledges pause and setter before releasing later mutations', async () => {
+  const pauseAck = deferred();
+  const setterAck = deferred();
+  native.awaitPlaybackCommands.mockReturnValueOnce(pauseAck.promise).mockReturnValueOnce(setterAck.promise);
+  const replacement = adapter.default.setQueue([{ id: 'new', url: 'file:///new.mp3' }]);
+  const play = adapter.default.play();
+  await flush();
+  expect(native.pause).toHaveBeenCalledTimes(1);
+  expect(native.setMediaItems).not.toHaveBeenCalled();
+  pauseAck.resolve();
+  await flush();
+  expect(native.setMediaItems).toHaveBeenCalledWith([expect.objectContaining({ mediaId: 'new' })], 0);
+  expect(native.play).not.toHaveBeenCalled();
+  setterAck.resolve();
+  await Promise.all([replacement, play]);
+  expect(native.play).toHaveBeenCalledTimes(1);
+  expect(native.stop).not.toHaveBeenCalled();
+  expect(native.clear).not.toHaveBeenCalled();
+});
+
+test('replacement validates every source before changing old playback', async () => {
+  await expect(adapter.default.setQueue([{ id: 'good', url: 'file:///good.mp3' }, { id: 'bad', url: '' }]))
+    .rejects.toThrow('URL is required');
+  expect(native.pause).not.toHaveBeenCalled();
+  expect(native.setMediaItems).not.toHaveBeenCalled();
+});
+
+test('explicit empty replacement still acknowledges stop and clear', async () => {
+  await adapter.default.setQueue([]);
+  expect(native.stop).toHaveBeenCalledTimes(1);
+  expect(native.clear).toHaveBeenCalledTimes(1);
+  expect(native.setMediaItems).not.toHaveBeenCalled();
 });
 
 test('round trips V4 song identity, display metadata, seconds, headers and extras through real V5', async () => {
