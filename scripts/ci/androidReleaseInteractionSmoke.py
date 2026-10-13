@@ -245,9 +245,23 @@ def vertical_swipe_coordinates(root, key, down=False):
     return (x, upper, x, lower) if down else (x, lower, x, upper)
 
 
+def scroll_query_frame(key):
+    frame = tree()
+    try:
+        if scroll_candidate(key, frame) is None:
+            vertical_scroll_surface(frame, key)
+    except AssertionError:
+        # Compact accessibility trees can omit a layout container while an
+        # import/status card reflows. Full topology must still prove one owner.
+        frame = tree(compressed=False)
+        if scroll_candidate(key, frame) is None:
+            vertical_scroll_surface(frame, key)
+    return frame
+
+
 def scroll_to(key, top=False, limit=24):
     for down in ([True]*10 if top else []) + [False]*limit:
-        frame = tree()
+        frame = scroll_query_frame(key)
         found = scroll_candidate(key, frame)
         if found is not None:
             return found
@@ -265,7 +279,7 @@ def scroll_to(key, top=False, limit=24):
                              'coordinates': coordinates})
         adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '300')
         time.sleep(.2)
-    found = scroll_candidate(key, tree())
+    found = scroll_candidate(key, scroll_query_frame(key))
     if found is not None:
         return found
     raise AssertionError('Scrollable UI not reachable: ' + key)

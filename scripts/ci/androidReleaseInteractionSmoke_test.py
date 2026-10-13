@@ -12,6 +12,26 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_scroll_falls_back_to_full_topology_before_touching_a_pruned_surface(self):
+        compact = ET.fromstring('<hierarchy><node class="android.widget.HorizontalScrollView" scrollable="true" bounds="[0,137][480,195]"/></hierarchy>')
+        full = self.scroll_frame('[12,491][468,742]')
+        found = self.scroll_frame(target=True)
+        with patch.object(smoke, 'tree', side_effect=[compact, full, found]) as tree, \
+             patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+            self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
+            tree.assert_any_call(compressed=False)
+            adb.assert_called_once_with('shell','input','swipe','240','705','240','528','300')
+
+    def test_full_scroll_fallback_rejects_missing_or_ambiguous_owners(self):
+        missing = ET.fromstring('<hierarchy/>')
+        ambiguous = ET.fromstring('<hierarchy><node scrollable="true" bounds="[0,100][480,400]"/>'
+                                 '<node scrollable="true" bounds="[0,500][480,800]"/></hierarchy>')
+        for full in (missing, ambiguous):
+            with patch.object(smoke, 'tree', side_effect=[missing, full]), patch.object(smoke, 'adb') as adb:
+                with self.assertRaises(AssertionError):
+                    smoke.scroll_to('Wanted', limit=1)
+                adb.assert_not_called()
+
     def tab_frame(self, bounds='[223,137][329,195]', selected='false'):
         return ET.fromstring(f'<hierarchy><node resource-id="library-tabs" bounds="[0,137][480,195]">'
             f'<node resource-id="library-tab-playlists" package="{smoke.PACKAGE}" enabled="true"'
