@@ -125,7 +125,7 @@ jobs:
           from pathlib import Path
           import base64, json
           root = Path('ci-logs/release-interaction')
-          names = ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','fixture-mediastore.txt','cover-swipe-before.xml','cover-swipe-before-session.txt','cover-swipe-input.json')
+          names = ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','playlist-add-proofs.json','fixture-mediastore.txt','cover-swipe-before.xml','cover-swipe-before-session.txt','cover-swipe-input.json','public-input-before.xml','public-input-unfocused.xml')
           for name in names:
               path = root / name
               if path.is_file() and path.stat().st_size <= 300000:

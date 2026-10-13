@@ -12,6 +12,29 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def input_frame(self, bounds='[36,636][272,707]', focused='false'):
+        return ET.fromstring(f'<hierarchy><node resource-id="library-playlist-name-input" package="{smoke.PACKAGE}" enabled="true" focused="{focused}" bounds="{bounds}"/></hierarchy>')
+
+    def test_public_input_waits_for_reflow_and_native_focus_before_typing(self):
+        moving = self.input_frame('[36,436][272,507]')
+        stable = self.input_frame()
+        focused = self.input_frame(focused='true')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[moving,stable,stable,stable,focused]), \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke, 'tap_node') as tap:
+            self.assertEqual(smoke.focus_public_input('library-playlist-name-input').get('focused'), 'true')
+            self.assertEqual(smoke.rect(tap.call_args.args[0]), [36,636,272,707])
+            tap.assert_called_once()
+
+    def test_public_input_does_not_accept_or_retry_a_missed_focus_tap(self):
+        clock = iter(range(100))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=self.input_frame()), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)), patch.object(smoke, 'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError, 'did not acknowledge focus'):
+                smoke.focus_public_input('library-playlist-name-input')
+            tap.assert_called_once()
+
     def swipe_frame(self, bounds='[0,306][480,585]', overlay=False):
         root = ET.fromstring(f'<hierarchy><node resource-id="soundcloud-swipe-hitbox" package="{smoke.PACKAGE}" enabled="true" bounds="{bounds}"/></hierarchy>')
         if overlay:
@@ -267,8 +290,8 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                 smoke.playlist_to_library_replacement('missing', 5)
 
     def test_playlist_creation_uses_public_done_action_without_back_navigation(self):
-        field = ET.fromstring('<node text="QueueProbe" bounds="[28,300][380,360]"/>')
-        with patch.object(smoke, 'tap'), patch.object(smoke, 'find', return_value=field) as find, \
+        field = ET.fromstring('<node text="QueueProbe" focused="true" bounds="[28,300][380,360]"/>')
+        with patch.object(smoke, 'tap'), patch.object(smoke, 'focus_public_input'), patch.object(smoke, 'find', return_value=field) as find, \
              patch.object(smoke, 'tap_node'), patch.object(smoke, 'adb') as adb, patch.object(smoke, 'back') as back:
             smoke.create_public_playlist('QueueProbe')
             adb.assert_any_call('shell', 'input', 'text', 'QueueProbe')

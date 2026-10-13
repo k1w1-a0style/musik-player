@@ -647,14 +647,43 @@ def queue_probe_snapshot(name, expected_size):
     print('Queue probe: ' + name + ': ' + session, flush=True)
 
 
+def focus_public_input(key):
+    deadline = time.monotonic() + 20
+    previous, stable = None, 0
+    while time.monotonic() < deadline:
+        frame = tree()
+        field = candidate(key, frame)
+        bounds = rect(field) if field is not None and field.get('enabled') == 'true' else None
+        stable = stable + 1 if bounds is not None and bounds == previous else 0
+        if stable >= 2:
+            break
+        previous = bounds
+        time.sleep(.25)
+    else:
+        raise AssertionError('Input geometry did not settle: ' + key)
+    assert field.get('package') == PACKAGE, 'Input does not belong to app'
+    (OUT / 'public-input-before.xml').write_text(ET.tostring(frame, encoding='unicode'))
+    if field.get('focused') != 'true':
+        tap_node(field)
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        after = tree()
+        focused = candidate(key, after)
+        if focused is not None and focused.get('focused') == 'true':
+            return focused
+        time.sleep(.25)
+    (OUT / 'public-input-unfocused.xml').write_text(ET.tostring(after, encoding='unicode'))
+    raise AssertionError('Public input did not acknowledge focus: ' + key)
+
+
 def create_public_playlist(name):
-    tap('library-playlist-name-input')
+    focus_public_input('library-playlist-name-input')
     adb('shell', 'input', 'text', name)
     field = find('library-playlist-name-input')
     assert field.get('text') == name, 'Playlist name input did not retain the requested value'
     # PlaylistCreateForm exposes onSubmitEditing with returnKeyType=done.
     # BACK can finish the Activity when Android already hid its soft keyboard.
-    tap_node(field)
+    assert field.get('focused') == 'true', 'Playlist input lost focus before Done'
     adb('shell', 'input', 'keyevent', '66')
     find('Playlist ' + name)
 
