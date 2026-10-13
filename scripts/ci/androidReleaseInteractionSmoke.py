@@ -259,6 +259,14 @@ def scroll_query_frame(key):
         frame = tree(compressed=False)
         if scroll_candidate(key, frame) is None:
             vertical_scroll_surface(frame, key)
+    if key == 'settings-instant-colors':
+        controls = [{'id': n.get('resource-id'), 'label': n.get('content-desc'),
+                     'class': n.get('class'), 'bounds': n.get('bounds'), 'checked': n.get('checked')}
+                    for n in frame.iter('node') if 'Switch' in n.get('class', '') or matches(n, key)]
+        texts = [n.get('text') for n in frame.iter('node') if n.get('text')]
+        print('INSTANT_SCROLL ' + json.dumps({'full': full_required, 'controls': controls,
+              'firstTexts': texts[:4], 'lastTexts': texts[-4:]}, ensure_ascii=False), flush=True)
+        (OUT / ('instant-scroll-frame-' + str(UI_SNAPSHOTS['compact'] + UI_SNAPSHOTS['full']) + '.xml')).write_text(ET.tostring(frame, encoding='unicode'))
     return frame
 
 
