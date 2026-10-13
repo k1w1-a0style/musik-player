@@ -606,7 +606,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_real_scroll_to_swipes_inside_current_surface_and_rechecks_target(self):
         empty, found = self.scroll_frame(), self.scroll_frame(target=True)
-        with patch.object(smoke, 'tree', side_effect=[empty,found]), patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+        with patch.object(smoke, 'tree', side_effect=[empty,empty,found]), patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
             self.assertEqual(smoke.scroll_to('Wanted', limit=1).get('content-desc'), 'Wanted')
             adb.assert_called_once_with('shell','input','swipe','240','889','240','723','300')
 
