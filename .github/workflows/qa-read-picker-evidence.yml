@@ -1,0 +1,42 @@
+name: Read immutable Android picker evidence
+on:
+  push:
+    branches: ['qa/v5-control/read-picker-11864115656']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: retest-preview-release-acceptance-292f9bcb86cae9fcb167a946a9e2292e39d5e325
+          run-id: 38495722355
+          github-token: ${{ github.token }}
+          path: evidence
+      - name: Inspect exact breadcrumb owners and focus without another emulator
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as E
+          p=Path('evidence/release-interaction/folder-picker-initial-3.xml')
+          if not p.exists():
+              matches=list(Path('evidence').rglob('folder-picker-initial-3.xml'))
+              assert len(matches)==1
+              p=matches[0]
+          root=E.parse(p).getroot()
+          parents={child:parent for parent in root.iter() for child in parent}
+          for node in root.iter('node'):
+              if node.get('resource-id','').endswith(':id/breadcrumb_text'):
+                  chain=[]
+                  while node is not None:
+                      chain.append({key:node.get(key) for key in ('text','class','resource-id','package','bounds','enabled','clickable','content-desc')})
+                      node=parents.get(node)
+                  print('BREADCRUMB_PARENT '+repr(chain[:6]))
+          window=p.parent/'folder-picker-window.txt'
+          for line in window.read_text().splitlines():
+              if 'mCurrentFocus' in line or 'mFocusedApp' in line:
+                  print(line)
+          PY
