@@ -1,47 +1,83 @@
-# Musikplayer – Fortsetzung V5
+# Musikplayer – V5-Abnahme, 14.10.2026
 
-Stand: 12.10.2026. Verbindliche Grundlage: vollständiger V5-Auftrag aus K1W1_Fortsetzung_V5_KOMPAKT_2026-10-12.zip; V4 und V3 bleiben integriert. Kein Projektneustart.
+Die V4-/V5-Arbeit wird im bestehenden Projekt fortgesetzt. App-Quelle: `70275c7a66aa9d24e5c2a33421388d93ad9a20d6`. Alle späteren Änderungen betreffen Abnahmetreiber und Statusdokumentation. `main` bleibt unverändert.
 
-## Gesicherter Ausgangspunkt
+**Freigabestatus: UI-Matrix noch laufend. Keine finale APK-Freigabe.** Dieser Zwischenstand wird erst nach Prüfung aller 36 Kombinationen ersetzt.
 
-- Repository k1w1-a0style/musik-player, Branch codex, bestätigter Ausgangs-HEAD 8662eb321b59f5fca9e12e2dd5c53cfa9daeac3a. main bleibt unverändert.
-- Eindeutige Sicherung: backup/codex-before-v5-20261012-8662eb3. Bestehende V3-Sicherung bleibt erhalten.
-- Alle sieben Text-/CSV-Dateien vollständig gelesen (V4-Original und V5-Nachtrag sind bytegetreu im kombinierten Auftrag enthalten); drei Originalscreenshots visuell geprüft.
-- Das kompakte Paket enthält 21 Original-Tagdatensätze, aber keine MP3-Audiodateien. Diese Datensätze sind Testreferenzen, kein Nachweis echter Audio-/Coverbyte-Verifikation der Originale.
-- V3: Backup in Einstellungen, abschaltbares Resume mit Default Aus, ruhiges Profil, vier Waveform-Akzente und Standard/Kompakt sind vorhanden. QuickScan-Wiederverwendung, begrenzte native Flights, Checkpoint-Ack und vom Scanabschluss getrennte optionale Waveformvorbereitung ebenfalls vorhanden. Diese Funktionen werden erweitert und regressionsgeprüft, nicht nochmals implementiert.
-- CI 38180690838 ist abgeschlossen und erfolgreich. Der getrennte Retest 38180690737 scheitert am exakten 1:30-Dauervergleich; grüne Build-/Hostgates ersetzen keine APK-Bedienabnahme.
+## Geplant → implementiert → geprüft → Grenzen
 
-## Geplant → implementiert → getestet → offen
-
-| Paket | Bereits vorhanden / begonnen | Neue Arbeit | Abnahme |
+| Paket | Implementierung | Nachweis | Grenze |
 |---|---|---|---|
-| P1 Quellenrevision und APK-Zeitbasis | Resume und Backup, native 1:29-Anzeige tatsächlich belegt | Bekannte MD5-Revision konservativ berücksichtigen; kein SHA-256-Downgrade; codecbedingte Dauer max. 1 s bei app-eigenen Zeitlabels; echte Format-/Swipe-Probes | Hostregressionen; neue exakte APK und öffentliche UI noch erforderlich |
-| P2 Scan und Speicherung | QuickScan-Reuse/Flights/Checkpoint/Waveformtrennung vorhanden | Verifizierten Speicherabschluss von optionalem Cleanup mit sicherem Datenbesitz entkoppeln; kleine Statuszeile, Details, Cancel, Warnungen, Erfolg automatisch ausblenden; Profile10/500/2000 | Pending-Storage-/Race-/Canceltests; Androidzeiten und A50 separat |
-| P3 Coverfarbe und Player | Aktueller Fallback/stale Hookguards und vorhandene Skins | Persistenter revisionssicherer Budgetcache/Backfill; kurzer/sofortiger Farbwechsel; beide Wechseltextpfade entfernen, Guards und Fehler erhalten; Album/Quelle klar beschriften | Neustart/Race/Revision/Budget; echte schnelle Titelwechsel |
-| P4 Darstellung | Quiet/Dichte/vier Waveformfarben vorhanden | Globale UI-Akzente und getrennte Player/Waveform-Auswahl; MiniPlayer-Insets; 320dp/Font2/LivePreview | Theme-/Kontrast-/Layouttests und Androidmatrix |
-| P5 Additiver Tag-Cleaner | Manueller Editor und transaktionaler SAF-Writer bleiben | Gemeinsame ID-Auswahl, LongPress/Mehrfachauswahl, Album/Ordner/Playlist/Settings; Regeln/rohe Vorher-Nachher-Receipts/Confidence/Edit/Filter; sequenzielles Apply mit CAS/Cancel/Journal/Export und Display-only | CSV21 plus negative künstliche Fixtures; manuelleEditor-Regression; echte native Kopien |
-| P6 Sicherheit F25 | Ausnahmen unverändert bis21.10.2026, Issue396 offen | Frische Upstreamprüfung; kompatibler belegter Fix oder offen ausgewiesener Befund, keine Fristverlängerung/force/Downgrade | Sauberes Install/Audit/JSExport/Native nach Dependencyänderung |
-| P7 Finale Auslieferung | V3-Dokumente liegen vorläufig vor | Exakten V5-Commit builden; Paket/ABIs/Signatur/SHA prüfen; vollständige öffentliche UI; aktualisierter Status/Ideenberichte | Keine APK-Freigabe vor erfolgreicher Abnahme; A50-/TalkBack-/Providergrenzen offen ausweisen |
+| Bestehende V4/V3-Funktionen | Backup, abschaltbares Resume mit Default Aus, ruhiges Profil, Waveformfarben, Dichte, Quickscan-Reuse und native Flights übernommen | Regressionssuite und echte öffentliche Android-Bedienung | Keine erneute Implementierung |
+| Speicherung und Scan | Manifest-ACK vor optionalem Cleanup; Besitz-, Epoch-, Race- und Fehlerguards; atomarer Legacy-MultiRemove; kompakter Status, Details, Cancel, Warnungen und Erfolgsausblendung | Vollständige Jest-/Native-Gates; MediaStore- und SAF-Import; öffentliche optionale Waveform-Cancellation mit drei terminalen ACKs | Host-Quickscanprofile sind keine A50-/Provider-IO-Messung |
+| Wiedergabe, Queue, Resume | Native atomare Queue-Ersetzung; MiniPlayer-Layoutmessung bleibt erhalten; Titel/Timeline-/Sessionidentität und Resume-Revisionsbelege | MP3/M4A/FLAC/SAF mit tatsächlichem native Positionsfortschritt; 2→5 Queue; Drag, Cover-Geste, Hintergrund; Resume Ein/Aus nach echtem Prozessneustart | Nur isolierter Android-35-Emulator, kein neuer A50-Vergleich |
+| Darstellung und Farben | Getrennte globale, Player- und Waveform-Akzente; 12 Wahlmöglichkeiten je Präferenz; sofortiger Farbwechsel; beide Playerlayouts; ruhiges Profil und Dichte | Alle 36 öffentlichen Radio-Wahlen, drei unterschiedliche persistierte Präferenzen und beide Layouts nach Kaltstart | Vollständige Schrift-/Theme-/Dichte-Matrix noch laufend |
+| Tag-Cleaner | Gemeinsame ID-Auswahl und LongPress, mehrere Einstiegspunkte, Regeln, rohe Vorschau, Confidence, manuelle Anpassung, Filter, Display-only und sequenzieller SAF-Write mit CAS/Cancel/Journal/Export | 21 Referenz-Tagdatensätze und negative Host-/Native-Fälle; echter synthetischer SAF-MP3: Vorschau/Display-only bytegleich, Kaltstart idempotent, physische Korrektur erfolgreich; Audio/APIC/TPUB/WXXX/zwei ReplayGain-TXXX/XKIW/.lrc erhalten | Keine Original-Audiodateien im Übergabepaket; keine Originalmusik verändert. Unsichere Rename-/FLAC-/Website-/Unknownframe-Rewrites bleiben Vorschau/Export |
+| Backup/Restore | Echter SAF-Export, read-only Inspection, explizite Preview/Restore; additive Kopie mit Original, IDs, Reihenfolge und Favorit | Live und nach Kaltstart öffentlich geprüft; Exportdatei unabhängig gelesen | Sammlungssicherung enthält keine Audiodateien; transaktionale Recovery ist kein späteres Undo |
+| Sicherheit | Vorhandene strikte Audit-, Manifest-, Bundle-, NUL- und Komplexitätsgates unverändert | Source-CI 38444159146: Qualität, Security, Androidbuild und 178 native Tests erfolgreich | Issue #396: befristete bestehende Ausnahmen bis 21.10.2026, keine Null-Befund-Auditbehauptung |
+| Auslieferung | Unveränderte exakt gebaute APK erneut genutzt, kein unnötiger Build | Alle Stufen durch Quelle/Digest und immutable Artefakte zugeordnet | Freigabe erst nach vollständiger UI-Matrix |
 
-## P1: bestätigte Quellenfehler
+## APK-Identität
 
-Zwei neue Solltests scheitern auf dem veröffentlichten Ausgangscode und bestehen nach der Korrektur:
+- Quelle: `70275c7a66aa9d24e5c2a33421388d93ad9a20d6`
+- Source-CI: [38444159146](https://github.com/k1w1-a0style/musik-player/actions/runs/38444159146)
+- Originalartefakt: [11838417686](https://github.com/k1w1-a0style/musik-player/actions/runs/38444159146/artifacts/11838417686)
+- APK: 100.825.389 Bytes; SHA-256 `f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807`
+- ZIP SHA-256: `5c3a0c94d96da1f4d2a03c2fb3c3633ef936f556a4a0fe11a983a7fed97568fd`
+- Package: `com.k1w1a0style.musikplayer`; Version 1.0.0 / Code 1; minSDK 24, targetSDK 36.
+- ABIs: arm64-v8a, armeabi-v7a, x86, x86_64. APK-v2-Signatur geprüft.
+- Öffentliches Preview-Testzertifikat SHA-256: `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`. Keine behauptete private Store-/Produktionssignierung.
 
-1. Ein beim expliziten FullScan vorhandener 32-stelliger MD5-Revisionswert wurde beim Resume ignoriert. Bei gleicher URI, Größe und Zeit konnte eine geänderte bekannte Revision eine alte Position erhalten. MD5 ergänzt nun ausschließlich den vorhandenen Größe-/Zeitbeleg; MD5 allein bleibt ungeeignet. SHA-256 bleibt der starke eigenständige Beleg.
-2. Backup-URI-Matching mit SHA-256 auf nur einer Seite fiel bisher auf Größe/Zeit zurück. Der fehlende Hashbeleg ist jetzt ein Konflikt statt einer stillen automatischen Zuordnung.
+Eine frühere lokal unvollständige Downloadkopie wurde separat gesichert und durch den unabhängig geprüften vollständigen Originaldownload ersetzt. Sie ist kein Auslieferungsartefakt.
 
-Der bekannte MP3-Retestfehler betrifft eine tatsächliche native Dauer 1:29 bei einem nominellen90s-Clip. Nur app-eigene mm:ss-Labels werden ausgewertet (keine Statusbar-Uhr oder zusammengesetzte Tagtexte), max.1s codecbedingte Abweichung. Dauer wird ausschließlich aus dem echten Timeline-Container gelesen; ein Fall mit anderer Trackdauer bleibt ein Fehler. Je Format/SAF sind mindestens2s plausibler tatsächlicher Positionsfortschritt und app-eigene NativeSessionstate3 mit passendem Titel verlangt. Ein echter horizontaler Coverswipe muss zum öffentlich bestätigten Queue-Vorgänger wechseln und dessen Titel/Dauer/Fortschritt nativ beweisen. Alle31 Python-Diagnose-/Negativtests bestehen. Ein Sliderfallback wird als Timeline erkannt und nicht als fertig analysierte SVG-Waveform ausgegeben.
+## Qualitäts- und Sicherheitsbelege
 
-Hostprüfung: 404 Suiten/3934 Tests vollständig grün,194,175s, Coverage93,61% Statements/85,20% Branches/95,22% Functions/96,09% Lines. Zwei betroffene Suiten24Tests nach abschließender semantisch gleicher Komplexitätsaufteilung erneut grün. Typecheck/strengerLint/SourceNUL(1044)/Komplexität(3742Funktionen) bestehen; Android-Hermesexport/Boundary1638Quellen und generierte Manifestpolicy bestehen. Native Build und genaue UI-Abnahme dieses geänderten Appstands folgen, sie werden nicht aus dem alten3b09201-APK abgeleitet.
+Die drei wiederverwendeten Source-Gates gehören exakt zum APK-Commit; jeder APK-Retest kontrolliert dies und den vollständigen Datei-Digest vor Gerätezugriff.
 
-## Laufender Übergabepunkt
+- 427 Jest-Suiten / 4.133 Tests; Coverage 92,92 % Statements, 85,31 % Branches, 94,03 % Functions, 95,98 % Lines.
+- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 110 Tests vor Gerätezugriff.
+- TypeScript, strenger ESLint, Komplexität (4.207 Produktionsfunktionen), NUL-Gate (1.106 Quellen), Hermes-/Bundle-Boundary (1.682 Quellen), Expo- und Manifestgates erfolgreich.
+- Android: 168 SystemAudio- und 10 RNTP-Tests, insgesamt 178, plus erfolgreicher nativer Build.
+- Produktionsaudit: 0 kritisch, 23 hoch, 5 moderat. Bestehende Ausnahmen aus [Issue #396](https://github.com/k1w1-a0style/musik-player/issues/396) gelten nur bis 21.10.2026. Keine Ausnahme verlängert, kein Sicherheitsgate abgeschwächt.
 
-Vier echte Teilprüfungen wurden beauftragt; Implementierung in getrennten Worktrees, keine konkurrierenden Dateiwriter. Hauptagent integriert kontrolliert und veröffentlicht ausschließlich codex. V5 ist noch nicht vollständig implementiert oder freigegeben. Unsafe Dateirewrites, FLACwrites, Rename/Website-/Unknownframe-Löschung bleiben hinter dem belegten nativen Vertrag; reine Vorschläge und Export müssen dies deutlich zeigen. Native Recovery nach Write ist kein späteres Undo.
+Die ursprüngliche Gesamt-CI war wegen ihrer UI-Stufe **nicht** vollständig grün. Die drei Source-Gates sind grün; spätere Android-Abnahmebelege werden separat und bytegenau zugeordnet.
 
-## P1 APK-Nachtrag: bestätigter Named-State-Testfehler
+## Unveränderliche native Stufenbelege
 
-Der neue Quellenstand8a47be64 besteht CI38194320051 Security,Quality und echten NativeReleaseBuild. Das gebaute Artefakt11723521394 enthält100.660.973Bytes, SHA256b075699a70c5d17b7f77b00d880640d0960aa8bf701236c02de450310243c0ba. Die öffentliche UI-Abnahme114637734474 ist fehlgeschlagen: Android35 schreibt PLAYING(3), der Test verlangte numerisches state=3. Der tatsächliche app-eigene MediaSession-Dump zeigt33.301ms und später36.465ms, Screenshot/nativeTimeline laufendes MP3 und1:29. Das ist ein belegter Parserfehler; weitere Formate und Bedienabläufe sind damit noch nicht abgenommen.
+| Stufe | Lauf / Harness | Abschlussbeleg |
+|---|---|---|
+| Formate, SAF, Queue, Resume, Hintergrund, Gesten, Backup/Restore | [38485945141](https://github.com/k1w1-a0style/musik-player/actions/runs/38485945141), `8c9ef09274c303a26ee16441ed2862a924874156`; Artefakt 11860034815 | Alle Funktionen dieser Stufen kehrten erfolgreich zurück; Folgefehler erst beim nachfolgenden Farben-Kaltstart. Native Resume: gespeichert 258 s, Start 258,011 s, pausiert 268,786 s, Androidzeit 10,970 s, eingefrorene UI 268 s. |
+| Farben und Persistenz | [38493618238](https://github.com/k1w1-a0style/musik-player/actions/runs/38493618238), `afe6cc2f111598906c6b9f7a1073a0c76e5548d4`; Artefakt 11862572701 | `stage-progress.json`: Farbenstufe abgeschlossen, 12 Optionen pro Präferenz; App purple, Player cyan, Waveform blue, instantColors true; classic und soundcloud. Folgefehler erst beim Cleaner-Systempicker. |
+| Cleaner mit echten SAF-Bytes | [38499858377](https://github.com/k1w1-a0style/musik-player/actions/runs/38499858377), `fd29e3e2bb71c347d6e403b566aa06cef68a1e3a`; Artefakt 11866222091 | `stage-progress.json`: komplette Cleaner-Transaktion abgeschlossen. Folgefehler erst bei einer abgeschnittenen Menüfläche in der UI-Matrix. |
+| 36 UI-Kombinationen | [38502985939](https://github.com/k1w1-a0style/musik-player/actions/runs/38502985939), `956aa2411c67ba890369a686b6ffdb402070f99a` | Noch laufend. 320 dp; Schrift 1,0/1,3/2,0 × hell/dunkel × graphite/minimal/neon-cover × Standard/Kompakt. Originale 48-dp-/Nichtüberlappungsbedingungen unverändert. |
 
-Vier neue Solltests sind zunächst rot: NamedState, fremdePlayingSession, fremderMetadatentitel, doppelteEigeneSession. Der korrigierte Parser liest ausschließlich den exakt zugehörigen eingerückten package-Block; PLAYING(3) und legacy3 sind erlaubt, PAUSED(2)/PAUSED(3)/PLAYING(2)/33 werden abgelehnt. Alle35 Pythonfälle bestehen. Ein Retest pinnt ausschließlich diese neue8a47APK und deren dreiOriginalgates; Produktivänderungen bleiben verboten. Nur der explizit freigegebene V5-Statusbericht kommt zur Dokumentationsallowlist hinzu. Normale spätere codex-Pushes besitzen einen eigenen Concurrencygroup und können den laufenden APK-Retest nicht allein durch einen skippedJob abbrechen. Der reguläre Preview-/RequiredRelease-Workflow wird nicht gelockert.
+Eine Stufenabnahme allein setzt `releaseAccepted` bewusst nicht auf true. Erst die vollständige Kombination aller bytegleich zugeordneten Belege kann die finale APK-Abnahme ergeben.
 
-Der letzte veröffentlichte Stand bleibt ein P1-Zwischenergebnis, keine vollständige V5-Freigabe. Noch offene neue Features und finale exakte V5-APK werden weiterbearbeitet.
+### Unabhängige Cleaner-Dateiprüfung
+
+Nur generierte Sinus-MP3 und generierte Sidecar-Datei wurden bearbeitet. Die Original-Tagdatensätze dienen als separate Vorschlagsreferenz.
+
+- Original SHA-256 `e13be3f15bbfcf0edb4795a30cefdd7c3fc2df75d4075c662ee8425fc841e403`; Ergebnis `52af83343fefdf327132edb01c2e8548dab16d80de10c7f3c1122b0a1c1c7806`.
+- Encodierte Audioframes exakt gleich, SHA-256 `18b420012bef6db2dc00075a558639f89b56778fd13fc9f6768f41e5729fc3d0`.
+- APIC, TPUB, WXXX, beide TXXX-ReplayGain-Werte und XKIW exakt erhalten. Unabhängiges ffprobe: MP3 plus Cover, 75,075918 s; bereinigte Title/Artist, Album und Publisher vorhanden.
+- Sidecar SHA-256 `1a134e289fcb2e27a7973df560d03fc3600e40d5a3f073ebfd619bff105f2638`, vorher/nachher identisch.
+- UI-Ergebnis: 1 geprüft, 1 geändert, 0 übersprungen, 0 Konflikte, 0 fehlgeschlagen, 0 offen.
+- Read-only Vorschau und reine Anzeigekorrektur ließen die Originaldatei exakt unverändert; Kaltstart bestätigt gespeicherte/idempotente Anzeigekorrektur.
+
+[Unabhängige Artefaktlesung 38504053136](https://github.com/k1w1-a0style/musik-player/actions/runs/38504053136) bestätigt gespeicherte JSONs, tatsächliche Dateihashes und Screenshots ohne neuen Emulator.
+
+## Ursache der Unterbrechungen und effizienter weiterer Betrieb
+
+Der ursprüngliche Abbruch mit `AdbError: closed` und offline-Emulator enthält keinen eindeutigen app-eigenen FATAL-Beleg. Er wurde als Transport-/Infrastrukturfehler untersucht. Ein späterer begrenzter Reconnect behielt dieselbe Bootidentität und Appzustand; andere echte Fehler wurden aus ihren nativen XMLs statt aus pauschalen App-Absturzannahmen isoliert.
+
+Nachgewiesene Treiberursachen: Settings-Fling übersprang eine vollständige Zeile; Host-RPC-Endzeit wurde mit einer älteren Timeline verglichen; Recoverybanner überdeckte ein vorhandenes Menü; Appnavigation wurde vor asynchronem Systempicker gewählt; Breadcrumb-Textenabled war Styling bei eigenem RecyclerView-GestureDetector; noch laufende optionale Waveformarbeit blockierte Backup korrekt; nach Kaltstart musste die native Queue vor Cleaner erneut öffentlich ausgeschlossen werden; Android zeigte bereits auf den Scrollparent abgeschnittene Menürechtecke.
+
+Alle Korrekturen erhalten echte ACK-, Eigentümer-, Queue-, Clipping-, Positions-, Byte-, Sicherheits- und Ergebnisassertions. Kein Blind-Retry nach unverändertem Fehler, kein paralleler schreibender Agent. QA Wolf wurde nicht verwendet. Limrun war erreichbar, hatte jedoch keine zum aktuellen Digest zugeordnete installierte APK und keinen eingerichteten lokalen CLI-/ADB-Pfad; es gab keinen neuen Login-/Setupversuch.
+
+Die lokale Work-VM antwortet zeitweise ausdrücklich mit `environment_offline` bzw. getrennter exec-Verbindung. Ein historischer Codex-Abbruch nennt ein Nutzungslimit. Daraus folgt kein nachgewiesener allgemeiner Pluginfehler. GitHub-Tests laufen unabhängig weiter. Wertvolle lokale Entwürfe wurden vor dem Ausfall durch Patch/Stash/Commit gesichert; veröffentlichte Arbeitspakete stehen auf codex.
+
+## Messgrenzen und spätere Ideen
+
+Kein neues Gesamt-Deep-Scan. Vorhandene V4-Berichte und Ideen bleiben erhalten. Die JS-Quickscan-Messungen führen reale JS-Discovery/Revisions-/Workerpfade mit sofortigen Providerdoubles aus; sie ersetzen keine Messung langsamer Android-SAF-Provider, CPU/RAM/Jank oder eines Samsung A50. Sprach-TalkBack und eine vollständige externe Providermatrix wurden nicht tatsächlich geprüft und werden nicht als bestanden ausgegeben.
+
+Die relevanten nächsten Erweiterungen sind echte A50-Baseline/Profiling, gesprochene TalkBack-Abnahme, tiefe/langsame/abbrechende SAF-Provider, zusätzliche native Container für sicheren Tag-Write und optionales dauerhaftes Audio-Undo mit Platzbudget. Dies sind ausgewiesene Folgearbeiten, keine Zusage vorhandener unsicherer Dateirewrites.
