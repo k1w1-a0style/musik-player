@@ -35,7 +35,7 @@ Eine frühere lokal unvollständige Downloadkopie wurde separat gesichert und du
 Die drei wiederverwendeten Source-Gates gehören exakt zum APK-Commit; jeder APK-Retest kontrolliert dies und den vollständigen Datei-Digest vor Gerätezugriff.
 
 - 427 Jest-Suiten / 4.133 Tests; Coverage 92,92 % Statements, 85,31 % Branches, 94,03 % Functions, 95,98 % Lines.
-- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 117 Tests vor Gerätezugriff.
+- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 119 Tests vor Gerätezugriff.
 - TypeScript, strenger ESLint, Komplexität (4.207 Produktionsfunktionen), NUL-Gate (1.106 Quellen), Hermes-/Bundle-Boundary (1.682 Quellen), Expo- und Manifestgates erfolgreich.
 - Android: 168 SystemAudio- und 10 RNTP-Tests, insgesamt 178, plus erfolgreicher nativer Build.
 - Produktionsaudit: 0 kritisch, 23 hoch, 5 moderat. Bestehende Ausnahmen aus [Issue #396](https://github.com/k1w1-a0style/musik-player/issues/396) gelten nur bis 21.10.2026. Keine Ausnahme verlängert, kein Sicherheitsgate abgeschwächt.

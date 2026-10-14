@@ -1139,6 +1139,28 @@ Audio playback (lastly played comes first)
             self.assertIs(smoke.scroll_to(key),target)
             adb.assert_called_once_with('shell','input','swipe','256','685','256','349','800')
 
+    def test_native_settings_ids_choose_direct_direction_instead_of_full_top_roundtrip(self):
+        position=[2]
+        ids=['settings-waveform-accent-blue','settings-tag-cleaner','settings-appearance-dark','settings-skin-minimal']
+        def frame():
+            return ET.fromstring(f'<hierarchy><node resource-id="settings-scroll" package="{smoke.PACKAGE}" class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node package="{smoke.PACKAGE}" resource-id="{ids[position[0]]}" bounds="[21,667][459,871]"/></node></hierarchy>')
+        def swipe(*args):
+            position[0]=max(0,min(3,position[0]+(-1 if int(args[4])<int(args[6]) else 1)))
+        with patch.object(smoke,'scroll_query_frame',side_effect=lambda key:frame()),patch.object(smoke,'adb',side_effect=swipe) as adb,patch.object(smoke.time,'sleep'):
+            self.assertEqual(smoke.scroll_to('settings-skin-minimal',top=True).get('resource-id'),'settings-skin-minimal')
+            adb.assert_called_once_with('shell','input','swipe','240','708','240','372','800')
+
+    def test_settings_order_uses_exact_owned_observed_controls_and_source_option_order(self):
+        root=ET.fromstring(f'<hierarchy><node resource-id="settings-scroll" package="{smoke.PACKAGE}" class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node package="{smoke.PACKAGE}" resource-id="settings-tag-cleaner" bounds="[47,457][434,540]"/><node package="{smoke.PACKAGE}" resource-id="settings-appearance-dark" bounds="[21,667][459,871]"/></node></hierarchy>')
+        self.assertIs(smoke.settings_scroll_direction(root,'settings-skin-minimal'),False)
+        self.assertIs(smoke.settings_scroll_direction(root,'settings-quiet-profile'),True)
+        self.assertIsNone(smoke.settings_scroll_direction(root,'settings-unknown-option'))
+        for field,value in (('package','com.android.documentsui'),('resource-id','other-scroll')):
+            bad=ET.fromstring(ET.tostring(root));bad[0].set(field,value)
+            self.assertIsNone(smoke.settings_scroll_direction(bad,'settings-skin-minimal'))
+        for node in root[0]:node.set('package','com.android.documentsui')
+        self.assertIsNone(smoke.settings_scroll_direction(root,'settings-skin-minimal'))
+
     def test_top_search_reaches_earlier_control_beyond_ten_measured_drags(self):
         key = 'settings-quiet-profile'
         position = [14]

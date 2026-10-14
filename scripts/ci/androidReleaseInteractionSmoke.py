@@ -275,6 +275,43 @@ def scroll_query_frame(key):
     return frame
 
 
+def settings_control_order(key):
+    # Exact order in the pinned APK's Settings/Accent/Presentation components.
+    exact = {'settings-cover-bass-pulse':(0,0), 'settings-cover-bass-pulse-option':(0,0),
+             'settings-resume':(1,0), 'settings-resume-enabled':(1,0), 'settings-resume-clear':(1,1),
+             'settings-instant-colors':(3,12), 'settings-quiet-profile':(4,0),
+             'settings-backup':(7,0), 'backup-create':(7,1), 'backup-inspect':(7,2),
+             'backup-select-restore':(7,3), 'settings-tag-cleaner':(8,0), 'settings-theme-preview':(12,0)}
+    if key in exact:
+        return exact[key]
+    families = (('settings-appAccent-',2,ACCENT_IDS), ('settings-playerAccent-',3,ACCENT_IDS),
+                ('settings-density-',5,('standard','compact')), ('settings-waveform-accent-',6,ACCENT_IDS),
+                ('settings-appearance-',9,('dark','light')),
+                ('settings-skin-',10,('graphite','minimal','neon-cover')),
+                ('settings-player-layout-',11,('classic','soundcloud')))
+    for prefix,section,options in families:
+        if key.startswith(prefix) and key[len(prefix):] in options:
+            return section,options.index(key[len(prefix):])
+    return None
+
+
+def settings_scroll_direction(frame, key):
+    target = settings_control_order(key)
+    if target is None:
+        return None
+    owner = vertical_scroll_surface(frame,key)
+    if not matches(owner,'settings-scroll') or owner.get('package') != PACKAGE:
+        return None
+    observed = [settings_control_order(node.get('resource-id','').split(':id/')[-1])
+                for node in owner.iter('node') if visible(node) and node.get('package') == PACKAGE]
+    orders = [order for order in observed if order is not None]
+    if orders and target < min(orders):
+        return True
+    if orders and target > max(orders):
+        return False
+    return None
+
+
 def scroll_to(key, top=False, limit=24):
     down, previous, previous_direction, stable = top, None, None, 0
     # Keep the original total gesture budget. Change direction at an observed
@@ -284,6 +321,9 @@ def scroll_to(key, top=False, limit=24):
         found = scroll_candidate(key, frame)
         if found is not None:
             return found
+        direct = settings_scroll_direction(frame,key)
+        if direct is not None:
+            down = direct
         clipped = candidate(key, frame)
         if clipped is not None:
             _, sy1, _, sy2 = scroll_bounds(frame, key)
@@ -307,6 +347,7 @@ def scroll_to(key, top=False, limit=24):
             (OUT / (stem+'.xml')).write_text(ET.tostring(frame, encoding='unicode'))
             print('SCROLL_QUERY ' + json.dumps({'target':key,'attempt':attempt,
                   'direction':'top' if down else 'bottom','stableOwnerFrames':stable,
+                  'navigation':'observed-settings-order' if direct is not None else 'boundary-search',
                   'observation':stem+'.xml','surfaceBounds':rect(surface)}), flush=True)
         precise = key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
