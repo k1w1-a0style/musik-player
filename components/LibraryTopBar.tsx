@@ -25,9 +25,9 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
       <View style={styles.brandRow}>
         <Image source={KIWI_MUSIC_ARTWORK} style={[styles.brandLogo, { borderColor: theme.palette.borderStrong }]}
           fadeDuration={0} accessible={false} />
-        <View>
-          <Text style={[styles.brand, { color: theme.palette.text.primary }]}>{title}</Text>
-          <Text style={[styles.brandCaption, { color: theme.palette.text.muted }]}>MUSIKBIBLIOTHEK</Text>
+        <View style={styles.brandText}>
+          <Text numberOfLines={1} style={[styles.brand, { color: theme.palette.text.primary }]}>{title}</Text>
+          <Text numberOfLines={1} style={[styles.brandCaption, { color: theme.palette.text.muted }]}>MUSIKBIBLIOTHEK</Text>
         </View>
       </View>
       <View style={styles.topActions}>
@@ -59,12 +59,13 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
 
 const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 8 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandLogo: { width: 38, height: 38, borderRadius: 11, borderWidth: StyleSheet.hairlineWidth },
+  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandText: { flex: 1, minWidth: 0 },
+  brandLogo: { width: 38, height: 38, flexShrink: 0, borderRadius: 11, borderWidth: StyleSheet.hairlineWidth },
   brandCaption: { fontSize: 8, letterSpacing: 2.1, fontFamily: staticTokens.fonts.body },
   brand: { fontFamily: staticTokens.fonts.heading, fontSize: 25, letterSpacing: -0.8 },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 38, height: 38, borderRadius: 21, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  topActions: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconButton: { width: 48, height: 48, flexShrink: 0, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default LibraryTopBar;

@@ -373,6 +373,31 @@ def screenshot(name):
     (OUT / (name + '.xml')).write_text(dump_hierarchy(False))
 
 
+def validate_library_header_touch_areas(frame):
+    controls = [candidate(key,frame) for key in ('library-toggle-search','library-open-menu')]
+    for node in controls:
+        assert node is not None and node.get('package') == PACKAGE and node.get('enabled') == 'true', 'Header control missing or not enabled app-owned UI'
+        x1,y1,x2,y2 = rect(node)
+        assert 0 <= x1 < x2 <= 480 and 0 <= y1 < y2 <= 960, 'Header control is clipped by screen'
+        assert x2-x1 >= 72 and y2-y1 >= 72, 'Header control is smaller than 48dp'
+    search,menu = (rect(node) for node in controls)
+    assert search[2] <= menu[0], 'Header search overlaps menu'
+    return {'searchBounds':search,'menuBounds':menu}
+
+
+def header_font_preflight():
+    proofs = []
+    for scale in ('1.0','2.0'):
+        adb('shell','settings','put','system','font_scale',scale)
+        wait_uncovered_library_header()
+        proofs.append({'fontScale':scale,**validate_library_header_touch_areas(tree(compressed=False))})
+        screenshot('header-font-preflight-'+scale)
+    adb('shell','settings','put','system','font_scale','1.0')
+    wait_uncovered_library_header()
+    V5_PROOFS['headerPreflight'] = proofs
+    CHECKS.append('public-library-header-font1-and-font2-whole48dp-controls-before-full-flow')
+
+
 def settings():
     tap('library-open-menu')
     target = scroll_to('library-menu-item-einstellungen')
@@ -1655,7 +1680,7 @@ def previous_matrix_cases():
                 assert len(matches) == 1 and matches[0].stat().st_size > 0, 'Missing previous native matrix observation: '+name
                 (OUT/name).write_bytes(matches[0].read_bytes())
     V5_PROOFS['matrixEvidenceOrigins'] = [data]
-    return cases
+    return list(cases)
 
 
 def ui_matrix():
@@ -1688,6 +1713,7 @@ def ui_matrix():
                     play_box, menu_box = rect(first), rect(menu)
                     assert menu_box[2]-menu_box[0] >= 72 and menu_box[3]-menu_box[1] >= 72, 'Song menu is smaller than 48dp'
                     assert play_box[2] <= menu_box[0]+1, 'Song play area overlaps its menu'
+                    header = validate_library_header_touch_areas(tree(compressed=False))
                     screenshot(f'library-{scale}-{appearance}-{skin}-{density}')
                     tap_node(menu)
                     find('song-action-menu-card')
@@ -1696,7 +1722,8 @@ def ui_matrix():
                     find('soundcloud-play-button')
                     screenshot(f'player-{scale}-{appearance}-{skin}-{density}')
                     V5_PROOFS['matrix'].append({'fontScale': scale, 'appearance': appearance,
-                        'skin': skin, 'density': density, 'playBounds': play_box, 'menuBounds': menu_box})
+                        'skin': skin, 'density': density, 'playBounds': play_box, 'menuBounds': menu_box,
+                        'header':header})
                     (OUT / 'matrix-progress.json').write_text(json.dumps(V5_PROOFS['matrix'], indent=2))
                     back()
                     if density == 'standard':
@@ -1857,6 +1884,7 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        header_font_preflight()
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-matrix':
             matrix_only_acceptance()
             return

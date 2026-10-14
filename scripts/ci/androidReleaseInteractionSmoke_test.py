@@ -1197,6 +1197,22 @@ Audio playback (lastly played comes first)
             self.assertLessEqual(adb.call_count,4)
             tap.assert_not_called()
 
+    def test_header_acceptance_rejects_recorded_font2_clip_and_requires_whole_48dp_controls(self):
+        def frame(search,menu,package=smoke.PACKAGE):
+            return ET.fromstring(f'<hierarchy><node package="{package}" enabled="true" resource-id="library-toggle-search" bounds="{search}"/><node package="{package}" enabled="true" resource-id="library-open-menu" bounds="{menu}"/></hierarchy>')
+        for root in (frame('[399,81][456,138]','[468,81][480,138]'),frame('[390,60][462,132]','[470,60][542,132]'),frame('[300,60][380,132]','[370,60][442,132]'),frame('[294,60][366,132]','[378,60][450,132]','com.android.documentsui')):
+            with self.assertRaises(AssertionError):smoke.validate_library_header_touch_areas(root)
+        self.assertEqual(smoke.validate_library_header_touch_areas(frame('[294,60][366,132]','[378,60][450,132]'))['menuBounds'],[378,60,450,132])
+
+    def test_reusing_cases_does_not_append_new_cases_to_original_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'verified-matrix-origin.json').write_text(json.dumps({'cases':[]}))
+            with patch.dict(smoke.os.environ,{'PREVIOUS_MATRIX_EVIDENCE':str(root)}),patch.object(smoke,'V5_PROOFS',{}),patch.object(smoke,'validate_previous_matrix',side_effect=lambda data:data['cases']):
+                cases=smoke.previous_matrix_cases()
+                cases.append({'fresh-native-case':True})
+                self.assertEqual(smoke.V5_PROOFS['matrixEvidenceOrigins'][0]['cases'],[])
+
     def test_latest_previous_matrix_requires_all_twenty_six_exact_native_cases(self):
         cases=[{'fontScale':scale,'appearance':appearance,'skin':skin,'density':density,'playBounds':[20,200,300,300],'menuBounds':[380,200,452,272]}
                for scale in ('1.0','1.3') for appearance in ('dark','light') for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')]

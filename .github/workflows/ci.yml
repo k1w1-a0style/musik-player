@@ -348,7 +348,7 @@ jobs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
     needs: [security-audit, quality-gates, native-gates]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     env:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
@@ -401,8 +401,8 @@ jobs:
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
             --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
           mkdir -p ci-logs
-          nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
+          nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim -no-metrics \
+            -gpu swiftshader -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
           echo $! > ci-logs/emulator.pid
           timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
           export PATH="$ANDROID_HOME/platform-tools:$PATH"

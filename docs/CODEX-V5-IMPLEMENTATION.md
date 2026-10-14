@@ -2,7 +2,7 @@
 
 Die V4-/V5-Arbeit wird im bestehenden Projekt fortgesetzt. App-Quelle: `70275c7a66aa9d24e5c2a33421388d93ad9a20d6`. Alle späteren Änderungen betreffen Abnahmetreiber und Statusdokumentation. `main` bleibt unverändert.
 
-**Freigabestatus: 26 von 36 UI-Fällen bestanden; zehn noch offen. Keine finale APK-Freigabe.** Dieser Zwischenstand wird erst nach Prüfung aller 36 Kombinationen ersetzt.
+**Freigabestatus: Referenz-APK70275c7 nicht freigegeben.** Die36er-Matrix ist bestanden, die manuelle Sichtkontrolle belegt aber einen auf12Pixel abgeschnittenen Header-Menübutton bei200% Schrift. Der Header ist korrigiert; neue APK/Source-CI und eigenständige Abnahme ausstehend. Alte26+10 Belege bleiben archiviert und werden nicht als Nachweis einer geänderten APK ausgegeben.
 
 ## Geplant → implementiert → geprüft → Grenzen
 
@@ -35,7 +35,7 @@ Eine frühere lokal unvollständige Downloadkopie wurde separat gesichert und du
 Die drei wiederverwendeten Source-Gates gehören exakt zum APK-Commit; jeder APK-Retest kontrolliert dies und den vollständigen Datei-Digest vor Gerätezugriff.
 
 - 427 Jest-Suiten / 4.133 Tests; Coverage 92,92 % Statements, 85,31 % Branches, 94,03 % Functions, 95,98 % Lines.
-- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 119 Tests vor Gerätezugriff.
+- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 121 Tests, einschließlich Header-/Provenienz-Regressionen.
 - TypeScript, strenger ESLint, Komplexität (4.207 Produktionsfunktionen), NUL-Gate (1.106 Quellen), Hermes-/Bundle-Boundary (1.682 Quellen), Expo- und Manifestgates erfolgreich.
 - Android: 168 SystemAudio- und 10 RNTP-Tests, insgesamt 178, plus erfolgreicher nativer Build.
 - Produktionsaudit: 0 kritisch, 23 hoch, 5 moderat. Bestehende Ausnahmen aus [Issue #396](https://github.com/k1w1-a0style/musik-player/issues/396) gelten nur bis 21.10.2026. Keine Ausnahme verlängert, kein Sicherheitsgate abgeschwächt.
@@ -81,3 +81,10 @@ Die lokale Work-VM antwortet zeitweise ausdrücklich mit `environment_offline` b
 Kein neues Gesamt-Deep-Scan. Vorhandene V4-Berichte und Ideen bleiben erhalten. Die JS-Quickscan-Messungen führen reale JS-Discovery/Revisions-/Workerpfade mit sofortigen Providerdoubles aus; sie ersetzen keine Messung langsamer Android-SAF-Provider, CPU/RAM/Jank oder eines Samsung A50. Sprach-TalkBack und eine vollständige externe Providermatrix wurden nicht tatsächlich geprüft und werden nicht als bestanden ausgegeben.
 
 Die relevanten nächsten Erweiterungen sind echte A50-Baseline/Profiling, gesprochene TalkBack-Abnahme, tiefe/langsame/abbrechende SAF-Provider, zusätzliche native Container für sicheren Tag-Write und optionales dauerhaftes Audio-Undo mit Platzbudget. Dies sind ausgewiesene Folgearbeiten, keine Zusage vorhandener unsicherer Dateirewrites.
+
+
+## Neuer produktiver Header-Abschluss
+
+Der erfolgreiche Matrixlauf38606155940 (Artefakt11916211717; ZIP SHA25609ff4d5f98570ced63644927fbc39770b252da36b0614f0a8ba3428164a59fdf) ist die gesicherte36er-Referenz des unveränderten70275c7-APK. Die manuelle Sichtkontrolle weist zusätzlich einen echten Headerfehler nach: bei320dp/200% wird Mehr Optionen auf12px Breite beschnitten. Flexible Marken-/Textbreite und feste48dp-Aktionsflächen beheben die Ursache. Alle Schriftgrößen bleiben aktiviert; native Preflight-/Matrix-Gates prüfen vollständige48dp-Bounds innerhalb des Bildschirms und keine Suche-/Menüüberlappung.
+
+Neuer Build ist aufgrund dieser Appänderung erforderlich. Die Quell-/Byte-Gates werden nicht gelockert, alte Laufbelege gelten nicht automatisch für andere APK-Bytes. Kein main-Write, keine Originalmusikänderung. Finalisierung wartet auf die neue Source-CI und exakte neue APK-Abnahme.
