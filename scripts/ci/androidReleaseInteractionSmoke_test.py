@@ -115,7 +115,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_picker_waits_for_system_package_and_never_taps_app_navigate_up(self):
         app = ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" content-desc="Navigate up" bounds="[0,36][84,120]"/></hierarchy>')
-        docs = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" resource-id="com.google.android.documentsui:id/breadcrumb_text" bounds="[0,108][275,180]"/></hierarchy>')
+        docs = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" enabled="true" resource-id="com.google.android.documentsui:id/breadcrumb_text" bounds="[0,108][275,180]"/></hierarchy>')
         with patch.object(smoke,'tree',side_effect=[app,app,docs]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
             smoke.select_picker_storage()
             tap.assert_not_called()
@@ -128,6 +128,43 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             smoke.select_picker_storage()
             self.assertEqual(tap.call_count,2)
             self.assertTrue(all(call.args[0].get('package')=='com.google.android.documentsui' for call in tap.call_args_list))
+
+    def picker_trail_frame(self, current_root=False):
+        pkg='com.google.android.documentsui'
+        root=ET.Element('hierarchy')
+        owner=ET.SubElement(root,'node',{'package':pkg,'resource-id':pkg+':id/horizontal_breadcrumb','enabled':'true','bounds':'[0,108][480,180]'})
+        names=['sdk_gphone64_x86_64'] if current_root else ['sdk_gphone64_x86_64','Download','MusikBackup']
+        for index,name in enumerate(names):
+            item=ET.SubElement(owner,'node',{'package':pkg,'enabled':'true','clickable':'false','bounds':f'[{index*160},108][{(index+1)*160},180]'})
+            ET.SubElement(item,'node',{'package':pkg,'resource-id':pkg+':id/breadcrumb_text','text':name,
+                'enabled':'true' if index==len(names)-1 else 'false','bounds':f'[{index*160},108][{(index+1)*160-10},180]'})
+        return root
+
+    def test_picker_sdk_ancestor_is_not_current_root_and_requires_real_location_ack(self):
+        nested=self.picker_trail_frame()
+        top=self.picker_trail_frame(current_root=True)
+        self.assertFalse(smoke.picker_at_internal_root(nested))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'tree',side_effect=[nested,top,top,top]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+            smoke.select_picker_storage()
+            tap.assert_called_once()
+            self.assertEqual(smoke.rect(tap.call_args.args[0]),[0,108,160,180])
+            self.assertTrue((Path(directory)/'picker-internal-root-ack.xml').exists())
+
+    def test_picker_root_tap_without_location_ack_and_clipped_owner_still_fail(self):
+        nested=self.picker_trail_frame()
+        clock=iter(range(100))
+        with patch.object(smoke,'tree',return_value=nested), patch.object(smoke.time,'sleep'), \
+             patch.object(smoke.time,'monotonic',side_effect=lambda:next(clock)), patch.object(smoke,'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError,'did not acknowledge'):
+                smoke.navigate_picker_root(nested,timeout=5)
+            tap.assert_called_once()
+        clipped=self.picker_trail_frame()
+        next(clipped.iter('node')).set('bounds','[10,108][480,180]')
+        with patch.object(smoke,'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError,'clipped'):
+                smoke.navigate_picker_root(clipped)
+            tap.assert_not_called()
 
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')

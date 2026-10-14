@@ -400,13 +400,53 @@ def storage_label(node):
     return text in ('Internal storage', 'Pixel 6') or text.startswith('sdk_gphone')
 
 
+def picker_breadcrumbs(root):
+    return [node for node in document_nodes(root)
+            if node.get('resource-id', '').endswith(':id/breadcrumb_text')]
+
+
+def picker_at_internal_root(root):
+    crumbs = picker_breadcrumbs(root)
+    return len(crumbs) == 1 and storage_label(crumbs[0]) and crumbs[0].get('enabled') == 'true'
+
+
+def navigate_picker_root(root, timeout=25):
+    crumbs = picker_breadcrumbs(root)
+    assert crumbs and storage_label(crumbs[0]), 'Exact system storage breadcrumb missing'
+    parents = {child: parent for parent in root.iter() for child in parent}
+    item = parents.get(crumbs[0])
+    owner = parents.get(item)
+    assert item is not None and item.get('package') in DOCUMENTS_PACKAGES and item.get('enabled') == 'true', 'Root breadcrumb item is not enabled or system-owned'
+    assert owner is not None and owner.get('resource-id', '').endswith(':id/horizontal_breadcrumb'), 'Actual breadcrumb touch owner missing'
+    x1,y1,x2,y2 = rect(item)
+    ox1,oy1,ox2,oy2 = rect(owner)
+    assert ox1 <= x1 < x2 <= ox2 and oy1 <= y1 < y2 <= oy2, 'Root breadcrumb clipped by its native owner'
+    # AOSP HorizontalBreadcrumb routes a physical single tap through its
+    # RecyclerView GestureDetector. Child enabled=isLast only selects text
+    # styling; ancestry, owner bounds and the resulting location are mandatory.
+    trail = [node.get('text') for node in crumbs]
+    tap_node(item)
+    deadline = time.monotonic() + timeout
+    stable = 0
+    while time.monotonic() < deadline:
+        after = tree(compressed=False)
+        stable = stable + 1 if picker_at_internal_root(after) else 0
+        if stable >= 3:
+            (OUT / 'picker-internal-root-ack.xml').write_text(ET.tostring(after, encoding='unicode'))
+            print('PICKER_ROOT_ACK ' + json.dumps({'before':trail,'after':[node.get('text') for node in picker_breadcrumbs(after)],'bounds':rect(item),'stableFrames':stable}), flush=True)
+            return
+        time.sleep(.3)
+    raise AssertionError('System picker did not acknowledge internal-root breadcrumb navigation')
+
+
 def select_picker_storage(timeout=25):
     root = wait_document_picker(timeout)
-    nodes = document_nodes(root)
-    # The genuine picker may already show internal-storage root. Its observed
-    # breadcrumb identity is proof; app toolbar text is never system navigation.
-    if any(node.get('resource-id', '').endswith(':id/breadcrumb_text') and storage_label(node) for node in nodes):
+    if picker_at_internal_root(root):
         return
+    if picker_breadcrumbs(root):
+        navigate_picker_root(root, timeout)
+        return
+    nodes = document_nodes(root)
     opener = next((node for node in nodes if node.get('content-desc') in ('Show roots','Navigate up')
                    and node.get('enabled') == 'true'), None)
     assert opener is not None, 'System storage navigation action absent'
