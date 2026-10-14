@@ -1356,6 +1356,8 @@ def cleaner_acceptance():
     tap('library-open-menu')
     tap('library-menu-item-ordner-hinzuf-gen')
     choose_folder(['Music', 'V5OnlySAF'])
+    wait_collection_idle()
+    quiesce_optional_preparation()
     # The following public long-press selection scrolls to the imported row;
     # import success does not require a fifth/sixth row to start onscreen.
     select_cleaner_safe_playback_queue()
@@ -1466,6 +1468,38 @@ def ui_matrix():
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
 
 
+def quiesce_optional_preparation(timeout=60):
+    frame = tree(compressed=False)
+    panel = candidate('library-waveform-preparation', frame)
+    if panel is None:
+        return
+    cancel = candidate('Waveformanalyse abbrechen', frame)
+    assert cancel is not None and cancel.get('package') == PACKAGE and cancel.get('enabled') == 'true', 'Optional preparation has no valid public cancellation action'
+    sequence = len(V5_PROOFS.setdefault('optionalPreparation', [])) + 1
+    screenshot(f'optional-preparation-{sequence}-before-cancel')
+    tap_node(cancel)
+    deadline = time.monotonic() + timeout
+    stable = 0
+    while time.monotonic() < deadline:
+        frame = tree(compressed=False)
+        stopped = candidate('Waveformanalyse angehalten', frame) is not None
+        completed = candidate('library-waveform-preparation', frame) is None
+        stable = stable + 1 if stopped or completed else 0
+        if stable >= 3:
+            screenshot(f'optional-preparation-{sequence}-cancel-ack')
+            V5_PROOFS['optionalPreparation'].append({'sequence': sequence, 'publicCancelBounds': rect(cancel),
+                'terminalState': 'cancelled' if stopped else 'completed', 'stableAckFrames': stable})
+            CHECKS.append('public-optional-waveform-cancellation-ack-before-maintenance')
+            # Only after the actual coroutine publishes its terminal state and
+            # releases metadata activity in finally, restart to prove durable
+            # scan contents and remove the acknowledged optional UI session.
+            public_cold_start()
+            return
+        time.sleep(.4)
+    (OUT / 'optional-preparation-not-stopped.xml').write_text(ET.tostring(frame, encoding='unicode'))
+    raise AssertionError('Optional waveform preparation did not acknowledge cancellation')
+
+
 def wait_collection_idle(timeout=150):
     started = time.monotonic()
     deadline = started + timeout
@@ -1473,7 +1507,10 @@ def wait_collection_idle(timeout=150):
     while time.monotonic() < deadline:
         frame = tree(compressed=False)
         busy = candidate('library-import-status', frame)
-        stable = stable + 1 if busy is None else 0
+        header = candidate('library-open-menu', frame)
+        idle = (busy is None and header is not None and header.get('package') == PACKAGE
+                and header.get('enabled') == 'true')
+        stable = stable + 1 if idle else 0
         if stable >= 3:
             (OUT / 'collection-idle.xml').write_text(ET.tostring(frame, encoding='unicode'))
             print('Public scan status disappeared; collection ready for backup.', flush=True)
@@ -1494,6 +1531,7 @@ def prepare_final_stage_collection():
     # Create setup through actual public UI and SAF export, never inject app data.
     import_public_collection()
     wait_collection_idle()
+    quiesce_optional_preparation()
     library_tab('playlists')
     create_public_playlist('V3Backup')
     tap('Playlist V3Backup')

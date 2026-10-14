@@ -61,7 +61,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_collection_waits_for_three_clean_frames_after_scan(self):
         busy = ET.fromstring('<hierarchy><node resource-id="library-import-status" bounds="[30,200][450,330]"/></hierarchy>')
-        clean = ET.fromstring('<hierarchy/>')
+        clean = self.header_frame()
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
              patch.object(smoke, 'tree', side_effect=[busy,clean,clean,busy,clean,clean,clean]) as tree, \
              patch.object(smoke.time, 'sleep'):
@@ -71,13 +71,47 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_persistent_scan_or_warning_cannot_reach_backup(self):
         busy = ET.fromstring('<hierarchy><node resource-id="library-import-status" bounds="[30,200][450,330]"/></hierarchy>')
+        for frame in (busy, ET.fromstring('<hierarchy/>')):
+            clock = iter(range(100))
+            with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+                 patch.object(smoke, 'tree', return_value=frame), patch.object(smoke.time, 'sleep'), \
+                 patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)):
+                with self.assertRaisesRegex(AssertionError, 'did not finish before backup'):
+                    smoke.wait_collection_idle(timeout=5)
+                self.assertTrue((Path(directory)/'collection-still-busy.xml').exists())
+
+    def preparation_frame(self, stopped=False):
+        root = self.header_frame()
+        ET.SubElement(root,'node',{'resource-id':'library-waveform-preparation','bounds':'[30,210][450,330]'})
+        if stopped:
+            ET.SubElement(root,'node',{'text':'Waveformanalyse angehalten','bounds':'[50,220][300,290]'})
+        else:
+            ET.SubElement(root,'node',{'content-desc':'Waveformanalyse abbrechen','package':smoke.PACKAGE,'enabled':'true','bounds':'[320,220][422,292]'})
+        return root
+
+    def test_optional_preparation_cancels_once_then_requires_terminal_ack_before_restart(self):
+        running, stopped = self.preparation_frame(), self.preparation_frame(stopped=True)
+        with patch.object(smoke, 'CHECKS', []), patch.object(smoke, 'V5_PROOFS', {}), \
+             patch.object(smoke, 'tree', side_effect=[running,running,stopped,stopped,stopped]), \
+             patch.object(smoke, 'screenshot'), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'public_cold_start') as restart:
+            smoke.quiesce_optional_preparation()
+            tap.assert_called_once()
+            self.assertEqual(tap.call_args.args[0].get('content-desc'),'Waveformanalyse abbrechen')
+            restart.assert_called_once()
+
+    def test_optional_preparation_without_ack_must_not_restart_or_bypass_scope(self):
         clock = iter(range(100))
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
-             patch.object(smoke, 'tree', return_value=busy), patch.object(smoke.time, 'sleep'), \
-             patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)):
-            with self.assertRaisesRegex(AssertionError, 'did not finish before backup'):
-                smoke.wait_collection_idle(timeout=5)
-            self.assertTrue((Path(directory)/'collection-still-busy.xml').exists())
+             patch.object(smoke, 'V5_PROOFS', {}), \
+             patch.object(smoke, 'tree', return_value=self.preparation_frame()), \
+             patch.object(smoke, 'screenshot'), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke.time, 'monotonic', side_effect=lambda:next(clock)), \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'public_cold_start') as restart:
+            with self.assertRaisesRegex(AssertionError, 'did not acknowledge'):
+                smoke.quiesce_optional_preparation(timeout=5)
+            tap.assert_called_once()
+            restart.assert_not_called()
 
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
@@ -468,6 +502,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                  patch.object(smoke, 'adb'), patch.object(smoke, 'tap'), \
                  patch.object(smoke, 'choose_folder'), patch.object(smoke, 'find', side_effect=find), \
                  patch.object(smoke, 'select_cleaner_safe_playback_queue'), \
+                 patch.object(smoke, 'wait_collection_idle'), patch.object(smoke, 'quiesce_optional_preparation'), \
                  patch.object(smoke, 'scroll_to', side_effect=scroll_target) as scroll:
                 with self.assertRaises(ReachedAnalysis):
                     smoke.cleaner_acceptance()
