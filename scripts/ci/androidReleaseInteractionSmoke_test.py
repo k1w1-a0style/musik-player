@@ -59,6 +59,26 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 smoke.validate_matrix_coverage(changed)
 
+    def test_collection_waits_for_three_clean_frames_after_scan(self):
+        busy = ET.fromstring('<hierarchy><node resource-id="library-import-status" bounds="[30,200][450,330]"/></hierarchy>')
+        clean = ET.fromstring('<hierarchy/>')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=[busy,clean,clean,busy,clean,clean,clean]) as tree, \
+             patch.object(smoke.time, 'sleep'):
+            smoke.wait_collection_idle()
+            self.assertEqual(tree.call_count,7)
+            self.assertTrue((Path(directory)/'collection-idle.xml').exists())
+
+    def test_persistent_scan_or_warning_cannot_reach_backup(self):
+        busy = ET.fromstring('<hierarchy><node resource-id="library-import-status" bounds="[30,200][450,330]"/></hierarchy>')
+        clock = iter(range(100))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', return_value=busy), patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke.time, 'monotonic', side_effect=lambda: next(clock)):
+            with self.assertRaisesRegex(AssertionError, 'did not finish before backup'):
+                smoke.wait_collection_idle(timeout=5)
+            self.assertTrue((Path(directory)/'collection-still-busy.xml').exists())
+
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
         field = ET.fromstring('<node text="SwipeProbe" focused="true"/>')

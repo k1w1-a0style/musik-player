@@ -1466,9 +1466,34 @@ def ui_matrix():
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
 
 
+def wait_collection_idle(timeout=150):
+    started = time.monotonic()
+    deadline = started + timeout
+    stable, details = 0, False
+    while time.monotonic() < deadline:
+        frame = tree(compressed=False)
+        busy = candidate('library-import-status', frame)
+        stable = stable + 1 if busy is None else 0
+        if stable >= 3:
+            (OUT / 'collection-idle.xml').write_text(ET.tostring(frame, encoding='unicode'))
+            print('Public scan status disappeared; collection ready for backup.', flush=True)
+            return
+        if not details and busy is not None and time.monotonic()-started >= 10:
+            button = candidate('Scan-Details', frame)
+            if button is not None:
+                assert button.get('package') == PACKAGE and button.get('enabled') == 'true', 'Scan details control invalid'
+                tap_node(button)
+                details = True
+                screenshot('scan-wait-details')
+        time.sleep(.4)
+    (OUT / 'collection-still-busy.xml').write_text(ET.tostring(frame, encoding='unicode'))
+    raise AssertionError('Collection scan or persistence status did not finish before backup')
+
+
 def prepare_final_stage_collection():
     # Create setup through actual public UI and SAF export, never inject app data.
     import_public_collection()
+    wait_collection_idle()
     library_tab('playlists')
     create_public_playlist('V3Backup')
     tap('Playlist V3Backup')
