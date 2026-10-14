@@ -223,8 +223,10 @@ jobs:
           fi
           set +e
           cd android
-          echo "Exact native Gradle test task: ./gradlew $assemble_task :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain"
-          ./gradlew "$assemble_task" :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee ../native-gradle.log
+          free -h
+          gradle_vm="-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+          echo "Exact native Gradle test task: ./gradlew $assemble_task :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --max-workers=2 --console=plain; build VM: $gradle_vm"
+          ./gradlew "$assemble_task" :expo-system-audio:testDebugUnitTest :rntp_player:testDebugUnitTest --no-daemon --max-workers=2 "-Dorg.gradle.jvmargs=$gradle_vm" --console=plain 2>&1 | tee ../native-gradle.log
           status=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$status" > ../native-gradle.exit-code
