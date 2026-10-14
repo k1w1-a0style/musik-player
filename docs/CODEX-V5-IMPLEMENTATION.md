@@ -2,7 +2,7 @@
 
 Die V4-/V5-Arbeit wird im bestehenden Projekt fortgesetzt. App-Quelle: `70275c7a66aa9d24e5c2a33421388d93ad9a20d6`. Alle späteren Änderungen betreffen Abnahmetreiber und Statusdokumentation. `main` bleibt unverändert.
 
-**Freigabestatus: UI-Matrix noch laufend. Keine finale APK-Freigabe.** Dieser Zwischenstand wird erst nach Prüfung aller 36 Kombinationen ersetzt.
+**Freigabestatus: 26 von 36 UI-Fällen bestanden; zehn noch offen. Keine finale APK-Freigabe.** Dieser Zwischenstand wird erst nach Prüfung aller 36 Kombinationen ersetzt.
 
 ## Geplant → implementiert → geprüft → Grenzen
 
@@ -35,7 +35,7 @@ Eine frühere lokal unvollständige Downloadkopie wurde separat gesichert und du
 Die drei wiederverwendeten Source-Gates gehören exakt zum APK-Commit; jeder APK-Retest kontrolliert dies und den vollständigen Datei-Digest vor Gerätezugriff.
 
 - 427 Jest-Suiten / 4.133 Tests; Coverage 92,92 % Statements, 85,31 % Branches, 94,03 % Functions, 95,98 % Lines.
-- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 110 Tests vor Gerätezugriff.
+- Source-CI: 65 Python-Diagnose-/Negativtests. Der fortgesetzte Treiber ergänzt gezielte Regressionen; letzte Matrixversion: 117 Tests vor Gerätezugriff.
 - TypeScript, strenger ESLint, Komplexität (4.207 Produktionsfunktionen), NUL-Gate (1.106 Quellen), Hermes-/Bundle-Boundary (1.682 Quellen), Expo- und Manifestgates erfolgreich.
 - Android: 168 SystemAudio- und 10 RNTP-Tests, insgesamt 178, plus erfolgreicher nativer Build.
 - Produktionsaudit: 0 kritisch, 23 hoch, 5 moderat. Bestehende Ausnahmen aus [Issue #396](https://github.com/k1w1-a0style/musik-player/issues/396) gelten nur bis 21.10.2026. Keine Ausnahme verlängert, kein Sicherheitsgate abgeschwächt.
@@ -49,7 +49,7 @@ Die ursprüngliche Gesamt-CI war wegen ihrer UI-Stufe **nicht** vollständig gr�
 | Formate, SAF, Queue, Resume, Hintergrund, Gesten, Backup/Restore | [38485945141](https://github.com/k1w1-a0style/musik-player/actions/runs/38485945141), `8c9ef09274c303a26ee16441ed2862a924874156`; Artefakt 11860034815 | Alle Funktionen dieser Stufen kehrten erfolgreich zurück; Folgefehler erst beim nachfolgenden Farben-Kaltstart. Native Resume: gespeichert 258 s, Start 258,011 s, pausiert 268,786 s, Androidzeit 10,970 s, eingefrorene UI 268 s. |
 | Farben und Persistenz | [38493618238](https://github.com/k1w1-a0style/musik-player/actions/runs/38493618238), `afe6cc2f111598906c6b9f7a1073a0c76e5548d4`; Artefakt 11862572701 | `stage-progress.json`: Farbenstufe abgeschlossen, 12 Optionen pro Präferenz; App purple, Player cyan, Waveform blue, instantColors true; classic und soundcloud. Folgefehler erst beim Cleaner-Systempicker. |
 | Cleaner mit echten SAF-Bytes | [38499858377](https://github.com/k1w1-a0style/musik-player/actions/runs/38499858377), `fd29e3e2bb71c347d6e403b566aa06cef68a1e3a`; Artefakt 11866222091 | `stage-progress.json`: komplette Cleaner-Transaktion abgeschlossen. Folgefehler erst bei einer abgeschnittenen Menüfläche in der UI-Matrix. |
-| 36 UI-Kombinationen | [38502985939](https://github.com/k1w1-a0style/musik-player/actions/runs/38502985939), `956aa2411c67ba890369a686b6ffdb402070f99a` | Noch laufend. 320 dp; Schrift 1,0/1,3/2,0 × hell/dunkel × graphite/minimal/neon-cover × Standard/Kompakt. Originale 48-dp-/Nichtüberlappungsbedingungen unverändert. |
+| 36 UI-Kombinationen | [38502985939](https://github.com/k1w1-a0style/musik-player/actions/runs/38502985939), `956aa2411c67ba890369a686b6ffdb402070f99a` | 26 Fälle bestätigt, nur zehn 200-%-Fälle noch offen. Ursache im Treiber: Richtungswechsel vor bestätigtem oberen Listenrand. 320 dp; Schrift 1,0/1,3/2,0 × hell/dunkel × graphite/minimal/neon-cover × Standard/Kompakt. Originale 48-dp-/Nichtüberlappungsbedingungen unverändert. |
 
 Eine Stufenabnahme allein setzt `releaseAccepted` bewusst nicht auf true. Erst die vollständige Kombination aller bytegleich zugeordneten Belege kann die finale APK-Abnahme ergeben.
 

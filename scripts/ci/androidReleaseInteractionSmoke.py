@@ -276,7 +276,10 @@ def scroll_query_frame(key):
 
 
 def scroll_to(key, top=False, limit=24):
-    for down in ([True]*10 if top else []) + [False]*limit:
+    down, previous, previous_direction, stable = top, None, None, 0
+    # Keep the original total gesture budget. Change direction at an observed
+    # boundary, not after ten drags that may stop midway through large text.
+    for attempt in range(limit + (10 if top else 0)):
         frame = scroll_query_frame(key)
         found = scroll_candidate(key, frame)
         if found is not None:
@@ -289,12 +292,29 @@ def scroll_to(key, top=False, limit=24):
                 down = False
             elif y1 <= sy1:
                 down = True
+        surface = vertical_scroll_surface(frame, key)
+        signature = tuple(tuple(node.get(attr, '') for attr in
+                          ('resource-id','class','text','content-desc','bounds'))
+                          for node in surface.iter('node') if visible(node))
+        stable = stable + 1 if signature == previous and down == previous_direction else 1
+        if stable >= 3:
+            if down and top:
+                down, stable = False, 1
+            else:
+                break
+        if OUT.exists():
+            stem = 'scroll-query-' + str(len(SCROLL_PROOFS))
+            (OUT / (stem+'.xml')).write_text(ET.tostring(frame, encoding='unicode'))
+            print('SCROLL_QUERY ' + json.dumps({'target':key,'attempt':attempt,
+                  'direction':'top' if down else 'bottom','stableOwnerFrames':stable,
+                  'observation':stem+'.xml','surfaceBounds':rect(surface)}), flush=True)
         precise = key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
         SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
                              'surfaceBounds': rect(vertical_scroll_surface(frame, key)),
                              'coordinates': coordinates})
         adb('shell', 'input', 'swipe', *(str(value) for value in coordinates), '800' if precise else '300')
+        previous, previous_direction = signature, down
         time.sleep(.2)
     found = scroll_candidate(key, scroll_query_frame(key))
     if found is not None:
@@ -1558,14 +1578,20 @@ def validate_matrix_coverage(cases):
 def validate_previous_matrix(data):
     assert data['sourceCommit'] == '70275c7a66aa9d24e5c2a33421388d93ad9a20d6'
     assert data['apkSha256'] == 'f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807'
-    assert data['harnessCommit'] == '956aa2411c67ba890369a686b6ffdb402070f99a'
-    assert data['run'] == 38502985939 and data['artifactDigest'] == 'sha256:3c41fb19942e57dea9df9ee954ba8f68fccf9d6fd577794bc291eeacbe1e1c05'
+    pinned = {
+        '956aa2411c67ba890369a686b6ffdb402070f99a': (38502985939, 'sha256:3c41fb19942e57dea9df9ee954ba8f68fccf9d6fd577794bc291eeacbe1e1c05'),
+        'e65cf4ce3d87a7ad310facf43a27c7d076782557': (38505950487, 'sha256:749abd2df08334fde929a62f13ce04c075565a6955d03d5cc2291ce88814cbe1'),
+    }
+    assert data['harnessCommit'] in pinned, 'Unreviewed previous matrix harness'
+    assert (data['run'],data['artifactDigest']) == pinned[data['harnessCommit']], 'Previous matrix artifact identity mismatch'
     cases = data['cases']
     expected = {(scale,appearance,skin,density) for scale in ('1.0','1.3')
                 for appearance in ('dark','light') for skin in ('graphite','minimal','neon-cover')
                 for density in ('standard','compact')}
     actual = [(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in cases]
-    assert len(actual) == 24 and set(actual) == expected, 'Previous matrix coverage is incomplete or duplicated'
+    if data['harnessCommit'] == 'e65cf4ce3d87a7ad310facf43a27c7d076782557':
+        expected |= {('2.0','dark','graphite',density) for density in ('standard','compact')}
+    assert len(actual) == len(expected) and set(actual) == expected, 'Previous matrix coverage is incomplete or duplicated'
     for case in cases:
         menu,play = case['menuBounds'],case['playBounds']
         assert menu[2]-menu[0] >= 72 and menu[3]-menu[1] >= 72, 'Previous menu touch area fails 48dp'
@@ -1600,6 +1626,8 @@ def ui_matrix():
         adb('shell', 'settings', 'put', 'system', 'font_scale', scale)
         for appearance in ('dark', 'light'):
             for skin in ('graphite', 'minimal', 'neon-cover'):
+                if all((scale,appearance,skin,density) in completed for density in ('standard','compact')):
+                    continue
                 settings()
                 select('settings-appearance-' + appearance, top=True)
                 select('settings-skin-' + skin, top=True)

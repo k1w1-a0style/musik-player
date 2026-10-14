@@ -74,8 +74,8 @@ jobs:
         if: env.PREVIOUS_MATRIX_EVIDENCE != ''
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: retest-preview-release-acceptance-956aa2411c67ba890369a686b6ffdb402070f99a
-          run-id: 38502985939
+          name: retest-preview-release-acceptance-e65cf4ce3d87a7ad310facf43a27c7d076782557
+          run-id: 38505950487
           github-token: ${{ github.token }}
           path: previous-matrix
       - name: Bind previous native cases to exact source, successful provenance gate and immutable artifact
@@ -91,19 +91,19 @@ jobs:
           def api(path):
               request=urllib.request.Request('https://api.github.com/repos/k1w1-a0style/musik-player/'+path,headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json'})
               with urllib.request.urlopen(request,timeout=30) as r:return json.load(r)
-          run=api('actions/runs/38502985939')
-          assert run['head_sha']=='956aa2411c67ba890369a686b6ffdb402070f99a' and run['status']=='completed'
-          jobs=api('actions/runs/38502985939/jobs')['jobs']
+          run=api('actions/runs/38505950487')
+          assert run['head_sha']=='e65cf4ce3d87a7ad310facf43a27c7d076782557' and run['status']=='completed'
+          jobs=api('actions/runs/38505950487/jobs')['jobs']
           assert len(jobs)==1
           guards=[s for s in jobs[0]['steps'] if s['name']=='Reject changed app sources, failed original gates or altered APK bytes']
           assert len(guards)==1 and guards[0]['conclusion']=='success'
-          artifact=api('actions/artifacts/11867072751')
-          assert artifact['digest']=='sha256:3c41fb19942e57dea9df9ee954ba8f68fccf9d6fd577794bc291eeacbe1e1c05'
+          artifact=api('actions/artifacts/11868471006')
+          assert artifact['digest']=='sha256:749abd2df08334fde929a62f13ce04c075565a6955d03d5cc2291ce88814cbe1'
           paths=list(Path('previous-matrix').rglob('matrix-progress.json'));assert len(paths)==1
           data={'sourceCommit':os.environ['REVIEWED_APK_SOURCE_COMMIT'],'apkSha256':os.environ['EXPECTED_APK_SHA256'],'harnessCommit':run['head_sha'],'run':run['id'],'artifactDigest':artifact['digest'],'cases':json.loads(paths[0].read_text())}
           validate_previous_matrix(data)
           (Path('previous-matrix')/'verified-matrix-origin.json').write_text(json.dumps(data,indent=2))
-          print('24 complete native cases bound to the same unchanged inspected APK; all 36 remain required at final validation.')
+          print('26 complete native cases bound to the same unchanged inspected APK; all 36 remain required at final validation.')
           PY
 
       - name: Prepare isolated Android emulator
@@ -162,7 +162,7 @@ jobs:
           from pathlib import Path
           import base64, json
           root = Path('ci-logs/release-interaction')
-          names = ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','stage-result.json','stage-progress.json','resume-clock-proof.json','cold-start-uncovered-header.xml','picker-root-before-input.xml','picker-root-input.json','picker-internal-root-ack.xml','playlist-add-proofs.json','fixture-mediastore.txt','cover-swipe-before.xml','cover-swipe-before-session.txt','cover-swipe-input.json','public-input-before.xml','public-input-unfocused.xml','instant-colors-before.xml','instant-colors-after.xml','instant-colors-cold.xml')
+          names = ('latest-ui.xml','final.xml','result.json','diagnostic-result.json','stage-result.json','stage-progress.json','matrix-progress.json','resume-clock-proof.json','cold-start-uncovered-header.xml','picker-root-before-input.xml','picker-root-input.json','picker-internal-root-ack.xml','playlist-add-proofs.json','fixture-mediastore.txt','cover-swipe-before.xml','cover-swipe-before-session.txt','cover-swipe-input.json','public-input-before.xml','public-input-unfocused.xml','instant-colors-before.xml','instant-colors-after.xml','instant-colors-cold.xml')
           for name in names:
               path = root / name
               if path.is_file() and path.stat().st_size <= 300000:

@@ -1139,6 +1139,53 @@ Audio playback (lastly played comes first)
             self.assertIs(smoke.scroll_to(key),target)
             adb.assert_called_once_with('shell','input','swipe','256','685','256','349','800')
 
+    def test_top_search_reaches_earlier_control_beyond_ten_measured_drags(self):
+        key = 'settings-quiet-profile'
+        position = [14]
+        def frame():
+            root = ET.fromstring(f'<hierarchy><node resource-id="settings-scroll" class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node text="section-{position[0]}" bounds="[20,300][300,360]"/></node></hierarchy>')
+            if position[0] == 2:
+                ET.SubElement(root[0], 'node', {'resource-id':key, 'checked':'true', 'bounds':'[364,496][436,537]'})
+            return root
+        def swipe(*args):
+            position[0] += -1 if int(args[4]) < int(args[6]) else 1
+        with patch.object(smoke,'scroll_query_frame',side_effect=lambda key:frame()), patch.object(smoke,'adb',side_effect=swipe) as adb, patch.object(smoke.time,'sleep'):
+            self.assertEqual(smoke.scroll_to(key,top=True).get('checked'),'true')
+            self.assertEqual(position[0],2)
+            self.assertEqual(adb.call_count,12)
+
+    def test_top_search_changes_direction_only_after_three_equal_owner_frames(self):
+        position = [0]
+        key = 'settings-quiet-profile'
+        def frame():
+            root = ET.fromstring(f'<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node text="section-{position[0]}" bounds="[20,300][300,360]"/></node><node package="com.android.systemui" text="clock-changing" bounds="[0,0][40,30]"/></hierarchy>')
+            if position[0] == 2:
+                ET.SubElement(root[0],'node',{'resource-id':key,'bounds':'[364,496][436,537]'})
+            return root
+        def swipe(*args):
+            position[0] = max(0, position[0]+(-1 if int(args[4])<int(args[6]) else 1))
+        with patch.object(smoke,'scroll_query_frame',side_effect=lambda key:frame()), patch.object(smoke,'adb',side_effect=swipe) as adb, patch.object(smoke.time,'sleep'):
+            self.assertIsNotNone(smoke.scroll_to(key,top=True))
+            self.assertEqual(adb.call_count,4)
+
+    def test_stationary_missing_control_fails_without_endless_identical_swipes(self):
+        frame = ET.fromstring('<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node text="real boundary" bounds="[20,300][300,360]"/></node></hierarchy>')
+        with patch.object(smoke,'scroll_query_frame',return_value=frame),patch.object(smoke,'adb') as adb,patch.object(smoke.time,'sleep'),patch.object(smoke,'tap_node') as tap:
+            with self.assertRaises(AssertionError):smoke.scroll_to('settings-quiet-profile',top=True)
+            self.assertLessEqual(adb.call_count,4)
+            tap.assert_not_called()
+
+    def test_latest_previous_matrix_requires_all_twenty_six_exact_native_cases(self):
+        cases=[{'fontScale':scale,'appearance':appearance,'skin':skin,'density':density,'playBounds':[20,200,300,300],'menuBounds':[380,200,452,272]}
+               for scale in ('1.0','1.3') for appearance in ('dark','light') for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')]
+        cases += [{'fontScale':'2.0','appearance':'dark','skin':'graphite','density':density,'playBounds':[20,200,300,300],'menuBounds':[380,200,452,272]} for density in ('standard','compact')]
+        data={'sourceCommit':'70275c7a66aa9d24e5c2a33421388d93ad9a20d6','apkSha256':'f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807','harnessCommit':'e65cf4ce3d87a7ad310facf43a27c7d076782557','run':38505950487,'artifactDigest':'sha256:749abd2df08334fde929a62f13ce04c075565a6955d03d5cc2291ce88814cbe1','cases':cases}
+        self.assertEqual(smoke.validate_previous_matrix(data),cases)
+        for broken in (cases[:24],cases[:-1],cases[:-1]+[cases[0]]):
+            with self.assertRaises(AssertionError):smoke.validate_previous_matrix(dict(data,cases=broken))
+        for field in ('sourceCommit','apkSha256','harnessCommit','run','artifactDigest'):
+            with self.assertRaises(AssertionError):smoke.validate_previous_matrix(dict(data,**{field:'wrong'}))
+
     def test_previous_matrix_requires_complete_pinned_real_coverage(self):
         cases=[{'fontScale':scale,'appearance':appearance,'skin':skin,'density':density,'playBounds':[20,200,300,300],'menuBounds':[380,200,452,272]}
                for scale in ('1.0','1.3') for appearance in ('dark','light') for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')]
