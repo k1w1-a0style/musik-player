@@ -145,7 +145,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         top=self.picker_trail_frame(current_root=True)
         self.assertFalse(smoke.picker_at_internal_root(nested))
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
-             patch.object(smoke,'tree',side_effect=[nested,nested,top,top,top]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+             patch.object(smoke,'tree',side_effect=[nested,nested,nested,top,top,top]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
             smoke.select_picker_storage()
             tap.assert_called_once()
             self.assertEqual(smoke.rect(tap.call_args.args[0]),[0,108,160,180])
