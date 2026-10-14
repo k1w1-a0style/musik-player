@@ -12,6 +12,53 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def header_frame(self, banner=False, enabled='true', bounds='[393,58][450,115]'):
+        root = ET.fromstring(f'<hierarchy><node resource-id="library-open-menu" package="{smoke.PACKAGE}" enabled="{enabled}" bounds="{bounds}"/></hierarchy>')
+        if banner:
+            ET.SubElement(root, 'node', {'resource-id':'playback-recovery-banner','bounds':'[18,56][462,220]'})
+        return root
+
+    def test_cold_header_requires_uncovered_three_stable_frames(self):
+        ready = self.header_frame()
+        frames = [self.header_frame(banner=True), ready, ready, self.header_frame(banner=True), ready, ready, ready]
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'tree', side_effect=frames) as tree, patch.object(smoke.time, 'sleep'), \
+             patch.object(smoke, 'tap_node') as tap:
+            self.assertEqual(smoke.wait_uncovered_library_header().get('resource-id'), 'library-open-menu')
+            self.assertEqual(tree.call_count, 7)
+            self.assertTrue(all(call.kwargs == {'compressed':False} for call in tree.call_args_list))
+            tap.assert_not_called()
+
+    def test_cold_header_persistent_overlay_and_disabled_control_still_fail(self):
+        for frame in [self.header_frame(banner=True), self.header_frame(enabled='false')]:
+            clock = iter(range(100))
+            with patch.object(smoke, 'tree', return_value=frame), patch.object(smoke.time, 'sleep'), \
+                 patch.object(smoke.time, 'monotonic', side_effect=lambda:next(clock)):
+                with self.assertRaisesRegex(AssertionError, 'remains covered'):
+                    smoke.wait_uncovered_library_header(timeout=5)
+
+    def test_cleaner_rules_scroll_to_the_whole_analyze_action_after_selection(self):
+        song = ET.fromstring('<node bounds="[30,350][290,470]"/>')
+        analyze = ET.fromstring('<node bounds="[24,640][450,711]"/>')
+        with patch.object(smoke, 'scroll_to', side_effect=[song,analyze]) as scroll, \
+             patch.object(smoke, 'adb'), patch.object(smoke, 'find') as find, patch.object(smoke, 'tap'):
+            smoke.open_cleaner_from_song('V5 Cleaner','V5 Proof')
+            self.assertEqual(scroll.call_args_list[-1].args, ('tag-cleaner-analyze',))
+            self.assertEqual(scroll.call_args_list[-1].kwargs, {'top':True})
+            self.assertNotIn(('tag-cleaner-analyze',), [call.args for call in find.call_args_list])
+
+    def test_matrix_requires_all_36_unique_cases_and_safe_touch_geometry(self):
+        cases = [{'fontScale':scale,'appearance':appearance,'skin':skin,'density':density,
+                  'playBounds':[12,250,350,390],'menuBounds':[350,270,422,342]}
+                 for scale in ('1.0','1.3','2.0') for appearance in ('dark','light')
+                 for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')]
+        smoke.validate_matrix_coverage(cases)
+        for changed in [cases[:-1], cases[:-1]+[cases[0]],
+                        [{**cases[0],'menuBounds':[350,270,421,342]}]+cases[1:],
+                        [{**cases[0],'playBounds':[12,250,360,390]}]+cases[1:]]:
+            with self.assertRaises(AssertionError):
+                smoke.validate_matrix_coverage(changed)
+
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
         field = ET.fromstring('<node text="SwipeProbe" focused="true"/>')
@@ -390,6 +437,10 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                 raise AssertionError('Imported cleaner row is below viewport')
             if key == 'tag-cleaner-analyze':
                 raise ReachedAnalysis()
+        def scroll_target(key, **kwargs):
+            if key == 'tag-cleaner-analyze':
+                raise ReachedAnalysis()
+            return ET.fromstring('<node bounds="[28,520][290,603]"/>')
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory) / 'synthetic.mp3'
             fixture.write_bytes(b'synthetic original')
@@ -397,10 +448,12 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                  patch.object(smoke, 'adb'), patch.object(smoke, 'tap'), \
                  patch.object(smoke, 'choose_folder'), patch.object(smoke, 'find', side_effect=find), \
                  patch.object(smoke, 'select_cleaner_safe_playback_queue'), \
-                 patch.object(smoke, 'scroll_to', return_value=ET.fromstring('<node bounds="[28,520][290,603]"/>')) as scroll:
+                 patch.object(smoke, 'scroll_to', side_effect=scroll_target) as scroll:
                 with self.assertRaises(ReachedAnalysis):
                     smoke.cleaner_acceptance()
-                scroll.assert_called_once_with('V5 Cleaner von V5 Proof', top=True)
+                self.assertEqual([(call.args,call.kwargs) for call in scroll.call_args_list],
+                                 [(('V5 Cleaner von V5 Proof',),{'top':True}),
+                                  (('tag-cleaner-analyze',),{'top':True})])
                 self.assertEqual(fixture.read_bytes(), b'synthetic original')
 
     def test_resume_confirmation_rejects_other_dialogs_actions_owners_and_disabled_buttons(self):
@@ -847,7 +900,7 @@ Audio playback (lastly played comes first)
 
     def cleaner_bytes(self, title='V5  Cleaner', artist='V5  Proof', audio=b'encoded-MP3-audio', replacements=None):
         values = {'TIT2': b'\x00' + title.encode(), 'TPE1': b'\x00' + artist.encode(), 'APIC': b'cover',
-                  'TPUB': b'publisher', 'WXXX': b'website', 'XKIW': b'unknown'}
+                  'TPUB': b'publisher', 'WXXX': b'website', 'TXXX': b'\x00REPLAYGAIN_TRACK_GAIN\x00-7.50 dB', 'XKIW': b'unknown'}
         values.update(replacements or {})
         body = b''.join(key.encode() + len(value).to_bytes(4, 'big') + b'\x00\x00' + value for key, value in values.items())
         return b'ID3\x03\x00\x00' + smoke.synchsafe(len(body)) + body + audio
@@ -861,7 +914,7 @@ Audio playback (lastly played comes first)
         for corrupted in [before, self.cleaner_bytes('V5 Cleaner', 'V5 Proof', audio=b'changed audio'),
                           self.cleaner_bytes('V5 Wrong', 'V5 Proof')] + [
                           self.cleaner_bytes('V5 Cleaner', 'V5 Proof', replacements={field: b'changed'})
-                          for field in ('APIC', 'TPUB', 'WXXX', 'XKIW')]:
+                          for field in ('APIC', 'TPUB', 'WXXX', 'TXXX', 'XKIW')]:
             with self.assertRaises(AssertionError):
                 smoke.validate_cleaner_write(before, corrupted)
 

@@ -284,7 +284,7 @@ def scroll_to(key, top=False, limit=24):
                 down = False
             elif y1 < sy1:
                 down = True
-        precise = key.startswith('settings-')
+        precise = key.startswith(('settings-', 'tag-cleaner-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
         SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
                              'surfaceBounds': rect(vertical_scroll_surface(frame, key)),
@@ -1180,7 +1180,9 @@ def dirty_cleaner_fixture():
     image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1cAAAAASUVORK5CYII=')
     values = [('TIT2', b'\x00' + CLEANER_TITLE.encode()), ('TPE1', b'\x00' + CLEANER_ARTIST.encode()),
               ('TALB', b'\x00V5 Acceptance'), ('TRCK', b'\x0001/01'), ('TPUB', b'\x00Beatfreakz Records'),
-              ('WXXX', b'\x00\x00https://pro.beatport.com'), ('APIC', b'\x00image/png\x00\x03\x00' + image),
+              ('WXXX', b'\x00\x00https://pro.beatport.com'),
+              ('TXXX', b'\x00REPLAYGAIN_TRACK_GAIN\x00-7.50 dB'),
+              ('TXXX', b'\x00REPLAYGAIN_TRACK_PEAK\x000.923456'), ('APIC', b'\x00image/png\x00\x03\x00' + image),
               ('XKIW', b'Unknown frame must survive V5')]
     body = b''.join(key.encode() + len(value).to_bytes(4, 'big') + b'\x00\x00' + value for key, value in values)
     path.write_bytes(b'ID3\x03\x00\x00' + synchsafe(len(body)) + body + path.read_bytes())
@@ -1192,7 +1194,7 @@ def validate_cleaner_write(before, after):
     updated, updated_audio = id3_frames(after)
     assert before != after, 'Physical cleaner apply did not change the synthetic original'
     assert original_audio == updated_audio, 'Encoded audio bytes changed'
-    for field in ('APIC', 'TPUB', 'WXXX', 'XKIW'):
+    for field in ('APIC', 'TPUB', 'WXXX', 'TXXX', 'XKIW'):
         assert original[field] == updated.get(field), 'Preserved frame changed: ' + field
     for field, expected in (('TIT2', 'V5 Cleaner'), ('TPE1', 'V5 Proof')):
         payloads = updated.get(field, [])
@@ -1200,13 +1202,34 @@ def validate_cleaner_write(before, after):
         encoding = {0: 'latin1', 1: 'utf-16', 2: 'utf-16-be', 3: 'utf-8'}.get(payloads[0][0])
         assert encoding is not None and payloads[0][1:].decode(encoding).rstrip('\x00') == expected, 'Unexpected cleaned text: ' + field
     return {'beforeSha256': hashlib.sha256(before).hexdigest(), 'afterSha256': hashlib.sha256(after).hexdigest(),
-            'audioSha256': hashlib.sha256(original_audio).hexdigest(), 'preservedFrames': ['APIC', 'TPUB', 'WXXX', 'XKIW']}
+            'audioSha256': hashlib.sha256(original_audio).hexdigest(), 'preservedFrames': ['APIC', 'TPUB', 'WXXX', 'TXXX', 'XKIW'],
+            'preservedFrameSha256': {field: [hashlib.sha256(body).hexdigest() for body in original[field]]
+                                    for field in ('APIC', 'TPUB', 'WXXX', 'TXXX', 'XKIW')}}
 
 
 def public_cold_start():
     adb('shell', 'am', 'force-stop', PACKAGE)
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
-    find('library-open-menu', timeout=60)
+    wait_uncovered_library_header()
+
+
+def wait_uncovered_library_header(timeout=60):
+    deadline = time.monotonic() + timeout
+    previous, stable = None, 0
+    while time.monotonic() < deadline:
+        frame = tree(compressed=False)
+        node = candidate('library-open-menu', frame)
+        safe = (node is not None and node.get('package') == PACKAGE
+                and node.get('enabled') == 'true' and visible(node)
+                and candidate('playback-recovery-banner', frame) is None)
+        bounds = rect(node) if safe else None
+        stable = stable + 1 if bounds is not None and bounds == previous else 0
+        previous = bounds
+        if stable >= 2:
+            (OUT / 'cold-start-uncovered-header.xml').write_text(ET.tostring(frame, encoding='unicode'))
+            return node
+        time.sleep(.25)
+    raise AssertionError('Library header remains covered, disabled or unstable after startup')
 
 
 def assert_radio_selected(root, key):
@@ -1276,7 +1299,7 @@ def open_cleaner_from_song(title, artist):
     adb('shell', 'input', 'swipe', str((x1+x2)//2), str((y1+y2)//2), str((x1+x2)//2), str((y1+y2)//2), '900')
     find('library-selection-actions')
     tap('Tags bereinigen')
-    find('tag-cleaner-analyze')
+    scroll_to('tag-cleaner-analyze', top=True)
 
 
 def validate_cleaner_result(root, mode):
@@ -1325,7 +1348,10 @@ def select_cleaner_safe_playback_queue():
 def cleaner_acceptance():
     path = dirty_cleaner_fixture()
     original = path.read_bytes()
+    sidecar = path.with_suffix('.lrc')
+    sidecar.write_bytes(b'[00:00.00]Synthetic V5 sidecar must remain exact.\n')
     adb('shell', 'mkdir', '-p', '/sdcard/Music/V5OnlySAF')
+    adb('push', str(sidecar), CLEANER_TARGET.removesuffix('.mp3') + '.lrc')
     adb('push', str(path), CLEANER_TARGET)
     tap('library-open-menu')
     tap('library-menu-item-ordner-hinzuf-gen')
@@ -1347,18 +1373,19 @@ def cleaner_acceptance():
     assert pulled.read_bytes() == original, 'Display-only apply modified the original file'
     public_cold_start()
     library_tab('tracks')
-    find('V5 Cleaner von V5 Proof', timeout=60)
+    scroll_to('V5 Cleaner von V5 Proof', top=True)
     open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
     select('tag-cleaner-analyze')
     find('tag-cleaner-select-safe', timeout=90)
-    assert any('bereits sauber' in node.get('text', '') for node in tree().iter('node')), 'Display cleanup lost its acknowledged correction on cold start'
-    assert find('tag-cleaner-apply').get('enabled') == 'false', 'Already clean display fields can be applied again'
+    clean = scroll_to('V5 Acceptance · bereits sauber', top=True)
+    assert clean.get('package') == PACKAGE, 'Display cleanup lost its acknowledged correction on cold start'
+    assert scroll_to('tag-cleaner-apply', top=True).get('enabled') == 'false', 'Already clean display fields can be applied again'
     select('Regeln ändern', top=True)
     select('tag-cleaner-mode-file', top=True)
     select('tag-cleaner-analyze', top=True)
     find('tag-cleaner-select-safe', timeout=90)
-    root = tree()
-    assert any(node.get('text') == 'Vorher: ' + CLEANER_TITLE for node in root.iter('node')), 'File preview omitted original raw whitespace'
+    raw = scroll_to('Vorher: ' + CLEANER_TITLE, top=True)
+    assert raw.get('text') == 'Vorher: ' + CLEANER_TITLE and raw.get('package') == PACKAGE, 'File preview omitted original raw whitespace'
     screenshot('v5-cleaner-raw-file-preview')
     adb('pull', CLEANER_TARGET, str(pulled))
     assert pulled.read_bytes() == original, 'File-tag analysis modified the original'
@@ -1367,11 +1394,16 @@ def cleaner_acceptance():
     screenshot('v5-cleaner-confirmed-saf-file-result')
     adb('pull', CLEANER_TARGET, str(pulled))
     V5_PROOFS['cleaner'] = validate_cleaner_write(original, pulled.read_bytes())
+    sidecar_after = OUT / 'audio' / 'V5-after-write.lrc'
+    adb('pull', CLEANER_TARGET.removesuffix('.mp3') + '.lrc', str(sidecar_after))
+    assert sidecar_after.read_bytes() == sidecar.read_bytes(), 'Cleaner changed the generated sidecar'
+    V5_PROOFS['cleaner']['sidecarSha256'] = hashlib.sha256(sidecar.read_bytes()).hexdigest()
     probe = subprocess.run(['ffprobe', '-v', 'error', '-show_format', '-show_streams', '-of', 'json', str(pulled)], check=True, capture_output=True)
     (OUT / 'v5-cleaner-independent-ffprobe.json').write_bytes(probe.stdout)
+    assert abs(float(json.loads(probe.stdout)['format']['duration']) - 75) < .25, 'Cleaned synthetic audio duration changed'
     public_cold_start()
     library_tab('tracks')
-    find('V5 Cleaner von V5 Proof', timeout=60)
+    scroll_to('V5 Cleaner von V5 Proof', top=True)
     V5_PROOFS['cleaner'].update({'readOnlyPreviewExactBytes': True, 'displayApplyExactOriginalBytes': True, 'coldStartPersisted': True, 'fixture': 'generated synthetic SAF MP3, no user music'})
     settings()
     select('settings-tag-cleaner', top=True)
@@ -1381,7 +1413,20 @@ def cleaner_acceptance():
     CHECKS.append('V5-settings-longpress-selection-raw-preview-display-ack-cold-start-real-SAF-write-audio-APIC-unknown-frames-preserved')
 
 
+def validate_matrix_coverage(cases):
+    expected = {(scale, appearance, skin, density)
+                for scale in ('1.0','1.3','2.0') for appearance in ('dark','light')
+                for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')}
+    actual = [(case['fontScale'],case['appearance'],case['skin'],case['density']) for case in cases]
+    assert len(actual) == len(expected) and set(actual) == expected, 'Presentation matrix missing or duplicates cases'
+    for case in cases:
+        menu, play = case['menuBounds'], case['playBounds']
+        assert menu[2]-menu[0] >= 72 and menu[3]-menu[1] >= 72, 'Matrix menu is smaller than 48dp'
+        assert play[2] <= menu[0]+1, 'Matrix play area overlaps menu'
+
+
 def ui_matrix():
+    V5_PROOFS['matrix'] = []
     for scale in ('1.0', '1.3', '2.0'):
         adb('shell', 'settings', 'put', 'system', 'font_scale', scale)
         for appearance in ('dark', 'light'):
@@ -1410,11 +1455,61 @@ def ui_matrix():
                     tap('mini-player-open')
                     find('soundcloud-play-button')
                     screenshot(f'player-{scale}-{appearance}-{skin}-{density}')
+                    V5_PROOFS['matrix'].append({'fontScale': scale, 'appearance': appearance,
+                        'skin': skin, 'density': density, 'playBounds': play_box, 'menuBounds': menu_box})
+                    (OUT / 'matrix-progress.json').write_text(json.dumps(V5_PROOFS['matrix'], indent=2))
                     back()
                     if density == 'standard':
                         settings()
+    validate_matrix_coverage(V5_PROOFS['matrix'])
     CHECKS.append('320dp-font-1.0-1.3-2.0-all-six-themes-standard-compact-48dp-menu-quiet-blue')
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
+
+
+def prepare_final_stage_collection():
+    # Create setup through actual public UI and SAF export, never inject app data.
+    import_public_collection()
+    library_tab('playlists')
+    create_public_playlist('V3Backup')
+    tap('Playlist V3Backup')
+    tap('playlist-detail-add-button')
+    add_public_playlist_songs(TITLES[:2])
+    tap('playlist-detail-add-close')
+    back()
+    library_tab('tracks')
+    play_title(TITLES[0])
+    tap('mini-player-open')
+    tap('Titel favorisieren')
+    tap('controls-play-pause')
+    back()
+    settings()
+    select('settings-player-layout-soundcloud', top=True)
+    back()
+
+
+def final_stage_acceptance():
+    wait_uncovered_library_header()
+    prepare_final_stage_collection()
+    for label, action in (('SAF backup export, inspection and restore', backup_acceptance),
+                          ('V5 independent accents and persistence', accent_acceptance),
+                          ('V5 cleaner synthetic SAF transaction', cleaner_acceptance),
+                          ('font, theme and density matrix', ui_matrix)):
+        print('Stage: ' + label, flush=True)
+        action()
+        (OUT / 'stage-progress.json').write_text(json.dumps({
+            'sourceCommit': os.environ['REVIEWED_APK_SOURCE_COMMIT'],
+            'harnessCommit': os.environ['GITHUB_SHA'], 'lastCompletedStage': label,
+            'checks': CHECKS, 'v5Proofs': V5_PROOFS, 'releaseAccepted': False}, indent=2))
+    logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
+    assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
+    (OUT / 'stage-result.json').write_text(json.dumps({
+        'mode': 'v5-final-stages', 'status': 'stage-only-passed', 'releaseAccepted': False,
+        'sourceCommit': os.environ['REVIEWED_APK_SOURCE_COMMIT'],
+        'harnessCommit': os.environ['GITHUB_SHA'],
+        'apkSha256': os.environ['EXPECTED_APK_SHA256'],
+        'checks': CHECKS, 'v5Proofs': V5_PROOFS, 'uiSnapshots': UI_SNAPSHOTS,
+        'transportRecoveries': TRANSPORT_RECOVERIES}, indent=2))
+    print('Remaining V5 stages passed; combine with exact-APK prefix proof before release acceptance.', flush=True)
 
 
 def main():
@@ -1438,6 +1533,9 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-final-stages':
+            final_stage_acceptance()
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'settings-switch-probe':
             print('Diagnostic only: public native instant-colors switch and cold persistence.', flush=True)
             settings_switch_probe()
