@@ -410,7 +410,7 @@ def picker_at_internal_root(root):
     return len(crumbs) == 1 and storage_label(crumbs[0]) and crumbs[0].get('enabled') == 'true'
 
 
-def navigate_picker_root(root, timeout=25):
+def picker_root_touch(root):
     crumbs = picker_breadcrumbs(root)
     assert crumbs and storage_label(crumbs[0]), 'Exact system storage breadcrumb missing'
     parents = {child: parent for parent in root.iter() for child in parent}
@@ -421,10 +421,34 @@ def navigate_picker_root(root, timeout=25):
     x1,y1,x2,y2 = rect(item)
     ox1,oy1,ox2,oy2 = rect(owner)
     assert ox1 <= x1 < x2 <= ox2 and oy1 <= y1 < y2 <= oy2, 'Root breadcrumb clipped by its native owner'
-    # AOSP HorizontalBreadcrumb routes a physical single tap through its
-    # RecyclerView GestureDetector. Child enabled=isLast only selects text
-    # styling; ancestry, owner bounds and the resulting location are mandatory.
+    return item, crumbs
+
+
+def settle_picker_root(root, timeout=25):
+    deadline = time.monotonic() + timeout
+    previous, stable = None, 0
+    while time.monotonic() < deadline:
+        if picker_at_internal_root(root):
+            return None, root
+        item, crumbs = picker_root_touch(root)
+        fingerprint = ([node.get('text') for node in crumbs], rect(item))
+        stable = stable + 1 if fingerprint == previous else 0
+        previous = fingerprint
+        if stable >= 2:
+            return item, root
+        time.sleep(.3)
+        root = tree(compressed=False)
+    raise AssertionError('Root breadcrumb never establishes stable touch geometry')
+
+
+def navigate_picker_root(root, timeout=25):
+    item, root = settle_picker_root(root, timeout)
+    if item is None:
+        return
+    crumbs = picker_breadcrumbs(root)
     trail = [node.get('text') for node in crumbs]
+    (OUT / 'picker-root-before-input.xml').write_text(ET.tostring(root, encoding='unicode'))
+    (OUT / 'picker-root-input.json').write_text(json.dumps({'trail':trail,'bounds':rect(item)}, indent=2))
     tap_node(item)
     deadline = time.monotonic() + timeout
     stable = 0
@@ -1621,13 +1645,16 @@ def prepare_final_stage_collection():
     back()
 
 
-def final_stage_acceptance():
+def final_stage_acceptance(cleaner_only=False):
     wait_uncovered_library_header()
     prepare_final_stage_collection()
-    for label, action in (('SAF backup export, inspection and restore', backup_acceptance),
+    stages = (('SAF backup export, inspection and restore', backup_acceptance),
                           ('V5 independent accents and persistence', accent_acceptance),
                           ('V5 cleaner synthetic SAF transaction', cleaner_acceptance),
-                          ('font, theme and density matrix', ui_matrix)):
+                          ('font, theme and density matrix', ui_matrix))
+    for label, action in stages:
+        if cleaner_only and action is accent_acceptance:
+            continue
         print('Stage: ' + label, flush=True)
         action()
         (OUT / 'stage-progress.json').write_text(json.dumps({
@@ -1637,7 +1664,7 @@ def final_stage_acceptance():
     logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
     assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
     (OUT / 'stage-result.json').write_text(json.dumps({
-        'mode': 'v5-final-stages', 'status': 'stage-only-passed', 'releaseAccepted': False,
+        'mode': 'v5-cleaner-matrix' if cleaner_only else 'v5-final-stages', 'status': 'stage-only-passed', 'releaseAccepted': False,
         'sourceCommit': os.environ['REVIEWED_APK_SOURCE_COMMIT'],
         'harnessCommit': os.environ['GITHUB_SHA'],
         'apkSha256': os.environ['EXPECTED_APK_SHA256'],
@@ -1667,6 +1694,9 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-cleaner-matrix':
+            final_stage_acceptance(cleaner_only=True)
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-final-stages':
             final_stage_acceptance()
             return

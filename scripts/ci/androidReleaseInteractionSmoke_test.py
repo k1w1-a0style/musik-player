@@ -145,7 +145,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         top=self.picker_trail_frame(current_root=True)
         self.assertFalse(smoke.picker_at_internal_root(nested))
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
-             patch.object(smoke,'tree',side_effect=[nested,top,top,top]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+             patch.object(smoke,'tree',side_effect=[nested,nested,top,top,top]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
             smoke.select_picker_storage()
             tap.assert_called_once()
             self.assertEqual(smoke.rect(tap.call_args.args[0]),[0,108,160,180])
@@ -154,7 +154,8 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
     def test_picker_root_tap_without_location_ack_and_clipped_owner_still_fail(self):
         nested=self.picker_trail_frame()
         clock=iter(range(100))
-        with patch.object(smoke,'tree',return_value=nested), patch.object(smoke.time,'sleep'), \
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'tree',return_value=nested), patch.object(smoke.time,'sleep'), \
              patch.object(smoke.time,'monotonic',side_effect=lambda:next(clock)), patch.object(smoke,'tap_node') as tap:
             with self.assertRaisesRegex(AssertionError,'did not acknowledge'):
                 smoke.navigate_picker_root(nested,timeout=5)
@@ -164,6 +165,17 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         with patch.object(smoke,'tap_node') as tap:
             with self.assertRaisesRegex(AssertionError,'clipped'):
                 smoke.navigate_picker_root(clipped)
+            tap.assert_not_called()
+
+    def test_picker_root_geometry_must_settle_before_one_input(self):
+        moving=self.picker_trail_frame()
+        stable=self.picker_trail_frame()
+        owner=next(stable.iter('node'))
+        item=list(owner)[0]
+        item.set('bounds','[0,108][200,180]')
+        with patch.object(smoke,'tree',side_effect=[stable,stable,stable]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+            selected,frame=smoke.settle_picker_root(moving)
+            self.assertEqual(smoke.rect(selected),[0,108,200,180])
             tap.assert_not_called()
 
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
