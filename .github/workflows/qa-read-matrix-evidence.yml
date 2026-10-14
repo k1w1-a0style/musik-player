@@ -1,0 +1,29 @@
+name: Read immutable V5 acceptance evidence
+on:
+  push:
+    branches: ['qa/v5-control/read-matrix-956-progress']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: retest-preview-release-acceptance-956aa2411c67ba890369a686b6ffdb402070f99a
+          run-id: 38502985939
+          github-token: ${{ github.token }}
+          path: evidence
+      - name: Read completed native matrix cases without another emulator
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=list(Path('evidence').rglob('matrix-progress.json'))
+          assert len(p)==1
+          cases=json.loads(p[0].read_text())
+          print('MATRIX_COMPLETED_CASES '+json.dumps(cases))
+          print('MATRIX_SCREENSHOTS '+json.dumps([p.name for p in Path('evidence').rglob('*.png') if p.name.startswith(('settings-','library-','player-'))]))
+          PY
