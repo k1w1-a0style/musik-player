@@ -35,7 +35,22 @@ jobs:
           persist-credentials: false
 
       - name: Verify the acceptance harness regressions before device work
-        run: python3 -m unittest discover -s scripts/ci -p '*_test.py'
+        run: |
+          python3 - <<'RED'
+          import os,subprocess,tempfile
+          from pathlib import Path
+          with tempfile.TemporaryDirectory() as directory:
+              root=Path(directory)
+              old=subprocess.check_output(['git','show','30d5b9e1e7df11cb86e30545b3789a8fd29fc995:scripts/ci/androidReleaseInteractionSmoke.py'])
+              (root/'androidReleaseInteractionSmoke.py').write_bytes(old)
+              (root/'androidReleaseInteractionSmoke_test.py').write_bytes(Path('scripts/ci/androidReleaseInteractionSmoke_test.py').read_bytes())
+              env=dict(os.environ,PYTHONPATH=str(root)+os.pathsep+str(Path('scripts/ci').resolve()))
+              result=subprocess.run(['python3','-m','unittest','androidReleaseInteractionSmoke_test.ReleaseAcceptanceSafetyTest.test_format_selection_requires_three_terminal_scan_frames_before_coordinate_tap'],cwd=root,env=env,text=True,capture_output=True)
+              print(result.stdout+result.stderr,flush=True)
+              assert result.returncode!=0 and 'Playback tapped before the native terminal scan ACK' in result.stderr,'Recorded import-coordinate race not reproduced against old harness'
+              print('RED reproduced old coordinate tap before terminal scan ACK.',flush=True)
+          RED
+          python3 -m unittest discover -s scripts/ci -p '*_test.py'
 
       - name: Download existing inspected APK without rebuilding it
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
