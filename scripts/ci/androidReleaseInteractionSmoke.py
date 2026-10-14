@@ -230,6 +230,11 @@ def scroll_candidate(key, root):
             x1, y1, x2, y2 = rect(node)
             # Android reports child bounds outside the parent clip and behind
             # the mini player. Such a label is not proof of a usable touch area.
+            if key.startswith('song-card-info-') and (x2-x1 < 72 or y2-y1 < 72):
+                # Android can report already-clipped child bounds exactly at the
+                # parent edge; inside-parent geometry alone is not whole visibility.
+                if x1 <= sx1 or x2 >= sx2 or y1 <= sy1 or y2 >= sy2:
+                    return None
             return node if sx1 <= x1 and sy1 <= y1 and x2 <= sx2 and y2 <= sy2 else None
         ancestor = parents.get(ancestor)
     return node
@@ -280,9 +285,9 @@ def scroll_to(key, top=False, limit=24):
         if clipped is not None:
             _, sy1, _, sy2 = scroll_bounds(frame, key)
             _, y1, _, y2 = rect(clipped)
-            if y2 > sy2:
+            if y2 >= sy2:
                 down = False
-            elif y1 < sy1:
+            elif y1 <= sy1:
                 down = True
         precise = key.startswith(('settings-', 'tag-cleaner-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
@@ -1565,7 +1570,9 @@ def ui_matrix():
                     assert visible(first), 'Long German title cannot be selected'
                     identifier = first.get('resource-id', '').split(':id/')[-1]
                     assert identifier.startswith('song-card-'), 'Song action has no stable public UI identity'
-                    menu = find(identifier.replace('song-card-', 'song-card-info-', 1))
+                    menu = scroll_to(identifier.replace('song-card-', 'song-card-info-', 1))
+                    first = find(identifier)
+                    assert scroll_candidate(identifier, tree()) is not None, 'Play target is clipped after revealing its menu'
                     play_box, menu_box = rect(first), rect(menu)
                     assert menu_box[2]-menu_box[0] >= 72 and menu_box[3]-menu_box[1] >= 72, 'Song menu is smaller than 48dp'
                     assert play_box[2] <= menu_box[0]+1, 'Song play area overlaps its menu'
@@ -1697,6 +1704,26 @@ def final_stage_acceptance(cleaner_only=False):
     print('Remaining V5 stages passed; combine with exact-APK prefix proof before release acceptance.', flush=True)
 
 
+def matrix_only_acceptance():
+    wait_uncovered_library_header()
+    prepare_final_stage_collection()
+    settings()
+    for field, color in (('appAccent','purple'),('playerAccent','cyan'),('waveform-accent','blue')):
+        select(f'settings-{field}-{color}', top=True)
+        assert_radio_selected(tree(), f'settings-{field}-{color}')
+    checkbox('settings-instant-colors', True)
+    back()
+    print('Stage: font, theme and density matrix', flush=True)
+    ui_matrix()
+    logs = adb('logcat','-d','-v','threadtime').decode(errors='replace')
+    assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
+    (OUT / 'stage-result.json').write_text(json.dumps({
+        'mode':'v5-matrix','status':'stage-only-passed','releaseAccepted':False,
+        'sourceCommit':os.environ['REVIEWED_APK_SOURCE_COMMIT'],'harnessCommit':os.environ['GITHUB_SHA'],
+        'apkSha256':os.environ['EXPECTED_APK_SHA256'],'checks':CHECKS,'v5Proofs':V5_PROOFS,
+        'uiSnapshots':UI_SNAPSHOTS,'transportRecoveries':TRANSPORT_RECOVERIES},indent=2))
+
+
 def main():
     global DEVICE, DEVICE_SERIAL, DEVICE_BOOT_ID
     apk = Path('preview-input/musik-player-preview.apk')
@@ -1718,6 +1745,9 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-matrix':
+            matrix_only_acceptance()
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-cleaner-matrix':
             final_stage_acceptance(cleaner_only=True)
             return

@@ -185,6 +185,18 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 smoke.validate_native_queue_size(session,smoke.TITLES[0],2)
 
+    def clipped_menu_frame(self, bounds):
+        return ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" class="android.widget.ScrollView" scrollable="true" bounds="[0,229][480,742]"><node package="{smoke.PACKAGE}" resource-id="song-card-info-track" bounds="{bounds}"/></node></hierarchy>')
+
+    def test_native_menu_rect_clipped_at_parent_edge_is_not_full_touch_area(self):
+        clipped=self.clipped_menu_frame('[380,739][452,742]')
+        self.assertIsNone(smoke.scroll_candidate('song-card-info-track',clipped))
+        full=self.clipped_menu_frame('[380,602][452,674]')
+        self.assertIsNotNone(smoke.scroll_candidate('song-card-info-track',full))
+        undersized=self.clipped_menu_frame('[380,500][452,550]')
+        self.assertIsNotNone(smoke.scroll_candidate('song-card-info-track',undersized))
+        # A genuinely small interior control must still reach the unchanged 48dp assertion.
+
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
         field = ET.fromstring('<node text="SwipeProbe" focused="true"/>')
