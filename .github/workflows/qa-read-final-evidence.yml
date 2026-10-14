@@ -1,0 +1,55 @@
+name: Read immutable V5 acceptance evidence
+on:
+  push:
+    branches: ['qa/v5-control/read-final-prefix-evidence']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: retest-preview-release-acceptance-8c9ef09274c303a26ee16441ed2862a924874156
+          run-id: 38485945141
+          github-token: ${{ github.token }}
+          path: evidence/prefix
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: retest-preview-release-acceptance-afe6cc2f111598906c6b9f7a1073a0c76e5548d4
+          run-id: 38493618238
+          github-token: ${{ github.token }}
+          path: evidence/colors
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: retest-preview-release-acceptance-fd29e3e2bb71c347d6e403b566aa06cef68a1e3a
+          run-id: 38499858377
+          github-token: ${{ github.token }}
+          path: evidence/cleaner
+      - name: Read completed stages and independent file hashes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib,base64
+          root=Path('evidence')
+          for key in ('prefix','colors','cleaner'):
+              paths=list((root/key).rglob('*'))
+              print('EVIDENCE_INVENTORY '+json.dumps({'stage':key,'files':[str(p.relative_to(root/key)) for p in paths if p.is_file()]}))
+              for name in ('stage-progress.json','resume-clock-proof.json','v5-cleaner-independent-ffprobe.json','exported-backup.json','apk-sha256.txt','source-commit.txt'):
+                  for p in paths:
+                      if p.name==name:
+                          print('EVIDENCE_DOCUMENT '+json.dumps({'stage':key,'name':name,'text':p.read_text()}))
+              for p in paths:
+                  if p.is_file() and p.suffix in ('.mp3','.lrc'):
+                      print('EVIDENCE_FILE_HASH '+json.dumps({'stage':key,'name':str(p.relative_to(root/key)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))
+              wanted={'colors':['v5-independent-accents-soundcloud.png','v5-three-independent-accent-preferences.png'],'cleaner':['v5-cleaner-confirmed-saf-file-result.png']}.get(key,[])
+              for name in wanted:
+                  matches=[p for p in paths if p.name==name]
+                  assert len(matches)==1,(key,name)
+                  encoded=base64.b64encode(matches[0].read_bytes()).decode()
+                  chunks=[encoded[i:i+6000] for i in range(0,len(encoded),6000)]
+                  for i,chunk in enumerate(chunks):
+                      print('EVIDENCE_IMAGE_CHUNK '+json.dumps({'name':key+'/'+name,'index':i,'count':len(chunks),'base64':chunk}))
+          PY
