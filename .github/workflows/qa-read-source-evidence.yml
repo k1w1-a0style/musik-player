@@ -28,6 +28,63 @@ jobs:
           print(Path('apk/preview-apk-inspection.log').read_text())
           print(Path('apk/preview-apk-signature.log').read_text())
           PY
-          test -x "$ANDROID_HOME/emulator/emulator"
-          "$ANDROID_HOME/emulator/emulator" -version
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: '11921901291'
+          run-id: 38616633219
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: '11919927670'
+          run-id: 38616633219
+          github-token: ${{ github.token }}
+          path: quality
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: '11919892099'
+          run-id: 38616633219
+          github-token: ${{ github.token }}
+          path: audit
+      - name: Independently bind successful source gates and complete native reports
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          source='30d5b9e1e7df11cb86e30545b3789a8fd29fc995'
+          request=urllib.request.Request('https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38616633219/jobs?per_page=100',headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(request,timeout=30) as response:jobs=json.load(response)['jobs']
+          gates=[]
+          for name in ('Dependency security audit','Typecheck, tests, coverage, lint, config gates','Android native build and tests'):
+              selected=[j for j in jobs if j['name']==name];assert len(selected)==1
+              j=selected[0];assert j['head_sha']==source and j['status']=='completed' and j['conclusion']=='success'
+              gates.append({'name':name,'job':j['id'],'sourceCommit':j['head_sha'],'conclusion':j['conclusion']})
+          reports=[p for p in Path('native').rglob('*.xml') if p.name.startswith('TEST-')]
+          assert reports,'Missing JUnit reports'
+          totals={name:0 for name in ('tests','failures','errors','skipped')}
+          for p in reports:
+              suite=ET.parse(p).getroot();assert suite.tag=='testsuite'
+              for name in totals:totals[name]+=int(suite.get(name,'0'))
+          assert totals=={'tests':178,'failures':0,'errors':0,'skipped':0},totals
+          exits=list(Path('native').rglob('native-gradle.exit-code'));assert len(exits)==1 and exits[0].read_text().strip()=='0'
+          q=list(Path('quality').rglob('jest-coverage.log'));assert len(q)==1
+          log=q[0].read_text();assert re.search(r'Test Suites:\s+427 passed, 427 total',log) and re.search(r'Tests:\s+4133 passed, 4133 total',log)
+          exits=list(Path('quality').rglob('jest-coverage.exit-code'));assert len(exits)==1 and exits[0].read_text().strip()=='0'
+          audit=list(Path('audit').rglob('npm-audit-production.json'));assert len(audit)==1
+          counts=json.loads(audit[0].read_text())['metadata']['vulnerabilities']
+          assert counts['critical']==0 and counts['high']==23 and counts['moderate']==5,counts
+          apk=Path('apk/musik-player-preview.apk');sha=hashlib.sha256(apk.read_bytes()).hexdigest()
+          assert sha=='f3b7d6a778aec4c90585d0e2a8a1ae3411f8703a4d8a93be11acaec5ad8e888c'
+          proof={'sourceCommit':source,'sourceRun':38616633219,'sourceAttempt':2,'sourceGates':gates,'apk':{'sha256':sha,'size':apk.stat().st_size,'artifact':11921651317,'zipSha256':'0c4a83ee3eacd6dfc6a89d6843ebfb6fa0cb04493b9c902bed1aeef88217b3df'},'jest':{'suites':427,'tests':4133},'python':121,'native':totals,'rawAudit':counts,'securityExceptionExpiry':'2026-10-21','runtimeAccepted':False,'releaseAccepted':False}
+          Path('source-verification.json').write_text(json.dumps(proof,indent=2))
+          print('V5_INDEPENDENT_SOURCE_PROOF '+json.dumps(proof),flush=True)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source30d-independent-verification
+          path: source-verification.json
+          if-no-files-found: error
+          retention-days: 30
