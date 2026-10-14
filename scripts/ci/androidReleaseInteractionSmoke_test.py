@@ -113,6 +113,22 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             tap.assert_called_once()
             restart.assert_not_called()
 
+    def test_picker_waits_for_system_package_and_never_taps_app_navigate_up(self):
+        app = ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" content-desc="Navigate up" bounds="[0,36][84,120]"/></hierarchy>')
+        docs = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" resource-id="com.google.android.documentsui:id/breadcrumb_text" bounds="[0,108][275,180]"/></hierarchy>')
+        with patch.object(smoke,'tree',side_effect=[app,app,docs]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+            smoke.select_picker_storage()
+            tap.assert_not_called()
+
+    def test_picker_opens_only_system_roots_and_waits_for_storage_ack(self):
+        docs = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" content-desc="Show roots" enabled="true" bounds="[0,36][84,120]"/></hierarchy>')
+        pending = ET.fromstring('<hierarchy/>')
+        storage = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" bounds="[20,200][300,272]"/></hierarchy>')
+        with patch.object(smoke,'tree',side_effect=[docs,pending,storage]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+            smoke.select_picker_storage()
+            self.assertEqual(tap.call_count,2)
+            self.assertTrue(all(call.args[0].get('package')=='com.google.android.documentsui' for call in tap.call_args_list))
+
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
         field = ET.fromstring('<node text="SwipeProbe" focused="true"/>')

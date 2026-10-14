@@ -378,22 +378,53 @@ def wait_tree_grant(folder, timeout=25):
     raise AssertionError('Exact system folder grant confirmation missing: ' + folder)
 
 
-def choose_folder(parts):
-    # Exercise the real system tree picker. Only exact system navigation labels
-    # and known generated fixture folders are touched.
-    deadline = time.monotonic() + 20
+DOCUMENTS_PACKAGES = ('com.google.android.documentsui', 'com.android.documentsui')
+
+
+def document_nodes(root):
+    return [node for node in root.iter('node') if node.get('package') in DOCUMENTS_PACKAGES and visible(node)]
+
+
+def wait_document_picker(timeout=25):
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        root = tree()
-        opener = next((node for node in root.iter('node') if node.get('content-desc') in ('Show roots', 'Navigate up')), None)
-        if opener is not None:
-            tap_node(opener)
-            break
+        root = tree(compressed=False)
+        if document_nodes(root):
+            return root
         time.sleep(.3)
-    root = tree()
-    storage = next((node for node in root.iter('node') if visible(node) and
-                    (node.get('text') in ('Internal storage', 'Pixel 6') or node.get('text', '').startswith('sdk_gphone'))), None)
-    assert storage is not None, 'Internal storage is absent from the system picker'
-    tap_node(storage)
+    raise AssertionError('Actual system DocumentsUI picker did not arrive')
+
+
+def storage_label(node):
+    text = node.get('text', '')
+    return text in ('Internal storage', 'Pixel 6') or text.startswith('sdk_gphone')
+
+
+def select_picker_storage(timeout=25):
+    root = wait_document_picker(timeout)
+    nodes = document_nodes(root)
+    # The genuine picker may already show internal-storage root. Its observed
+    # breadcrumb identity is proof; app toolbar text is never system navigation.
+    if any(node.get('resource-id', '').endswith(':id/breadcrumb_text') and storage_label(node) for node in nodes):
+        return
+    opener = next((node for node in nodes if node.get('content-desc') in ('Show roots','Navigate up')
+                   and node.get('enabled') == 'true'), None)
+    assert opener is not None, 'System storage navigation action absent'
+    tap_node(opener)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        root = tree(compressed=False)
+        storage = [node for node in document_nodes(root) if storage_label(node)]
+        if storage:
+            assert len(storage) == 1, 'System internal-storage action ambiguous'
+            tap_node(storage[0])
+            return
+        time.sleep(.3)
+    raise AssertionError('Internal storage did not arrive in the actual system picker')
+
+
+def choose_folder(parts):
+    select_picker_storage()
     for part in parts:
         tap_node(scroll_to(part))
         time.sleep(.4)
