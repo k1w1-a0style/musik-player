@@ -1,0 +1,33 @@
+name: Read immutable V5 source APK evidence
+on:
+  push:
+    branches: ['qa/v5-control/read-source-30d']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: musik-player-preview-30d5b9e1e7df11cb86e30545b3789a8fd29fc995
+          run-id: 38616633219
+          github-token: ${{ github.token }}
+          path: apk
+      - name: Independently read exact binary and runner emulator
+        run: |
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('apk/musik-player-preview.apk');sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          assert Path('apk/source-commit.txt').read_text().strip()=='30d5b9e1e7df11cb86e30545b3789a8fd29fc995'
+          assert Path('apk/apk-sha256.txt').read_text().split()[0]==sha
+          print('V5_SOURCE_APK '+json.dumps({'sourceCommit':'30d5b9e1e7df11cb86e30545b3789a8fd29fc995','sha256':sha,'size':p.stat().st_size}))
+          print(Path('apk/preview-apk-inspection.log').read_text())
+          print(Path('apk/preview-apk-signature.log').read_text())
+          PY
+          test -x "$ANDROID_HOME/emulator/emulator"
+          "$ANDROID_HOME/emulator/emulator" -version
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed
