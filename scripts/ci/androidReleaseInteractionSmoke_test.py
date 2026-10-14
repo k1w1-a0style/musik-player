@@ -660,6 +660,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
              patch.object(smoke, 'tap'), patch.object(smoke, 'tap_node'), \
              patch.object(smoke, 'back'), patch.object(smoke, 'screenshot'), \
              patch.object(smoke, 'tree'), patch.object(smoke, 'import_confirmation_button'), \
+             patch.object(smoke, 'wait_collection_idle'), \
              patch.object(smoke, 'choose_folder'), patch.object(smoke, 'adb'), \
              patch.object(smoke.subprocess, 'run'), patch.object(smoke, 'assert_duration') as duration, \
              patch.object(smoke, 'scroll_to', return_value=row) as scroll, \
@@ -1237,6 +1238,31 @@ Audio playback (lastly played comes first)
         for field,value in (('menuBounds',[380,200,452,203]),('playBounds',[20,200,390,300])):
             broken=json.loads(json.dumps(cases));broken[0][field]=value
             with self.assertRaises(AssertionError):smoke.validate_previous_matrix(dict(origin,cases=broken))
+
+
+    def test_format_selection_requires_three_terminal_scan_frames_before_coordinate_tap(self):
+        # Recorded failed run: first MP3 row was already visible while the
+        # import-status still said metadata/cover importing; its coordinates
+        # subsequently became M4A. The first row alone is not an import ACK.
+        busy=ET.fromstring(f'<hierarchy><node resource-id="library-import-status" package="{smoke.PACKAGE}" bounds="[30,207][450,327]"/><node resource-id="library-import-status-text" text="Metadaten und Cover werden importiert…"/><node resource-id="library-open-menu" package="{smoke.PACKAGE}" enabled="true" bounds="[378,51][450,123]"/></hierarchy>')
+        idle=ET.fromstring(f'<hierarchy><node resource-id="library-open-menu" package="{smoke.PACKAGE}" enabled="true" bounds="[378,51][450,123]"/></hierarchy>')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'import_public_collection'), patch.object(smoke,'tree',side_effect=[busy,busy,idle,idle,idle]) as frames, \
+             patch.object(smoke.time,'sleep'), patch.object(smoke,'play_title',side_effect=RuntimeError('first format boundary')) as play:
+            with self.assertRaisesRegex(RuntimeError,'first format boundary'):smoke.prepare_collection()
+            self.assertEqual(frames.call_count,5,'Playback tapped before the native terminal scan ACK')
+            play.assert_called_once_with(smoke.TITLES[0])
+
+    def test_unfinished_import_must_fail_without_any_format_tap(self):
+        busy=ET.fromstring(f'<hierarchy><node resource-id="library-import-status" package="{smoke.PACKAGE}" bounds="[30,207][450,327]"/><node resource-id="library-open-menu" package="{smoke.PACKAGE}" enabled="true" bounds="[378,51][450,123]"/></hierarchy>')
+        clock=iter(range(1000))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'import_public_collection'), patch.object(smoke,'tree',return_value=busy), \
+             patch.object(smoke.time,'sleep'), patch.object(smoke.time,'monotonic',side_effect=lambda:next(clock)), \
+             patch.object(smoke,'play_title') as play:
+            with self.assertRaisesRegex(AssertionError,'scan or persistence status did not finish'):smoke.prepare_collection()
+            play.assert_not_called()
+
 
 
 if __name__ == '__main__':

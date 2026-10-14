@@ -35,7 +35,7 @@ Die drei unabhängigen Source-Gates gehören exakt zur APK-Quelle. Ihr Erfolg wu
 
 ## Android-Abnahme dieser APK
 
-[Retest 38621131229](https://github.com/k1w1-a0style/musik-player/actions/runs/38621131229), Harness `94d1e65a302a6fa84be24f2fe0810db95eab7e4d`, führt die vollständige öffentliche Funktions- und UI-Prüfung aus. Lauf noch nicht abgeschlossen.
+[Retest 38622542676](https://github.com/k1w1-a0style/musik-player/actions/runs/38622542676), Harness `aa68e02d9c559e408d24e3554d4f9085108e99c7`, führt die vollständige öffentliche Funktions- und UI-Prüfung aus. Lauf noch nicht abgeschlossen.
 
 | Paket | Abnahmebedingungen |
 |---|---|
@@ -48,7 +48,7 @@ Die drei unabhängigen Source-Gates gehören exakt zur APK-Quelle. Ihr Erfolg wu
 | UI-Matrix | 320 dp; Schrift 100/130/200 % × hell/dunkel × graphite/minimal/neon-cover × Standard/Kompakt = 36; vollständige 48-dp-Touchflächen, keine Überlappungen; PNG/XML für Settings/Library/Player |
 | Abschluss | Keine app-eigene FATAL-/ANR-/ErrorBoundary-Ausnahme; unabhängige Ergebnis-/Byteprüfung und manuelle Sichtkontrolle vor Freigabe |
 
-Der vorherige Source-UI-Job wurde bereits vor Appstart durch ein ungültiges Emulator-ZIP unterbrochen; deshalb ist die gesamte Source-CI nicht grün. Der separate Retest baut nichts neu. Der offizielle Emulator-Download wurde unabhängig nach deklarierter Größe, Prüfsumme und ZIP-CRC geprüft; die konkret fehlende Runner-Bibliothek libpulse wurde ergänzt und native Bibliotheken werden vor Start kontrolliert. Die funktionalen Assertions wurden unverändert beibehalten.
+Der vorherige Source-UI-Job wurde bereits vor Appstart durch ein ungültiges Emulator-ZIP unterbrochen; deshalb ist die gesamte Source-CI nicht grün. Der separate Retest baut nichts neu. Der offizielle Emulator-Download wurde unabhängig nach deklarierter Größe, Prüfsumme und ZIP-CRC geprüft; die konkret fehlende Runner-Bibliothek libpulse wurde ergänzt und native Bibliotheken werden vor Start kontrolliert. Ein erster formatbezogener Tap des nachfolgenden Retests erfolgte vor dem Import-Abschluss auf eine inzwischen verschobene Karte. Native XMLs belegen den noch aktiven Metadatenimport und die veränderte Kartenposition. Der bestehende Abschluss-Guard wird jetzt vor Format-/SAF-Auswahl angewandt. Die gezielte Regression reproduziert den Fehler am alten Treiber, beide neuen Fälle und alle 123 Treibertests bestehen vor Gerätezugriff. Die exakten nativen Titel-, Positions-, Byte- und Touchflächenassertions bleiben erhalten.
 
 ## Gesicherte Referenz und Arbeitsstand
 

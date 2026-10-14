@@ -723,6 +723,9 @@ def import_public_collection():
 
 def prepare_collection():
     import_public_collection()
+    # A visible first row is not a terminal import ACK. Metadata batches can
+    # reorder its coordinates before input reaches Android (recorded native XML).
+    wait_collection_idle()
     for index, duration in enumerate(FORMAT_DURATIONS[:3]):
         play_title(TITLES[index])
         tap('mini-player-open')
@@ -741,6 +744,7 @@ def prepare_collection():
     tap('library-open-menu')
     tap('library-menu-item-ordner-hinzuf-gen')
     choose_folder(['Music', 'V3OnlySAF'])
+    wait_collection_idle()
     # Import does not imply visibility: the measured mini-player viewport can
     # legitimately place this fifth row offscreen. play_title scrolls to the
     # whole touchable card and requires the exact native selection ACK.
