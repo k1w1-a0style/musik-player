@@ -88,3 +88,8 @@ Die relevanten nächsten Erweiterungen sind echte A50-Baseline/Profiling, gespro
 Der erfolgreiche Matrixlauf38606155940 (Artefakt11916211717; ZIP SHA25609ff4d5f98570ced63644927fbc39770b252da36b0614f0a8ba3428164a59fdf) ist die gesicherte36er-Referenz des unveränderten70275c7-APK. Die manuelle Sichtkontrolle weist zusätzlich einen echten Headerfehler nach: bei320dp/200% wird Mehr Optionen auf12px Breite beschnitten. Flexible Marken-/Textbreite und feste48dp-Aktionsflächen beheben die Ursache. Alle Schriftgrößen bleiben aktiviert; native Preflight-/Matrix-Gates prüfen vollständige48dp-Bounds innerhalb des Bildschirms und keine Suche-/Menüüberlappung.
 
 Neuer Build ist aufgrund dieser Appänderung erforderlich. Die Quell-/Byte-Gates werden nicht gelockert, alte Laufbelege gelten nicht automatisch für andere APK-Bytes. Kein main-Write, keine Originalmusikänderung. Finalisierung wartet auf die neue Source-CI und exakte neue APK-Abnahme.
+
+
+### SDK57 compatibility revalidation
+
+The new Header CI38610085347 stopped in quality before Jest because Expo published SDK57 patch57.0.29. Update only the existing SDK57 patch graph and lockfile; retain ReactNative0.86.3/RNTP5.12.1. Clean install, compatibility, header tests and TypeScript pass. Exact unchanged audit paths/root identities/protective payloads require rebinding the two parent effect versions to Expo57.0.29/CLI57.0.30. Both exception roots and2026-10-21 expiry stay unchanged. The strict policy and its regressions pass; fresh complete source/build/UI gates still required before release.
