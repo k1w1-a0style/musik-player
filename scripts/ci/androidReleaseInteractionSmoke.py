@@ -1418,6 +1418,25 @@ def cleaner_apply_dialog(mode):
     validate_cleaner_result(tree(), mode)
 
 
+def validate_native_queue_size(session, title, size):
+    validate_selected_session(session, title)
+    count = re.search(r'queueTitle=[^\n]*, size=(\d+)', session)
+    assert count and int(count[1]) == size, 'Actual native queue size differs from safe public playlist'
+
+
+def wait_safe_native_playlist(title, size, timeout=15):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        session = app_media_session()
+        try:
+            validate_playing_session(session, title)
+            validate_native_queue_size(session, title, size)
+            return session
+        except AssertionError:
+            time.sleep(.3)
+    raise AssertionError('Native playlist queue never confirms exact safe size and title')
+
+
 def select_cleaner_safe_playback_queue():
     # Public playlist playback replaces the queue with two known other sources.
     # Pausing alone would leave an automatic-next candidate unsafe to write.
@@ -1426,7 +1445,7 @@ def select_cleaner_safe_playback_queue():
     library_tab('playlists')
     select('Playlist V3Backup')
     tap('playlist-detail-song-' + expected_ids[0])
-    wait_playing_session(TITLES[0])
+    wait_safe_native_playlist(TITLES[0], len(expected_ids))
     tap('soundcloud-open-queue')
     rows = [node for node in tree().iter('node')
             if node.get('resource-id', '').split(':id/')[-1].startswith('queue-row-')]
@@ -1435,6 +1454,9 @@ def select_cleaner_safe_playback_queue():
     tap('soundcloud-queue-close')
     tap('soundcloud-swipe-hitbox')
     find('soundcloud-play-button')
+    session = wait_paused_session(TITLES[0])
+    validate_native_queue_size(session, TITLES[0], len(expected_ids))
+    screenshot('cleaner-safe-native-playlist-paused')
     back()
     back()
     library_tab('tracks')
@@ -1469,6 +1491,7 @@ def cleaner_acceptance():
     adb('pull', CLEANER_TARGET, str(pulled))
     assert pulled.read_bytes() == original, 'Display-only apply modified the original file'
     public_cold_start()
+    select_cleaner_safe_playback_queue()
     library_tab('tracks')
     scroll_to('V5 Cleaner von V5 Proof', top=True)
     open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
@@ -1487,6 +1510,7 @@ def cleaner_acceptance():
     adb('pull', CLEANER_TARGET, str(pulled))
     assert pulled.read_bytes() == original, 'File-tag analysis modified the original'
     select('tag-cleaner-select-safe', top=True)
+    validate_native_queue_size(app_media_session(), TITLES[0], 2)
     cleaner_apply_dialog('file')
     screenshot('v5-cleaner-confirmed-saf-file-result')
     adb('pull', CLEANER_TARGET, str(pulled))

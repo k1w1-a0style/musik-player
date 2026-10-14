@@ -178,6 +178,13 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             self.assertEqual(smoke.rect(selected),[0,108,200,180])
             tap.assert_not_called()
 
+    def test_cleaner_safe_queue_requires_real_native_size_after_restart(self):
+        base=self.resume_session('PAUSED',0,1000,title=smoke.TITLES[0])
+        smoke.validate_native_queue_size(base+'\nqueueTitle=null, size=2',smoke.TITLES[0],2)
+        for session in (base+'\nqueueTitle=null, size=5',base,base.replace(smoke.TITLES[0],'V5 Cleaner')+'\nqueueTitle=null, size=2'):
+            with self.assertRaises(AssertionError):
+                smoke.validate_native_queue_size(session,smoke.TITLES[0],2)
+
     def test_obscured_input_uses_only_the_visible_keyboard_dismiss_button(self):
         root = ET.fromstring('<hierarchy><node resource-id="android:id/input_method_nav_back" package="com.google.android.inputmethod.latin" enabled="true" bounds="[21,888][204,960]"/></hierarchy>')
         field = ET.fromstring('<node text="SwipeProbe" focused="true"/>')
