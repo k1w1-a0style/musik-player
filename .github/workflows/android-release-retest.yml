@@ -22,7 +22,7 @@ jobs:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
       ANDROID_API: '35'
-      APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe final]') && 'v5-final-stages' || contains(github.event.head_commit.message, '[probe settings]') && 'settings-switch-probe' || contains(github.event.head_commit.message, '[probe swipe]') && 'cover-swipe-probe' || contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
+      APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe folder]') && 'picker-folder-probe' || contains(github.event.head_commit.message, '[probe final]') && 'v5-final-stages' || contains(github.event.head_commit.message, '[probe settings]') && 'settings-switch-probe' || contains(github.event.head_commit.message, '[probe swipe]') && 'cover-swipe-probe' || contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
       REVIEWED_APK_SOURCE_COMMIT: 70275c7a66aa9d24e5c2a33421388d93ad9a20d6
       EXPECTED_APK_SHA256: f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807
     steps:

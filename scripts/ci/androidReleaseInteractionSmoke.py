@@ -1606,6 +1606,36 @@ def final_stage_acceptance():
     print('Remaining V5 stages passed; combine with exact-APK prefix proof before release acceptance.', flush=True)
 
 
+def folder_picker_probe():
+    wait_uncovered_library_header()
+    prepare_final_stage_collection()
+    backup_acceptance()
+    adb('shell', 'mkdir', '-p', '/sdcard/Music/V5OnlySAF')
+    tap('library-open-menu')
+    tap('library-menu-item-ordner-hinzuf-gen')
+    wait_document_picker()
+    for index in range(4):
+        frame = tree(compressed=False)
+        (OUT / f'folder-picker-initial-{index}.xml').write_text(ET.tostring(frame, encoding='unicode'))
+        print('PICKER_PROBE ' + json.dumps({'index': index, 'nodes': [
+            {key: node.get(key) for key in ('text','resource-id','content-desc','bounds','enabled')}
+            for node in document_nodes(frame) if node.get('text') or node.get('content-desc')]}, ensure_ascii=False), flush=True)
+        time.sleep(.5)
+    (OUT / 'folder-picker-window.txt').write_bytes(adb('shell','dumpsys','window','windows'))
+    more = next((node for node in document_nodes(frame) if node.get('content-desc') == 'More options' and node.get('enabled') == 'true'), None)
+    assert more is not None, 'Actual system picker overflow action absent'
+    tap_node(more)
+    time.sleep(.5)
+    frame = tree(compressed=False)
+    screenshot('folder-picker-overflow')
+    print('PICKER_OVERFLOW ' + json.dumps([
+        {key: node.get(key) for key in ('text','resource-id','content-desc','bounds','enabled')}
+        for node in document_nodes(frame) if node.get('text') or node.get('content-desc')], ensure_ascii=False), flush=True)
+    (OUT / 'diagnostic-result.json').write_text(json.dumps({
+        'mode':'picker-folder-probe','status':'diagnostic-only','releaseAccepted':False,
+        'sourceCommit':os.environ['REVIEWED_APK_SOURCE_COMMIT'],'harnessCommit':os.environ['GITHUB_SHA']}, indent=2))
+
+
 def main():
     global DEVICE, DEVICE_SERIAL, DEVICE_BOOT_ID
     apk = Path('preview-input/musik-player-preview.apk')
@@ -1627,6 +1657,9 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
     try:
         find('library-open-menu', timeout=90)
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'picker-folder-probe':
+            folder_picker_probe()
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-final-stages':
             final_stage_acceptance()
             return
