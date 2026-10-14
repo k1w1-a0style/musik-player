@@ -230,7 +230,7 @@ def scroll_candidate(key, root):
             x1, y1, x2, y2 = rect(node)
             # Android reports child bounds outside the parent clip and behind
             # the mini player. Such a label is not proof of a usable touch area.
-            if key.startswith('song-card-info-') and (x2-x1 < 72 or y2-y1 < 72):
+            if key.startswith(('song-card-info-', 'library-menu-item-')) and (x2-x1 < 72 or y2-y1 < 72):
                 # Android can report already-clipped child bounds exactly at the
                 # parent edge; inside-parent geometry alone is not whole visibility.
                 if x1 <= sx1 or x2 >= sx2 or y1 <= sy1 or y2 >= sy2:
@@ -289,7 +289,7 @@ def scroll_to(key, top=False, limit=24):
                 down = False
             elif y1 <= sy1:
                 down = True
-        precise = key.startswith(('settings-', 'tag-cleaner-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
+        precise = key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
         SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
                              'surfaceBounds': rect(vertical_scroll_surface(frame, key)),
@@ -314,7 +314,11 @@ def screenshot(name):
 
 def settings():
     tap('library-open-menu')
-    tap('library-menu-item-einstellungen')
+    target = scroll_to('library-menu-item-einstellungen')
+    assert target.get('package') == PACKAGE and target.get('enabled') == 'true', 'Settings action is not enabled app-owned UI'
+    x1,y1,x2,y2 = rect(target)
+    assert x2-x1 >= 72 and y2-y1 >= 72, 'Settings menu touch area is smaller than 48dp'
+    tap_node(target)
     find('settings-screen')
 
 
@@ -1551,9 +1555,48 @@ def validate_matrix_coverage(cases):
         assert play[2] <= menu[0]+1, 'Matrix play area overlaps menu'
 
 
+def validate_previous_matrix(data):
+    assert data['sourceCommit'] == '70275c7a66aa9d24e5c2a33421388d93ad9a20d6'
+    assert data['apkSha256'] == 'f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807'
+    assert data['harnessCommit'] == '956aa2411c67ba890369a686b6ffdb402070f99a'
+    assert data['run'] == 38502985939 and data['artifactDigest'] == 'sha256:3c41fb19942e57dea9df9ee954ba8f68fccf9d6fd577794bc291eeacbe1e1c05'
+    cases = data['cases']
+    expected = {(scale,appearance,skin,density) for scale in ('1.0','1.3')
+                for appearance in ('dark','light') for skin in ('graphite','minimal','neon-cover')
+                for density in ('standard','compact')}
+    actual = [(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in cases]
+    assert len(actual) == 24 and set(actual) == expected, 'Previous matrix coverage is incomplete or duplicated'
+    for case in cases:
+        menu,play = case['menuBounds'],case['playBounds']
+        assert menu[2]-menu[0] >= 72 and menu[3]-menu[1] >= 72, 'Previous menu touch area fails 48dp'
+        assert play[2] <= menu[0]+1, 'Previous play area overlaps menu'
+    return cases
+
+
+def previous_matrix_cases():
+    if not os.environ.get('PREVIOUS_MATRIX_EVIDENCE'):
+        return []
+    root = Path(os.environ['PREVIOUS_MATRIX_EVIDENCE'])
+    data = json.loads((root / 'verified-matrix-origin.json').read_text())
+    cases = validate_previous_matrix(data)
+    for case in cases:
+        suffix = '-'.join(case[k] for k in ('fontScale','appearance','skin','density'))
+        for surface in ('settings','library','player'):
+            for extension in ('.png','.xml'):
+                name = surface+'-'+suffix+extension
+                matches = list(root.rglob(name))
+                assert len(matches) == 1 and matches[0].stat().st_size > 0, 'Missing previous native matrix observation: '+name
+                (OUT/name).write_bytes(matches[0].read_bytes())
+    V5_PROOFS['matrixEvidenceOrigins'] = [data]
+    return cases
+
+
 def ui_matrix():
-    V5_PROOFS['matrix'] = []
+    V5_PROOFS['matrix'] = previous_matrix_cases()
+    completed = {(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in V5_PROOFS['matrix']}
     for scale in ('1.0', '1.3', '2.0'):
+        if all((scale,a,s,d) in completed for a in ('dark','light') for s in ('graphite','minimal','neon-cover') for d in ('standard','compact')):
+            continue
         adb('shell', 'settings', 'put', 'system', 'font_scale', scale)
         for appearance in ('dark', 'light'):
             for skin in ('graphite', 'minimal', 'neon-cover'):
