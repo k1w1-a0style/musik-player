@@ -1113,5 +1113,46 @@ Audio playback (lastly played comes first)
             with self.assertRaises(AssertionError):
                 smoke.validate_cleaner_result(root, 'file')
 
+    def test_settings_scrolls_real_library_menu_and_requires_owned_whole_action(self):
+        node = ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[70,700][443,792]"/>')
+        with patch.object(smoke,'tap') as tap, patch.object(smoke,'scroll_to',return_value=node) as scroll, patch.object(smoke,'tap_node') as touch, patch.object(smoke,'find') as find:
+            smoke.settings()
+            tap.assert_called_once_with('library-open-menu')
+            scroll.assert_called_once_with('library-menu-item-einstellungen')
+            touch.assert_called_once_with(node)
+            find.assert_called_once_with('settings-screen')
+        for attrs in ({'package':'com.android.documentsui'},{'enabled':'false'},{'bounds':'[70,906][443,937]'}):
+            bad = ET.fromstring(ET.tostring(node))
+            bad.attrib.update(attrs)
+            with patch.object(smoke,'tap'),patch.object(smoke,'scroll_to',return_value=bad),patch.object(smoke,'tap_node') as touch:
+                with self.assertRaises(AssertionError):smoke.settings()
+                touch.assert_not_called()
+
+    def test_clipped_settings_menu_is_revealed_by_inside_owner_slow_swipe(self):
+        key='library-menu-item-einstellungen'
+        frame=ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" class="android.widget.ScrollView" scrollable="true" bounds="[70,97][443,937]"><node package="{smoke.PACKAGE}" enabled="true" resource-id="{key}" bounds="[70,906][443,937]"/></node></hierarchy>')
+        self.assertIsNone(smoke.scroll_candidate(key,frame))
+        revealed=ET.fromstring(ET.tostring(frame))
+        target=next(n for n in revealed.iter('node') if n.get('resource-id')==key)
+        target.set('bounds','[70,700][443,792]')
+        with patch.object(smoke,'scroll_query_frame',side_effect=[frame,revealed]),patch.object(smoke,'adb') as adb,patch.object(smoke.time,'sleep'):
+            self.assertIs(smoke.scroll_to(key),target)
+            adb.assert_called_once_with('shell','input','swipe','256','685','256','349','800')
+
+    def test_previous_matrix_requires_complete_pinned_real_coverage(self):
+        cases=[{'fontScale':scale,'appearance':appearance,'skin':skin,'density':density,'playBounds':[20,200,300,300],'menuBounds':[380,200,452,272]}
+               for scale in ('1.0','1.3') for appearance in ('dark','light') for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')]
+        origin={'sourceCommit':'70275c7a66aa9d24e5c2a33421388d93ad9a20d6','apkSha256':'f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807','harnessCommit':'956aa2411c67ba890369a686b6ffdb402070f99a','run':38502985939,'artifactDigest':'sha256:3c41fb19942e57dea9df9ee954ba8f68fccf9d6fd577794bc291eeacbe1e1c05','cases':cases}
+        self.assertEqual(smoke.validate_previous_matrix(origin),cases)
+        for field in ('sourceCommit','apkSha256','harnessCommit','run','artifactDigest'):
+            bad=dict(origin);bad[field]='wrong'
+            with self.assertRaises(AssertionError):smoke.validate_previous_matrix(bad)
+        for broken in (cases[:-1],cases+[cases[0]],cases[:-1]+[cases[0]]):
+            with self.assertRaises(AssertionError):smoke.validate_previous_matrix(dict(origin,cases=broken))
+        for field,value in (('menuBounds',[380,200,452,203]),('playBounds',[20,200,390,300])):
+            broken=json.loads(json.dumps(cases));broken[0][field]=value
+            with self.assertRaises(AssertionError):smoke.validate_previous_matrix(dict(origin,cases=broken))
+
+
 if __name__ == '__main__':
     unittest.main()
