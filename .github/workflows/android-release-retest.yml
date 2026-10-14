@@ -17,15 +17,15 @@ jobs:
     name: Retest same inspected APK with corrected public UI harness
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/codex' || startsWith(github.ref, 'refs/heads/qa/v5-acceptance/')) && (contains(github.event.head_commit.message, '[retest apk]') || contains(github.event.head_commit.message, '[probe apk]')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
     env:
       PREVIOUS_MATRIX_EVIDENCE: ${{ contains(github.event.head_commit.message, '[probe matrix remaining]') && 'previous-matrix' || '' }}
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
       ANDROID_API: '35'
       APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe matrix]') && 'v5-matrix' || contains(github.event.head_commit.message, '[probe cleaner]') && 'v5-cleaner-matrix' || contains(github.event.head_commit.message, '[probe final]') && 'v5-final-stages' || contains(github.event.head_commit.message, '[probe settings]') && 'settings-switch-probe' || contains(github.event.head_commit.message, '[probe swipe]') && 'cover-swipe-probe' || contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
-      REVIEWED_APK_SOURCE_COMMIT: 70275c7a66aa9d24e5c2a33421388d93ad9a20d6
-      EXPECTED_APK_SHA256: f1d587e8ddbd5d1bd7cfbb07ba9104a55d8d17bd94c372babaadbe1df6831807
+      REVIEWED_APK_SOURCE_COMMIT: 30d5b9e1e7df11cb86e30545b3789a8fd29fc995
+      EXPECTED_APK_SHA256: f3b7d6a778aec4c90585d0e2a8a1ae3411f8703a4d8a93be11acaec5ad8e888c
     steps:
       - name: Checkout immutable acceptance harness
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -40,8 +40,8 @@ jobs:
       - name: Download existing inspected APK without rebuilding it
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: musik-player-preview-70275c7a66aa9d24e5c2a33421388d93ad9a20d6
-          run-id: 38444159146
+          name: musik-player-preview-30d5b9e1e7df11cb86e30545b3789a8fd29fc995
+          run-id: 38616633219
           github-token: ${{ github.token }}
           path: preview-input
 
@@ -57,7 +57,7 @@ jobs:
           source = os.environ['REVIEWED_APK_SOURCE_COMMIT']
           changed = subprocess.check_output(['git', 'diff', '--name-only', source, os.environ['GITHUB_SHA']], text=True).splitlines()
           request = urllib.request.Request(
-              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38444159146/jobs?per_page=100',
+              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38616633219/jobs?per_page=100',
               headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'], 'Accept':'application/vnd.github+json'})
           with urllib.request.urlopen(request, timeout=30) as response:
               jobs = json.load(response)['jobs']
@@ -123,8 +123,61 @@ jobs:
           sdk_status=${PIPESTATUS[1]}
           set -o pipefail
           test "$sdk_status" -eq 0
+          # The SDK downloader returned a non-ZIP before any app launch.
+          # Download the official stable emulator archive independently, require
+          # its declared size/checksum and every ZIP CRC before installation.
+          python3 - <<'SDK'
+          import hashlib,json,os,stat,urllib.request,zipfile
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          base='https://dl.google.com/android/repository/'
+          request=urllib.request.Request(base+'repository2-3.xml',headers={'Cache-Control':'no-cache'})
+          with urllib.request.urlopen(request,timeout=60) as response:
+              metadata=ET.fromstring(response.read())
+          local=lambda tag:tag.rsplit('}',1)[-1]
+          child=lambda node,name:next(x for x in node if local(x.tag)==name)
+          packages=[p for p in metadata.iter() if local(p.tag)=='remotePackage' and p.get('path')=='emulator' and child(p,'channelRef').get('ref')=='channel-0']
+          assert len(packages)==1,'Missing/ambiguous official stable emulator metadata'
+          archives=[a for a in child(packages[0],'archives') if child(a,'host-os').text=='linux']
+          assert len(archives)==1,'Missing/ambiguous Linux archive'
+          archive=child(archives[0],'complete');size=int(child(archive,'size').text)
+          checksum=child(archive,'checksum');algorithm=checksum.get('type','sha1').lower().replace('-','')
+          assert algorithm in ('sha1','sha256')
+          expected=checksum.text.strip().lower();url=base+child(archive,'url').text
+          print('EMULATOR_DECLARED_ARCHIVE '+json.dumps({'url':url,'size':size,'algorithm':algorithm,'checksum':expected}),flush=True)
+          target=Path(os.environ['RUNNER_TEMP'])/'verified-emulator.zip'
+          for attempt in (1,2):
+              digest=hashlib.new(algorithm);actual=0
+              request=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(request,timeout=120) as response,target.open('wb') as output:
+                  print('EMULATOR_DOWNLOAD_HEADERS '+json.dumps({'attempt':attempt,'type':response.headers.get('Content-Type'),'length':response.headers.get('Content-Length')}),flush=True)
+                  while True:
+                      chunk=response.read(1024*1024)
+                      if not chunk:break
+                      actual+=len(chunk);assert actual<=size,'Archive exceeds declared size'
+                      digest.update(chunk);output.write(chunk)
+              with target.open('rb') as prefix:magic=prefix.read(16).hex()
+              print('EMULATOR_DOWNLOAD_RESULT '+json.dumps({'attempt':attempt,'bytes':actual,'digest':digest.hexdigest(),'magic':magic}),flush=True)
+              if actual==size and digest.hexdigest()==expected:
+                  with zipfile.ZipFile(target) as bundle:assert bundle.testzip() is None,'ZIP CRC mismatch'
+                  break
+              if attempt==2:raise AssertionError('Official emulator archive size/checksum mismatch after two bounded downloads')
+          root=Path(os.environ['ANDROID_HOME']).resolve()
+          with zipfile.ZipFile(target) as bundle:
+              for item in bundle.infolist():
+                  path=(root/item.filename).resolve()
+                  assert path.is_relative_to(root),'Unsafe ZIP path'
+                  assert not stat.S_ISLNK(item.external_attr>>16),'Unexpected archive symlink'
+                  bundle.extract(item,root)
+                  mode=(item.external_attr>>16)&0o777
+                  if mode and not item.is_dir():path.chmod(mode)
+          print('Official emulator archive verified and installed.',flush=True)
+          SDK
+          test -x "$ANDROID_HOME/emulator/emulator"
+          "$ANDROID_HOME/emulator/emulator" -version
+          test -x "$ANDROID_HOME/platform-tools/adb"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            'platform-tools' 'emulator' "system-images;android-${ANDROID_API};google_apis;x86_64"
+            "system-images;android-${ANDROID_API};google_apis;x86_64"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
             --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
