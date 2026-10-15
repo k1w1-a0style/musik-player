@@ -32,8 +32,15 @@ jobs:
           assert lock['packages']['node_modules/expo']['version']=='57.0.30'
           assert lock['packages']['node_modules/react-native']['version']==old['packages']['node_modules/react-native']['version']=='0.86.3'
           assert lock['packages']['node_modules/@rntp/player']['version']==old['packages']['node_modules/@rntp/player']['version']=='5.12.1'
-          allowed={'expo','@expo/cli','@expo/prebuild-config','@expo/xcpretty','expo-modules-autolinking','expo-modules-core','expo-asset','expo-constants'}
-          assert all(p.removeprefix('node_modules/').split('/node_modules/')[-1] in allowed for p in changed),'Unrelated package update'
+          expected={
+              'node_modules/expo':('57.0.29','57.0.30'),
+              'node_modules/expo/node_modules/@expo/cli':('57.0.30','57.0.31'),
+              'node_modules/expo/node_modules/@expo/cli/node_modules/@expo/router-server':('57.0.12','57.0.13'),
+              'node_modules/expo/node_modules/babel-preset-expo':('57.0.15','57.0.16'),
+          }
+          assert set(changed)==set(expected),'Unexpected SDK patch graph'
+          for path,pair in expected.items():
+              assert (old['packages'][path]['version'],lock['packages'][path]['version'])==pair,'Unexpected exact patch version'
           rebind=[]
           for effect in policy['expectedBlockingEffects']:
               finding=audit['vulnerabilities'][effect['package']]
