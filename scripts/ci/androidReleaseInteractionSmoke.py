@@ -423,7 +423,13 @@ def header_font_preflight():
 
 
 def settings():
-    tap('library-open-menu')
+    # A font-scale configuration change can still be replacing the native
+    # window. Require the same uncovered stable-header ACK as cold start.
+    header = wait_uncovered_library_header()
+    tap_node(header)
+    # Never treat the underlying song list as the unopened menu's scroller.
+    menu_card = find('library-menu-card')
+    assert menu_card.get('package') == PACKAGE, 'Opened settings menu is not app-owned'
     target = scroll_to('library-menu-item-einstellungen')
     assert target.get('package') == PACKAGE and target.get('enabled') == 'true', 'Settings action is not enabled app-owned UI'
     x1,y1,x2,y2 = rect(target)

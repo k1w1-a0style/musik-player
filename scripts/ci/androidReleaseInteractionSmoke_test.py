@@ -12,6 +12,31 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_settings_requires_stable_header_and_menu_ack_before_any_scroll(self):
+        header=ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[378,73][450,145]"/>')
+        action=ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[24,480][456,552]"/>')
+        events=[]
+        def find(key):
+            events.append(key)
+            return ET.Element('node',{'package':smoke.PACKAGE})
+        with patch.object(smoke,'wait_uncovered_library_header',side_effect=lambda:events.append('stable-header') or header), \
+             patch.object(smoke,'tap_node',side_effect=lambda n:events.append('header-tap' if n is header else 'settings-tap')), \
+             patch.object(smoke,'find',side_effect=find), patch.object(smoke,'tap',side_effect=AssertionError('Unstable header tap')), \
+             patch.object(smoke,'scroll_to',side_effect=lambda k:events.append('owned-menu-scroll') or action):
+            smoke.settings()
+        self.assertEqual(events,['stable-header','header-tap','library-menu-card','owned-menu-scroll','settings-tap','settings-screen'])
+
+    def test_settings_never_scrolls_underlying_library_when_menu_did_not_open(self):
+        header=ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[378,73][450,145]"/>')
+        with patch.object(smoke,'wait_uncovered_library_header',return_value=header), patch.object(smoke,'tap_node'), \
+             patch.object(smoke,'find',side_effect=AssertionError('Menu opening not acknowledged')), patch.object(smoke,'scroll_to') as scroll, \
+             patch.object(smoke,'tap'):
+            with self.assertRaisesRegex(AssertionError,'Menu opening not acknowledged'):smoke.settings()
+            scroll.assert_not_called()
+        with patch.object(smoke,'wait_uncovered_library_header',return_value=header), patch.object(smoke,'tap_node'), \
+             patch.object(smoke,'find',return_value=ET.Element('node',{'package':'other.app'})), patch.object(smoke,'scroll_to') as scroll:
+            with self.assertRaisesRegex(AssertionError,'not app-owned'):smoke.settings()
+            scroll.assert_not_called()
     def test_matrix_pauses_through_recorded_playing_hitbox_before_visible_controls(self):
         hitbox=ET.fromstring(f'<node resource-id="soundcloud-swipe-hitbox" package="{smoke.PACKAGE}" enabled="true" content-desc="Pausieren" bounds="[0,306][480,585]"/>')
         events=[]
@@ -1179,18 +1204,19 @@ Audio playback (lastly played comes first)
 
     def test_settings_scrolls_real_library_menu_and_requires_owned_whole_action(self):
         node = ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[70,700][443,792]"/>')
-        with patch.object(smoke,'tap') as tap, patch.object(smoke,'scroll_to',return_value=node) as scroll, patch.object(smoke,'tap_node') as touch, patch.object(smoke,'find') as find:
+        header = ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[378,73][450,145]"/>')
+        card = ET.Element('node',{'package':smoke.PACKAGE})
+        with patch.object(smoke,'wait_uncovered_library_header',return_value=header), patch.object(smoke,'scroll_to',return_value=node) as scroll, patch.object(smoke,'tap_node') as touch, patch.object(smoke,'find',return_value=card) as find:
             smoke.settings()
-            tap.assert_called_once_with('library-open-menu')
             scroll.assert_called_once_with('library-menu-item-einstellungen')
-            touch.assert_called_once_with(node)
-            find.assert_called_once_with('settings-screen')
+            self.assertEqual([call.args[0] for call in touch.call_args_list],[header,node])
+            self.assertEqual([call.args[0] for call in find.call_args_list],['library-menu-card','settings-screen'])
         for attrs in ({'package':'com.android.documentsui'},{'enabled':'false'},{'bounds':'[70,906][443,937]'}):
             bad = ET.fromstring(ET.tostring(node))
             bad.attrib.update(attrs)
-            with patch.object(smoke,'tap'),patch.object(smoke,'scroll_to',return_value=bad),patch.object(smoke,'tap_node') as touch:
+            with patch.object(smoke,'wait_uncovered_library_header',return_value=header),patch.object(smoke,'find',return_value=card),patch.object(smoke,'scroll_to',return_value=bad),patch.object(smoke,'tap_node') as touch:
                 with self.assertRaises(AssertionError):smoke.settings()
-                touch.assert_not_called()
+                touch.assert_called_once_with(header)
 
     def test_clipped_settings_menu_is_revealed_by_inside_owner_slow_swipe(self):
         key='library-menu-item-einstellungen'
