@@ -24,7 +24,8 @@
     "@react-native-community/slider": "5.2.0",
     "@react-navigation/native": "7.5.0",
     "@react-navigation/native-stack": "7.14.11",
-    "expo": "~57.0.29",
+    "@rntp/player": "5.12.1",
+    "expo": "57.0.30",
     "expo-blur": "~57.0.3",
     "expo-dev-client": "~57.0.20",
     "expo-file-system": "~57.0.7",
@@ -41,11 +42,11 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-track-player": "file:./modules/playback-backend",
-    "zod": "4.3.6",
-    "@rntp/player": "5.12.1"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
+    "@react-native/jest-preset": "0.86.3",
     "@testing-library/react-native": "13.3.3",
     "@types/jest": "~29.5.14",
     "@types/react": "~19.2.18",
@@ -59,8 +60,7 @@
     "jest-expo": "~57.0.6",
     "react-test-renderer": "19.2.3",
     "typescript": "~6.0.3",
-    "typescript-eslint": "8.59.0",
-    "@react-native/jest-preset": "0.86.3"
+    "typescript-eslint": "8.59.0"
   },
   "expo": {
     "doctor": {

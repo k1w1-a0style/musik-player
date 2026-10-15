@@ -52,7 +52,7 @@
         "node_modules/expo/node_modules/@expo/cli"
       ],
       "versions": [
-        "57.0.30"
+        "57.0.31"
       ]
     },
     {
@@ -205,7 +205,7 @@
         "node_modules/expo"
       ],
       "versions": [
-        "57.0.29"
+        "57.0.30"
       ]
     },
     {

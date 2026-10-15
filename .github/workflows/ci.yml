@@ -475,13 +475,18 @@ jobs:
           adb shell input keyevent 82
           adb logcat -c
 
-      - name: Exercise release UI, files, native playback, backup and restart
+      - name: Prepare public UI test tools
         shell: bash
         run: |
           set -euo pipefail
           command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
           python3 -m venv "$RUNNER_TEMP/release-ui-venv"
           "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+
+      - name: Verify twelve affected font2 variants on the new APK
+        shell: bash
+        run: |
+          set -euo pipefail
           APK_DIAGNOSTIC_MODE=v5-section-font2 "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/font2-regression.log
           # Preserve the twelve-case evidence, then reset only this isolated
           # emulator app so full acceptance starts with a fresh collection.
@@ -496,6 +501,11 @@ jobs:
           assert len(result['v5Proofs']['matrix'])==12 and result['releaseAccepted'] is False
           print('Twelve corrected-APK font2 cases passed; starting separate full acceptance of the same bytes.')
           TARGET
+
+      - name: Exercise full release UI, files, playback, backup and restart
+        shell: bash
+        run: |
+          set -euo pipefail
           test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
           adb shell pm clear "$PACKAGE_NAME" | grep -x Success
           adb shell settings put system font_scale 1.0
