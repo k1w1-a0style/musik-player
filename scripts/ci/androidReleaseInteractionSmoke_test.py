@@ -12,6 +12,25 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_matrix_pauses_through_recorded_playing_hitbox_before_visible_controls(self):
+        hitbox=ET.fromstring(f'<node resource-id="soundcloud-swipe-hitbox" package="{smoke.PACKAGE}" enabled="true" content-desc="Pausieren" bounds="[0,306][480,585]"/>')
+        events=[]
+        def find(key):
+            if key=='soundcloud-swipe-hitbox':return hitbox
+            self.assertEqual(key,'soundcloud-play-button')
+            self.assertEqual(events,['public-pause','native-pause-ack'])
+            return ET.Element('node')
+        with patch.object(smoke,'find',side_effect=find), patch.object(smoke,'tap_node',side_effect=lambda n:events.append('public-pause')), \
+             patch.object(smoke,'wait_paused_session',side_effect=lambda t:events.append('native-pause-ack')) as paused:
+            smoke.pause_matrix_player(smoke.TITLES[2])
+            paused.assert_called_once_with(smoke.TITLES[2])
+
+    def test_matrix_cannot_pause_foreign_disabled_or_already_paused_hitbox(self):
+        for change in ({'package':'other.app'},{'enabled':'false'},{'content-desc':'Abspielen'}):
+            data={'package':smoke.PACKAGE,'enabled':'true','content-desc':'Pausieren','bounds':'[0,306][480,585]'};data.update(change)
+            with patch.object(smoke,'find',return_value=ET.Element('node',data)), patch.object(smoke,'tap_node') as tap:
+                with self.assertRaisesRegex(AssertionError,'pause action'):smoke.pause_matrix_player(smoke.TITLES[2])
+                tap.assert_not_called()
     def section_frame(self):
         root=ET.Element('hierarchy')
         for key,area in {

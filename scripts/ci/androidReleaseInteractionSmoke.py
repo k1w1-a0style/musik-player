@@ -1711,6 +1711,17 @@ def previous_matrix_cases():
     return list(cases)
 
 
+def pause_matrix_player(title):
+    # While playing the public artwork hitbox replaces the paused controls.
+    # The recorded native XML exposes its exact Pausieren action; wait for the
+    # unchanged native pause ACK before requiring the visible paused controls.
+    hitbox = find('soundcloud-swipe-hitbox')
+    assert hitbox.get('package') == PACKAGE and hitbox.get('enabled') == 'true' and hitbox.get('content-desc') == 'Pausieren', 'Expected exact enabled app-owned public pause action'
+    tap_node(hitbox)
+    wait_paused_session(title)
+    find('soundcloud-play-button')
+
+
 def validate_font2_matrix_coverage(cases):
     expected = {('2.0',appearance,skin,density) for appearance in ('dark','light')
                 for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')}
@@ -1761,9 +1772,7 @@ def ui_matrix(font2_only=False):
                     stem = f'{scale}-{appearance}-{skin}-{density}'
                     (OUT / ('section-playback-'+stem+'.txt')).write_text(session)
                     tap('mini-player-open')
-                    find('soundcloud-play-button')
-                    tap('soundcloud-play-button')
-                    wait_paused_session(TITLES[2])
+                    pause_matrix_player(TITLES[2])
                     screenshot(f'player-{scale}-{appearance}-{skin}-{density}')
                     V5_PROOFS['matrix'].append({'fontScale': scale, 'appearance': appearance,
                         'skin': skin, 'density': density, 'playBounds': play_box, 'menuBounds': menu_box,

@@ -24,8 +24,8 @@ jobs:
       AVD_NAME: musik-preview-api-35
       ANDROID_API: '35'
       APK_DIAGNOSTIC_MODE: ${{ contains(github.event.head_commit.message, '[probe matrix]') && 'v5-matrix' || contains(github.event.head_commit.message, '[probe cleaner]') && 'v5-cleaner-matrix' || contains(github.event.head_commit.message, '[probe final]') && 'v5-final-stages' || contains(github.event.head_commit.message, '[probe settings]') && 'settings-switch-probe' || contains(github.event.head_commit.message, '[probe swipe]') && 'cover-swipe-probe' || contains(github.event.head_commit.message, '[probe apk]') && 'queue-replacement-probe' || '' }}
-      REVIEWED_APK_SOURCE_COMMIT: 30d5b9e1e7df11cb86e30545b3789a8fd29fc995
-      EXPECTED_APK_SHA256: f3b7d6a778aec4c90585d0e2a8a1ae3411f8703a4d8a93be11acaec5ad8e888c
+      REVIEWED_APK_SOURCE_COMMIT: c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06
+      EXPECTED_APK_SHA256: 91ba080aa732bd2e0af1bf437c53bc90ca6179d9d814fd26c596cec3ef0e18fc
     steps:
       - name: Checkout immutable acceptance harness
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -41,7 +41,7 @@ jobs:
           from pathlib import Path
           with tempfile.TemporaryDirectory() as directory:
               root=Path(directory)
-              old=subprocess.check_output(['git','show','30d5b9e1e7df11cb86e30545b3789a8fd29fc995:scripts/ci/androidReleaseInteractionSmoke.py'])
+              old=subprocess.check_output(['git','show','c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06:scripts/ci/androidReleaseInteractionSmoke.py'])
               (root/'androidReleaseInteractionSmoke.py').write_bytes(old)
               (root/'androidReleaseInteractionSmoke_test.py').write_bytes(Path('scripts/ci/androidReleaseInteractionSmoke_test.py').read_bytes())
               env=dict(os.environ,PYTHONPATH=str(root)+os.pathsep+str(Path('scripts/ci').resolve()))
@@ -55,8 +55,8 @@ jobs:
       - name: Download existing inspected APK without rebuilding it
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: musik-player-preview-30d5b9e1e7df11cb86e30545b3789a8fd29fc995
-          run-id: 38616633219
+          name: musik-player-preview-c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06
+          run-id: 38766310237
           github-token: ${{ github.token }}
           path: preview-input
 
@@ -72,7 +72,7 @@ jobs:
           source = os.environ['REVIEWED_APK_SOURCE_COMMIT']
           changed = subprocess.check_output(['git', 'diff', '--name-only', source, os.environ['GITHUB_SHA']], text=True).splitlines()
           request = urllib.request.Request(
-              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38616633219/jobs?per_page=100',
+              'https://api.github.com/repos/k1w1-a0style/musik-player/actions/runs/38766310237/jobs?per_page=100',
               headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'], 'Accept':'application/vnd.github+json'})
           with urllib.request.urlopen(request, timeout=30) as response:
               jobs = json.load(response)['jobs']
@@ -216,13 +216,42 @@ jobs:
           adb shell input keyevent 82
           adb logcat -c
 
-      - name: Exercise release UI, files, native playback, backup and restart
+      - name: Prepare public UI test tools
         shell: bash
         run: |
           set -euo pipefail
           command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
           python3 -m venv "$RUNNER_TEMP/release-ui-venv"
           "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+
+      - name: Verify twelve affected font2 variants on the new APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_DIAGNOSTIC_MODE=v5-section-font2 "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/font2-regression.log
+          # Preserve the twelve-case evidence, then reset only this isolated
+          # emulator app so full acceptance starts with a fresh collection.
+          python3 - <<'TARGET'
+          import hashlib,json,os
+          from pathlib import Path
+          p=Path('ci-logs/font2-regression/stage-result.json')
+          result=json.loads(p.read_text())
+          assert result['status']=='stage-only-passed' and result['mode']=='v5-section-font2'
+          assert result['sourceCommit']==os.environ['REVIEWED_APK_SOURCE_COMMIT']
+          assert result['harnessCommit']==os.environ['GITHUB_SHA']
+          assert result['apkSha256']==hashlib.sha256(Path('preview-input/musik-player-preview.apk').read_bytes()).hexdigest()
+          assert len(result['v5Proofs']['matrix'])==12 and result['releaseAccepted'] is False
+          print('Twelve corrected-APK font2 cases passed; starting separate full acceptance of the same bytes.')
+          TARGET
+
+      - name: Exercise full release UI, files, playback, backup and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
+          adb shell pm clear "$PACKAGE_NAME" | grep -x Success
+          adb shell settings put system font_scale 1.0
+          adb logcat -c
           "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/release-ui.log
 
       - name: Capture diagnostics after any device failure
