@@ -1,0 +1,64 @@
+name: Prepare minimal SDK57 compatibility patch
+on:
+  push:
+    branches: ['qa/v5-control/sdk57-patch30']
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-npm
+      - name: Update only the required SDK57 patch and exact existing effect versions
+        run: |
+          cp security/npm-audit-exceptions.json "$RUNNER_TEMP/original-policy.json"
+          npm install 'expo@~57.0.30' --no-audit --no-fund
+          npm audit --omit=dev --json > "$RUNNER_TEMP/fresh-audit.json" || test "$?" -eq 1
+          python3 - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          original=json.loads(Path(os.environ['RUNNER_TEMP'],'original-policy.json').read_text())
+          policy=json.loads(Path('security/npm-audit-exceptions.json').read_text())
+          assert policy==original
+          audit=json.loads(Path(os.environ['RUNNER_TEMP'],'fresh-audit.json').read_text())
+          lock=json.loads(Path('package-lock.json').read_text())
+          old=json.loads(subprocess.check_output(['git','show','HEAD:package-lock.json'],text=True))
+          changed=[p for p,v in lock['packages'].items() if p in old['packages'] and v.get('version')!=old['packages'][p].get('version')]
+          print('SDK_CHANGED_PACKAGES '+json.dumps({p:[old['packages'][p].get('version'),lock['packages'][p].get('version')] for p in changed}),flush=True)
+          assert lock['packages']['node_modules/expo']['version']=='57.0.30'
+          assert lock['packages']['node_modules/react-native']['version']==old['packages']['node_modules/react-native']['version']=='0.86.3'
+          assert lock['packages']['node_modules/@rntp/player']['version']==old['packages']['node_modules/@rntp/player']['version']=='5.12.1'
+          allowed={'expo','@expo/cli','@expo/prebuild-config','@expo/xcpretty','expo-modules-autolinking','expo-modules-core','expo-asset','expo-constants'}
+          assert all(p.removeprefix('node_modules/').split('/node_modules/')[-1] in allowed for p in changed),'Unrelated package update'
+          rebind=[]
+          for effect in policy['expectedBlockingEffects']:
+              finding=audit['vulnerabilities'][effect['package']]
+              assert finding['severity']==effect['severity'] and sorted(finding['via'])==sorted(effect['via']) and sorted(finding['nodes'])==sorted(effect['nodes'])
+              versions=sorted({lock['packages'][p]['version'] for p in effect['nodes']})
+              if versions!=effect['versions']:
+                  assert effect['package'] in ('expo','@expo/cli'),'Unrelated advisory effect version changed'
+                  rebind.append({'package':effect['package'],'before':effect['versions'],'after':versions})
+                  effect['versions']=versions
+          assert policy['exceptions']==original['exceptions'],'Root advisory/payload/expiry changed'
+          Path('security/npm-audit-exceptions.json').write_text(json.dumps(policy,indent=2)+'\n')
+          print('SDK_EXACT_EFFECT_REBIND '+json.dumps(rebind),flush=True)
+          PY
+          node scripts/ci/checkNpmAudit.cjs "$RUNNER_TEMP/fresh-audit.json" security/npm-audit-exceptions.json package-lock.json
+          npm run check:expo-deps
+          npm run typecheck
+          ./node_modules/.bin/jest components/__tests__/LibrarySectionHeader.test.tsx components/__tests__/LibraryPlaybackActions.test.tsx components/__tests__/LibrarySongViewControl.test.tsx components/__tests__/LibrarySortControl.test.tsx components/__tests__/LibraryDensity.test.tsx --runInBand
+      - name: Emit only the reviewed minimal patch files
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json
+          from pathlib import Path
+          for name in ('package.json','package-lock.json','security/npm-audit-exceptions.json'):
+              data=Path(name).read_bytes();encoded=base64.b64encode(data).decode()
+              chunks=[encoded[i:i+30000] for i in range(0,len(encoded),30000)]
+              for index,part in enumerate(chunks):
+                  print('SDK_PATCH_CHUNK '+json.dumps({'name':name,'index':index,'count':len(chunks),'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'base64':part}),flush=True)
+          PY
