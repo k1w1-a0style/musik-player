@@ -41,7 +41,7 @@ jobs:
           from pathlib import Path
           with tempfile.TemporaryDirectory() as directory:
               root=Path(directory)
-              old=subprocess.check_output(['git','show','c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06:scripts/ci/androidReleaseInteractionSmoke.py'])
+              old=subprocess.check_output(['git','show','30d5b9e1e7df11cb86e30545b3789a8fd29fc995:scripts/ci/androidReleaseInteractionSmoke.py'])
               (root/'androidReleaseInteractionSmoke.py').write_bytes(old)
               (root/'androidReleaseInteractionSmoke_test.py').write_bytes(Path('scripts/ci/androidReleaseInteractionSmoke_test.py').read_bytes())
               env=dict(os.environ,PYTHONPATH=str(root)+os.pathsep+str(Path('scripts/ci').resolve()))
