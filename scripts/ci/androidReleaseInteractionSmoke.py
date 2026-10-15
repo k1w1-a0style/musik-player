@@ -53,6 +53,26 @@ def validate_target(apk, expected_sha, reviewed_commit, artifact_commit, emulato
     assert hashlib.sha256(Path(apk).read_bytes()).hexdigest() == expected_sha, 'APK bytes differ from inspected artifact'
 
 
+def validate_completed_font2_stage(data, run, jobs, artifact, source, apk_sha):
+    """Retain only the immutable successful first stage of this exact APK."""
+    harness = 'f5ff31bef3dfc9457f6d4b5710ab0ea9539157b5'
+    assert run['id'] == 38773283526 and run['head_sha'] == harness and run['status'] == 'completed'
+    assert len(jobs) == 1 and jobs[0]['head_sha'] == harness and jobs[0]['status'] == 'completed'
+    for name in ('Verify the acceptance harness regressions before device work',
+                 'Reject changed app sources, failed original gates or altered APK bytes',
+                 'Verify twelve affected font2 variants on the new APK'):
+        steps = [s for s in jobs[0]['steps'] if s['name'] == name]
+        assert len(steps) == 1 and steps[0]['conclusion'] == 'success', 'Completed font2 provenance or stage failed'
+    assert artifact['id'] == 11994031824 and artifact['workflow_run']['id'] == run['id']
+    assert artifact['workflow_run']['head_sha'] == harness and artifact['expired'] is False
+    assert artifact['digest'] == 'sha256:f1e4a4f0179fcc2c6eb3f9fd1324797ca28468820ad950e8fd918f9536f2f865'
+    assert data['sourceCommit'] == source and data['apkSha256'] == apk_sha and data['harnessCommit'] == harness
+    assert data['status'] == 'stage-only-passed' and data['mode'] == 'v5-section-font2' and data['releaseAccepted'] is False
+    validate_font2_matrix_coverage(data['v5Proofs']['matrix'])
+    return {'run':run['id'],'harnessCommit':harness,'artifact':artifact['id'],
+            'artifactDigest':artifact['digest'],'sourceCommit':source,'apkSha256':apk_sha,'passed':12}
+
+
 def validate_retest_provenance(reviewed_commit, changed_paths, jobs):
     """Reuse an APK only when app sources are identical and its build gates passed."""
     assert re.fullmatch(r'[0-9a-f]{40}', reviewed_commit), 'Unpinned APK source'
@@ -506,6 +526,10 @@ def wait_tree_grant(folder, timeout=25):
 DOCUMENTS_PACKAGES = ('com.google.android.documentsui', 'com.android.documentsui')
 
 
+class PickerRootClippedError(AssertionError):
+    """A transient system window frame is not yet safe to touch."""
+
+
 def document_nodes(root):
     return [node for node in root.iter('node') if node.get('package') in DOCUMENTS_PACKAGES and visible(node)]
 
@@ -545,17 +569,28 @@ def picker_root_touch(root):
     assert owner is not None and owner.get('resource-id', '').endswith(':id/horizontal_breadcrumb'), 'Actual breadcrumb touch owner missing'
     x1,y1,x2,y2 = rect(item)
     ox1,oy1,ox2,oy2 = rect(owner)
-    assert ox1 <= x1 < x2 <= ox2 and oy1 <= y1 < y2 <= oy2, 'Root breadcrumb clipped by its native owner'
+    if not (ox1 <= x1 < x2 <= ox2 and oy1 <= y1 < y2 <= oy2):
+        raise PickerRootClippedError('Root breadcrumb clipped by its native owner')
     return item, crumbs
 
 
 def settle_picker_root(root, timeout=25):
     deadline = time.monotonic() + timeout
     previous, stable = None, 0
+    last_clip = ''
     while time.monotonic() < deadline:
         if picker_at_internal_root(root):
             return None, root
-        item, crumbs = picker_root_touch(root)
+        try:
+            item, crumbs = picker_root_touch(root)
+        except PickerRootClippedError as error:
+            # DocumentsUI's enter animation can briefly offset a child from
+            # its scrolling owner. Never tap that frame or enlarge its bounds.
+            last_clip = str(error)
+            previous, stable = None, 0
+            time.sleep(.3)
+            root = tree(compressed=False)
+            continue
         fingerprint = ([node.get('text') for node in crumbs], rect(item))
         stable = stable + 1 if fingerprint == previous else 0
         previous = fingerprint
@@ -563,7 +598,7 @@ def settle_picker_root(root, timeout=25):
             return item, root
         time.sleep(.3)
         root = tree(compressed=False)
-    raise AssertionError('Root breadcrumb never establishes stable touch geometry')
+    raise AssertionError('Root breadcrumb never establishes stable touch geometry: ' + last_clip)
 
 
 def navigate_picker_root(root, timeout=25):

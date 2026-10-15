@@ -12,6 +12,41 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def completed_font2_fixture(self):
+        harness='f5ff31bef3dfc9457f6d4b5710ab0ea9539157b5'
+        cases=[{'fontScale':'2.0','appearance':a,'skin':s,'density':d,
+                'sectionPlayback':{'title':smoke.TITLES[2],'nativeState':3}}
+               for a in ('dark','light') for s in ('graphite','minimal','neon-cover') for d in ('standard','compact')]
+        data={'sourceCommit':'a'*40,'apkSha256':'b'*64,'harnessCommit':harness,
+              'status':'stage-only-passed','mode':'v5-section-font2','releaseAccepted':False,'v5Proofs':{'matrix':cases}}
+        run={'id':38773283526,'head_sha':harness,'status':'completed','conclusion':'failure'}
+        names=('Verify the acceptance harness regressions before device work',
+               'Reject changed app sources, failed original gates or altered APK bytes',
+               'Verify twelve affected font2 variants on the new APK')
+        jobs=[{'head_sha':harness,'status':'completed','steps':[{'name':n,'conclusion':'success'} for n in names]}]
+        artifact={'id':11994031824,'workflow_run':{'id':run['id'],'head_sha':harness},'expired':False,
+                  'digest':'sha256:f1e4a4f0179fcc2c6eb3f9fd1324797ca28468820ad950e8fd918f9536f2f865'}
+        return data,run,jobs,artifact
+
+    def test_completed_font2_stage_retains_exact_twelve_without_claiming_failed_full_run_passed(self):
+        data,run,jobs,artifact=self.completed_font2_fixture()
+        origin=smoke.validate_completed_font2_stage(data,run,jobs,artifact,'a'*40,'b'*64)
+        self.assertEqual(origin['passed'],12)
+        self.assertIs(data['releaseAccepted'],False)
+        self.assertEqual(run['conclusion'],'failure')
+
+    def test_completed_font2_rejects_wrong_bytes_origin_missing_case_or_failed_guard(self):
+        for change in ('source','bytes','harness','digest','artifact','guard','missing'):
+            data,run,jobs,artifact=self.completed_font2_fixture()
+            if change=='source':data['sourceCommit']='c'*40
+            elif change=='bytes':data['apkSha256']='c'*64
+            elif change=='harness':run['head_sha']='c'*40
+            elif change=='digest':artifact['digest']='sha256:'+'c'*64
+            elif change=='artifact':artifact['id']=1
+            elif change=='guard':jobs[0]['steps'][1]['conclusion']='failure'
+            else:data['v5Proofs']['matrix'].pop()
+            with self.subTest(change=change), self.assertRaises(AssertionError):
+                smoke.validate_completed_font2_stage(data,run,jobs,artifact,'a'*40,'b'*64)
     def test_settings_requires_stable_header_and_menu_ack_before_any_scroll(self):
         header=ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[378,73][450,145]"/>')
         action=ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[24,480][456,552]"/>')
@@ -250,7 +285,9 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             tap.assert_called_once()
         clipped=self.picker_trail_frame()
         next(clipped.iter('node')).set('bounds','[10,108][480,180]')
-        with patch.object(smoke,'tap_node') as tap:
+        clock=iter(range(100))
+        with patch.object(smoke,'tap_node') as tap, patch.object(smoke,'tree',return_value=clipped), \
+             patch.object(smoke.time,'sleep'), patch.object(smoke.time,'monotonic',side_effect=lambda:next(clock)):
             with self.assertRaisesRegex(AssertionError,'clipped'):
                 smoke.navigate_picker_root(clipped)
             tap.assert_not_called()
@@ -264,6 +301,27 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         with patch.object(smoke,'tree',side_effect=[stable,stable,stable]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
             selected,frame=smoke.settle_picker_root(moving)
             self.assertEqual(smoke.rect(selected),[0,108,200,180])
+            tap.assert_not_called()
+
+    def test_picker_root_waits_out_recorded_two_pixel_window_animation(self):
+        moving=self.picker_trail_frame()
+        owner=next(moving.iter('node'));owner.set('bounds','[8,108][480,180]')
+        list(owner)[0].set('bounds','[6,108][169,180]')
+        stable=self.picker_trail_frame()
+        with patch.object(smoke,'tree',side_effect=[stable,stable,stable]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
+            selected,frame=smoke.settle_picker_root(moving)
+            self.assertIs(frame,stable)
+            self.assertEqual(smoke.rect(selected),[0,108,160,180])
+            tap.assert_not_called()
+
+    def test_permanently_clipped_picker_root_remains_a_bounded_failure_without_input(self):
+        clipped=self.picker_trail_frame()
+        next(clipped.iter('node')).set('bounds','[8,108][480,180]')
+        clock=iter(range(100))
+        with patch.object(smoke,'tree',return_value=clipped), patch.object(smoke.time,'sleep'), \
+             patch.object(smoke.time,'monotonic',side_effect=lambda:next(clock)), patch.object(smoke,'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError,'clipped'):
+                smoke.settle_picker_root(clipped,timeout=5)
             tap.assert_not_called()
 
     def test_cleaner_safe_queue_requires_real_native_size_after_restart(self):

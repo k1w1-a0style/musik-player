@@ -121,6 +121,34 @@ jobs:
           print('26 complete native cases bound to the same unchanged inspected APK; all 36 remain required at final validation.')
           PY
 
+      - name: Download immutable successful twelve-case evidence of this exact APK
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: retest-preview-release-acceptance-f5ff31bef3dfc9457f6d4b5710ab0ea9539157b5
+          run-id: 38773283526
+          github-token: ${{ github.token }}
+          path: previous-font2
+
+      - name: Verify completed twelve font2 variants without repeating them
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'TARGET'
+          import json,os,shutil,sys,urllib.request
+          from pathlib import Path
+          sys.path.insert(0,str(Path('scripts/ci').resolve()))
+          from androidReleaseInteractionSmoke import validate_completed_font2_stage
+          def api(path):
+              request=urllib.request.Request('https://api.github.com/repos/k1w1-a0style/musik-player/'+path,headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+          paths=list(Path('previous-font2').rglob('stage-result.json'));assert len(paths)==1
+          result=json.loads(paths[0].read_text())
+          origin=validate_completed_font2_stage(result,api('actions/runs/38773283526'),api('actions/runs/38773283526/jobs?per_page=100')['jobs'],api('actions/artifacts/11994031824'),os.environ['REVIEWED_APK_SOURCE_COMMIT'],os.environ['EXPECTED_APK_SHA256'])
+          shutil.copytree(paths[0].parent,Path('ci-logs/font2-regression'))
+          Path('ci-logs/font2-origin.json').write_text(json.dumps(origin,indent=2))
+          print('All twelve successful cases retained with immutable origin; full acceptance still required.')
+          TARGET
+
       - name: Prepare isolated Android emulator
         shell: bash
         run: |
@@ -224,32 +252,11 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/release-ui-venv"
           "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
 
-      - name: Verify twelve affected font2 variants on the new APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK_DIAGNOSTIC_MODE=v5-section-font2 "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/font2-regression.log
-          # Preserve the twelve-case evidence, then reset only this isolated
-          # emulator app so full acceptance starts with a fresh collection.
-          python3 - <<'TARGET'
-          import hashlib,json,os
-          from pathlib import Path
-          p=Path('ci-logs/font2-regression/stage-result.json')
-          result=json.loads(p.read_text())
-          assert result['status']=='stage-only-passed' and result['mode']=='v5-section-font2'
-          assert result['sourceCommit']==os.environ['REVIEWED_APK_SOURCE_COMMIT']
-          assert result['harnessCommit']==os.environ['GITHUB_SHA']
-          assert result['apkSha256']==hashlib.sha256(Path('preview-input/musik-player-preview.apk').read_bytes()).hexdigest()
-          assert len(result['v5Proofs']['matrix'])==12 and result['releaseAccepted'] is False
-          print('Twelve corrected-APK font2 cases passed; starting separate full acceptance of the same bytes.')
-          TARGET
-
       - name: Exercise full release UI, files, playback, backup and restart
         shell: bash
         run: |
           set -euo pipefail
           test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
-          adb shell pm clear "$PACKAGE_NAME" | grep -x Success
           adb shell settings put system font_scale 1.0
           adb logcat -c
           "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/release-ui.log
