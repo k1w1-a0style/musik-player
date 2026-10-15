@@ -14,9 +14,9 @@ const LibrarySectionHeader: React.FC<LibrarySectionHeaderProps> = ({ title, coun
 
   return (
     <View style={styles.listHeader} testID="library-section-header">
-      <Text style={[styles.sortLabel, { color: theme.palette.text.secondary }]}>{title}</Text>
+      <Text style={[styles.sortLabel, { color: theme.palette.text.secondary }]} testID="library-section-title">{title}</Text>
       {children ? (
-        <View style={styles.listHeaderActions}>{children}</View>
+        <View style={styles.listHeaderActions} testID="library-section-actions">{children}</View>
       ) : count !== undefined ? (
         <Text style={[styles.folderCount, { color: theme.palette.text.muted }]}>{count}</Text>
       ) : null}
@@ -25,10 +25,26 @@ const LibrarySectionHeader: React.FC<LibrarySectionHeaderProps> = ({ title, coun
 };
 
 const styles = StyleSheet.create({
-  listHeader: { height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  sortLabel: { fontFamily: staticTokens.fonts.heading, fontSize: 14 },
-  folderCount: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
-  listHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  listHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 8,
+  },
+  sortLabel: { fontFamily: staticTokens.fonts.heading, fontSize: 14, flexShrink: 1, maxWidth: '100%' },
+  folderCount: { fontFamily: staticTokens.fonts.body, fontSize: 12, flexShrink: 1, maxWidth: '100%' },
+  listHeaderActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flexShrink: 1,
+    maxWidth: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
 });
 
 export default LibrarySectionHeader;

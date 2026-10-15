@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryPlaybackActions from '../LibraryPlaybackActions';
 
@@ -66,4 +67,14 @@ test('uses app theme chrome for action buttons', () => {
   expect(shuffleStyle).toContain(mockAppTheme.palette.border);
   expect(playStyle).toContain(mockAppTheme.palette.surfaceGlass);
   expect(playStyle).toContain(mockAppTheme.palette.border);
+});
+
+test('keeps both action buttons at least 48dp without shrinking', () => {
+  const { getByTestId } = render(<LibraryPlaybackActions disabled={false} onShuffle={jest.fn()} onPlay={jest.fn()} />);
+  for (const id of ['library-play-button', 'library-shuffle-button']) {
+    const style = StyleSheet.flatten(getByTestId(id).props.style);
+    expect(style.width).toBeGreaterThanOrEqual(48);
+    expect(style.height).toBeGreaterThanOrEqual(48);
+    expect(style.flexShrink).toBe(0);
+  }
 });

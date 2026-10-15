@@ -57,11 +57,12 @@ const LibraryPlaybackActions: React.FC<LibraryPlaybackActionsProps> = ({
 };
 
 const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  actions: { flexDirection: 'row', flexShrink: 0, alignItems: 'center', gap: 8 },
   roundButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    flexShrink: 0,
+    borderRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',

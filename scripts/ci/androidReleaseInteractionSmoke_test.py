@@ -12,6 +12,50 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def section_frame(self):
+        root=ET.Element('hierarchy')
+        for key,area in {
+            'library-section-header':'[12,260][468,500]',
+            'library-section-title':'[12,260][250,304]',
+            'library-song-view-control':'[12,316][180,388]',
+            'library-sort-control':'[192,316][340,388]',
+            'library-shuffle-button':'[12,400][84,472]',
+            'library-play-button':'[96,400][168,472]',
+        }.items():
+            ET.SubElement(root,'node',{'resource-id':key,'package':smoke.PACKAGE,'enabled':'true','bounds':area})
+        return root
+
+    def test_targeted_font2_requires_all_twelve_real_play_acknowledgements(self):
+        cases=[{'fontScale':'2.0','appearance':a,'skin':s,'density':d,
+                'sectionPlayback':{'title':smoke.TITLES[2],'nativeState':3}}
+               for a in ('dark','light') for s in ('graphite','minimal','neon-cover') for d in ('standard','compact')]
+        smoke.validate_font2_matrix_coverage(cases)
+        for broken in (cases[:-1],cases[:-1]+[cases[0]],cases+[cases[0]]):
+            with self.assertRaises(AssertionError):smoke.validate_font2_matrix_coverage(broken)
+        for change in ({'fontScale':'1.3'},{'sectionPlayback':{'title':smoke.TITLES[0],'nativeState':3}},
+                       {'sectionPlayback':{'title':smoke.TITLES[2],'nativeState':2}}):
+            bad=[dict(c) for c in cases];bad[0].update(change)
+            with self.assertRaises(AssertionError):smoke.validate_font2_matrix_coverage(bad)
+
+    def test_section_accepts_wrapped_title_and_whole_48dp_actions(self):
+        proof=smoke.validate_library_section_touch_areas(self.section_frame())
+        self.assertEqual(proof['controls']['library-play-button'],[96,400,168,472])
+
+    def test_section_rejects_recorded_14px_play_and_other_unsafe_actions(self):
+        for key,attribute,value,error in (
+            ('library-play-button','bounds','[466,281][480,335]','clipped|48dp'),
+            ('library-play-button','bounds','[10,400][82,472]','clipped|overlap'),
+            ('library-play-button','bounds','[20,400][92,472]','overlap'),
+            ('library-sort-control','package','other.app','app-owned'),
+            ('library-shuffle-button','enabled','false','enabled'),
+            ('library-section-title','bounds','[12,260][480,304]','clipped'),
+        ):
+            with self.subTest(key=key,value=value):
+                frame=self.section_frame()
+                next(n for n in frame if n.get('resource-id')==key).set(attribute,value)
+                with self.assertRaisesRegex(AssertionError,error):
+                    smoke.validate_library_section_touch_areas(frame)
+
     def header_frame(self, banner=False, enabled='true', bounds='[393,58][450,115]'):
         root = ET.fromstring(f'<hierarchy><node resource-id="library-open-menu" package="{smoke.PACKAGE}" enabled="{enabled}" bounds="{bounds}"/></hierarchy>')
         if banner:

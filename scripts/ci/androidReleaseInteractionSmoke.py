@@ -15,7 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 
 PACKAGE = 'com.k1w1a0style.musikplayer'
-OUT = Path('ci-logs/release-interaction')
+OUT = Path('ci-logs/font2-regression' if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-section-font2' else 'ci-logs/release-interaction')
 CHECKS = []
 PLAYBACK_PROOFS = []
 PLAYLIST_ADD_PROOFS = []
@@ -383,6 +383,30 @@ def validate_library_header_touch_areas(frame):
     search,menu = (rect(node) for node in controls)
     assert search[2] <= menu[0], 'Header search overlaps menu'
     return {'searchBounds':search,'menuBounds':menu}
+
+
+def validate_library_section_touch_areas(frame):
+    section = candidate('library-section-header', frame)
+    title = candidate('library-section-title', frame)
+    assert section is not None and title is not None, 'Library section/title missing'
+    assert section.get('package') == title.get('package') == PACKAGE, 'Section/title is not app-owned'
+    sx1,sy1,sx2,sy2 = rect(section)
+    areas = {'library-section-title': rect(title)}
+    controls = {}
+    for key in ('library-song-view-control','library-sort-control','library-shuffle-button','library-play-button'):
+        node = candidate(key, frame)
+        assert node is not None and node.get('package') == PACKAGE, 'Library control is missing or not app-owned: '+key
+        assert node.get('enabled') == 'true', 'Library control is not enabled: '+key
+        area = rect(node)
+        assert area[2]-area[0] >= 72 and area[3]-area[1] >= 72, 'Library control is smaller than 48dp: '+key
+        areas[key] = controls[key] = area
+    for key,(x1,y1,x2,y2) in areas.items():
+        assert 0 <= sx1 <= x1 < x2 <= sx2 <= 480 and 0 <= sy1 <= y1 < y2 <= sy2 <= 960, 'Library title/control is clipped: '+key
+    entries = list(areas.items())
+    for index,(left,a) in enumerate(entries):
+        for right,b in entries[index+1:]:
+            assert a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1], 'Library title/actions overlap: '+left+'/'+right
+    return {'sectionBounds':rect(section),'titleBounds':rect(title),'controls':controls}
 
 
 def header_font_preflight():
@@ -1687,10 +1711,19 @@ def previous_matrix_cases():
     return list(cases)
 
 
-def ui_matrix():
+def validate_font2_matrix_coverage(cases):
+    expected = {('2.0',appearance,skin,density) for appearance in ('dark','light')
+                for skin in ('graphite','minimal','neon-cover') for density in ('standard','compact')}
+    actual = [(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in cases]
+    assert len(actual) == 12 and set(actual) == expected, 'Font2 regression matrix missing or duplicates cases'
+    assert all(c['sectionPlayback']['title'] == TITLES[2] and c['sectionPlayback']['nativeState'] == 3 for c in cases), 'Font2 library play action not acknowledged'
+
+
+def ui_matrix(font2_only=False):
     V5_PROOFS['matrix'] = previous_matrix_cases()
+    assert not font2_only or not V5_PROOFS['matrix'], 'Targeted new-APK regression cannot reuse earlier cases'
     completed = {(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in V5_PROOFS['matrix']}
-    for scale in ('1.0', '1.3', '2.0'):
+    for scale in (('2.0',) if font2_only else ('1.0', '1.3', '2.0')):
         if all((scale,a,s,d) in completed for a in ('dark','light') for s in ('graphite','minimal','neon-cover') for d in ('standard','compact')):
             continue
         adb('shell', 'settings', 'put', 'system', 'font_scale', scale)
@@ -1718,22 +1751,34 @@ def ui_matrix():
                     assert menu_box[2]-menu_box[0] >= 72 and menu_box[3]-menu_box[1] >= 72, 'Song menu is smaller than 48dp'
                     assert play_box[2] <= menu_box[0]+1, 'Song play area overlaps its menu'
                     header = validate_library_header_touch_areas(tree(compressed=False))
+                    section = validate_library_section_touch_areas(tree(compressed=False))
                     screenshot(f'library-{scale}-{appearance}-{skin}-{density}')
                     tap_node(menu)
                     find('song-action-menu-card')
                     back()
+                    tap('library-play-button')
+                    session = wait_playing_session(TITLES[2])
+                    stem = f'{scale}-{appearance}-{skin}-{density}'
+                    (OUT / ('section-playback-'+stem+'.txt')).write_text(session)
                     tap('mini-player-open')
                     find('soundcloud-play-button')
+                    tap('soundcloud-play-button')
+                    wait_paused_session(TITLES[2])
                     screenshot(f'player-{scale}-{appearance}-{skin}-{density}')
                     V5_PROOFS['matrix'].append({'fontScale': scale, 'appearance': appearance,
                         'skin': skin, 'density': density, 'playBounds': play_box, 'menuBounds': menu_box,
-                        'header':header})
+                        'header':header,'section':section,
+                        'sectionPlayback':{'title':TITLES[2],'nativeState':3}})
                     (OUT / 'matrix-progress.json').write_text(json.dumps(V5_PROOFS['matrix'], indent=2))
                     back()
                     if density == 'standard':
                         settings()
-    validate_matrix_coverage(V5_PROOFS['matrix'])
-    CHECKS.append('320dp-font-1.0-1.3-2.0-all-six-themes-standard-compact-48dp-menu-quiet-blue')
+    if font2_only:
+        validate_font2_matrix_coverage(V5_PROOFS['matrix'])
+        CHECKS.append('targeted-12-font2-library-section-whole48dp-no-overlap-native-play-ack')
+    else:
+        validate_matrix_coverage(V5_PROOFS['matrix'])
+        CHECKS.append('320dp-font-1.0-1.3-2.0-all-six-themes-standard-compact-48dp-menu-quiet-blue')
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
 
 
@@ -1847,7 +1892,7 @@ def final_stage_acceptance(cleaner_only=False):
     print('Remaining V5 stages passed; combine with exact-APK prefix proof before release acceptance.', flush=True)
 
 
-def matrix_only_acceptance():
+def matrix_only_acceptance(font2_only=False):
     wait_uncovered_library_header()
     prepare_final_stage_collection()
     settings()
@@ -1857,13 +1902,13 @@ def matrix_only_acceptance():
     checkbox('settings-instant-colors', True)
     back()
     print('Stage: font, theme and density matrix', flush=True)
-    ui_matrix()
+    ui_matrix(font2_only=font2_only)
     logs = adb('logcat','-d','-v','threadtime').decode(errors='replace')
     assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
     (OUT / 'stage-result.json').write_text(json.dumps({
-        'mode':'v5-matrix','status':'stage-only-passed','releaseAccepted':False,
-        'sourceCommit':os.environ['REVIEWED_APK_SOURCE_COMMIT'],'harnessCommit':os.environ['GITHUB_SHA'],
-        'apkSha256':os.environ['EXPECTED_APK_SHA256'],'checks':CHECKS,'v5Proofs':V5_PROOFS,
+        'mode':'v5-section-font2' if font2_only else 'v5-matrix','status':'stage-only-passed','releaseAccepted':False,
+        'sourceCommit':os.environ.get('REVIEWED_APK_SOURCE_COMMIT',os.environ['GITHUB_SHA']),'harnessCommit':os.environ['GITHUB_SHA'],
+        'apkSha256':Path('preview-input/apk-sha256.txt').read_text().split()[0],'checks':CHECKS,'v5Proofs':V5_PROOFS,
         'uiSnapshots':UI_SNAPSHOTS,'transportRecoveries':TRANSPORT_RECOVERIES},indent=2))
 
 
@@ -1889,6 +1934,9 @@ def main():
     try:
         find('library-open-menu', timeout=90)
         header_font_preflight()
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-section-font2':
+            matrix_only_acceptance(font2_only=True)
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'v5-matrix':
             matrix_only_acceptance()
             return

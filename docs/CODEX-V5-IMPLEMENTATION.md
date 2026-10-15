@@ -1,6 +1,8 @@
 # Musikplayer – V5-Abnahmebericht, 15.10.2026
 
-**Die vollständige automatisierte APK-Abnahme ist bestanden. Die endgültige V5-Freigabe bleibt wegen eines nachgewiesenen Layoutfehlers offen.**
+**Aktueller Arbeitsstand: Der letzte Bibliotheksleisten-Blocker ist im produktiven Code korrigiert und gezielt auf dem Host geprüft. Eine neue APK mit zuerst zwölf gezielten Gerätefällen und anschließender vollständiger Abnahme steht aus. Noch keine neue APK-Freigabe.**
+
+Die folgenden Prüfergebnisse beziehen sich ausdrücklich auf die historische APK30d5b9e1; sie werden nicht auf geänderte APK-Bytes übertragen. Der Code-/Prüffortschritt steht in CODEX-V5-CHECKPOINTS.md.
 
 Der erfolgreiche Lauf [38622542676](https://github.com/k1w1-a0style/musik-player/actions/runs/38622542676) und das Artefakt [11923644166](https://github.com/k1w1-a0style/musik-player/actions/runs/38622542676/artifacts/11923644166) wurden unabhängig heruntergeladen und geprüft. Es wurden keine Android-Matrix, kein kompletter CI-Lauf und kein APK-Build erneut gestartet. Die ausgelieferte Datei ist exakt die dort geprüfte APK; sie wird als Android-getestete Referenz, nicht als mängelfreie finale Freigabe ausgegeben.
 
