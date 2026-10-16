@@ -1,0 +1,32 @@
+{
+  "archive": "Original verified V5 preview; immutable, separate from V4 follow-up builds",
+  "verifiedAtUtc": "2026-10-16T01:31:09.211496+00:00",
+  "sourceCommit": "c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06",
+  "documentationCommit": "93ed893398ce9a59d37a3b4376c418cadf8e02b3",
+  "acceptanceRun": 38777723098,
+  "acceptanceArtifact": 11995983715,
+  "signature": {
+    "scheme": "v2",
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "signature": "verified",
+    "contentDigest": "verified"
+  },
+  "storage": "User-controlled persistent ChatGPT file storage, independent of GitHub Actions expiry; no public release created",
+  "roundTripDownloadedAndHashVerified": true,
+  "files": [
+    {
+      "name": "K1W1_Musik_V5_c47b27f6_geprueft.apk",
+      "bytes": 100825769,
+      "sha256": "91ba080aa732bd2e0af1bf437c53bc90ca6179d9d814fd26c596cec3ef0e18fc"
+    },
+    {
+      "name": "K1W1_V5_Android_Nachweise_c47b27f6.zip",
+      "bytes": 69367951,
+      "sha256": "e5d40365a23dae9248f5f13cbab8169d06f5b937b1acab97bce32e9828172694"
+    }
+  ],
+  "githubActionsExpiry": "2026-11-14",
+  "matrix": 36,
+  "originalsModified": false,
+  "downloadAccess": "Private owner-controlled archive; real download links are in the separately delivered private archive manifest. No public production release."
+}
