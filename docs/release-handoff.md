@@ -78,9 +78,9 @@ Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/
 
 ## New-Architecture Android Dev-APK Smoke
 
-New Architecture ist im Release-/Rollback-Pfad deaktiviert. Wird sie in einem separaten Opt-in-PR oder nach passendem Dependency-Upgrade testweise aktiviert, bleibt der Status bis zu einem neuen Android Dev-Build und erfolgreichem Geräte-Smoke offen; ohne diesen Smoke ist der Handoff dann nicht release-ready.
+New Architecture ist im aktuellen SDK-57-/RN-0.86-Pfad aktiviert. Der lokale Playback-Adapter verwendet `@rntp/player@5.12.1`; RNTP 4.1.2 ist historische Architektur und kein aktueller Installations- oder Rollback-Auftrag. Neue native Änderungen benötigen eine neue APK und Geräte-Abnahme.
 
-Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-architecture-compatibility-audit.md`](./architecture/new-architecture-compatibility-audit.md).
+Historisches A0-Risikoaudit (keine aktuelle Deaktivierungsanweisung): [`docs/architecture/new-architecture-compatibility-audit.md`](./architecture/new-architecture-compatibility-audit.md).
 
 - [ ] Dev-APK wurde nach einer künftigen New-Architecture-Aktivierung neu gebaut.
 - [ ] App startet auf echtem Android-Gerät.
@@ -108,7 +108,7 @@ npx expo config --json | jq '.android.permissions, .android.blockedPermissions, 
 Vor einem Preview- oder Release-Build prüfen:
 
 - [ ] EAS Login ist korrekt.
-- [ ] Expo App-Identität, Android Package und `newArchEnabled=false` als Release-/Rollback-Vorgabe stimmen.
+- [ ] Expo App-Identität, Android Package und `newArchEnabled=true` für den aktuellen SDK-/Playback-Pfad stimmen.
 - [ ] Android Permissions enthalten keine neuen oder unerwarteten Berechtigungen; neue oder unerwartete Mikrofon-/Foto-/Video-Permissions blockieren den Main-Handoff.
 - [ ] Der Cover-cache-cleanup Smoke-Check bleibt inklusive `readDirectoryAsync` dokumentiert.
 - [ ] Preview-/Release-Profil und Build-Ziel wurden bewusst ausgewählt.
@@ -143,3 +143,11 @@ Ein Merge nach `main` ist blockiert, solange einer dieser Punkte zutrifft:
 - Neue oder unerwartete Mikrofon-/Foto-/Video-Permissions erscheinen in Expo Config oder generiertem Android-Manifest.
 - Eine destructive migration ist offen, ungeklärt oder nicht rollback-fähig dokumentiert.
 - Es gibt Abweichungen zwischen lokalem Stand und GitHub/codex, die nicht aufgelöst wurden.
+
+## Aktualisierung 16.10.2026: Preview und formaler Handoff
+
+Die V5-Preview-APK aus `c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06` wurde im vollständigen [Retest 38777723098](https://github.com/k1w1-a0style/musik-player/actions/runs/38777723098) mit 36 UI-Varianten und zwölf gezielten 200-%-Varianten geprüft. Ihre drei Quell-Gates waren grün; der ursprüngliche Gesamt-CI-Lauf war wegen eines Emulatorfehlers rot. Diese Preview-Freigabe ersetzt ausdrücklich keinen grünen Gesamt-CI-Handoff für einen anderen Commit.
+
+Die V4-Nacharbeiten benötigen nach produktiven Änderungen eigene CI, neue APK und frische Android-Abnahme. Zum formalen Main-Handoff muss der ausdrücklich gewählte Handoff-Commit einen erfolgreichen Gesamt-Workflow `CI` besitzen; spätere reine Bericht-Commits sind mit ihrem geprüften Code-Bezug separat auszuweisen. Aktuell ist kein Main-Merge oder öffentlicher Produktionsrelease autorisiert. Offene Dependabot-PRs und reale Samsung-/Huawei-/Provider-/TalkBack-Prüfungen bleiben sichtbar.
+
+Der feste historische V5-Workflow bleibt unverändert. Neue APK-Retests verwenden den separaten [Manifest-Vertrag](testing/apk-manifest-retest.md); niemals V5-Hashes durch neue APK-Werte ersetzen. Originalarchiv: [v5-original-archive.md](review/v5-original-archive.md).

@@ -6,7 +6,7 @@
 - [ ] `scheme` = `musik-player` (für Expo/Dev-Client-Identität beibehalten; aktuell ist kein App-Deep-Link-Handling implementiert oder als Release-Gate geplant)
 - [ ] `slug` = `musik-player`
 - [ ] Android package = `com.k1w1a0style.musikplayer`
-- [ ] `newArchEnabled=false` bleibt Release-/Rollback-Vorgabe, solange `react-native-track-player@4.1.2` im Einsatz ist
+- [ ] `newArchEnabled=true`; lokaler `react-native-track-player`-Kompatibilitätsadapter über `@rntp/player@5.12.1` (gepinnt und gepatcht)
 - [ ] `expo.extra.eas.projectId` ist vorhanden
 
 ## Lokale Gates
@@ -35,9 +35,9 @@ Bewusst separat: i18n-Migration, finale New-Architecture-Freigabe nach Android D
 
 ## New-Architecture Android Dev-APK Smoke
 
-New Architecture ist im Release-/Rollback-Pfad deaktiviert. Diese Liste wird Pflicht, sobald New Architecture in einem separaten Opt-in-PR oder nach passendem Dependency-Upgrade testweise aktiviert wird; ohne echten Android Dev-Build und Geräte-Smoke bleibt der Status dann offen.
+New Architecture ist mit SDK 57 / RN 0.86 und dem lokalen Adapter über `@rntp/player@5.12.1` aktiviert. Diese Liste gilt für den aktuellen nativen Pfad; die ältere RNTP-4.1.2-Rollback-Notiz ist historisch. Emulatornachweise ersetzen keine Herstellergeräte-Prüfung.
 
-Details zum A0-Risikoaudit und zur Opt-in-Reihenfolge: [`docs/architecture/new-architecture-compatibility-audit.md`](./architecture/new-architecture-compatibility-audit.md).
+Historisches A0-Risikoaudit (keine aktuelle Deaktivierungsanweisung): [`docs/architecture/new-architecture-compatibility-audit.md`](./architecture/new-architecture-compatibility-audit.md).
 
 - [ ] Dev-APK wurde nach einer künftigen New-Architecture-Aktivierung neu gebaut.
 - [ ] App startet auf echtem Android-Gerät.
@@ -209,3 +209,11 @@ Die konkrete Android-Dev-APK-Smoke-Report-Vorlage für codex steht unter [`docs/
 - Nach Cover ersetzen kann die UI zunächst die gewählte Cover-URI zeigen, bis ein späterer Re-Scan/extrahierter Cache eine stabilere eingebettete Cover-URI liefert
 - Visualizer/FFT ist im Release-Pfad entfernt; native Android-Visualizer-API wird nicht verdrahtet
 - Sehr große Dateien werden beim In-App-Tag-Schreiben blockiert
+
+## Aktualisierung 16.10.2026: Preview und formaler Handoff
+
+Die V5-Preview-APK aus `c47b27f6fee2fd826cb3ea023ce4b1aafdb59b06` wurde im vollständigen [Retest 38777723098](https://github.com/k1w1-a0style/musik-player/actions/runs/38777723098) mit 36 UI-Varianten und zwölf gezielten 200-%-Varianten geprüft. Ihre drei Quell-Gates waren grün; der ursprüngliche Gesamt-CI-Lauf war wegen eines Emulatorfehlers rot. Diese Preview-Freigabe ersetzt ausdrücklich keinen grünen Gesamt-CI-Handoff für einen anderen Commit.
+
+Die V4-Nacharbeiten benötigen nach produktiven Änderungen eigene CI, neue APK und frische Android-Abnahme. Zum formalen Main-Handoff muss der ausdrücklich gewählte Handoff-Commit einen erfolgreichen Gesamt-Workflow `CI` besitzen; spätere reine Bericht-Commits sind mit ihrem geprüften Code-Bezug separat auszuweisen. Aktuell ist kein Main-Merge oder öffentlicher Produktionsrelease autorisiert. Offene Dependabot-PRs und reale Samsung-/Huawei-/Provider-/TalkBack-Prüfungen bleiben sichtbar.
+
+Der feste historische V5-Workflow bleibt unverändert. Neue APK-Retests verwenden den separaten [Manifest-Vertrag](testing/apk-manifest-retest.md); niemals V5-Hashes durch neue APK-Werte ersetzen. Originalarchiv: [v5-original-archive.md](review/v5-original-archive.md).

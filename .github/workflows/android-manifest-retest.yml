@@ -1,0 +1,168 @@
+name: Retest explicit inspected APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: 'Exact JSON: version, repository, sourceCommit, runId, artifactId, artifactDigest, apkSha256'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: manifest-apk-retest-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  inspected-apk:
+    if: github.ref == 'refs/heads/codex'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      PACKAGE_NAME: com.k1w1a0style.musikplayer
+      AVD_NAME: musik-preview-api-35
+      ANDROID_API: '35'
+    steps:
+      - name: Checkout exact acceptance harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify harness and provenance regressions
+        run: python3 -m unittest discover -s scripts/ci -p '*_test.py'
+
+      - name: Verify explicit source gates and exact artifact before device access
+        env:
+          APK_RETEST_MANIFEST: ${{ inputs.manifest }}
+          GH_READ_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/verifyApkRetest.py
+
+      - name: Prepare isolated Android emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_AVD_HOME="$RUNNER_TEMP/preview-avd"
+          export ANDROID_AVD_HOME
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          sdk_status=${PIPESTATUS[1]}
+          set -o pipefail
+          test "$sdk_status" -eq 0
+          # The SDK downloader returned a non-ZIP before any app launch.
+          # Download the official stable emulator archive independently, require
+          # its declared size/checksum and every ZIP CRC before installation.
+          python3 - <<'SDK'
+          import hashlib,json,os,stat,urllib.request,zipfile
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          base='https://dl.google.com/android/repository/'
+          request=urllib.request.Request(base+'repository2-3.xml',headers={'Cache-Control':'no-cache'})
+          with urllib.request.urlopen(request,timeout=60) as response:
+              metadata=ET.fromstring(response.read())
+          local=lambda tag:tag.rsplit('}',1)[-1]
+          child=lambda node,name:next(x for x in node if local(x.tag)==name)
+          packages=[p for p in metadata.iter() if local(p.tag)=='remotePackage' and p.get('path')=='emulator' and child(p,'channelRef').get('ref')=='channel-0']
+          assert len(packages)==1,'Missing/ambiguous official stable emulator metadata'
+          archives=[a for a in child(packages[0],'archives') if child(a,'host-os').text=='linux']
+          assert len(archives)==1,'Missing/ambiguous Linux archive'
+          archive=child(archives[0],'complete');size=int(child(archive,'size').text)
+          checksum=child(archive,'checksum');algorithm=checksum.get('type','sha1').lower().replace('-','')
+          assert algorithm in ('sha1','sha256')
+          expected=checksum.text.strip().lower();url=base+child(archive,'url').text
+          print('EMULATOR_DECLARED_ARCHIVE '+json.dumps({'url':url,'size':size,'algorithm':algorithm,'checksum':expected}),flush=True)
+          target=Path(os.environ['RUNNER_TEMP'])/'verified-emulator.zip'
+          for attempt in (1,2):
+              digest=hashlib.new(algorithm);actual=0
+              request=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(request,timeout=120) as response,target.open('wb') as output:
+                  print('EMULATOR_DOWNLOAD_HEADERS '+json.dumps({'attempt':attempt,'type':response.headers.get('Content-Type'),'length':response.headers.get('Content-Length')}),flush=True)
+                  while True:
+                      chunk=response.read(1024*1024)
+                      if not chunk:break
+                      actual+=len(chunk);assert actual<=size,'Archive exceeds declared size'
+                      digest.update(chunk);output.write(chunk)
+              with target.open('rb') as prefix:magic=prefix.read(16).hex()
+              print('EMULATOR_DOWNLOAD_RESULT '+json.dumps({'attempt':attempt,'bytes':actual,'digest':digest.hexdigest(),'magic':magic}),flush=True)
+              if actual==size and digest.hexdigest()==expected:
+                  with zipfile.ZipFile(target) as bundle:assert bundle.testzip() is None,'ZIP CRC mismatch'
+                  break
+              if attempt==2:raise AssertionError('Official emulator archive size/checksum mismatch after two bounded downloads')
+          root=Path(os.environ['ANDROID_HOME']).resolve()
+          with zipfile.ZipFile(target) as bundle:
+              for item in bundle.infolist():
+                  path=(root/item.filename).resolve()
+                  assert path.is_relative_to(root),'Unsafe ZIP path'
+                  assert not stat.S_ISLNK(item.external_attr>>16),'Unexpected archive symlink'
+                  bundle.extract(item,root)
+                  mode=(item.external_attr>>16)&0o777
+                  if mode and not item.is_dir():path.chmod(mode)
+          print('Official emulator archive verified and installed.',flush=True)
+          SDK
+          test -x "$ANDROID_HOME/emulator/emulator"
+          ldd "$ANDROID_HOME/emulator/qemu/linux-x86_64/qemu-system-x86_64" | tee "$RUNNER_TEMP/emulator-linked-libraries.txt"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpulse0
+          ldd "$ANDROID_HOME/emulator/qemu/linux-x86_64/qemu-system-x86_64" | tee "$RUNNER_TEMP/emulator-verified-libraries.txt"
+          if rg "not found" "$RUNNER_TEMP/emulator-verified-libraries.txt"; then
+            echo "::error::Unresolved native emulator runtime dependency."
+            exit 1
+          fi
+          "$ANDROID_HOME/emulator/emulator" -version
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "system-images;android-${ANDROID_API};google_apis;x86_64"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
+          mkdir -p ci-logs
+          nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader -no-metrics -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
+          echo $! > ci-logs/emulator.pid
+          timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell wm size 480x960
+          adb shell wm density 240
+          adb shell input keyevent 82
+          adb logcat -c
+
+      - name: Prepare public UI test tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
+          python3 -m venv "$RUNNER_TEMP/release-ui-venv"
+          "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+
+      - name: Exercise full release UI, files, playback, backup and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
+          adb shell settings put system font_scale 1.0
+          adb logcat -c
+          "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/release-ui.log
+
+      - name: Capture diagnostics after any device failure
+        if: always()
+        run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
+
+      - name: Upload release acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: manifest-apk-acceptance-${{ github.run_id }}
+          path: ci-logs/**
+          if-no-files-found: error
+          retention-days: 30

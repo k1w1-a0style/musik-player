@@ -20,7 +20,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | 1 | F01: zeitkritische Sicherheit | Prüfung erledigt: 47 Jest + 142 Corpus + Clean Install + Hermes-Grenze grün; Fristlösung extern blockiert, keine genehmigte Verlängerung |
 | 2 | F02: dauerhafte V5-Originale | Erledigt: beide dauerhaften Original-Downloads rückgelesen; Hashes/ZIP/RSA-v2/Inhaltsdigest/Source/result geprüft; separates Manifest |
 | 3 | F03: sichere Journal-Retention | Implementiert und gezielt geprüft; vollständige neue APK-Abnahme folgt |
-| 4 | F04/F05/F09: Retest, Handoff, Tracker | Offen |
+| 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und neun Negativ-/Positivtests ergänzt; 143 Python-Tests grün; Doku/Issues #234/#236 aktualisiert. Exakte Gesamt-CI folgt in Phase 8 |
 | 5 | F06: reale Geräte/Provider/TalkBack | Verfügbarkeit prüfen; Emulator ist kein Hersteller-/TalkBack-Nachweis |
 | 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Offen; nur bestätigte Defekte ändern |
 | 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Offen |
@@ -34,11 +34,11 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | F02 | vergängliche Actions-Artefakte | Bestätigt und behoben: dauerhafte private Originalablage, Rücklese-Hash-/Signaturprüfung und Archivmanifest; V5-Freigabe unverändert |
 | F03 | alte Cleaner-Einträge | Bestätigt und behoben; belegte abgeschlossene Epochen werden gesammelt, offene/Legacy-/Recovery-Evidenz bleibt geschützt; v4-cleaner-retention.md |
 | F04 | formaler Main-Handoff | Preview und formaler Gesamt-CI-Handoff getrennt; kein Main-Merge autorisiert |
-| F05 | fest verdrahteter V5-Retest | Historisches Harness konservieren; separater wiederverwendbarer strenger Vertrag |
+| F05 | fest verdrahteter V5-Retest | Bestätigt und behoben: historischer Workflow unverändert, neuer codex-only Manifest-Dispatch mit Source-/Gate-/ZIP-/APK-Prüfung; Verfügbarkeits-/Geräte-Nachweis folgt |
 | F06 | echte Geräte/Provider | Offene Nachweislücke, nicht automatisch ein Produktfehler |
 | F07 | SAF-Hashkosten | Provider-Messung vor Optimierung; Hostzahlen nicht als Gerätebenchmark ausgeben |
 | F08 | SoundCloud-Infochip | Bekannter nicht blockierender V5-Restpunkt; neue responsive UI und neue APK-Abnahme erforderlich |
-| F09 | Doku/Issue-Drift | Gegen aktuelle Emulatorbelege aktualisieren; reale Tests offen lassen |
+| F09 | Doku/Issue-Drift | Bestätigt und behoben: Handoff/Checklist sowie Issues #234/#236 aktualisiert, reale Prüfungen ausdrücklich offen |
 | F10 | Playback-Shim | Bewusste API-Begrenzung; Vertrag und Drift-Negativtests prüfen |
 | F11 | Backup fehlender Quellen | Konservative Referenzen erhalten, Darstellung verbessern, Format kompatibel halten |
 | F12 | gepinnte Payload-Patches | Bestehende Hash-/Negativtests bewahren, Wartungsablauf konkretisieren |
