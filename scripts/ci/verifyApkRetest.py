@@ -25,6 +25,17 @@ def validate_manifest(data):
     assert re.fullmatch(r'[0-9a-f]{64}', data['apkSha256']), 'Missing APK digest'
 
 
+def load_manifest():
+    raw = os.environ.get('APK_RETEST_MANIFEST', '')
+    if not raw:
+        assert os.environ.get('GITHUB_EVENT_NAME') == 'push', 'Missing dispatch manifest'
+        raw = Path('docs/review/apk-retest-request.json').read_text()
+    assert len(raw) <= 8192, 'Retest manifest too large'
+    data = json.loads(raw)
+    validate_manifest(data)
+    return data
+
+
 def validate_origin(data, run, jobs, artifact, changed):
     validate_manifest(data)
     source = data['sourceCommit']
@@ -97,8 +108,7 @@ def download_artifact(artifact_id, target):
 
 
 def main():
-    data = json.loads(os.environ['APK_RETEST_MANIFEST'])
-    validate_manifest(data)
+    data = load_manifest()
     run = api(f"actions/runs/{data['runId']}")
     jobs = api(f"actions/runs/{data['runId']}/jobs?per_page=100")
     assert jobs['total_count'] <= 100, 'Incomplete source gate pagination'

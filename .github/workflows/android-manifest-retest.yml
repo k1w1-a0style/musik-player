@@ -1,6 +1,9 @@
 name: Retest explicit inspected APK
 
 on:
+  push:
+    branches: [codex]
+    paths: ['docs/review/apk-retest-request.json']
   workflow_dispatch:
     inputs:
       manifest:

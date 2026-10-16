@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
-from verifyApkRetest import GATES, REPO, validate_manifest, validate_origin, verify_archive
+from verifyApkRetest import GATES, REPO, load_manifest, validate_manifest, validate_origin, verify_archive
 
 class RetestManifestTest(unittest.TestCase):
     def setUp(self):
@@ -12,6 +12,22 @@ class RetestManifestTest(unittest.TestCase):
         self.run = dict(id=1, head_sha='a'*40, head_branch='codex', event='push', status='completed', path='.github/workflows/ci.yml', repository={'full_name':REPO}, head_repository={'full_name':REPO})
         self.jobs = [dict(name=name, head_sha='a'*40, status='completed', conclusion='success') for name in GATES]
         self.artifact = dict(id=2, expired=False, name='musik-player-preview-'+'a'*40, workflow_run=dict(id=1,head_sha='a'*40), digest=self.data['artifactDigest'], size_in_bytes=100)
+    def test_explicit_push_request_and_dispatch_use_same_manifest_validation(self):
+        import json
+        from unittest.mock import patch
+        raw=json.dumps(self.data)
+        with patch.dict('os.environ',{'GITHUB_EVENT_NAME':'push','APK_RETEST_MANIFEST':''}),patch('verifyApkRetest.Path.read_text',return_value=raw):
+            self.assertEqual(load_manifest(),self.data)
+        with patch.dict('os.environ',{'GITHUB_EVENT_NAME':'workflow_dispatch','APK_RETEST_MANIFEST':raw}):
+            self.assertEqual(load_manifest(),self.data)
+        with patch.dict('os.environ',{'GITHUB_EVENT_NAME':'workflow_dispatch','APK_RETEST_MANIFEST':''}):
+            with self.assertRaises(AssertionError): load_manifest()
+    def test_source_workflow_ignores_only_request_and_retest_trigger_is_codex_path_scoped(self):
+        root=Path(__file__).resolve().parents[2]
+        ci=(root/'.github/workflows/ci.yml').read_text()
+        workflow=(root/'.github/workflows/android-manifest-retest.yml').read_text()
+        self.assertIn('paths-ignore: ["docs/review/apk-retest-request.json"]',ci)
+        self.assertIn("branches: [codex]\n    paths: ['docs/review/apk-retest-request.json']",workflow)
     def check(self):
         validate_origin(self.data, self.run, self.jobs, self.artifact, ['docs/review/status.md','scripts/ci/driver.py'])
     def test_explicit_valid_origin(self): self.check()

@@ -52,3 +52,7 @@ Keine Änderungen an `main`, kein öffentlicher Produktionsrelease, kein ungefra
 Die nächste CI prüft den gemeinsam integrierten produktiven Stand (Cleaner-Retention, SoundCloud-Infochip, Backup-Darstellung). Sie baut genau eine neue Preview-APK, inspiziert Hash/Signatur/Manifest, führt alle bestehenden Quality-/Security-/Native-Gates und die vollständige eigene Android-Abnahme aus. Die zusätzliche SoundCloud-Schriftprüfung liegt vor den aufwendigen Reststufen. Alte V5-Matrixfälle werden für diese APK nicht übernommen. Nachweisbare Infrastrukturfehler werden anhand der Logs behandelt; keine unbegründete Vollwiederholung oder Assertion-Abschwächung.
 
 F01-Fristlösung sowie F06 und der reale F07-Provider-Benchmark bleiben bis zur tatsächlichen externen Erfüllung offen. Ein grüner technischer Lauf hebt diese Grenzen nicht auf.
+
+## F05-Verfügbarkeit nachgeprüft
+
+Der neue reine Dispatch auf `codex` wurde durch die öffentliche GitHub-Workflow-API noch nicht gefunden (404). Deshalb unterstützt der separate Retest zusätzlich einen Push ausschließlich der konkreten `docs/review/apk-retest-request.json`. Die normale CI ignoriert ausschließlich diesen einzelnen Anforderungspfad; bei produktiven oder anderen Änderungen bleibt ihr Trigger bestehen. Source-/Gate-/ZIP-/APK-Prüfungen sind identisch und weiterhin vor jedem Emulatorzugriff Pflicht. 148 Python-Tests sowie beide Workflow-YAMLs sind geprüft. Diese Infrastrukturkorrektur ändert keine APK-Quelle und startet weder eine neue APK noch eine zweite Gesamt-CI.

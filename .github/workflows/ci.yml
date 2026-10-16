@@ -5,6 +5,9 @@ on:
     branches: [main, codex]
   push:
     branches: [main, codex, "fix/**", "refactor/**", "review/**"]
+    # An explicit retest request changes no product/build sources; its separate
+    # workflow rechecks source gates and both archive/APK hashes before device use.
+    paths-ignore: ["docs/review/apk-retest-request.json"]
   workflow_dispatch:
 
 permissions:
