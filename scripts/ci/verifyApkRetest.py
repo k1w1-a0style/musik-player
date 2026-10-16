@@ -36,6 +36,15 @@ def load_manifest():
     return data
 
 
+def load_execution_mode():
+    path = Path('docs/review/apk-retest-execution.json')
+    if not path.exists():
+        return ''
+    data = json.loads(path.read_text())
+    assert data == {'version': 1, 'mode': 'song-info-single'}, 'Unsupported explicit retest execution scope'
+    return data['mode']
+
+
 def validate_origin(data, run, jobs, artifact, changed):
     validate_manifest(data)
     source = data['sourceCommit']
@@ -109,6 +118,7 @@ def download_artifact(artifact_id, target):
 
 def main():
     data = load_manifest()
+    mode = load_execution_mode()
     run = api(f"actions/runs/{data['runId']}")
     jobs = api(f"actions/runs/{data['runId']}/jobs?per_page=100")
     assert jobs['total_count'] <= 100, 'Incomplete source gate pagination'
@@ -122,6 +132,7 @@ def main():
     Path('ci-logs').mkdir(exist_ok=True)
     Path('ci-logs/retest-origin.json').write_text(json.dumps(data, indent=2) + '\n')
     with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+        output.write('APK_DIAGNOSTIC_MODE=' + mode + '\n')
         output.write('REVIEWED_APK_SOURCE_COMMIT=' + data['sourceCommit'] + '\nEXPECTED_APK_SHA256=' + data['apkSha256'] + '\n')
     print('Explicit source gates, source equality, archive and exact APK verified; no rebuild performed.')
 

@@ -28,6 +28,22 @@ class RetestManifestTest(unittest.TestCase):
         workflow=(root/'.github/workflows/android-manifest-retest.yml').read_text()
         self.assertIn('paths-ignore: ["docs/review/apk-retest-request.json"]',ci)
         self.assertIn("branches: [codex]\n    paths: ['docs/review/apk-retest-request.json']",workflow)
+    def test_execution_scope_is_explicit_and_fail_closed(self):
+        from verifyApkRetest import load_execution_mode
+        from unittest.mock import patch
+        import json
+        with patch('verifyApkRetest.Path.exists',return_value=False):
+            self.assertEqual(load_execution_mode(),'')
+        with patch('verifyApkRetest.Path.exists',return_value=True):
+            for data in ({'version':1,'mode':'song-info-single'},
+                         {'version':1,'mode':'full'}, {'version':1,'mode':'song-info-single','skipAssertions':True},
+                         {'mode':'song-info-single'}):
+                with patch('verifyApkRetest.Path.read_text',return_value=json.dumps(data)):
+                    if data == {'version':1,'mode':'song-info-single'}:
+                        self.assertEqual(load_execution_mode(),'song-info-single')
+                    else:
+                        with self.assertRaises(AssertionError):load_execution_mode()
+
     def check(self):
         validate_origin(self.data, self.run, self.jobs, self.artifact, ['docs/review/status.md','scripts/ci/driver.py'])
     def test_explicit_valid_origin(self): self.check()

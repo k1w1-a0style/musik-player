@@ -976,6 +976,32 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                     smoke.scroll_to(key,limit=1)
                 adb.assert_called_once_with('shell','input','swipe',*coordinates,'800')
 
+    def test_single_case_mode_exercises_only_requested_case_with_existing_geometry_checks(self):
+        frame = ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()
+        first = smoke.candidate('song-card-1000000019',frame)
+        menu = smoke.candidate('song-card-info-1000000019',frame)
+        def lookup(key, **kwargs):
+            return menu if key.startswith('song-card-info-') else first
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'V5_PROOFS',{}), patch.object(smoke,'CHECKS',[]), \
+             patch.object(smoke,'tree',return_value=frame), patch.object(smoke,'scroll_to',side_effect=lookup), \
+             patch.object(smoke,'find',return_value=first), patch.object(smoke,'adb'), \
+             patch.object(smoke,'settings'), patch.object(smoke,'checkbox'), patch.object(smoke,'select') as select, \
+             patch.object(smoke,'screenshot'), patch.object(smoke,'back'), patch.object(smoke,'tap_node'), \
+             patch.object(smoke,'tap'), patch.object(smoke,'pause_matrix_player'), \
+             patch.object(smoke,'wait_playing_session',return_value='native ACK fixture'):
+            smoke.ui_matrix(selected_cases={('2.0','dark','graphite','compact')})
+            self.assertEqual([(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in smoke.V5_PROOFS['matrix']],
+                             [('2.0','dark','graphite','compact')])
+            self.assertEqual(select.call_args_list[-1].args, ('settings-density-compact',))
+            self.assertEqual([c.args[0] for c in select.call_args_list if c.args[0].startswith('settings-density-')],
+                             ['settings-density-compact'])
+            self.assertEqual(len(smoke.V5_PROOFS['matrix'][0]['section']['controls']),4)
+            self.assertEqual(smoke.V5_PROOFS['matrix'][0]['menuBounds'],[380,550,452,622])
+        for bad in (set(), {('2.0','dark','graphite','standard')}, {('1.0','dark','graphite','compact')}):
+            with self.assertRaisesRegex(AssertionError,'Unsupported targeted matrix selection'):
+                smoke.ui_matrix(selected_cases=bad)
+
     def test_recorded_whole_font2_song_info_requires_no_gesture(self):
         key = 'song-card-info-1000000019'
         frame = ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()

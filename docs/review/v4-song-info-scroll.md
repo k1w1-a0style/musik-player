@@ -31,3 +31,7 @@ Original-XMLs sind bytegleich unter `scripts/ci/fixtures/song-info-font2-*` gesi
 ## Noch ausstehender Nachweis
 
 Die neue Geste ist auf den Original-Frames regressionsgeprüft. **Ein erfolgreicher Android-Nachlauf des korrigierten Compact-Falls ist noch nicht belegt.** Die elf noch fehlenden Matrixfälle und die neue APK-Gesamtabnahme bleiben offen; die 25 vorhandenen Fälle bleiben historische, exakt zugeordnete Nachweise. Kein erneuter APK-Build und kein erneuter vollständiger Android-Lauf für diese Diagnose gestartet. Nächster Gerätelauf soll zuerst ausschließlich 200 % / dark / graphite / compact auf derselben APK prüfen; kein neuer Gesamt-Scan.
+
+## Gezielter Gerätelauf vorbereitet
+
+Der Manifest-Retest unterstützt eine streng begrenzte Ausführungsdatei `apk-retest-execution.json` mit ausschließlich Version 1 / Modus `song-info-single`. Der Einzeltest durchläuft dieselbe Matrix-Implementierung mit exakt 200 % / dark / graphite / compact. Alle Geometrieprüfungen, echtes Öffnen des Song-Menüs und native FLAC-Wiedergabebestätigung bleiben aktiv. Das Ergebnis trägt `stage-only-passed` und `releaseAccepted: false`; es kann keine vollständige APK-Freigabe vortäuschen. 156 Python-Tests prüfen unter anderem die exakte Fallauswahl und Ablehnung unbekannter Ausführungsoptionen. Der Lauf baut keine APK und wiederholt keine vollständige CI.

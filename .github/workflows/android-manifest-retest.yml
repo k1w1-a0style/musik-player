@@ -148,7 +148,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/release-ui-venv"
           "$RUNNER_TEMP/release-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
 
-      - name: Exercise full release UI, files, playback, backup and restart
+      - name: Exercise explicitly requested UI scope (stage-only probes never release)
         shell: bash
         run: |
           set -euo pipefail
