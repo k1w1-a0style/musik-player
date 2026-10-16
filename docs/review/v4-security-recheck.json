@@ -1,0 +1,92 @@
+{
+  "checkedAt": "2026-10-16",
+  "sourceBaseline": "93ed893398ce9a59d37a3b4376c418cadf8e02b3",
+  "latestNpm": {
+    "braces": "3.0.3",
+    "node-forge": "1.4.0"
+  },
+  "publishedPatchedVersions": {
+    "braces": null,
+    "node-forge": null
+  },
+  "patchedPayloads": [
+    {
+      "package": "node-forge",
+      "version": "1.4.0",
+      "path": "lib/rsa.js",
+      "upstreamSha256": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+      "patchedSha256": "e58ceb0661ded89da32568ad9a95e392c787aada169d831bb20505ee8a37745f"
+    },
+    {
+      "package": "node-forge",
+      "version": "1.4.0",
+      "path": "dist/forge.min.js",
+      "upstreamSha256": "d9b9074e6861200d676e25dcfe97889db5e8f4150bb766d29c491ad709a51b58",
+      "patchedSha256": "6b997e0eb1e1ddfaa5998b379867bd7090002c1b45c8836bccfb139476a79201"
+    },
+    {
+      "package": "node-forge",
+      "version": "1.4.0",
+      "path": "dist/forge.all.min.js",
+      "upstreamSha256": "cb9ba4045a81825f8edb646c38d53a1ac30ce07665bf26042c8dea86d7208642",
+      "patchedSha256": "4c48a2b27f72b18211efbb2bfd1486b1d93901ef93bc9be6e5c7504ee7557588"
+    },
+    {
+      "package": "braces",
+      "version": "3.0.3",
+      "path": "lib/compile.js",
+      "upstreamSha256": "dc98f22eee3d511785d92a00758d5f0d48efed5f5813bdecc2de430c529b5c9f",
+      "patchedSha256": "0527119921a3117bfbb7a3a86d400bcaf26c3988628688301ee17c5cc0003719"
+    },
+    {
+      "package": "braces",
+      "version": "3.0.3",
+      "path": "lib/expand.js",
+      "upstreamSha256": "41ccc196ebfa7b7781a634e721eb744e4e7bcb54cba427a7e3d6806a1b9e58f7",
+      "patchedSha256": "bdcde9b36e94d248c5035ab8f98f4a20189c973fa44ee68cd576ba7ebf28022b"
+    },
+    {
+      "package": "braces",
+      "version": "3.0.3",
+      "path": "lib/stringify.js",
+      "upstreamSha256": "379f22d77bfa1478341ccd49c5e4267464aabcbba03558bab332aac23fc6f23a",
+      "patchedSha256": "056ab10d759e5d2ca81fc888b122acf450c692b5e409dc19a41aca06aba8f2ef"
+    },
+    {
+      "package": "braces",
+      "version": "3.0.3",
+      "path": "lib/parse.js",
+      "upstreamSha256": "e572166565f15fa6ad9865ae49d678218e32aabfd1b3720f6d0d43d39800d310",
+      "patchedSha256": "88f382c7e3bee1f86b3f90c7a1eaaac05507db9fff222fa21fb32a344f0759c1"
+    },
+    {
+      "package": "braces",
+      "version": "3.0.3",
+      "path": "lib/assert-depth.js",
+      "upstreamSha256": null,
+      "patchedSha256": "977af7e67e0ef1732d4f137fbeb888ff8b1e1f2c2cf22a593ef8f07803ff05ac"
+    }
+  ],
+  "patchPlanSha256": "211f76728d8f9b53119267db95ce54c5a6f3170c4ac78df80805403b8e931aa9",
+  "policySha256": "2ea8b32a26e34cd82ab81581ad6e4362dc5355c2b52f4985a5cda7b78acda1b5",
+  "freshAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 5,
+    "high": 23,
+    "critical": 0,
+    "total": 28
+  },
+  "corpus": {
+    "passed": 142,
+    "failed": 0
+  },
+  "targetedJest": {
+    "suites": 3,
+    "passed": 47,
+    "skipped": 0
+  },
+  "hermesSources": 1682,
+  "expiryUnchanged": "2026-10-21",
+  "extensionAuthorized": false
+}

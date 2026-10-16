@@ -17,7 +17,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | Phase | Umfang | Stand |
 |---|---|---|
 | 0 | Ist-Abgleich, Sicherung, Status | Erledigt; Ausgangspunkt dokumentiert |
-| 1 | F01: zeitkritische Sicherheit | In Arbeit; Registry/Advisories frisch prüfen, Frist unverändert 21.10.2026 |
+| 1 | F01: zeitkritische Sicherheit | Prüfung erledigt: 47 Jest + 142 Corpus + Clean Install + Hermes-Grenze grün; Fristlösung extern blockiert, keine genehmigte Verlängerung |
 | 2 | F02: dauerhafte V5-Originale | Bereits gespeicherte Originale nachgewiesen; unabhängiges Rücklesen und Manifest offen |
 | 3 | F03: sichere Journal-Retention | Offen |
 | 4 | F04/F05/F09: Retest, Handoff, Tracker | Offen |
@@ -30,7 +30,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 
 | ID | Befund | Aktueller Status / erforderlicher Nachweis |
 |---|---|---|
-| F01 | Audit-Ausnahmen | Offen; tatsächliche Abhilfe oder ausdrückliche Entscheidung erforderlich; keine automatische Verlängerung |
+| F01 | Audit-Ausnahmen | Extern blockiert hinsichtlich Fristlösung; aktuelle Kompensation frisch bestätigt, siehe v4-security-recheck.md/.json; Ablauf unverändert 21.10. |
 | F02 | vergängliche Actions-Artefakte | Original-APK und vollständiges Evidence-ZIP bereits dauerhaft gespeichert; erneutes Rücklesen/Hashmanifest ergänzen |
 | F03 | alte Cleaner-Einträge | Auf aktuellem Code reproduzieren; aktive/unvollständige Recovery strikt schützen |
 | F04 | formaler Main-Handoff | Preview und formaler Gesamt-CI-Handoff getrennt; kein Main-Merge autorisiert |
