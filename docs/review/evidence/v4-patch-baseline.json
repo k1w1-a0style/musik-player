@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-16T01:53:05.768Z",
+  "player": "5.12.1",
+  "files": [
+    {
+      "path": "src/NativeTrackPlayer.ts",
+      "upstreamSha256": "49ff4e115144135b84410a94577c2d3d54e1095351e4681378fc4e24913c0c45",
+      "patchedSha256": "6d47aeff21000a7cfd7ff596a9ab228c1331ee58789e94c57aaedb01c56d9ea4",
+      "installedSha256": "6d47aeff21000a7cfd7ff596a9ab228c1331ee58789e94c57aaedb01c56d9ea4"
+    },
+    {
+      "path": "android/src/main/java/com/doublesymmetry/trackplayer/MainThreadMediaController.kt",
+      "upstreamSha256": "129fd71c5978c560919df65b429e7c17c1c4b986db4ae26dd4fe61d932e7e2e0",
+      "patchedSha256": "87e2487d50c1285a2612f51d5226a8e68615c90ce85857b05a728055a846694a",
+      "installedSha256": "87e2487d50c1285a2612f51d5226a8e68615c90ce85857b05a728055a846694a"
+    },
+    {
+      "path": "android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt",
+      "upstreamSha256": "c22508b15f49e0b50ff505faeb43f1dd85d14940eec2f8e135104dd3153a7e8c",
+      "patchedSha256": "d143a0c0052ee6f4233952084d67c7121d2d93f1012bccaea9aa643848e21c3f",
+      "installedSha256": "d143a0c0052ee6f4233952084d67c7121d2d93f1012bccaea9aa643848e21c3f"
+    },
+    {
+      "path": "android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt",
+      "upstreamSha256": "80942d533e1f14e254231732aad5853b773a2a7805f191cc14fa302c1ed2a691",
+      "patchedSha256": "9a7204349b530d0cc33f30b5dfa87a6d3efc3e1a0d10724dbebd0af7a973513f",
+      "installedSha256": "9a7204349b530d0cc33f30b5dfa87a6d3efc3e1a0d10724dbebd0af7a973513f"
+    }
+  ],
+  "controls": {
+    "package-lock.json": "40313f32fd9013029b83eedbf07ff00fb6f9f64bd023a28671ab5843308a5217",
+    "scripts/patches/patchRntpV5.cjs": "bf1c0f2166e840d9dc5e9e98a965fe4d34d39c9f4277df2edb4067694ec5cfbb",
+    "scripts/patches/rntp-v5/patches.json": "c53726e44a3c1d863e91c4ad90e2facdf7f49b0cb4a7c877c9b524888b1249c5",
+    "scripts/patches/patchToolingSecurity.cjs": "047cf2de49e253a81131cb9989740277c2df6e87afc1af06b3844a978943e444",
+    "scripts/patches/tooling-security/patches.json": "211f76728d8f9b53119267db95ce54c5a6f3170c4ac78df80805403b8e931aa9",
+    "security/npm-audit-exceptions.json": "2ea8b32a26e34cd82ab81581ad6e4362dc5355c2b52f4985a5cda7b78acda1b5"
+  }
+}

@@ -674,3 +674,21 @@ test('native heartbeats preserve source ID and timestamp for optional resume wit
   expect(listener).toHaveBeenCalledWith({ mediaId: 'mix', timestamp: 1800000000000, position: 122, duration: 3600 });
   expect(native.getProgress).not.toHaveBeenCalled(); subscription.remove();
 });
+
+test('setup has an explicit fixed app policy even when the compatibility interruption hint is false', async () => {
+  await adapter.default.setupPlayer({ autoHandleInterruptions: false });
+  expect(native.setupPlayer).toHaveBeenCalledWith({
+    contentType: 'music', audioMixing: 'exclusive', handleAudioBecomingNoisy: true,
+    progressSync: { intervalSeconds: 2 }, android: { taskRemovedBehavior: 'stop', autoStartJs: true,skipSilenceEnabled:false,wakeMode:'none' },
+    autoUpdateMetadataFromStream:true,liveResumeBehavior:'position',
+  });
+});
+
+test('unsupported runtime setup changes reject without mutating native commands and do not poison later commands', async () => {
+  await expect(adapter.default.updateOptions({android:{appKilledPlaybackBehavior:adapter.AppKilledPlaybackBehavior.ContinuePlayback}})).rejects.toThrow('new playback setup');
+  await expect(adapter.default.updateOptions({progressUpdateEventInterval:1})).rejects.toThrow('during setup');
+  expect(native.setCommands).not.toHaveBeenCalled();
+  await adapter.default.updateOptions({capabilities:[adapter.Capability.Play],progressUpdateEventInterval:2,forwardJumpInterval:15,backwardJumpInterval:10});
+  expect(native.setCommands).toHaveBeenCalledTimes(1);
+  expect(native.setCommands).toHaveBeenCalledWith({capabilities:['playPause'],handling:'native',forwardInterval:15,backwardInterval:10});
+});

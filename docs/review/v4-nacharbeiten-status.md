@@ -23,7 +23,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und neun Negativ-/Positivtests ergänzt; 143 Python-Tests grün; Doku/Issues #234/#236 aktualisiert. Exakte Gesamt-CI folgt in Phase 8 |
 | 5 | F06: reale Geräte/Provider/TalkBack | Extern blockiert: kein physisches Gerät/USB/adb; konkrete Abnahmeliste in v4-real-device-gate.md, keine unnötige Emulatorwiederholung |
 | 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Host-Basis gemessen, echter Provider-Benchmark extern blockiert; Infochip/Backup-UX korrigiert und gezielt grün; Android-Sichtabnahme folgt |
-| 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Offen |
+| 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Erledigt: expliziter begrenzter Vertrag, Upgrade-Ablauf, vier aktuelle Player-Payload-Hashes; 70 gezielte Tests und 146 Python-Tests grün |
 | 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Nach zusammenhängenden Korrekturen; keine historische APK umetikettieren |
 
 ## Findings – laufende Ergebniszuordnung
@@ -39,9 +39,9 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | F07 | SAF-Hashkosten | Bewusst begrenzt: Host-Basis 10/25/50 MiB gemessen; echter Provider-Benchmark extern blockiert, keine unbewiesene Optimierung |
 | F08 | SoundCloud-Infochip | Bestätigt und korrigiert; natürliche Höhe, 48-dp-Aktion, unverkleinerter umbruchfähiger Text; neue APK-/Sichtabnahme ausstehend |
 | F09 | Doku/Issue-Drift | Bestätigt und behoben: Handoff/Checklist sowie Issues #234/#236 aktualisiert, reale Prüfungen ausdrücklich offen |
-| F10 | Playback-Shim | Bewusste API-Begrenzung; Vertrag und Drift-Negativtests prüfen |
+| F10 | Playback-Shim | Bewusst begrenzt: Setup/Options-Vertrag dokumentiert, negative Laufzeitänderungen und volle native Setup-Defaults getestet; kein allgemeines V4-Backend |
 | F11 | Backup fehlender Quellen | Bestätigt und korrigiert; verständliche ehemalige ID, alte/neue Version-1-Backups kompatibel, Mapping unverändert; Geräte-Abnahme folgt |
-| F12 | gepinnte Payload-Patches | Bestehende Hash-/Negativtests bewahren, Wartungsablauf konkretisieren |
+| F12 | gepinnte Payload-Patches | Bewusst begrenzt und abgesichert: installierte Hashes bestätigt, vorhandene Tamper-/Drift-Negativtests grün, verbindlicher Upgrade-Ablauf ergänzt |
 
 ## Unveränderliche Arbeitsgrenzen
 

@@ -475,6 +475,9 @@ def soundcloud_info_font_acceptance():
         proofs.append({'fontScale':scale,**second,'trackInfoOpened':True})
     adb('shell','settings','put','system','font_scale','1.0')
     back()
+    settings()
+    select('settings-player-layout-classic', top=True)
+    back()
     V5_PROOFS['soundcloudInfoFonts'] = proofs
     CHECKS.append('soundcloud-info-chip-font-1.0-1.3-1.5-2.0-whole48dp-no-overlap-real-navigation')
 

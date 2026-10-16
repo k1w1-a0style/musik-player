@@ -27,13 +27,14 @@ class SoundCloudInfoFlowTest(unittest.TestCase):
         import androidReleaseInteractionSmoke as smoke
         frame=ET.fromstring('<hierarchy/>')
         hitbox=ET.fromstring('<node content-desc="Pausieren"/>')
-        with patch.object(smoke,'settings'),patch.object(smoke,'select'),patch.object(smoke,'back'),patch.object(smoke,'tap') as tap,patch.object(smoke,'tap_node') as tap_node,patch.object(smoke,'find',return_value=hitbox) as find,patch.object(smoke,'adb') as adb,patch.object(smoke,'tree',return_value=frame),patch.object(smoke,'validate_soundcloud_info_chip',return_value={'infoBounds':[0,0,72,72]}),patch.object(smoke,'screenshot') as screenshot,patch.object(smoke.time,'sleep'):
+        with patch.object(smoke,'settings'),patch.object(smoke,'select') as select,patch.object(smoke,'back'),patch.object(smoke,'tap') as tap,patch.object(smoke,'tap_node') as tap_node,patch.object(smoke,'find',return_value=hitbox) as find,patch.object(smoke,'adb') as adb,patch.object(smoke,'tree',return_value=frame),patch.object(smoke,'validate_soundcloud_info_chip',return_value={'infoBounds':[0,0,72,72]}),patch.object(smoke,'screenshot') as screenshot,patch.object(smoke.time,'sleep'):
             smoke.soundcloud_info_font_acceptance()
         scales=[call.args[-1] for call in adb.call_args_list]
         self.assertEqual(scales,['1.0','1.3','1.5','2.0','1.0'])
         self.assertEqual(sum(call.args==('track-info-hero',) for call in find.call_args_list),4)
         self.assertEqual(sum(call.args==('soundcloud-track-info-chip',) for call in tap.call_args_list),4)
         self.assertEqual(screenshot.call_count,8)
+        self.assertEqual(select.call_args_list[-1].args,('settings-player-layout-classic',))
         tap_node.assert_called_once_with(hitbox)
         self.assertEqual(len(smoke.V5_PROOFS.pop('soundcloudInfoFonts')),4)
         smoke.CHECKS.pop()
