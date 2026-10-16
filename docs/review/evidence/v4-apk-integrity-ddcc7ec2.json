@@ -10,5 +10,7 @@
     "signature": "verified",
     "contentDigest": "verified"
   },
-  "androidAcceptance": "pending"
+  "androidAcceptance": "passed-composite-exact-apk",
+  "acceptanceEvidence": "v4-final-apk-acceptance.json",
+  "overallV4Completion": "externally-blocked"
 }

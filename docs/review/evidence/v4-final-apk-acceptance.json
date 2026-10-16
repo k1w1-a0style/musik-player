@@ -1,0 +1,56 @@
+{
+  "sourceCommit": "ddcc7ec2fcb03f68720927c23b06996d59b24dd1",
+  "apkSha256": "2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a",
+  "technicalApkAcceptance": "passed",
+  "githubArchiveBindings": "verified",
+  "historicalRunConclusion": "failure",
+  "historicalMatrixPassed": 25,
+  "evidenceOrigins": [
+    {
+      "run": 38844390898,
+      "harnessCommit": "6271b3000ade93e2fb627ea440aa01887aec4436",
+      "runConclusion": "failure",
+      "artifactId": 12024085233,
+      "artifactDigest": "sha256:b28a56411251edad2a4815a0c32ae24e54d036a7750cabb3537c44b72d9515f5",
+      "cases": 25
+    },
+    {
+      "run": 38867090788,
+      "harnessCommit": "72a19aecc500addb6227d7a255a20c133001c3f6",
+      "runConclusion": "success",
+      "artifactId": 12032061690,
+      "artifactDigest": "sha256:d57c1e9672d62db842b609c391a653da98f3aa0ca84afd27039865d5ed5cdef6",
+      "cases": 1
+    },
+    {
+      "run": 38867966020,
+      "harnessCommit": "ccd17d2a0672f519896dbe69267d360e03fa7b67",
+      "runConclusion": "success",
+      "artifactId": 12032825230,
+      "artifactDigest": "sha256:6015cbcbac696796aa10fb8cec62932621be1f57869f27af1421143f234a9f48",
+      "cases": 10
+    }
+  ],
+  "screenshotInspection": {
+    "status": "passed",
+    "matrixCases": 36,
+    "nativeScreens": 108,
+    "soundcloudFonts": [
+      "1.0",
+      "1.3",
+      "1.5",
+      "2.0"
+    ],
+    "notes": "Library action geometry and all twelve font2 library images critically reviewed; settings/player overviews checked; ordinary offscreen list rows are not claimed to be simultaneously visible."
+  },
+  "overallV4Completion": "externally-blocked",
+  "releaseAccepted": false,
+  "externalOpenConditions": [
+    "F01 permanent solution before unchanged 2026-10-21 expiry",
+    "F06 physical devices, real SAF providers, headset/Bluetooth, spoken TalkBack",
+    "F07 real-provider performance benchmark",
+    "No main merge or public production release authorized"
+  ],
+  "matrixCases": 36,
+  "pythonTests": 159
+}

@@ -28,7 +28,7 @@ Nur der Testtreiber wird verändert: Sobald eine Song-Aktion bereits sichtbar, a
 
 Original-XMLs sind bytegleich unter `scripts/ci/fixtures/song-info-font2-*` gesichert. Regression mit beiden Clip-Richtungen: vor Korrektur rot (136 px / 300 ms statt 78 px / 800 ms), danach grün. Zusätzliche Gegenproben weisen dauerhaft abgeschnittene Ziele weiterhin ab und verlangen für den aufgezeichneten vollständig sichtbaren Standard-Fall keinerlei Geste. Alle **154 Python-Tests** sind grün, ohne Skips. Keine App-Quelle, Touchflächen-Grenze, Sichtbarkeitsprüfung, APK, Sicherheitsregel oder historische V5-Prüfung geändert.
 
-## Noch ausstehender Nachweis
+## Historischer Zwischenstand vor dem Gerätelauf
 
 Die neue Geste ist auf den Original-Frames regressionsgeprüft. **Ein erfolgreicher Android-Nachlauf des korrigierten Compact-Falls ist noch nicht belegt.** Die elf noch fehlenden Matrixfälle und die neue APK-Gesamtabnahme bleiben offen; die 25 vorhandenen Fälle bleiben historische, exakt zugeordnete Nachweise. Kein erneuter APK-Build und kein erneuter vollständiger Android-Lauf für diese Diagnose gestartet. Nächster Gerätelauf soll zuerst ausschließlich 200 % / dark / graphite / compact auf derselben APK prüfen; kein neuer Gesamt-Scan.
 
@@ -41,3 +41,11 @@ Die Fortsetzung ist vorbereitet: exakt zehn weitere 200-%-Fälle, ohne Überschn
 ## Einzeltest erfolgreich – 26/36 nachgewiesen
 
 [Android-Einzeltest 38867090788](https://github.com/k1w1-a0style/musik-player/actions/runs/38867090788) auf Harness `72a19aecc500addb6227d7a255a20c133001c3f6` ist vollständig erfolgreich. Original-Artefakt `12032061690`, 11.222.767 Bytes, SHA256 `d57c1e9672d62db842b609c391a653da98f3aa0ca84afd27039865d5ed5cdef6` heruntergeladen, CRC/Digest und APK-Zuordnung geprüft. Der einzige Fall 200 % / dark / graphite / compact hat Menü-Bounds `[380,606,452,678]` (48 × 48 dp), getrennte Play-/Menüflächen, vollständige Header-/Section-Aktionen und echte native FLAC-Wiedergabebestätigung. Original-PNG kritisch gesichtet: keine abgeschnittene Zielaktion. `diagnostic-errors.json` ist leer, keine App-FATAL/ANR. Einzeltest bleibt korrekt `stage-only-passed`, keine vollständige Freigabe. Der unabhängige Prüfer bestätigt 25 historische plus einen neuen Fall ohne Duplikate. Nächster Lauf ausschließlich zehn weitere Fälle; keine Wiederholung der bisherigen 26.
+
+## Abschließender Restlauf bestanden – 36/36 ohne Doppelprüfung
+
+[38867966020](https://github.com/k1w1-a0style/musik-player/actions/runs/38867966020), Harness `ccd17d2a0672f519896dbe69267d360e03fa7b67`, ist erfolgreich. Original-Artefakt `12032825230`, 20.707.495 Bytes, SHA256 `6015cbcbac696796aa10fb8cec62932621be1f57869f27af1421143f234a9f48`, unabhängig mit API-Identität, Hash und CRC geprüft. Genau zehn weitere Fälle bestanden. Keine Wiederholung der alten 25 oder des neuen Einzelfalls.
+
+Der unabhängige Prüfer bestätigt exakt 36 verschiedene Fälle, 108 Settings-/Library-/Player-PNGs und XMLs, vollständige 48-dp-Infoaktionen, nicht überlappende geprüfte Aktionen und native FLAC-ACKs. Alle zwölf 200-%-Library-Bilder kritisch gesichtet; ergänzende Player-/Settings-Sichtkontrolle und vier SoundCloud-Schrift-/TrackInfo-Zeugen ohne weiteren bestätigten Blocker. Die ursprünglichen vollständigen Funktionsstufen vor dem einzigen damaligen Matrixfehler bleiben exakt derselben APK zugeordnet. Gesamturteil: technische Emulator-Abnahme bestanden; F01-Fristlösung, physische F06-Tests und realer F07-Provider-Benchmark bleiben offen. Siehe [v4-final-acceptance.md](v4-final-acceptance.md).
+
+Die temporäre Ausführungsdatei für gezielte Probes wird entfernt. Ohne diese Datei verwendet der bestehende Manifest-Retest wieder den vollständigen Standardmodus. Die begrenzten Probes sind weiterhin explizit dokumentiert und dürfen nicht als vollständige Freigabe ausgegeben werden.

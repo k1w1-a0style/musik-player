@@ -2,6 +2,13 @@
 
 Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 
+
+## Aktuelles Ergebnis: technische APK-Abnahme bestanden, externe Bedingungen offen
+
+**36/36 UI-Fälle derselben APK unabhängig belegt: 25 historische + 1 Einzeltest + 10 Restfälle.** Einzeltest 38867090788 und Restlauf 38867966020 erfolgreich; kein neuer Build, keine Gesamt-CI und kein vollständiger Android-Wiederholungslauf in dieser Fortsetzung. 159 Python-Prüfungen erfolgreich. Alle zwölf 200-%-Library-Bilder kritisch gesichtet; keine neue bestätigte Produktregression.
+
+APK-Source `ddcc7ec2fcb03f68720927c23b06996d59b24dd1`, SHA256 `2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a`. [Abschlussnachweise und Grenzen](v4-final-acceptance.md). **Nicht vollständig erledigt:** F01-Fristlösung bis 21.10.2026, physische F06-Abnahme, realer F07-Provider-Benchmark und ein gesondert autorisierter/formal erfüllter Main-Handoff. `main` unverändert. Die nachfolgenden Arbeitsnotizen enthalten historische Zwischenstände.
+
 ## Phase 0: abgesicherter Ausgangspunkt
 
 - `codex`: `93ed893398ce9a59d37a3b4376c418cadf8e02b3` (GitHub und aktualisierter lokaler Checkout).
@@ -19,12 +26,12 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | 0 | Ist-Abgleich, Sicherung, Status | Erledigt; Ausgangspunkt dokumentiert |
 | 1 | F01: zeitkritische Sicherheit | Prüfung erledigt: 47 Jest + 142 Corpus + Clean Install + Hermes-Grenze grün; Fristlösung extern blockiert, keine genehmigte Verlängerung |
 | 2 | F02: dauerhafte V5-Originale | Erledigt: beide dauerhaften Original-Downloads rückgelesen; Hashes/ZIP/RSA-v2/Inhaltsdigest/Source/result geprüft; separates Manifest |
-| 3 | F03: sichere Journal-Retention | Implementiert und gezielt geprüft; vollständige neue APK-Abnahme folgt |
-| 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und neun Negativ-/Positivtests ergänzt; 143 Python-Tests grün; Doku/Issues #234/#236 aktualisiert. Exakte Gesamt-CI folgt in Phase 8 |
+| 3 | F03: sichere Journal-Retention | Erledigt: 83 gezielte Tests, integrierte Quality-/Native-Gates und technische APK-Abnahme |
+| 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und exakte APK-Nutzung praktisch bestanden; 159 Python-Tests. Reguläre CI 38844315073 grün. Main-Handoff bleibt gesondert und nicht autorisiert |
 | 5 | F06: reale Geräte/Provider/TalkBack | Extern blockiert: kein physisches Gerät/USB/adb; konkrete Abnahmeliste in v4-real-device-gate.md, keine unnötige Emulatorwiederholung |
-| 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Host-Basis gemessen, echter Provider-Benchmark extern blockiert; Infochip/Backup-UX korrigiert und gezielt grün; Android-Sichtabnahme folgt |
+| 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Host-Basis gemessen, realer Provider-Benchmark extern blockiert; Infochip/Backup-UX korrigiert, gezielte Tests und Android-/Sichtbelege erfolgreich |
 | 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Erledigt: expliziter begrenzter Vertrag, Upgrade-Ablauf, vier aktuelle Player-Payload-Hashes; 70 gezielte Tests und 146 Python-Tests grün |
-| 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Integrierter Lauf angefordert: alle Pakete auf codex gesichert, 146 Python-/gezielte Jest-Gates grün; neue APK und volle eigene Android-/Sichtabnahme erforderlich |
+| 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Technisch bestanden: 4.160 Jest-/178 Native-Tests, 159 aktuelle Python-Prüfungen, 36/36 UI-Fälle und kritische Sichtkontrolle; externe Gesamtfreigabebedingungen bleiben offen |
 
 ## Findings – laufende Ergebniszuordnung
 
@@ -34,13 +41,13 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | F02 | vergängliche Actions-Artefakte | Bestätigt und behoben: dauerhafte private Originalablage, Rücklese-Hash-/Signaturprüfung und Archivmanifest; V5-Freigabe unverändert |
 | F03 | alte Cleaner-Einträge | Bestätigt und behoben; belegte abgeschlossene Epochen werden gesammelt, offene/Legacy-/Recovery-Evidenz bleibt geschützt; v4-cleaner-retention.md |
 | F04 | formaler Main-Handoff | Preview und formaler Gesamt-CI-Handoff getrennt; kein Main-Merge autorisiert |
-| F05 | fest verdrahteter V5-Retest | Bestätigt und behoben: historischer Workflow unverändert, neuer codex-only Manifest-Dispatch mit Source-/Gate-/ZIP-/APK-Prüfung; Verfügbarkeits-/Geräte-Nachweis folgt |
+| F05 | fest verdrahteter V5-Retest | Bestätigt und behoben: historischer Workflow unverändert, neuer codex-only Manifest-Retest mit Source-/Gate-/ZIP-/APK-Prüfung; zwei gezielte Android-Läufe praktisch erfolgreich |
 | F06 | echte Geräte/Provider | Extern blockiert; Verfügbarkeit geprüft, offene Fälle und benötigte Belege konkret dokumentiert |
 | F07 | SAF-Hashkosten | Bewusst begrenzt: Host-Basis 10/25/50 MiB gemessen; echter Provider-Benchmark extern blockiert, keine unbewiesene Optimierung |
-| F08 | SoundCloud-Infochip | Bestätigt und korrigiert; natürliche Höhe, 48-dp-Aktion, unverkleinerter umbruchfähiger Text; neue APK-/Sichtabnahme ausstehend |
+| F08 | SoundCloud-Infochip | Bestätigt und korrigiert; natürliche Höhe, 48-dp-Aktion, unverkleinerter umbruchfähiger Text; technische Android-/Sichtabnahme auf exakter APK bestanden |
 | F09 | Doku/Issue-Drift | Bestätigt und behoben: Handoff/Checklist sowie Issues #234/#236 aktualisiert, reale Prüfungen ausdrücklich offen |
 | F10 | Playback-Shim | Bewusst begrenzt: Setup/Options-Vertrag dokumentiert, negative Laufzeitänderungen und volle native Setup-Defaults getestet; kein allgemeines V4-Backend |
-| F11 | Backup fehlender Quellen | Bestätigt und korrigiert; verständliche ehemalige ID, alte/neue Version-1-Backups kompatibel, Mapping unverändert; Geräte-Abnahme folgt |
+| F11 | Backup fehlender Quellen | Bestätigt und korrigiert; verständliche ehemalige ID, alte/neue Version-1-Backups kompatibel, Mapping unverändert; Backup-/Restore-Emulatorablauf und Neustartpersistenz bestanden; reale Geräte separat offen |
 | F12 | gepinnte Payload-Patches | Bewusst begrenzt und abgesichert: installierte Hashes bestätigt, vorhandene Tamper-/Drift-Negativtests grün, verbindlicher Upgrade-Ablauf ergänzt |
 
 ## Unveränderliche Arbeitsgrenzen
