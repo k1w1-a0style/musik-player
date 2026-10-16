@@ -21,7 +21,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | 2 | F02: dauerhafte V5-Originale | Erledigt: beide dauerhaften Original-Downloads rückgelesen; Hashes/ZIP/RSA-v2/Inhaltsdigest/Source/result geprüft; separates Manifest |
 | 3 | F03: sichere Journal-Retention | Implementiert und gezielt geprüft; vollständige neue APK-Abnahme folgt |
 | 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und neun Negativ-/Positivtests ergänzt; 143 Python-Tests grün; Doku/Issues #234/#236 aktualisiert. Exakte Gesamt-CI folgt in Phase 8 |
-| 5 | F06: reale Geräte/Provider/TalkBack | Verfügbarkeit prüfen; Emulator ist kein Hersteller-/TalkBack-Nachweis |
+| 5 | F06: reale Geräte/Provider/TalkBack | Extern blockiert: kein physisches Gerät/USB/adb; konkrete Abnahmeliste in v4-real-device-gate.md, keine unnötige Emulatorwiederholung |
 | 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Offen; nur bestätigte Defekte ändern |
 | 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Offen |
 | 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Nach zusammenhängenden Korrekturen; keine historische APK umetikettieren |
@@ -35,7 +35,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | F03 | alte Cleaner-Einträge | Bestätigt und behoben; belegte abgeschlossene Epochen werden gesammelt, offene/Legacy-/Recovery-Evidenz bleibt geschützt; v4-cleaner-retention.md |
 | F04 | formaler Main-Handoff | Preview und formaler Gesamt-CI-Handoff getrennt; kein Main-Merge autorisiert |
 | F05 | fest verdrahteter V5-Retest | Bestätigt und behoben: historischer Workflow unverändert, neuer codex-only Manifest-Dispatch mit Source-/Gate-/ZIP-/APK-Prüfung; Verfügbarkeits-/Geräte-Nachweis folgt |
-| F06 | echte Geräte/Provider | Offene Nachweislücke, nicht automatisch ein Produktfehler |
+| F06 | echte Geräte/Provider | Extern blockiert; Verfügbarkeit geprüft, offene Fälle und benötigte Belege konkret dokumentiert |
 | F07 | SAF-Hashkosten | Provider-Messung vor Optimierung; Hostzahlen nicht als Gerätebenchmark ausgeben |
 | F08 | SoundCloud-Infochip | Bekannter nicht blockierender V5-Restpunkt; neue responsive UI und neue APK-Abnahme erforderlich |
 | F09 | Doku/Issue-Drift | Bestätigt und behoben: Handoff/Checklist sowie Issues #234/#236 aktualisiert, reale Prüfungen ausdrücklich offen |
