@@ -369,7 +369,14 @@ def scroll_to(key, top=False, limit=24):
                   'direction':'top' if down else 'bottom','stableOwnerFrames':stable,
                   'navigation':'observed-settings-order' if direct is not None else 'boundary-search',
                   'observation':stem+'.xml','surfaceBounds':rect(surface)}), flush=True)
-        precise = key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-')) or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE)
+        # A clipped song action is already located. A fast fling can jump
+        # across its entire usable interval in the small font2 viewport and
+        # alternate between opposite clipped edges. Approach it with the same
+        # overlapping slow drag used for precise settings controls; retain all
+        # whole-viewport and minimum-touch-area checks above.
+        precise = (key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-'))
+                   or (key.startswith('song-card-') and clipped is not None)
+                   or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE))
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)
         SCROLL_PROOFS.append({'target': key, 'direction': 'top' if down else 'bottom',
                              'surfaceBounds': rect(vertical_scroll_surface(frame, key)),

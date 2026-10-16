@@ -1,0 +1,22 @@
+{
+  "run": 38844390898,
+  "artifactId": 12024085233,
+  "artifactSha256": "b28a56411251edad2a4815a0c32ae24e54d036a7750cabb3537c44b72d9515f5",
+  "sourceCommit": "ddcc7ec2fcb03f68720927c23b06996d59b24dd1",
+  "apkSha256": "2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a",
+  "passedMatrixCases": 25,
+  "failedCase": {
+    "fontScale": "2.0",
+    "appearance": "dark",
+    "skin": "graphite",
+    "density": "compact"
+  },
+  "pythonTests": 154,
+  "deviceRetest": "pending",
+  "releaseAccepted": false,
+  "fixtures": {
+    "song-info-font2-clipped-top.xml": "d570aceee42186f9f72e3ddcd352b620fc486360ba9a1b17050113f641cc28a8",
+    "song-info-font2-clipped-bottom.xml": "df9aefda43c1ca503bfd8cfbdb99a6a4a63b11cb3d2a75e1dbe6cc4fb2c290ef",
+    "song-info-font2-whole-standard.xml": "b5542212c3da65c049c4a00e69e417d85f33c60bf14040199edde3a40af993bc"
+  }
+}

@@ -957,6 +957,42 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             self.assertEqual(smoke.scroll_to('settings-instant-colors', limit=1).get('checked'), 'false')
             adb.assert_called_once_with('shell','input','swipe','240','708','240','372','800')
 
+    def recorded_song_info_frame(self, edge):
+        return ET.parse(Path(__file__).parent / 'fixtures' / f'song-info-font2-clipped-{edge}.xml').getroot()
+
+    def test_recorded_font2_song_info_uses_slow_overlapping_drag_at_either_clip_edge(self):
+        key = 'song-card-info-1000000019'
+        for edge, coordinates in (('top', ('240','587','240','665')),
+                                  ('bottom', ('240','665','240','587'))):
+            frame = self.recorded_song_info_frame(edge)
+            self.assertEqual(smoke.scroll_bounds(frame, key), (12,529,468,723))
+            self.assertIsNone(smoke.scroll_candidate(key, frame))
+            # Stop after the first command: inspect the real failing frame,
+            # without pretending a model is a successful emulator interaction.
+            with self.subTest(edge=edge), tempfile.TemporaryDirectory() as directory, \
+                 patch.object(smoke,'OUT',Path(directory)), patch.object(smoke,'tree',return_value=frame), \
+                 patch.object(smoke,'adb',side_effect=RuntimeError('captured gesture')) as adb:
+                with self.assertRaisesRegex(RuntimeError,'captured gesture'):
+                    smoke.scroll_to(key,limit=1)
+                adb.assert_called_once_with('shell','input','swipe',*coordinates,'800')
+
+    def test_recorded_whole_font2_song_info_requires_no_gesture(self):
+        key = 'song-card-info-1000000019'
+        frame = ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()
+        with patch.object(smoke,'tree',return_value=frame), patch.object(smoke,'adb') as adb:
+            self.assertEqual(smoke.rect(smoke.scroll_to(key)), [380,550,452,622])
+            adb.assert_not_called()
+
+    def test_recorded_font2_song_info_never_accepts_persistently_clipped_control(self):
+        key = 'song-card-info-1000000019'
+        for edge in ('top','bottom'):
+            frame = self.recorded_song_info_frame(edge)
+            with self.subTest(edge=edge), tempfile.TemporaryDirectory() as directory, \
+                 patch.object(smoke,'OUT',Path(directory)), patch.object(smoke,'tree',return_value=frame), \
+                 patch.object(smoke,'adb'), patch.object(smoke.time,'sleep'):
+                with self.assertRaisesRegex(AssertionError,'Scrollable UI not reachable'):
+                    smoke.scroll_to(key,limit=2)
+
     def test_precise_scroll_keeps_overlapping_viewports_and_native_owner_bounds(self):
         for bounds in ('[12,491][468,742]', '[0,120][480,960]'):
             root = self.scroll_frame(bounds)
