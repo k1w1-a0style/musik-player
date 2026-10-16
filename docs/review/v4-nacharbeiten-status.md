@@ -24,7 +24,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | 5 | F06: reale Geräte/Provider/TalkBack | Extern blockiert: kein physisches Gerät/USB/adb; konkrete Abnahmeliste in v4-real-device-gate.md, keine unnötige Emulatorwiederholung |
 | 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Host-Basis gemessen, echter Provider-Benchmark extern blockiert; Infochip/Backup-UX korrigiert und gezielt grün; Android-Sichtabnahme folgt |
 | 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Erledigt: expliziter begrenzter Vertrag, Upgrade-Ablauf, vier aktuelle Player-Payload-Hashes; 70 gezielte Tests und 146 Python-Tests grün |
-| 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Nach zusammenhängenden Korrekturen; keine historische APK umetikettieren |
+| 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Integrierter Lauf angefordert: alle Pakete auf codex gesichert, 146 Python-/gezielte Jest-Gates grün; neue APK und volle eigene Android-/Sichtabnahme erforderlich |
 
 ## Findings – laufende Ergebniszuordnung
 
@@ -46,3 +46,9 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 ## Unveränderliche Arbeitsgrenzen
 
 Keine Änderungen an `main`, kein öffentlicher Produktionsrelease, kein ungefragtes Dependency-Major-Upgrade, keine verlängerten Sicherheitsausnahmen, keine abgeschwächten Tests/Gates. Ausschließlich synthetische Musikdateien. Nach jedem fachlichen Paket gezielte Regressionen und Commit; vollständige CI erst nach Integration zusammengehöriger produktiver Änderungen.
+
+## Integrierte Abnahmeanforderung
+
+Die nächste CI prüft den gemeinsam integrierten produktiven Stand (Cleaner-Retention, SoundCloud-Infochip, Backup-Darstellung). Sie baut genau eine neue Preview-APK, inspiziert Hash/Signatur/Manifest, führt alle bestehenden Quality-/Security-/Native-Gates und die vollständige eigene Android-Abnahme aus. Die zusätzliche SoundCloud-Schriftprüfung liegt vor den aufwendigen Reststufen. Alte V5-Matrixfälle werden für diese APK nicht übernommen. Nachweisbare Infrastrukturfehler werden anhand der Logs behandelt; keine unbegründete Vollwiederholung oder Assertion-Abschwächung.
+
+F01-Fristlösung sowie F06 und der reale F07-Provider-Benchmark bleiben bis zur tatsächlichen externen Erfüllung offen. Ein grüner technischer Lauf hebt diese Grenzen nicht auf.
