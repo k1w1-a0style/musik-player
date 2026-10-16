@@ -22,3 +22,7 @@ Die Reserve liegt als `paddingBottom` innerhalb derselben eingefärbten Panel-Vi
 ## Eigene Geräte-Abnahme erforderlich
 
 Die nächste einzige integrierte CI baut wegen der produktiven Layoutänderung eine neue APK. Vor dem vollständigen Funktionslauf werden wie bisher zwölf 200-%-Fälle geprüft; alle neuen Matrixfälle enthalten zusätzlich native Panel-/Listen-/Mini-Player-Bounds, 20-dp-Abstand und Pixelmessungen beidseits der alten unteren Viewportkante. Vollständige neue 36er-Matrix und kritische Dark-/Light-Sichtprüfung gelten nur für den neuen APK-Hash. Alte Fälle werden nicht als Abnahme geänderter Bytes übernommen. Sicherheitsfrist 21.10.2026, physische Geräte und realer Provider-Benchmark bleiben offen.
+
+## Zwischenstand: neue APK und zwölf 200-%-Fälle bestanden
+
+CI 38895123158 / Quelle `f2c46d3742e80655ccf06bc1900811434c4a4686`: Quality 4.165 Jest-/161 Python-Tests, 96 % Zeilenabdeckung, Security und Native erfolgreich. Native XML unabhängig: 178 Tests, 0 Fehler/Skips. Neue APK: 100.832.661 Bytes, SHA256 `609d6080eb296dcf9e13791c7a67955ffbdbab6c0767ab568faa2ed001fafe50`, Artefakt 12044008297; Archiv-Digest/CRC, eingebettete Source und APK-SHA unabhängig geprüft; verpflichtendes V2-Signatur-Gate bestanden, bekanntes Preview-Zertifikat. Android-Job 116959315614 hat die zwölf gezielten 200-%-Fälle einschließlich Hintergrund-/20-dp-Assertions bestanden. Der vollständige neue Funktionslauf und die frische 36er-Matrix laufen; finale Sichtkontrolle und APK-Abnahme bleiben offen.
