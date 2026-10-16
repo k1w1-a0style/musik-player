@@ -69,3 +69,7 @@ Der tatsächliche native Ergebnisvertrag enthält `cleanupPending` zusätzlich z
 - APK unabhängig heruntergeladen: kompletter Archiv-Digest/CRC, eingebettete Source, APK-SHA, v2-RSA-Signatur und APK-Inhaltsdigest bestätigt. Alle vier ABIs enthalten, Paket-/Permission-Inspektion erfolgreich. Preview-Testsignatur, keine Store-/Produktionsfreigabe.
 - Die zwölf gezielten 200-%-Varianten laufen im isolierten API-35-Emulator; vollständiger Funktionslauf, 36er-Matrix und kritische Sichtprüfung sind noch offen. Dieser Checkpoint erteilt keine APK-Abnahme.
 - F01-Fristentscheidung, reale F06-Geräte und F07-Provider-Benchmark bleiben unverändert offen. `main` bleibt unverändert.
+
+## Android-Treiberdiagnose nach zwölf grünen Varianten
+
+Quell-CI 38839127042: drei Source-Gates und zwölf gezielte 200-%-Varianten erfolgreich; Gesamt-CI rot wegen falscher Annahme zur nativen Elternschaft im neu ergänzten SoundCloud-Prüfer. Original-XML und Screenshot belegen sichtbare, korrekt große und getrennte Knoten als native Geschwister. Mit aufgezeichnetem XML reproduziert und korrigiert; 150 Python-Tests grün. Siehe v4-android-native-owner.md. Die APK ddcc7ec2 bleibt unverändert. Vollständiger Manifest-Retest und echter Gesamt-CI-Handoff am korrigierten reinen Treiberstand folgen, ohne neue Preview-APK und ohne Wiederholung der zwölfteiligen Vorstufe.

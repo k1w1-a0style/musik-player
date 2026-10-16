@@ -6,9 +6,9 @@ from androidReleaseInteractionSmoke import PACKAGE, validate_soundcloud_info_chi
 class SoundCloudInfoGeometryTest(unittest.TestCase):
     def frame(self):
         return ET.fromstring(f'''<hierarchy><node resource-id="soundcloud-track-page-current" bounds="[0,0][480,960]">
-          <node resource-id="soundcloud-track-metadata" bounds="[27,102][453,423]">
+          <node resource-id="soundcloud-track-metadata" package="{PACKAGE}" bounds="[27,102][453,423]">
             <node resource-id="soundcloud-track-info-chip" package="{PACKAGE}" enabled="true" content-desc="Infos zu diesem Track" bounds="[27,327][453,423]" />
-          </node><node resource-id="soundcloud-paused-controls" bounds="[60,435][420,561]" />
+          </node><node resource-id="soundcloud-paused-controls" package="{PACKAGE}" bounds="[60,435][420,561]" />
           </node></hierarchy>''')
     def test_fully_visible_large_font_action(self):
         self.assertEqual(validate_soundcloud_info_chip(self.frame())['infoBounds'],[27,327,453,423])
@@ -38,3 +38,17 @@ class SoundCloudInfoFlowTest(unittest.TestCase):
         tap_node.assert_called_once_with(hitbox)
         self.assertEqual(len(smoke.V5_PROOFS.pop('soundcloudInfoFonts')),4)
         smoke.CHECKS.pop()
+
+class RecordedAndroidSoundCloudTest(unittest.TestCase):
+    def test_real_native_z_order_siblings_are_owned_by_the_current_page_render_container(self):
+        from pathlib import Path
+        frame=ET.parse(Path(__file__).parent/'fixtures/soundcloud-native-z-order.xml').getroot()
+        result=validate_soundcloud_info_chip(frame)
+        self.assertEqual(result['infoBounds'],[27,255,294,327])
+        self.assertEqual(result['transportBounds'],[51,393,429,519])
+    def test_ambiguous_visible_chip_is_rejected_instead_of_borrowing_another_page(self):
+        from pathlib import Path
+        frame=ET.parse(Path(__file__).parent/'fixtures/soundcloud-native-z-order.xml').getroot()
+        chip=next(n for n in frame.iter('node') if n.get('resource-id')=='soundcloud-track-info-chip')
+        frame.append(copy.deepcopy(chip))
+        with self.assertRaises(AssertionError): validate_soundcloud_info_chip(frame)

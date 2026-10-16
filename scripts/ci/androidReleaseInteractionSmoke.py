@@ -429,22 +429,37 @@ def validate_library_section_touch_areas(frame):
     return {'sectionBounds':rect(section),'titleBounds':rect(title),'controls':controls}
 
 
-def validate_soundcloud_info_chip(frame):
+def soundcloud_info_nodes(frame):
     page = candidate('soundcloud-track-page-current', frame)
     assert page is not None, 'Current SoundCloud page missing'
-    metadata = candidate('soundcloud-track-metadata', page)
-    chip = candidate('soundcloud-track-info-chip', page)
-    assert metadata is not None and chip is not None, 'SoundCloud metadata/info action missing'
-    assert chip.get('package') == PACKAGE and chip.get('enabled') == 'true', 'SoundCloud info action is not enabled app-owned UI'
+    parents = {child: parent for parent in frame.iter('node') for child in parent}
+    keys = ('soundcloud-track-metadata','soundcloud-track-info-chip','soundcloud-paused-controls')
+    scope = page
+    while scope is not None:
+        groups = [[node for node in scope.iter('node') if matches(node,key) and visible(node)
+                   and rect(node)[0] < rect(node)[2] and rect(node)[1] < rect(node)[3]] for key in keys]
+        assert all(len(group) <= 1 for group in groups), 'Ambiguous visible SoundCloud controls'
+        if all(len(group) == 1 for group in groups):
+            return tuple(group[0] for group in groups)
+        if matches(scope,'soundcloud-track-carousel-root'):
+            break
+        scope = parents.get(scope)
+    raise AssertionError('SoundCloud metadata/info action missing from current native render owner')
+
+
+def validate_soundcloud_info_chip(frame):
+    # Fabric/native z-order can expose these views as siblings of the JS page
+    # marker. Bind the smallest recorded native owner, never arbitrary UI nodes.
+    metadata, chip, controls = soundcloud_info_nodes(frame)
+    assert all(node.get('package') == PACKAGE for node in (metadata,chip,controls)), 'SoundCloud controls are not app-owned'
+    assert chip.get('enabled') == 'true', 'SoundCloud info action is not enabled app-owned UI'
     assert chip.get('content-desc') == 'Infos zu diesem Track', 'SoundCloud info action label differs'
     mx1,my1,mx2,my2 = rect(metadata)
     x1,y1,x2,y2 = rect(chip)
     assert x2-x1 >= 72 and y2-y1 >= 72, 'SoundCloud info action smaller than 48dp'
     assert 0 <= mx1 <= x1 < x2 <= mx2 <= 480 and 0 <= my1 <= y1 < y2 <= my2 <= 960, 'SoundCloud info action clipped by metadata/screen'
-    controls = candidate('soundcloud-paused-controls', page)
-    assert controls is not None, 'Paused SoundCloud controls missing'
     cx1,cy1,cx2,cy2 = rect(controls)
-    assert my2 <= cy1 and cy1 < cy2 <= 960, 'SoundCloud metadata overlaps transport controls'
+    assert 0 <= cx1 < cx2 <= 480 and my2 <= cy1 < cy2 <= 960, 'SoundCloud metadata overlaps transport controls'
     return {'metadataBounds':rect(metadata),'infoBounds':rect(chip),'transportBounds':rect(controls)}
 
 

@@ -1,0 +1,13 @@
+# Android-Nachtrag: native XML-Zuordnung des SoundCloud-Infochips
+
+Source-APK unverändert: `ddcc7ec2fcb03f68720927c23b06996d59b24dd1`, SHA256 `2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a`.
+
+Der Quell-Lauf [38839127042](https://github.com/k1w1-a0style/musik-player/actions/runs/38839127042) besitzt drei grüne Source-Gates (4.160 Jest, 148 Python, 178 native Tests). Auch alle zwölf gezielten 200-%-Varianten sind erfolgreich. Sein vollständiger UI-Schritt scheiterte anschließend bei `SoundCloud metadata/info action missing`. Gesamt-CI deshalb rot; keine Freigabe durch Umbenennung.
+
+Originales Diagnoseartefakt: 12022150081, ZIP-SHA256 `f5509acd4ea43c049c7991204920b0e2e64ba482d830955c8aba363bafc446a3`. Vollständig heruntergeladen und CRC-/Digest-geprüft. Keine Diagnosefehler, kein verlorenes ADB und kein belegter App-Absturz.
+
+Die tatsächliche vollständige native Hierarchie zeigt den Seitenmarker sowie Metadata und Transport als Geschwister im gleichen Rendercontainer. Die React-Native-Zeichenreihenfolge bildet nicht die angenommene JS-Elternschaft ab. Die Screenshot-Sichtprüfung bei 100 % zeigt den Infochip vollständig. Native Bounds: Metadata `[27,117,453,327]`, Info-Aktion `[27,255,294,327]` (72 px = 48 dp Höhe), Transport `[51,393,429,519]`; keine Überlappung. Daraus folgt ein Testtreiberfehler für diesen Abbruch, keine produktive Layoutkorrektur.
+
+Der neue Prüfer bindet die kleinste gemeinsame native Besitzerstruktur des aktiven Seitenmarkers. Nur eindeutig sichtbare, positiv große App-Knoten werden akzeptiert; Mehrdeutigkeit wird abgewiesen. Mindest-Touchfläche, Bildschirm-/Metadata-Grenzen, Überlappung, exaktes Label und echte TrackInfo-Navigation bleiben Pflicht. Der echte aufgezeichnete Teilbaum liegt in `scripts/ci/fixtures/soundcloud-native-z-order.xml` und reproduzierte den alten Prüfer rot. Danach alle 150 Python-Tests grün; außerdem Prüfung beider originalen vollständigen XML-Dateien mit dem korrigierten Validator.
+
+Der vollständige Retest verwendet dieselben verifizierten APK-Bytes über das explizite Manifest. Die erfolgreich abgeschlossene zwölfteilige Vorstufe wird als eigenständiger, exakt gebundener Nachweis erhalten; der neue volle Lauf muss alle 36 Fälle selbst prüfen und übernimmt keine ältere Matrix. Keine neue Preview-APK, keine Änderungen an produktiven App-Quellen. Die normale Gesamt-CI am gezielt korrigierten Handoff-Stand ist zusätzlich erforderlich, weil Phase 4 einen echten grünen Gesamt-CI-Nachweis verlangt; der rote originale Source-Lauf bleibt historische Tatsache.
