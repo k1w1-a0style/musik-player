@@ -73,3 +73,7 @@ Der tatsächliche native Ergebnisvertrag enthält `cleanupPending` zusätzlich z
 ## Android-Treiberdiagnose nach zwölf grünen Varianten
 
 Quell-CI 38839127042: drei Source-Gates und zwölf gezielte 200-%-Varianten erfolgreich; Gesamt-CI rot wegen falscher Annahme zur nativen Elternschaft im neu ergänzten SoundCloud-Prüfer. Original-XML und Screenshot belegen sichtbare, korrekt große und getrennte Knoten als native Geschwister. Mit aufgezeichnetem XML reproduziert und korrigiert; 150 Python-Tests grün. Siehe v4-android-native-owner.md. Die APK ddcc7ec2 bleibt unverändert. Vollständiger Manifest-Retest und echter Gesamt-CI-Handoff am korrigierten reinen Treiberstand folgen, ohne neue Preview-APK und ohne Wiederholung der zwölfteiligen Vorstufe.
+
+## Schriftwechsel-Lifecycle nachgewiesen
+
+Der erste Manifest-Retest bestand native Owner-Zuordnung, 100-%-Touchgeometrie und echte TrackInfo-Navigation. Die Logs zeigen den Player nach Zurück weiterhin; erst die anschließende Android-Systemschrift-Änderung initialisierte die Activity zur Bibliothek neu. Der Treiber beginnt deshalb jede Schriftvariante aus der stabilen Library und öffnet den Player ausdrücklich neu. Zustandsbasierte rote/grüne Regression mit aufgezeichnetem Library-XML; 151 Python-Tests grün. Produktive Quellen und APK 2e11157f…afbe2a unverändert. Der finale Handoff-Prüfcommit wird gegen diese konkret nachgewiesene Treiberkorrektur festgelegt; frühere grüne Source-Gates werden nicht als Gesamt-CI eines späteren Commits ausgegeben.

@@ -467,16 +467,19 @@ def soundcloud_info_font_acceptance():
     settings()
     select('settings-player-layout-soundcloud', top=True)
     back()
-    tap('mini-player-open')
-    hitbox = find('soundcloud-swipe-hitbox')
-    if hitbox.get('content-desc') == 'Pausieren':
-        tap_node(hitbox)
-    find('soundcloud-play-button')
     proofs = []
     for scale in ('1.0','1.3','1.5','2.0'):
+        # Changing system font scale recreates the Activity and dismisses its
+        # transient player route. Start from the proven Library state each time.
         adb('shell','settings','put','system','font_scale',scale)
+        wait_uncovered_library_header()
+        wait_selected_session(TITLES[0])
+        tap('mini-player-open')
+        hitbox = find('soundcloud-swipe-hitbox')
+        if hitbox.get('content-desc') == 'Pausieren':
+            tap_node(hitbox)
+        find('soundcloud-play-button')
         find('soundcloud-track-info-chip')
-        # Keep two independent native hierarchy observations after configuration change.
         time.sleep(.6)
         first = validate_soundcloud_info_chip(tree(compressed=False))
         second = validate_soundcloud_info_chip(tree(compressed=False))
@@ -487,9 +490,10 @@ def soundcloud_info_font_acceptance():
         screenshot('soundcloud-info-open-font-'+scale)
         back()
         find('soundcloud-track-info-chip')
+        back()
+        wait_uncovered_library_header()
         proofs.append({'fontScale':scale,**second,'trackInfoOpened':True})
     adb('shell','settings','put','system','font_scale','1.0')
-    back()
     settings()
     select('settings-player-layout-classic', top=True)
     back()
