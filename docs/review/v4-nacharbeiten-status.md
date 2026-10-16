@@ -19,7 +19,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 | 0 | Ist-Abgleich, Sicherung, Status | Erledigt; Ausgangspunkt dokumentiert |
 | 1 | F01: zeitkritische Sicherheit | Prüfung erledigt: 47 Jest + 142 Corpus + Clean Install + Hermes-Grenze grün; Fristlösung extern blockiert, keine genehmigte Verlängerung |
 | 2 | F02: dauerhafte V5-Originale | Erledigt: beide dauerhaften Original-Downloads rückgelesen; Hashes/ZIP/RSA-v2/Inhaltsdigest/Source/result geprüft; separates Manifest |
-| 3 | F03: sichere Journal-Retention | Offen |
+| 3 | F03: sichere Journal-Retention | Implementiert und gezielt geprüft; vollständige neue APK-Abnahme folgt |
 | 4 | F04/F05/F09: Retest, Handoff, Tracker | Offen |
 | 5 | F06: reale Geräte/Provider/TalkBack | Verfügbarkeit prüfen; Emulator ist kein Hersteller-/TalkBack-Nachweis |
 | 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Offen; nur bestätigte Defekte ändern |
@@ -32,7 +32,7 @@ Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 |---|---|---|
 | F01 | Audit-Ausnahmen | Extern blockiert hinsichtlich Fristlösung; aktuelle Kompensation frisch bestätigt, siehe v4-security-recheck.md/.json; Ablauf unverändert 21.10. |
 | F02 | vergängliche Actions-Artefakte | Bestätigt und behoben: dauerhafte private Originalablage, Rücklese-Hash-/Signaturprüfung und Archivmanifest; V5-Freigabe unverändert |
-| F03 | alte Cleaner-Einträge | Auf aktuellem Code reproduzieren; aktive/unvollständige Recovery strikt schützen |
+| F03 | alte Cleaner-Einträge | Bestätigt und behoben; belegte abgeschlossene Epochen werden gesammelt, offene/Legacy-/Recovery-Evidenz bleibt geschützt; v4-cleaner-retention.md |
 | F04 | formaler Main-Handoff | Preview und formaler Gesamt-CI-Handoff getrennt; kein Main-Merge autorisiert |
 | F05 | fest verdrahteter V5-Retest | Historisches Harness konservieren; separater wiederverwendbarer strenger Vertrag |
 | F06 | echte Geräte/Provider | Offene Nachweislücke, nicht automatisch ein Produktfehler |

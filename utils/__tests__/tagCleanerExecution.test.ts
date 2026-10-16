@@ -21,6 +21,7 @@ test('display success waits for durable ACK, cancellation is between files, and 
  const update=jest.fn(()=>new Promise<void>(done=>{resolve=done;}));const saves=jest.fn(async(_journal:CleanerJournal)=>undefined);
  const pending=executeCleanerBatch({rows:rows(songs),options:options(songs,{updateSong:update,saveJournal:saves,cancelled:()=>cancel})});
  await new Promise(done=>setTimeout(done,0));
+ await expect(executeCleanerBatch({rows:rows(songs),options:options(songs)})).rejects.toThrow('bereits aktiv');
  expect(update).toHaveBeenCalledTimes(1);expect(saves.mock.calls.at(-1)![0].entries[0].status).toBe('pending');
  cancel=true;resolve();const result=await pending;
  expect(result.entries.map(e=>e.status)).toEqual(['displayed','skipped']);expect(update).toHaveBeenCalledTimes(1);
@@ -78,17 +79,34 @@ test('journal saves readback, rejects malformed/oversized journals and recovers 
  await AsyncStorage.clear();const result=await executeCleanerBatch({rows:rows([song()]),options:options([song()])});result.entries[0].status='pending';await saveCleanerJournal(result);
  expect((await loadCleanerJournal())!.entries[0].status).toBe('interrupted');
  expect(()=>parseCleanerJournal('{"version":1}')).toThrow('ungültig');expect(()=>parseCleanerJournal('x'.repeat(4*1024*1024+1))).toThrow('Größenlimit');
- const originalGet=(AsyncStorage.getItem as jest.Mock).getMockImplementation();const get=jest.spyOn(AsyncStorage,'getItem').mockResolvedValueOnce('mismatch');await expect(saveCleanerJournal(result)).rejects.toThrow('nicht bestätigt');get.mockRestore();(AsyncStorage.getItem as jest.Mock).mockImplementation(originalGet);
+ const originalGet=(AsyncStorage.getItem as jest.Mock).getMockImplementation();const get=jest.spyOn(AsyncStorage,'getItem').mockResolvedValueOnce(JSON.stringify(result)).mockResolvedValueOnce('mismatch');await expect(saveCleanerJournal(result)).rejects.toThrow('nicht bestätigt');get.mockRestore();(AsyncStorage.getItem as jest.Mock).mockImplementation(originalGet);
 });
 
 test('journal storage bytes grow linearly and records from older epochs cannot replace a current run',async()=>{
  await AsyncStorage.clear();
  const inputs=Array.from({length:40},(_,i)=>song(String(i)));
+ const originalSet=(AsyncStorage.setItem as jest.Mock).getMockImplementation();
  (AsyncStorage.setItem as jest.Mock).mockClear();const writes=jest.spyOn(AsyncStorage,'setItem');
  const journal=await executeCleanerBatch({rows:rows(inputs),options:{...options(inputs),saveJournal:undefined}});
  const bytes=writes.mock.calls.reduce((sum,[,raw])=>sum+raw.length,0);
  expect(writes).toHaveBeenCalledTimes(82);
  expect(bytes).toBeLessThan(JSON.stringify(journal).length*8);
  const old={...journal,id:'older'};await expect(saveCleanerJournalEntry(old,0)).rejects.toThrow('abgelöst');
- expect((await loadCleanerJournal())!.entries.every(e=>e.status==='displayed')).toBe(true);writes.mockRestore();
+ expect((await loadCleanerJournal())!.entries.every(e=>e.status==='displayed')).toBe(true);writes.mockRestore();(AsyncStorage.setItem as jest.Mock).mockImplementation(originalSet);
+});
+
+test('retention awaits deletion and keeps the active-batch guard until storage work settles',async()=>{
+ await AsyncStorage.clear();
+ const old:CleanerJournal={version:1,id:'retention-before-batch',createdAt:1,entries:[{songId:'old',sourceKey:'synthetic',before:{},after:{},mode:'display',status:'displayed'}]};
+ await saveCleanerJournal(old);await saveCleanerJournalEntry(old,0);
+ const remove=(AsyncStorage.multiRemove as jest.Mock).getMockImplementation();
+ let finish!:()=>void;
+ (AsyncStorage.multiRemove as jest.Mock).mockImplementationOnce((keys:string[])=>new Promise<void>(resolve=>{finish=()=>{void remove(keys).then(resolve);};}));
+ const inputs=[song('retention-next')];const update=jest.fn(async()=>undefined);
+ const pending=executeCleanerBatch({rows:rows(inputs),options:{...options(inputs,{updateSong:update}),saveJournal:undefined}});
+ await new Promise(done=>setTimeout(done,0));
+ expect(update).not.toHaveBeenCalled();
+ await expect(executeCleanerBatch({rows:rows(inputs),options:options(inputs)})).rejects.toThrow('bereits aktiv');
+ finish();expect((await pending).entries[0].status).toBe('displayed');
+ expect(update).toHaveBeenCalledTimes(1);
 });

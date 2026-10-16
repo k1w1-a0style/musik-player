@@ -23,33 +23,82 @@ export const parseCleanerJournal = (raw: string): CleanerJournal => {
 };
 let currentJournalEpoch: string | undefined;
 let journalChain: Promise<void> = Promise.resolve();
-const persistConfirmed = (key: string, raw: string): Promise<void> => {
-  const operation = journalChain.catch(() => undefined).then(async () => {
-    await AsyncStorage.setItem(key, raw);
-    const saved = await AsyncStorage.getItem(key);
-    if (saved !== raw) throw new Error('Cleaner-Journal wurde nicht bestätigt gespeichert.');
-  });
-  journalChain = operation;
-  return operation;
+/** Serialize complete transactions, including reads and epoch validation. */
+const serialized = <T>(operation: () => Promise<T>): Promise<T> => {
+  const result = journalChain.catch(() => undefined).then(operation);
+  journalChain = result.then(() => undefined, () => undefined);
+  return result;
+};
+const persistConfirmed = async (key: string, raw: string): Promise<void> => {
+  await AsyncStorage.setItem(key, raw);
+  if (await AsyncStorage.getItem(key) !== raw)
+    throw new Error('Cleaner-Journal wurde nicht bestätigt gespeichert.');
 };
 const entryKey = (id: string, index: number): string => `tag-cleaner-entry-v1:${id}:${index}`;
+const RETAINED_PREFIX = 'tag-cleaner-retained-v1:';
+const isCollectable = (journal: CleanerJournal): boolean => journal.entries.every(entry => {
+  if (!['displayed', 'written', 'skipped'].includes(entry.status)) return false;
+  if (entry.mode === 'display') return !entry.operationId && !entry.writeResult;
+  if (entry.status === 'skipped' && !entry.operationId && !entry.writeResult) return true;
+  const result = entry.writeResult;
+  return result?.terminal === true && result.operationStatus === 'completed' && result.recoveryPending !== true
+    && (result.status === 'written' || result.status === 'noop');
+});
+/** Receipts remain durable until every derived delta key has confirmed deletion.
+ * Never infer completion from orphan keys: legacy/unresolved recovery evidence stays.
+ */
+const collectRetained = async (): Promise<void> => {
+  const keys = (await AsyncStorage.getAllKeys()).filter(key => key.startsWith(RETAINED_PREFIX));
+  for (const key of keys) {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw === null) throw new Error('Cleaner-Retention nicht bestätigt.');
+    const journal = parseCleanerJournal(raw);
+    if (key !== RETAINED_PREFIX + journal.id) throw new Error('Cleaner-Retention falsch zugeordnet.');
+    if (!isCollectable(journal)) continue;
+    for (let start = 0; start < journal.entries.length; start += 100) {
+      const records = journal.entries.slice(start, start + 100).map((_, offset) => entryKey(journal.id, start + offset));
+      await AsyncStorage.multiRemove(records);
+      const remaining = await AsyncStorage.multiGet(records);
+      if (remaining.length !== records.length || remaining.some(([name, value], index) => name !== records[index] || value !== null))
+        throw new Error('Cleaner-Journal Löschung nicht bestätigt.');
+    }
+    await AsyncStorage.removeItem(key);
+    if (await AsyncStorage.getItem(key) !== null) throw new Error('Cleaner-Retention Löschung nicht bestätigt.');
+  }
+};
 export const saveCleanerJournalEntry = (journal: CleanerJournal, index: number): Promise<void> => {
-  if (currentJournalEpoch!==journal.id) return Promise.reject(new Error('Cleaner-Journalepoch wurde abgelöst.'));
   const entry = journal.entries[index];
   if (!validEntry(entry)) throw new Error('Cleaner-Journaleintrag ungültig.');
-  return persistConfirmed(entryKey(journal.id,index), JSON.stringify({version:1,journalId:journal.id,index,entry}));
+  const raw = JSON.stringify({version:1,journalId:journal.id,index,entry});
+  return serialized(async () => {
+    if (currentJournalEpoch !== journal.id) throw new Error('Cleaner-Journalepoch wurde abgelöst.');
+    if (raw.length > MAX_JOURNAL_LENGTH) throw new Error('Cleaner-Journal überschreitet Größenlimit.');
+    await persistConfirmed(entryKey(journal.id, index), raw);
+  });
 };
-export const saveCleanerJournal = async (journal: CleanerJournal): Promise<void> => {
+export const saveCleanerJournal = (journal: CleanerJournal): Promise<void> => {
   const raw = JSON.stringify(journal);
   parseCleanerJournal(raw);
-  await persistConfirmed(JOURNAL_KEY,raw);
-  currentJournalEpoch=journal.id;
+  return serialized(async () => {
+    const previous = await readCleanerJournal();
+    if (previous?.id !== journal.id && await AsyncStorage.getItem(RETAINED_PREFIX + journal.id) !== null)
+      throw new Error('Cleaner-Journalepoch besitzt noch Recovery-Evidenz.');
+    if (previous && previous.id !== journal.id) {
+      const key = RETAINED_PREFIX + previous.id;
+      const snapshot = JSON.stringify(previous);
+      const retained = await AsyncStorage.getItem(key);
+      if (retained !== null && retained !== snapshot) throw new Error('Cleaner-Retention widersprüchlich.');
+      await persistConfirmed(key, snapshot);
+    }
+    await persistConfirmed(JOURNAL_KEY, raw);
+    currentJournalEpoch = journal.id;
+    await collectRetained();
+  });
 };
-export const loadCleanerJournal = async (): Promise<CleanerJournal | undefined> => {
+const readCleanerJournal = async (): Promise<CleanerJournal | undefined> => {
   const raw = await AsyncStorage.getItem(JOURNAL_KEY);
   if (raw === null) return undefined;
   const journal = parseCleanerJournal(raw);
-  currentJournalEpoch=journal.id;
   for (let start=0;start<journal.entries.length;start+=100) {
     const keys=journal.entries.slice(start,start+100).map((_,offset)=>entryKey(journal.id,start+offset));
     const records=await AsyncStorage.multiGet(keys);
@@ -57,6 +106,7 @@ export const loadCleanerJournal = async (): Promise<CleanerJournal | undefined> 
     records.forEach(([key,record],offset)=>{
       if (key!==keys[offset]) throw new Error('Cleaner-Journalread falsch zugeordnet.');
       if (record===null) return;
+      if (record.length > MAX_JOURNAL_LENGTH) throw new Error('Cleaner-Journal überschreitet Größenlimit.');
       const value: unknown=JSON.parse(record);
       if (!object(value) || value.version!==1 || value.journalId!==journal.id || value.index!==start+offset) throw new Error('Cleaner-Journalepoch nicht bestätigt.');
       const entry=value.entry;
@@ -66,6 +116,12 @@ export const loadCleanerJournal = async (): Promise<CleanerJournal | undefined> 
       journal.entries[start+offset]=entry;
     });
   }
+  return parseCleanerJournal(JSON.stringify(journal));
+};
+export const loadCleanerJournal = (): Promise<CleanerJournal | undefined> => serialized(async () => {
+  const journal = await readCleanerJournal();
+  if (!journal) { currentJournalEpoch = undefined; return undefined; }
+  currentJournalEpoch = journal.id;
   return { ...journal, entries: journal.entries.map(entry => entry.status === 'pending' || entry.status === 'planned'
     ? { ...entry, status: 'interrupted', error: 'Unterbrochener Lauf. Natives Recovery und Quellen erneut prüfen; keine automatische Wiederholung.' } : entry) };
-};
+});
