@@ -60,3 +60,12 @@ Der neue reine Dispatch auf `codex` wurde durch die öffentliche GitHub-Workflow
 ## Sicherheitsnachtrag F03 vor neuer APK
 
 Der tatsächliche native Ergebnisvertrag enthält `cleanupPending` zusätzlich zu `recoveryPending`. Ein gezielter Test reproduzierte die fehlende Retention-Sperre bei erfolgreichem Write mit ausstehendem Cleanup (1 rot, 13 grün). Jetzt bleiben auch diese Backup-/Operationsbelege erhalten. 83 Journal-/Execution-/Startup-Recovery-Tests sind grün, ergänzt durch Typecheck, betroffene Lint-Dateien und unverändertes Komplexitäts-Gate. Weil produktiver Code geändert wird, ersetzt ein neuer integrierter Source-Lauf die noch laufende Vorprüfung e0f5c2e3/38837709827. Deren 4.159 bestandene Jest-Tests und Security-Gate bleiben historische Zwischenbelege, keine Freigabe der nachgebesserten APK.
+
+## Aktueller technischer Checkpoint – neue APK ddcc7ec2
+
+- APK-Source/Handoff-Prüfcommit: `ddcc7ec2fcb03f68720927c23b06996d59b24dd1`; [CI 38839127042](https://github.com/k1w1-a0style/musik-player/actions/runs/38839127042).
+- Quality: 429 Jest-Suiten / 4.160 Tests, 148 Python-Tests, 96 % Zeilenabdeckung; Security- und Native-Job erfolgreich. Native XML unabhängig aufsummiert: 178 Tests, 0 Fehler, 0 Skips.
+- Exakte neue APK: 100.832.529 Bytes, SHA256 `2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a`; Quell-Artefakt 12020982828, ZIP-Digest `7cd871a3906c6ab4a8d028d47afcb021b038c5e98d42f01eeb7c1def31c8ed7d`.
+- APK unabhängig heruntergeladen: kompletter Archiv-Digest/CRC, eingebettete Source, APK-SHA, v2-RSA-Signatur und APK-Inhaltsdigest bestätigt. Alle vier ABIs enthalten, Paket-/Permission-Inspektion erfolgreich. Preview-Testsignatur, keine Store-/Produktionsfreigabe.
+- Die zwölf gezielten 200-%-Varianten laufen im isolierten API-35-Emulator; vollständiger Funktionslauf, 36er-Matrix und kritische Sichtprüfung sind noch offen. Dieser Checkpoint erteilt keine APK-Abnahme.
+- F01-Fristentscheidung, reale F06-Geräte und F07-Provider-Benchmark bleiben unverändert offen. `main` bleibt unverändert.
