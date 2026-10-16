@@ -987,7 +987,9 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
              patch.object(smoke,'tree',return_value=frame), patch.object(smoke,'scroll_to',side_effect=lookup), \
              patch.object(smoke,'find',return_value=first), patch.object(smoke,'adb'), \
              patch.object(smoke,'settings'), patch.object(smoke,'checkbox'), patch.object(smoke,'select') as select, \
-             patch.object(smoke,'screenshot'), patch.object(smoke,'back'), patch.object(smoke,'tap_node'), \
+             patch.object(smoke,'screenshot'), \
+             patch.object(smoke,'inspect_library_panel_screenshot',return_value={'gapPixels':30}), \
+             patch.object(smoke,'back'), patch.object(smoke,'tap_node'), \
              patch.object(smoke,'tap'), patch.object(smoke,'pause_matrix_player'), \
              patch.object(smoke,'wait_playing_session',return_value='native ACK fixture'):
             smoke.ui_matrix(selected_cases={('2.0','dark','graphite','compact')})
@@ -1014,6 +1016,34 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         self.assertFalse(old & remaining or old & single or single & remaining)
         self.assertEqual(len(old | single | remaining),36)
         with self.assertRaises(AssertionError):smoke.song_info_cases('full')
+
+    def panel_frame(self):
+        frame=ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()
+        smoke.candidate('library-tracks-shell',frame).set('bounds','[0,266][480,924]')
+        smoke.vertical_scroll_surface(frame,'song-card-info-1000000019').set('bounds','[12,529][468,759]')
+        return frame
+
+    def test_lower_panel_rejects_recorded_original_black_band_and_duplicate_safe_area(self):
+        key='song-card-info-1000000019'
+        original=ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()
+        with self.assertRaisesRegex(AssertionError,'Painted panel stops'):
+            smoke.validate_library_panel_background(original,key,lambda _: (20,21,27))
+        double=self.panel_frame()
+        smoke.vertical_scroll_surface(double,key).set('bounds','[12,529][468,723]')
+        with self.assertRaisesRegex(AssertionError,'safe area twice'):
+            smoke.validate_library_panel_background(double,key,lambda _: (20,21,27))
+
+    def test_lower_panel_requires_continuous_pixels_and_real_nonoverlapping_geometry(self):
+        key='song-card-info-1000000019'
+        proof=smoke.validate_library_panel_background(self.panel_frame(),key,lambda _: (20,21,27))
+        self.assertEqual(proof['gapPixels'],30)
+        with self.assertRaisesRegex(AssertionError,'Abrupt background band'):
+            smoke.validate_library_panel_background(self.panel_frame(),key,
+                lambda point:(20,21,27) if point[1]<759 else (10,12,15))
+        overlap=self.panel_frame()
+        smoke.vertical_scroll_surface(overlap,key).set('bounds','[12,529][468,800]')
+        with self.assertRaisesRegex(AssertionError,'overlaps mini-player'):
+            smoke.validate_library_panel_background(overlap,key,lambda _: (20,21,27))
 
     def test_recorded_whole_font2_song_info_requires_no_gesture(self):
         key = 'song-card-info-1000000019'

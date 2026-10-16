@@ -1,9 +1,10 @@
-import React, { type ReactNode } from 'react';
+import React, { useContext, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { useOptionalAppTheme } from '../contexts/AppThemeContext';
 import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
 import { getLibraryListShellBackgroundColor } from '../utils/appThemeOverlays';
-import { useMiniPlayerViewport } from '../contexts/MiniPlayerViewportContext';
+import { MINI_PLAYER_LIST_GAP, useMiniPlayerViewport } from '../contexts/MiniPlayerViewportContext';
 
 interface LibraryListShellProps {
   children: ReactNode;
@@ -13,10 +14,15 @@ interface LibraryListShellProps {
 const LibraryListShell: React.FC<LibraryListShellProps> = ({ children, testID = 'library-list-shell' }) => {
   const appTheme = useOptionalAppTheme();
   const { bottomInset } = useMiniPlayerViewport();
+  const safeAreaBottom = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
+  // Screen already consumes the bottom safe area. Keep the remaining overlay
+  // reserve inside this painted panel so its background continues behind the
+  // player, while the actual list viewport stays above the floating controls.
+  const paddingBottom = Math.max(MINI_PLAYER_LIST_GAP, bottomInset - safeAreaBottom);
   const backgroundColor = getLibraryListShellBackgroundColor(appTheme?.appearance ?? DEFAULT_APP_APPEARANCE);
 
   return (
-    <View style={[styles.listShell, { backgroundColor, marginBottom: bottomInset }]} testID={testID}>
+    <View style={[styles.listShell, { backgroundColor, paddingBottom }]} testID={testID}>
       {children}
     </View>
   );

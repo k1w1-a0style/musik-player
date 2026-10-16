@@ -3,6 +3,10 @@
 Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 
 
+## Neuer bestätigter UI-Nachtrag: Hintergrundstreifen – neue APK-Abnahme offen
+
+Der zusätzliche Befund ist anhand des vorhandenen Original-Screenshots, der XML-Grenze und der konkreten Farben bestätigt. Äußere Overlay-Margin und doppelte Safe-Area-Reserve in `LibraryListShell` werden korrigiert. 53 gezielte Jest-Tests und 161 Python-Prüfungen grün; Typecheck/Lint/Komplexität erfolgreich. Eine neue APK und ihre eigene Android-/Sichtabnahme sind wegen produktiver Änderungen erforderlich. Die nachstehende Abnahme der vorherigen APK ddcc7ec2 bleibt ein historischer Nachweis und wird nicht auf geänderte Bytes übertragen. Details: [v4-library-bottom-background.md](v4-library-bottom-background.md).
+
 ## Aktuelles Ergebnis: technische APK-Abnahme bestanden, externe Bedingungen offen
 
 **36/36 UI-Fälle derselben APK unabhängig belegt: 25 historische + 1 Einzeltest + 10 Restfälle.** Einzeltest 38867090788 und Restlauf 38867966020 erfolgreich; kein neuer Build, keine Gesamt-CI und kein vollständiger Android-Wiederholungslauf in dieser Fortsetzung. 159 Python-Prüfungen erfolgreich. Alle zwölf 200-%-Library-Bilder kritisch gesichtet; keine neue bestätigte Produktregression.

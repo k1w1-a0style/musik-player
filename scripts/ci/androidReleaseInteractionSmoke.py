@@ -412,6 +412,40 @@ def validate_library_header_touch_areas(frame):
     return {'searchBounds':search,'menuBounds':menu}
 
 
+def validate_library_panel_background(frame, info_key, read_pixel):
+    shell = candidate('library-tracks-shell', frame)
+    mini = candidate('mini-player-viewport', frame)
+    assert shell is not None and mini is not None, 'Library panel or mini-player missing'
+    surface = vertical_scroll_surface(frame, info_key)
+    assert all(n.get('package') == PACKAGE for n in (shell,mini,surface)), 'Panel geometry is not app-owned'
+    parents = {child:parent for parent in frame.iter() for child in parent}
+    # Fabric exposes the painted marker and ScrollView as native siblings.
+    # Accept only that same immediate render owner or actual containment.
+    assert surface in shell.iter('node') or parents.get(surface) is parents.get(shell), 'Song viewport has another native panel owner'
+    sx1,sy1,sx2,sy2 = rect(shell)
+    vx1,vy1,vx2,vy2 = rect(surface)
+    mx1,my1,mx2,my2 = rect(mini)
+    assert sx1 <= vx1 < vx2 <= sx2 and sy1 <= vy1 < vy2 <= sy2, 'Song viewport escapes panel'
+    assert sx1 <= mx1 < mx2 <= sx2 and my2 <= sy2, 'Painted panel stops above/behind mini-player'
+    gap = my1-vy2
+    assert 28 <= gap <= 32, 'Library reserves bottom safe area twice or overlaps mini-player'
+    samples=[]
+    for x in (sx1+6,sx2-6):
+        before=tuple(read_pixel((x,vy2-2)))[:3]
+        after=tuple(read_pixel((x,vy2+2)))[:3]
+        delta=max(abs(a-b) for a,b in zip(before,after))
+        assert delta <= 3, 'Abrupt background band at lower list viewport edge'
+        samples.append({'x':x,'above':before,'below':after,'maximumChannelStep':delta})
+    return {'panelBounds':rect(shell),'listBounds':rect(surface),'miniPlayerBounds':rect(mini),
+            'gapPixels':gap,'backgroundSamples':samples}
+
+
+def inspect_library_panel_screenshot(frame, info_key, path):
+    from PIL import Image
+    with Image.open(path) as image:
+        return validate_library_panel_background(frame, info_key, image.getpixel)
+
+
 def validate_library_section_touch_areas(frame):
     section = candidate('library-section-header', frame)
     title = candidate('library-section-title', frame)
@@ -1900,6 +1934,9 @@ def ui_matrix(font2_only=False, selected_cases=None):
                     header = validate_library_header_touch_areas(tree(compressed=False))
                     section = validate_library_section_touch_areas(tree(compressed=False))
                     screenshot(f'library-{scale}-{appearance}-{skin}-{density}')
+                    panel = inspect_library_panel_screenshot(tree(compressed=False),
+                        identifier.replace('song-card-', 'song-card-info-', 1),
+                        OUT / f'library-{scale}-{appearance}-{skin}-{density}.png')
                     tap_node(menu)
                     find('song-action-menu-card')
                     back()
@@ -1912,7 +1949,7 @@ def ui_matrix(font2_only=False, selected_cases=None):
                     screenshot(f'player-{scale}-{appearance}-{skin}-{density}')
                     V5_PROOFS['matrix'].append({'fontScale': scale, 'appearance': appearance,
                         'skin': skin, 'density': density, 'playBounds': play_box, 'menuBounds': menu_box,
-                        'header':header,'section':section,
+                        'header':header,'section':section,'panelBackground':panel,
                         'sectionPlayback':{'title':TITLES[2],'nativeState':3}})
                     (OUT / 'matrix-progress.json').write_text(json.dumps(V5_PROOFS['matrix'], indent=2))
                     back()
