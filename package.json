@@ -39,7 +39,7 @@
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "~4.26.0",
+    "react-native-screens": "~4.29.0",
     "react-native-svg": "15.15.4",
     "react-native-track-player": "file:./modules/playback-backend",
     "zod": "4.3.6"
