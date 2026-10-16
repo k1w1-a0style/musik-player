@@ -1,0 +1,3064 @@
+{
+  "sourceCommit": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+  "apkSha256": "609d6080eb296dcf9e13791c7a67955ffbdbab6c0767ab568faa2ed001fafe50",
+  "targetedFont2Cases": 12,
+  "fullFreshMatrixCases": 36,
+  "nativePanelSamples": [
+    {
+      "case": [
+        "1.0",
+        "dark",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "dark",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "dark",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "dark",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "dark",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            21,
+            33
+          ],
+          "below": [
+            23,
+            21,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            35
+          ],
+          "below": [
+            26,
+            21,
+            35
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "dark",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            21,
+            33
+          ],
+          "below": [
+            23,
+            21,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            35
+          ],
+          "below": [
+            26,
+            21,
+            35
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "light",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "light",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "light",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "light",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "light",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.0",
+        "light",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        207,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        306,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "dark",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "dark",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "dark",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "dark",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            26
+          ],
+          "below": [
+            23,
+            24,
+            26
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            26,
+            30
+          ],
+          "below": [
+            24,
+            26,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "dark",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            21,
+            33
+          ],
+          "below": [
+            23,
+            21,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            35
+          ],
+          "below": [
+            26,
+            21,
+            35
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "dark",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            21,
+            33
+          ],
+          "below": [
+            23,
+            21,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            35
+          ],
+          "below": [
+            26,
+            21,
+            35
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "light",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "light",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "light",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "light",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "light",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "1.3",
+        "light",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        229,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        385,
+        468,
+        778
+      ],
+      "miniPlayerBounds": [
+        18,
+        808,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            253,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 1
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            22,
+            33
+          ],
+          "below": [
+            23,
+            22,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            36
+          ],
+          "below": [
+            26,
+            21,
+            36
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            22,
+            33
+          ],
+          "below": [
+            23,
+            22,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            36
+          ],
+          "below": [
+            26,
+            21,
+            36
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    }
+  ],
+  "targetedPanelSamples": [
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            24,
+            27
+          ],
+          "below": [
+            23,
+            24,
+            27
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            24,
+            27,
+            30
+          ],
+          "below": [
+            24,
+            27,
+            30
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            22,
+            33
+          ],
+          "below": [
+            23,
+            22,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            36
+          ],
+          "below": [
+            26,
+            21,
+            36
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "dark",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            23,
+            22,
+            33
+          ],
+          "below": [
+            23,
+            22,
+            33
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            26,
+            21,
+            36
+          ],
+          "below": [
+            26,
+            21,
+            36
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "graphite",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "graphite",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "minimal",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "minimal",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "neon-cover",
+        "standard"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    },
+    {
+      "case": [
+        "2.0",
+        "light",
+        "neon-cover",
+        "compact"
+      ],
+      "panelBounds": [
+        0,
+        266,
+        480,
+        924
+      ],
+      "listBounds": [
+        12,
+        529,
+        468,
+        759
+      ],
+      "miniPlayerBounds": [
+        18,
+        789,
+        462,
+        906
+      ],
+      "gapPixels": 30,
+      "samples": [
+        {
+          "x": 6,
+          "above": [
+            252,
+            252,
+            253
+          ],
+          "below": [
+            252,
+            252,
+            253
+          ],
+          "maximumChannelStep": 0
+        },
+        {
+          "x": 474,
+          "above": [
+            253,
+            254,
+            254
+          ],
+          "below": [
+            253,
+            254,
+            254
+          ],
+          "maximumChannelStep": 0
+        }
+      ]
+    }
+  ],
+  "functionalChecks": [
+    "public-library-header-font1-and-font2-whole48dp-controls-before-full-flow",
+    "MediaStore-import-public-UI",
+    "MP3-M4A-FLAC-native-duration-and-playback",
+    "SAF-import-and-playback-public-UI",
+    "public-nonempty-queue-replacement-two-to-five-native-playing",
+    "soundcloud-info-chip-font-1.0-1.3-1.5-2.0-whole48dp-no-overlap-real-navigation",
+    "resume-On-kill-restart-choice-and-Off-regular-start",
+    "native-playing-session-and-position-advance-in-background",
+    "real-horizontal-cover-swipe-selects-previous-native-track-and-advances",
+    "real-queue-drag-preserves-playing-position-and-selects-native-track",
+    "restore-original-and-copy-playlist-content-order-ids-and-favorite-survive-cold-start",
+    "SAF-backup-export-readback-read-only-inspection-preview-restore-preserves-original",
+    "V5-36-public-radio-choices-independent-preferences-cold-start-both-player-layouts",
+    "public-optional-waveform-cancellation-ack-before-maintenance",
+    "V5-settings-longpress-selection-raw-preview-display-ack-cold-start-real-SAF-write-audio-APIC-unknown-frames-preserved",
+    "320dp-font-1.0-1.3-2.0-all-six-themes-standard-compact-48dp-menu-quiet-blue"
+  ],
+  "soundcloudInfoFonts": [
+    {
+      "fontScale": "1.0",
+      "metadataBounds": [
+        27,
+        117,
+        453,
+        327
+      ],
+      "infoBounds": [
+        27,
+        255,
+        294,
+        327
+      ],
+      "transportBounds": [
+        51,
+        393,
+        429,
+        519
+      ],
+      "trackInfoOpened": true
+    },
+    {
+      "fontScale": "1.3",
+      "metadataBounds": [
+        27,
+        117,
+        453,
+        346
+      ],
+      "infoBounds": [
+        27,
+        274,
+        355,
+        346
+      ],
+      "transportBounds": [
+        51,
+        403,
+        429,
+        529
+      ],
+      "trackInfoOpened": true
+    },
+    {
+      "fontScale": "1.5",
+      "metadataBounds": [
+        27,
+        117,
+        453,
+        359
+      ],
+      "infoBounds": [
+        27,
+        287,
+        395,
+        359
+      ],
+      "transportBounds": [
+        51,
+        409,
+        429,
+        535
+      ],
+      "trackInfoOpened": true
+    },
+    {
+      "fontScale": "2.0",
+      "metadataBounds": [
+        27,
+        117,
+        453,
+        441
+      ],
+      "infoBounds": [
+        27,
+        320,
+        453,
+        441
+      ],
+      "transportBounds": [
+        51,
+        450,
+        429,
+        576
+      ],
+      "trackInfoOpened": true
+    }
+  ],
+  "cleaner": {
+    "beforeSha256": "e13be3f15bbfcf0edb4795a30cefdd7c3fc2df75d4075c662ee8425fc841e403",
+    "afterSha256": "52af83343fefdf327132edb01c2e8548dab16d80de10c7f3c1122b0a1c1c7806",
+    "audioSha256": "18b420012bef6db2dc00075a558639f89b56778fd13fc9f6768f41e5729fc3d0",
+    "preservedFrames": [
+      "APIC",
+      "TPUB",
+      "WXXX",
+      "TXXX",
+      "XKIW"
+    ],
+    "preservedFrameSha256": {
+      "APIC": [
+        "2e04abb7e753f9dbb389ef61c7e1b4bf89910b337ce241bb4a647a3c7f808bbb"
+      ],
+      "TPUB": [
+        "3c50505cdd7ac4ad1aacc86364705ce6658a2a537c39c7e581aa09b523d42930"
+      ],
+      "WXXX": [
+        "84eca3093dab3ab1776d37ebce242053e15376091f6644d4c4185dd1915bfb36"
+      ],
+      "TXXX": [
+        "1083d50ac3403e75bacc26b6b2ed08e40a46166141c8ea892e95c28d539b47c1",
+        "36fe3ee7c81dda5874c13c51804590d3e7ecb5496e434e17bcb57b4974fda990"
+      ],
+      "XKIW": [
+        "ae4b57d7cd90161de2fdac50bc03569991c350213fa3cb40162b047077b37b2e"
+      ]
+    },
+    "sidecarSha256": "1a134e289fcb2e27a7973df560d03fc3600e40d5a3f073ebfd619bff105f2638",
+    "readOnlyPreviewExactBytes": true,
+    "displayApplyExactOriginalBytes": true,
+    "coldStartPersisted": true,
+    "fixture": "generated synthetic SAF MP3, no user music"
+  },
+  "automatedApkEvidence": "passed",
+  "independentScreenshotReview": "passed",
+  "technicalApkAcceptance": "passed",
+  "overallV4Completion": "externally-blocked",
+  "releaseAccepted": false,
+  "externalOpenConditions": [
+    "F01 exception expiry unchanged 2026-10-21",
+    "F06 physical devices, real providers, headset/Bluetooth, spoken TalkBack",
+    "F07 real-provider performance benchmark",
+    "Main merge/public production release not authorized"
+  ],
+  "visualReview": {
+    "scope": "Library lower list background and MiniPlayer junction: all 36 full-run Library images on six contact sheets, all twelve font-2.0 Library images at native scale on sheets, plus two original Dark/Light graphite-standard PNGs",
+    "result": "No exposed dark spacer/band; panel continues behind MiniPlayer; intended bottom system-navigation area is separate. No new overlap at this junction.",
+    "files": [
+      {
+        "path": "new-library-1.0-0.jpg",
+        "sha256": "8e23ddabd379b2452e967ee2eed4451db71f8e81086ddf4013914c6b2feb77ba"
+      },
+      {
+        "path": "new-library-1.3-0.jpg",
+        "sha256": "10ae28056afc0be355b4e512d801371a0c24cccdc44d520f8df56633b5131988"
+      },
+      {
+        "path": "new-library-2.0-0.jpg",
+        "sha256": "94fa249955b37be9b2b90a72c33caf4d7b88e49f5a27a05e3ac53ffe4fd78dd8"
+      },
+      {
+        "path": "new-library-2.0-1.jpg",
+        "sha256": "d88b94ac2f2d53bd4ffc1359d06c97fa13eb06372302be073628431d117192d5"
+      },
+      {
+        "path": "new-library-2.0-2.jpg",
+        "sha256": "018da729d99db20c6bf8bb0f9d9089f4d28997b173d8e065b4666474a7f3d4aa"
+      },
+      {
+        "path": "new-library-2.0-3.jpg",
+        "sha256": "546ca7e62b19049579f0fe76835ede5b257ad5b5abac2813a987d7e002b0192d"
+      },
+      {
+        "path": "new-acceptance/release-interaction/library-2.0-dark-graphite-standard.png",
+        "sha256": "68462b93ca09b63bb7d95f9fff6860d2af1c755351904825a0221b1003d044bc"
+      },
+      {
+        "path": "new-acceptance/release-interaction/library-2.0-light-graphite-standard.png",
+        "sha256": "f9e2801e03c0ebe2606742faa3313caafc2c2f92e2841673ec69c132b45871ed"
+      }
+    ]
+  },
+  "sourceRun": {
+    "id": 38895123158,
+    "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+    "status": "completed",
+    "conclusion": "success",
+    "path": ".github/workflows/ci.yml"
+  },
+  "sourceJobs": [
+    {
+      "id": 116953645770,
+      "name": "Typecheck, tests, coverage, lint, config gates",
+      "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "conclusion": "success"
+    },
+    {
+      "id": 116953645929,
+      "name": "Android native build and tests",
+      "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "conclusion": "success"
+    },
+    {
+      "id": 116953645941,
+      "name": "Dependency security audit",
+      "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "conclusion": "success"
+    },
+    {
+      "id": 116959315614,
+      "name": "Exact preview APK public-UI acceptance",
+      "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "conclusion": "success"
+    },
+    {
+      "id": 116977852270,
+      "name": "Required release checks",
+      "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "conclusion": "success"
+    }
+  ],
+  "originalArtifacts": [
+    {
+      "id": 12046677232,
+      "name": "preview-release-acceptance-f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "size_in_bytes": 71481381,
+      "digest": "sha256:0d526d33354f945b3b586782fc9c03043d63a1ef799144793b53371f973738b0",
+      "expired": false,
+      "workflow_run": {
+        "id": 38895123158,
+        "repository_id": 1088361438,
+        "head_repository_id": 1088361438,
+        "head_branch": "codex",
+        "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686"
+      }
+    },
+    {
+      "id": 12044033191,
+      "name": "preview-signing-evidence",
+      "size_in_bytes": 3138,
+      "digest": "sha256:7ef883a5c7f25d576be6f948d3c01e6c2e7a0b578df91be42104d9079b5a9351",
+      "expired": false,
+      "workflow_run": {
+        "id": 38895123158,
+        "repository_id": 1088361438,
+        "head_repository_id": 1088361438,
+        "head_branch": "codex",
+        "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686"
+      }
+    },
+    {
+      "id": 12044008297,
+      "name": "musik-player-preview-f2c46d3742e80655ccf06bc1900811434c4a4686",
+      "size_in_bytes": 48102889,
+      "digest": "sha256:7b3e6a3b17a12f766566192c09191405aff53cca5a456ed4ae62b692a86f08a6",
+      "expired": false,
+      "workflow_run": {
+        "id": 38895123158,
+        "repository_id": 1088361438,
+        "head_repository_id": 1088361438,
+        "head_branch": "codex",
+        "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686"
+      }
+    },
+    {
+      "id": 12043916297,
+      "name": "jest-coverage-log",
+      "size_in_bytes": 29485,
+      "digest": "sha256:5734885fd2544746fe4577922484b2619683cab6883e0a1a0df369c21c486768",
+      "expired": false,
+      "workflow_run": {
+        "id": 38895123158,
+        "repository_id": 1088361438,
+        "head_repository_id": 1088361438,
+        "head_branch": "codex",
+        "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686"
+      }
+    },
+    {
+      "id": 12043913636,
+      "name": "native-gradle-log",
+      "size_in_bytes": 79502,
+      "digest": "sha256:3dd6f50d2ef69bdd3c855bdb3d53619ee916ce0f5d75e1634926cfa616c72eac",
+      "expired": false,
+      "workflow_run": {
+        "id": 38895123158,
+        "repository_id": 1088361438,
+        "head_repository_id": 1088361438,
+        "head_branch": "codex",
+        "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686"
+      }
+    },
+    {
+      "id": 12043632311,
+      "name": "npm-audit-production",
+      "size_in_bytes": 2175,
+      "digest": "sha256:5c5be6c88553cc2b66125c18a0339a6eb06825e526b83e5fbf4ae03d6377054c",
+      "expired": false,
+      "workflow_run": {
+        "id": 38895123158,
+        "repository_id": 1088361438,
+        "head_repository_id": 1088361438,
+        "head_branch": "codex",
+        "head_sha": "f2c46d3742e80655ccf06bc1900811434c4a4686"
+      }
+    }
+  ],
+  "checkedAtUtc": "2026-10-16T12:50:16.541355+00:00"
+}

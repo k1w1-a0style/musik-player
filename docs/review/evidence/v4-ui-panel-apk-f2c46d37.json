@@ -1,0 +1,20 @@
+{
+  "sourceCommit": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+  "sourceRun": 38895123158,
+  "artifactId": 12044008297,
+  "apkSha256": "609d6080eb296dcf9e13791c7a67955ffbdbab6c0767ab568faa2ed001fafe50",
+  "apkBytes": 100832661,
+  "archiveDigest": "sha256:7b3e6a3b17a12f766566192c09191405aff53cca5a456ed4ae62b692a86f08a6",
+  "v2Signature": "verified-by-mandatory-source-apksigner-gate",
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "nativeTests": {
+    "tests": 178,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "androidAcceptance": "passed",
+  "acceptanceArtifactId": 12046677232,
+  "acceptanceArchiveDigest": "sha256:0d526d33354f945b3b586782fc9c03043d63a1ef799144793b53371f973738b0",
+  "independentScreenshotReview": "passed"
+}

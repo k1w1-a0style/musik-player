@@ -3,15 +3,13 @@
 Stand: 16.10.2026. Auftrag: neun Phasen 0–8, zwölf Findings F01–F12.
 
 
-## Neuer bestätigter UI-Nachtrag: Hintergrundstreifen – neue APK-Abnahme offen
+## Aktuelles Ergebnis: zusätzlicher Hintergrund-Fix und neue technische APK-Abnahme bestanden
 
-Der zusätzliche Befund ist anhand des vorhandenen Original-Screenshots, der XML-Grenze und der konkreten Farben bestätigt. Äußere Overlay-Margin und doppelte Safe-Area-Reserve in `LibraryListShell` werden korrigiert. 53 gezielte Jest-Tests und 161 Python-Prüfungen grün; Typecheck/Lint/Komplexität erfolgreich. Eine neue APK und ihre eigene Android-/Sichtabnahme sind wegen produktiver Änderungen erforderlich. Die nachstehende Abnahme der vorherigen APK ddcc7ec2 bleibt ein historischer Nachweis und wird nicht auf geänderte Bytes übertragen. Details: [v4-library-bottom-background.md](v4-library-bottom-background.md).
+`LibraryListShell` reserviert den Playerplatz jetzt innerhalb der bemalten Fläche und zieht die bereits von `Screen` konsumierte Safe Area einmal ab. [Root Cause und Regression](v4-library-bottom-background.md). 53 gezielte Jest- und 161 Python-Tests bestanden. Neue produktive Quelle `f2c46d3742e80655ccf06bc1900811434c4a4686`, eigene APK-SHA256 `609d6080eb296dcf9e13791c7a67955ffbdbab6c0767ab568faa2ed001fafe50`.
 
-## Aktuelles Ergebnis: technische APK-Abnahme bestanden, externe Bedingungen offen
+**CI 38895123158 vollständig grün: 4.165 Jest-, 178 native und 161 Python-Tests. Zwölf gezielte 200-%-Fälle, danach 36/36 frische UI-Varianten, voller Funktionslauf und kritische Sichtkontrolle bestanden.** Original-Abnahmeartefakt 12046677232 und APK-Artefakt 12044008297 unabhängig durch Digest/CRC/Source/APK-Hash gebunden. Alle 48 neuen Panel-Prüfungen bestätigen 20 dp Abstand und durchgängige Panel-Farbe; der sichtbare Streifen ist behoben. [Abschlussnachweise](v4-final-acceptance.md).
 
-**36/36 UI-Fälle derselben APK unabhängig belegt: 25 historische + 1 Einzeltest + 10 Restfälle.** Einzeltest 38867090788 und Restlauf 38867966020 erfolgreich; kein neuer Build, keine Gesamt-CI und kein vollständiger Android-Wiederholungslauf in dieser Fortsetzung. 159 Python-Prüfungen erfolgreich. Alle zwölf 200-%-Library-Bilder kritisch gesichtet; keine neue bestätigte Produktregression.
-
-APK-Source `ddcc7ec2fcb03f68720927c23b06996d59b24dd1`, SHA256 `2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a`. [Abschlussnachweise und Grenzen](v4-final-acceptance.md). **Nicht vollständig erledigt:** F01-Fristlösung bis 21.10.2026, physische F06-Abnahme, realer F07-Provider-Benchmark und ein gesondert autorisierter/formal erfüllter Main-Handoff. `main` unverändert. Die nachfolgenden Arbeitsnotizen enthalten historische Zwischenstände.
+Vorherige ddcc7ec2-Abnahme (25 + 1 + 10 Fälle) bleibt ausschließlich historisch; ihr später bestätigter Hintergrundbefund war damals nicht abgedeckt. Keine alten Fälle wurden als Prüfung der neuen APK ausgegeben. Original-V5-Freigabe und dauerhafte Originale unverändert. **Offen:** F01-Fristlösung bis 21.10.2026, physische F06-Abnahme, realer F07-Provider-Benchmark und gesondert autorisierter/formal erfüllter Main-Handoff. `main` unverändert. Nachfolgende Arbeitsnotizen enthalten historische Zwischenstände.
 
 ## Phase 0: abgesicherter Ausgangspunkt
 
@@ -31,11 +29,11 @@ APK-Source `ddcc7ec2fcb03f68720927c23b06996d59b24dd1`, SHA256 `2e11157f92a4b09ce
 | 1 | F01: zeitkritische Sicherheit | Prüfung erledigt: 47 Jest + 142 Corpus + Clean Install + Hermes-Grenze grün; Fristlösung extern blockiert, keine genehmigte Verlängerung |
 | 2 | F02: dauerhafte V5-Originale | Erledigt: beide dauerhaften Original-Downloads rückgelesen; Hashes/ZIP/RSA-v2/Inhaltsdigest/Source/result geprüft; separates Manifest |
 | 3 | F03: sichere Journal-Retention | Erledigt: 83 gezielte Tests, integrierte Quality-/Native-Gates und technische APK-Abnahme |
-| 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und exakte APK-Nutzung praktisch bestanden; 159 Python-Tests. Reguläre CI 38844315073 grün. Main-Handoff bleibt gesondert und nicht autorisiert |
+| 4 | F04/F05/F09: Retest, Handoff, Tracker | Manifest-Retest und exakte APK-Nutzung praktisch bestanden; jetzt 161 Python-Tests. Aktuelle Source-CI 38895123158 grün. Main-Handoff bleibt gesondert und nicht autorisiert |
 | 5 | F06: reale Geräte/Provider/TalkBack | Extern blockiert: kein physisches Gerät/USB/adb; konkrete Abnahmeliste in v4-real-device-gate.md, keine unnötige Emulatorwiederholung |
 | 6 | F07/F08/F11: Messung, Infochip, Backup-UX | Host-Basis gemessen, realer Provider-Benchmark extern blockiert; Infochip/Backup-UX korrigiert, gezielte Tests und Android-/Sichtbelege erfolgreich |
 | 7 | F10/F12: Backend-Vertrag und Patch-Wartung | Erledigt: expliziter begrenzter Vertrag, Upgrade-Ablauf, vier aktuelle Player-Payload-Hashes; 70 gezielte Tests und 146 Python-Tests grün |
-| 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Technisch bestanden: 4.160 Jest-/178 Native-Tests, 159 aktuelle Python-Prüfungen, 36/36 UI-Fälle und kritische Sichtkontrolle; externe Gesamtfreigabebedingungen bleiben offen |
+| 8 | Endkontrolle, integrierte CI, neue APK, Bericht | Technisch bestanden auf neuer Quelle f2c46d37: 4.165 Jest-/178 Native-Tests, 161 Python-Prüfungen, zwölf gezielte plus 36/36 frische UI-Fälle und kritische Sichtkontrolle; externe Gesamtfreigabebedingungen bleiben offen |
 
 ## Findings – laufende Ergebniszuordnung
 

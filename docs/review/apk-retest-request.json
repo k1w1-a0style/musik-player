@@ -1,9 +1,9 @@
 {
-    "apkSha256": "2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a",
-    "artifactDigest": "sha256:7cd871a3906c6ab4a8d028d47afcb021b038c5e98d42f01eeb7c1def31c8ed7d",
-    "artifactId": 12020982828,
-    "repository": "k1w1-a0style/musik-player",
-    "runId": 38839127042,
-    "sourceCommit": "ddcc7ec2fcb03f68720927c23b06996d59b24dd1",
-    "version": 1
+  "apkSha256": "609d6080eb296dcf9e13791c7a67955ffbdbab6c0767ab568faa2ed001fafe50",
+  "artifactDigest": "sha256:7b3e6a3b17a12f766566192c09191405aff53cca5a456ed4ae62b692a86f08a6",
+  "artifactId": 12044008297,
+  "repository": "k1w1-a0style/musik-player",
+  "runId": 38895123158,
+  "sourceCommit": "f2c46d3742e80655ccf06bc1900811434c4a4686",
+  "version": 1
 }
