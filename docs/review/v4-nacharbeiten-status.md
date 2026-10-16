@@ -56,3 +56,7 @@ F01-Fristlösung sowie F06 und der reale F07-Provider-Benchmark bleiben bis zur 
 ## F05-Verfügbarkeit nachgeprüft
 
 Der neue reine Dispatch auf `codex` wurde durch die öffentliche GitHub-Workflow-API noch nicht gefunden (404). Deshalb unterstützt der separate Retest zusätzlich einen Push ausschließlich der konkreten `docs/review/apk-retest-request.json`. Die normale CI ignoriert ausschließlich diesen einzelnen Anforderungspfad; bei produktiven oder anderen Änderungen bleibt ihr Trigger bestehen. Source-/Gate-/ZIP-/APK-Prüfungen sind identisch und weiterhin vor jedem Emulatorzugriff Pflicht. 148 Python-Tests sowie beide Workflow-YAMLs sind geprüft. Diese Infrastrukturkorrektur ändert keine APK-Quelle und startet weder eine neue APK noch eine zweite Gesamt-CI.
+
+## Sicherheitsnachtrag F03 vor neuer APK
+
+Der tatsächliche native Ergebnisvertrag enthält `cleanupPending` zusätzlich zu `recoveryPending`. Ein gezielter Test reproduzierte die fehlende Retention-Sperre bei erfolgreichem Write mit ausstehendem Cleanup (1 rot, 13 grün). Jetzt bleiben auch diese Backup-/Operationsbelege erhalten. 83 Journal-/Execution-/Startup-Recovery-Tests sind grün, ergänzt durch Typecheck, betroffene Lint-Dateien und unverändertes Komplexitäts-Gate. Weil produktiver Code geändert wird, ersetzt ein neuer integrierter Source-Lauf die noch laufende Vorprüfung e0f5c2e3/38837709827. Deren 4.159 bestandene Jest-Tests und Security-Gate bleiben historische Zwischenbelege, keine Freigabe der nachgebesserten APK.

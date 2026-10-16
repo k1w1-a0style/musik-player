@@ -94,3 +94,12 @@ test('cannot reuse an epoch id carrying unresolved recovery evidence', async () 
  await expect(saveCleanerJournal(journal('pending', 'displayed'))).rejects.toThrow('Recovery-Evidenz');
  expect(JSON.parse((await AsyncStorage.getItem(header))!).id).toBe('other');
 });
+test('completed native write with pending cleanup still retains its recovery/backup evidence', async () => {
+ const old = journal('cleanup-pending', 'written'); old.entries[0].mode = 'file';
+ old.entries[0].operationId = 'committed-with-backup';
+ old.entries[0].writeResult = {status:'written',warnings:['Backup cleanup pending'],terminal:true,operationStatus:'completed',recoveryPending:false,cleanupPending:true,backupUri:'content://synthetic/backup'};
+ await saveCleanerJournal(old); await saveCleanerJournalEntry(old,0);
+ await saveCleanerJournal(journal('next'));
+ expect(JSON.parse((await AsyncStorage.getItem(retained('cleanup-pending')))!)).toEqual(old);
+ expect(await AsyncStorage.getItem(record('cleanup-pending'))).not.toBeNull();
+});

@@ -42,7 +42,7 @@ const isCollectable = (journal: CleanerJournal): boolean => journal.entries.ever
   if (entry.status === 'skipped' && !entry.operationId && !entry.writeResult) return true;
   const result = entry.writeResult;
   return result?.terminal === true && result.operationStatus === 'completed' && result.recoveryPending !== true
-    && (result.status === 'written' || result.status === 'noop');
+    && result.cleanupPending !== true && (result.status === 'written' || result.status === 'noop');
 });
 /** Receipts remain durable until every derived delta key has confirmed deletion.
  * Never infer completion from orphan keys: legacy/unresolved recovery evidence stays.
