@@ -1850,8 +1850,17 @@ def validate_font2_matrix_coverage(cases):
     assert all(c['sectionPlayback']['title'] == TITLES[2] and c['sectionPlayback']['nativeState'] == 3 for c in cases), 'Font2 library play action not acknowledged'
 
 
+def song_info_cases(mode):
+    single = {('2.0','dark','graphite','compact')}
+    if mode == 'song-info-single':
+        return single
+    assert mode == 'song-info-remaining', 'Unsupported song-info continuation scope'
+    return {('2.0',a,s,d) for a in ('dark','light') for s in ('graphite','minimal','neon-cover')
+            for d in ('standard','compact')} - single - {('2.0','dark','graphite','standard')}
+
+
 def ui_matrix(font2_only=False, selected_cases=None):
-    assert selected_cases is None or selected_cases == {('2.0','dark','graphite','compact')}, 'Unsupported targeted matrix selection'
+    assert selected_cases is None or selected_cases in (song_info_cases('song-info-single'),song_info_cases('song-info-remaining')), 'Unsupported targeted matrix selection'
     V5_PROOFS['matrix'] = [] if selected_cases is not None else previous_matrix_cases()
     assert not font2_only or not V5_PROOFS['matrix'], 'Targeted new-APK regression cannot reuse earlier cases'
     completed = {(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in V5_PROOFS['matrix']}
@@ -1911,8 +1920,8 @@ def ui_matrix(font2_only=False, selected_cases=None):
                         settings()
     if selected_cases is not None:
         actual = [(c['fontScale'],c['appearance'],c['skin'],c['density']) for c in V5_PROOFS['matrix']]
-        assert len(actual) == len(selected_cases) and set(actual) == selected_cases, 'Targeted single-case coverage missing or duplicated'
-        CHECKS.append('targeted-font2-dark-graphite-compact-whole48dp-native-play-ack')
+        assert len(actual) == len(selected_cases) and set(actual) == selected_cases, 'Targeted case coverage missing or duplicated'
+        CHECKS.append('targeted-font2-selected-cases-whole48dp-native-play-ack')
     elif font2_only:
         validate_font2_matrix_coverage(V5_PROOFS['matrix'])
         CHECKS.append('targeted-12-font2-library-section-whole48dp-no-overlap-native-play-ack')
@@ -2032,7 +2041,7 @@ def final_stage_acceptance(cleaner_only=False):
     print('Remaining V5 stages passed; combine with exact-APK prefix proof before release acceptance.', flush=True)
 
 
-def matrix_only_acceptance(font2_only=False, single_case=False):
+def matrix_only_acceptance(font2_only=False, single_case=False, remaining_cases=False):
     wait_uncovered_library_header()
     prepare_final_stage_collection()
     settings()
@@ -2042,11 +2051,13 @@ def matrix_only_acceptance(font2_only=False, single_case=False):
     checkbox('settings-instant-colors', True)
     back()
     print('Stage: font, theme and density matrix', flush=True)
-    ui_matrix(font2_only=font2_only, selected_cases={('2.0','dark','graphite','compact')} if single_case else None)
+    assert not (single_case and remaining_cases), 'Ambiguous targeted execution'
+    mode = 'song-info-single' if single_case else 'song-info-remaining' if remaining_cases else None
+    ui_matrix(font2_only=font2_only, selected_cases=song_info_cases(mode) if mode else None)
     logs = adb('logcat','-d','-v','threadtime').decode(errors='replace')
     assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'App runtime failure'
     (OUT / 'stage-result.json').write_text(json.dumps({
-        'mode':'song-info-single' if single_case else 'v5-section-font2' if font2_only else 'v5-matrix','status':'stage-only-passed','releaseAccepted':False,
+        'mode':mode if mode else 'v5-section-font2' if font2_only else 'v5-matrix','status':'stage-only-passed','releaseAccepted':False,
         'sourceCommit':os.environ.get('REVIEWED_APK_SOURCE_COMMIT',os.environ['GITHUB_SHA']),'harnessCommit':os.environ['GITHUB_SHA'],
         'apkSha256':Path('preview-input/apk-sha256.txt').read_text().split()[0],'checks':CHECKS,'v5Proofs':V5_PROOFS,
         'uiSnapshots':UI_SNAPSHOTS,'transportRecoveries':TRANSPORT_RECOVERIES},indent=2))
@@ -2074,6 +2085,9 @@ def main():
     try:
         find('library-open-menu', timeout=90)
         header_font_preflight()
+        if os.environ.get('APK_DIAGNOSTIC_MODE') == 'song-info-remaining':
+            matrix_only_acceptance(remaining_cases=True)
+            return
         if os.environ.get('APK_DIAGNOSTIC_MODE') == 'song-info-single':
             matrix_only_acceptance(single_case=True)
             return

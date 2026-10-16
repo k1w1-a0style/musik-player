@@ -35,12 +35,12 @@ class RetestManifestTest(unittest.TestCase):
         with patch('verifyApkRetest.Path.exists',return_value=False):
             self.assertEqual(load_execution_mode(),'')
         with patch('verifyApkRetest.Path.exists',return_value=True):
-            for data in ({'version':1,'mode':'song-info-single'},
+            for data in ({'version':1,'mode':'song-info-single'}, {'version':1,'mode':'song-info-remaining'},
                          {'version':1,'mode':'full'}, {'version':1,'mode':'song-info-single','skipAssertions':True},
                          {'mode':'song-info-single'}):
                 with patch('verifyApkRetest.Path.read_text',return_value=json.dumps(data)):
-                    if data == {'version':1,'mode':'song-info-single'}:
-                        self.assertEqual(load_execution_mode(),'song-info-single')
+                    if data in ({'version':1,'mode':'song-info-single'}, {'version':1,'mode':'song-info-remaining'}):
+                        self.assertEqual(load_execution_mode(),data['mode'])
                     else:
                         with self.assertRaises(AssertionError):load_execution_mode()
 

@@ -1,0 +1,23 @@
+{
+  "run": 38867090788,
+  "harnessCommit": "72a19aecc500addb6227d7a255a20c133001c3f6",
+  "artifactId": 12032061690,
+  "artifactDigest": "sha256:d57c1e9672d62db842b609c391a653da98f3aa0ca84afd27039865d5ed5cdef6",
+  "sourceCommit": "ddcc7ec2fcb03f68720927c23b06996d59b24dd1",
+  "apkSha256": "2e11157f92a4b09ce39801375ab8f08da42ed3a24a21a7e5dde1b01606afbe2a",
+  "case": [
+    "2.0",
+    "dark",
+    "graphite",
+    "compact"
+  ],
+  "menuBounds": [
+    380,
+    606,
+    452,
+    678
+  ],
+  "status": "stage-only-passed",
+  "releaseAccepted": false,
+  "screenshotInspection": "passed"
+}

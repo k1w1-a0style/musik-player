@@ -41,7 +41,8 @@ def load_execution_mode():
     if not path.exists():
         return ''
     data = json.loads(path.read_text())
-    assert data == {'version': 1, 'mode': 'song-info-single'}, 'Unsupported explicit retest execution scope'
+    assert data in ({'version': 1, 'mode': 'song-info-single'},
+                    {'version': 1, 'mode': 'song-info-remaining'}), 'Unsupported explicit retest execution scope'
     return data['mode']
 
 

@@ -81,3 +81,7 @@ Der erste Manifest-Retest bestand native Owner-Zuordnung, 100-%-Touchgeometrie u
 ## Eng begrenzte Fortsetzung: Song-Info-Scrollen bei 200 %
 
 Reguläre CI 38844315073 am Commit 26644d3a vollständig grün bestätigt. Manifest-Retest 38844390898 auf 6271b300 scheitert erst nach den Funktionsstufen und 25 erfolgreichen Matrixfällen in 200 % / dark / graphite / compact. Original-Artefakt 12024085233 vollständig hash-/CRC-geprüft. XMLs 460–483 zeigen schnelles Überschwingen im 194-px-Listenfenster, keine Mini-Player-Verdeckung dieses Fensters. Bereits lokalisierte, abgeschnittene Song-Aktionen erhalten deshalb kurze langsame Gesten. Aufgezeichnete Regression erst rot, dann grün; alle 154 Python-Tests erfolgreich, kein Skip. Nur Treiber-/Test-/Dokumentationsänderungen, kein Build und kein vollständiger Android-Wiederholungslauf. Die elf fehlenden Matrixfälle und Android-Nachprüfung der Korrektur bleiben ausdrücklich offen. Belege und Grenzen: [v4-song-info-scroll.md](v4-song-info-scroll.md).
+
+## Android-Einzelfall tatsächlich bestanden
+
+Lauf 38867090788 / Harness 72a19aec ist grün. Artefakt 12032061690 unabhängig hash-/CRC-geprüft, korrekte APK 2e11157f…afbe2a. Die vormals fehlerhafte Info-Aktion ist vollständig 72 × 72 px und tatsächlich bedienbar. Kritische PNG-Sichtkontrolle bestätigt die XML-Geometrie. 26/36 Matrixfälle nachgewiesen; zehn weitere exklusiv vorbereitet. 159 Python-Prüfungen grün. Details und Grenzen in v4-song-info-scroll.md.

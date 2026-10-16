@@ -1002,6 +1002,19 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError,'Unsupported targeted matrix selection'):
                 smoke.ui_matrix(selected_cases=bad)
 
+    def test_remaining_cases_are_exactly_the_ten_not_already_proved_cases(self):
+        old = {(scale,a,s,d) for scale in ('1.0','1.3') for a in ('dark','light')
+               for s in ('graphite','minimal','neon-cover') for d in ('standard','compact')}
+        old.add(('2.0','dark','graphite','standard'))
+        single = smoke.song_info_cases('song-info-single')
+        remaining = smoke.song_info_cases('song-info-remaining')
+        self.assertEqual(len(old),25)
+        self.assertEqual(len(single),1)
+        self.assertEqual(len(remaining),10)
+        self.assertFalse(old & remaining or old & single or single & remaining)
+        self.assertEqual(len(old | single | remaining),36)
+        with self.assertRaises(AssertionError):smoke.song_info_cases('full')
+
     def test_recorded_whole_font2_song_info_requires_no_gesture(self):
         key = 'song-card-info-1000000019'
         frame = ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()
