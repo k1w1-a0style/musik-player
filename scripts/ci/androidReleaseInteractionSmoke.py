@@ -429,6 +429,56 @@ def validate_library_section_touch_areas(frame):
     return {'sectionBounds':rect(section),'titleBounds':rect(title),'controls':controls}
 
 
+def validate_soundcloud_info_chip(frame):
+    page = candidate('soundcloud-track-page-current', frame)
+    assert page is not None, 'Current SoundCloud page missing'
+    metadata = candidate('soundcloud-track-metadata', page)
+    chip = candidate('soundcloud-track-info-chip', page)
+    assert metadata is not None and chip is not None, 'SoundCloud metadata/info action missing'
+    assert chip.get('package') == PACKAGE and chip.get('enabled') == 'true', 'SoundCloud info action is not enabled app-owned UI'
+    assert chip.get('content-desc') == 'Infos zu diesem Track', 'SoundCloud info action label differs'
+    mx1,my1,mx2,my2 = rect(metadata)
+    x1,y1,x2,y2 = rect(chip)
+    assert x2-x1 >= 72 and y2-y1 >= 72, 'SoundCloud info action smaller than 48dp'
+    assert 0 <= mx1 <= x1 < x2 <= mx2 <= 480 and 0 <= my1 <= y1 < y2 <= my2 <= 960, 'SoundCloud info action clipped by metadata/screen'
+    controls = candidate('soundcloud-paused-controls', page)
+    assert controls is not None, 'Paused SoundCloud controls missing'
+    cx1,cy1,cx2,cy2 = rect(controls)
+    assert my2 <= cy1 and cy1 < cy2 <= 960, 'SoundCloud metadata overlaps transport controls'
+    return {'metadataBounds':rect(metadata),'infoBounds':rect(chip),'transportBounds':rect(controls)}
+
+
+def soundcloud_info_font_acceptance():
+    settings()
+    select('settings-player-layout-soundcloud', top=True)
+    back()
+    tap('mini-player-open')
+    hitbox = find('soundcloud-swipe-hitbox')
+    if hitbox.get('content-desc') == 'Pausieren':
+        tap_node(hitbox)
+    find('soundcloud-play-button')
+    proofs = []
+    for scale in ('1.0','1.3','1.5','2.0'):
+        adb('shell','settings','put','system','font_scale',scale)
+        find('soundcloud-track-info-chip')
+        # Keep two independent native hierarchy observations after configuration change.
+        time.sleep(.6)
+        first = validate_soundcloud_info_chip(tree(compressed=False))
+        second = validate_soundcloud_info_chip(tree(compressed=False))
+        assert first == second, 'SoundCloud info layout has not settled'
+        screenshot('soundcloud-info-font-'+scale)
+        tap('soundcloud-track-info-chip')
+        find('track-info-hero')
+        screenshot('soundcloud-info-open-font-'+scale)
+        back()
+        find('soundcloud-track-info-chip')
+        proofs.append({'fontScale':scale,**second,'trackInfoOpened':True})
+    adb('shell','settings','put','system','font_scale','1.0')
+    back()
+    V5_PROOFS['soundcloudInfoFonts'] = proofs
+    CHECKS.append('soundcloud-info-chip-font-1.0-1.3-1.5-2.0-whole48dp-no-overlap-real-navigation')
+
+
 def header_font_preflight():
     proofs = []
     for scale in ('1.0','2.0'):
@@ -2010,6 +2060,8 @@ def main():
             return
         print('Stage: public scan, formats and collection', flush=True)
         prepare_collection()
+        print('Stage: targeted responsive SoundCloud info action and real navigation', flush=True)
+        soundcloud_info_font_acceptance()
         print('Stage: resume and real process restart', flush=True)
         resume_acceptance()
         print('Stage: native background playback and real queue gestures', flush=True)

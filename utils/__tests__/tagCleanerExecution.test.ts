@@ -100,6 +100,7 @@ test('retention awaits deletion and keeps the active-batch guard until storage w
  const old:CleanerJournal={version:1,id:'retention-before-batch',createdAt:1,entries:[{songId:'old',sourceKey:'synthetic',before:{},after:{},mode:'display',status:'displayed'}]};
  await saveCleanerJournal(old);await saveCleanerJournalEntry(old,0);
  const remove=(AsyncStorage.multiRemove as jest.Mock).getMockImplementation();
+ if(!remove) throw new Error('Storage mock implementation missing');
  let finish!:()=>void;
  (AsyncStorage.multiRemove as jest.Mock).mockImplementationOnce((keys:string[])=>new Promise<void>(resolve=>{finish=()=>{void remove(keys).then(resolve);};}));
  const inputs=[song('retention-next')];const update=jest.fn(async()=>undefined);

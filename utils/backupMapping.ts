@@ -10,6 +10,13 @@ export const toBackupSongReference = (song: Song): BackupSongReference => ({
     ? song.fileInfo.modificationTime : undefined,
   contentHash: /^[a-f0-9]{64}$/i.test(song.fileInfo?.contentHash ?? '') ? song.fileInfo!.contentHash!.toLowerCase() : undefined,
 });
+/** Presentation only: supports version-1 legacy placeholders without changing identity. */
+export const backupReferenceLabel = (reference: BackupSongReference): string => {
+  const placeholder = !reference.uri && !reference.contentHash
+    && (!reference.title || reference.title === reference.id || reference.title === 'Fehlende Quelle');
+  return placeholder ? `Fehlende Quelle · ehemalige ID: ${reference.id}`
+    : [reference.title, reference.artist].filter(Boolean).join(' · ');
+};
 const hasSameRevision = (left: BackupSongReference, right: BackupSongReference): boolean => {
   if (left.contentHash || right.contentHash) return Boolean(left.contentHash && right.contentHash
     && left.contentHash.toLowerCase() === right.contentHash.toLowerCase());

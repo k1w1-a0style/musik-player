@@ -45,3 +45,16 @@ test('manual skip remains visible in the summary and is passed through to restor
   fireEvent.press(screen.getByTestId('backup-restore-apply'));
   expect(restore).toHaveBeenCalledWith(expect.objectContaining({ manual: { old: null } }));
 });
+test.each(['missing-id','Fehlende Quelle'])('unresolved legacy/new placeholder %s shows former identity and keeps explicit mapping', title => {
+ const missing: MusicBackup = {...backup,songs:[{id:'missing-id',title,artist:''}],favorites:['missing-id'],playlists:[]};
+ const restore = jest.fn();
+ const screen = render(<BackupPreview backup={missing} songs={[moved]} onRestore={restore} onClose={jest.fn()}/>);
+ expect(screen.getByText('Fehlende Quelle · ehemalige ID: missing-id')).toBeTruthy();
+ expect(screen.getByTestId('backup-reference-missing-id').props.accessibilityLabel).toContain('ehemalige ID: missing-id');
+ fireEvent.press(screen.getByTestId('backup-reference-missing-id'));
+ expect(screen.getByText('Zuordnen: Fehlende Quelle · ehemalige ID: missing-id')).toBeTruthy();
+ fireEvent.press(screen.getByTestId('backup-map-song-moved'));
+ fireEvent.press(screen.getByTestId('backup-restore-apply'));
+ expect(restore).toHaveBeenCalledWith(expect.objectContaining({manual:{'missing-id':'moved'}}));
+ expect(missing.songs[0]).toEqual({id:'missing-id',title,artist:''});
+});

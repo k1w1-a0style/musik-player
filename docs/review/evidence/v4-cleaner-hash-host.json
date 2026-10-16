@@ -1,0 +1,40 @@
+{
+  "scope": "Node host synthetic in-memory adapter; NOT Android, Hermes, SAF-provider or frame-jank evidence",
+  "node": "v24.19.0",
+  "measuredAt": "2026-10-16T01:47:03.288Z",
+  "cases": [
+    {
+      "mib": 10,
+      "reads": 160,
+      "stats": 2,
+      "maxRange": 65536,
+      "elapsedMs": 726.9061809999998,
+      "cpuMs": 668.762,
+      "sampledPeakHeapBytes": 32107960,
+      "maxHostTimerLagMs": 10.136790999999903,
+      "sha256": "a829b9b5d8743d5c4badc8daa98cb003d984167f50f529165826f4e8546f5721"
+    },
+    {
+      "mib": 25,
+      "reads": 400,
+      "stats": 2,
+      "maxRange": 65536,
+      "elapsedMs": 1655.244727,
+      "cpuMs": 1373.962,
+      "sampledPeakHeapBytes": 32365536,
+      "maxHostTimerLagMs": 24.654797000000144,
+      "sha256": "fe069ef5aeb1ac3e20b03348c73eb6c6a1dfad2e0660a9c2e8b68188cd3392db"
+    },
+    {
+      "mib": 50,
+      "reads": 800,
+      "stats": 2,
+      "maxRange": 65536,
+      "elapsedMs": 3082.1768209999996,
+      "cpuMs": 2415.585,
+      "sampledPeakHeapBytes": 32425880,
+      "maxHostTimerLagMs": 5.005247000000054,
+      "sha256": "e5452aaaf2a8c9d23840d0ff532da90fd21959b3732724ef8be40db5a48abc90"
+    }
+  ]
+}

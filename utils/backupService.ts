@@ -35,7 +35,7 @@ export const createMusicBackup = async (): Promise<MusicBackup> => {
   const byId = new Map(songs.map(song => [song.id, song]));
   const references = [...wanted].map(id => {
     const song = byId.get(id);
-    return song ? toBackupSongReference(song) : { id, title: id, artist: '' };
+    return song ? toBackupSongReference(song) : { id, title: 'Fehlende Quelle', artist: '' };
   });
   return validateMusicBackup({ format: 'k1w1-musik-backup', version: 1, createdAt: Date.now(),
     songs: references, playlists, favorites, settings });

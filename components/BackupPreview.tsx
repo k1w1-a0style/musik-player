@@ -3,7 +3,7 @@ import { FlatList, Modal, Pressable, StyleSheet, Switch, Text, View } from 'reac
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { Song } from '../types/Song';
 import type { MusicBackup } from '../utils/backupFormat';
-import { mapBackupSongs, type ManualBackupMapping } from '../utils/backupMapping';
+import { backupReferenceLabel, mapBackupSongs, type ManualBackupMapping } from '../utils/backupMapping';
 import { backupLibrarySignature, type RestoreBackupRequest } from '../utils/backupService';
 import BackupSongPicker from './BackupSongPicker';
 import BackupSettingSummary from './BackupSettingSummary';
@@ -38,9 +38,9 @@ const BackupPreview = ({ backup, songs, onRestore, onClose }: Props) => {
       <BackupSettingSummary settings={backup.settings} />
       </View>}
         renderItem={({ item }) => <Pressable accessibilityRole="button" testID={`backup-reference-${item.reference.id}`}
-          accessibilityLabel={`${item.reference.title} von ${item.reference.artist}, ${item.status === 'mapped' ? 'zugeordnet' : item.status === 'conflict' ? 'Konflikt' : 'fehlend oder übersprungen'}, Zuordnung ändern`}
+          accessibilityLabel={`${backupReferenceLabel(item.reference)}, ${item.status === 'mapped' ? 'zugeordnet' : item.status === 'conflict' ? 'Konflikt' : 'fehlend oder übersprungen'}, Zuordnung ändern`}
           onPress={() => setMappingId(item.reference.id)} style={[styles.action, { borderColor: theme.palette.border }]}>
-          <Text style={text}>{item.reference.title} · {item.reference.artist}</Text>
+          <Text style={text}>{backupReferenceLabel(item.reference)}</Text>
           <Text style={[styles.source, { color: theme.palette.text.secondary }]}>{item.song ? `→ ${item.song.title} · ${item.song.fileInfo?.uri ?? item.song.uri ?? 'Quelle unbekannt'}`
             : item.status === 'conflict' ? 'Konflikt – manuell zuordnen oder überspringen' : 'Fehlt oder wird übersprungen – manuell zuordnen'}</Text>
         </Pressable>}
@@ -53,7 +53,7 @@ const BackupPreview = ({ backup, songs, onRestore, onClose }: Props) => {
       <Pressable accessibilityRole="button" onPress={onClose} style={styles.action}><Text style={text}>Schließen</Text></Pressable>
       </View>} />
     </View>
-    {mapping && <BackupSongPicker referenceTitle={mapping.title} songs={songs} onClose={() => setMappingId(null)}
+    {mapping && <BackupSongPicker referenceTitle={backupReferenceLabel(mapping)} songs={songs} onClose={() => setMappingId(null)}
       onChoose={id => { setManual(previous => ({ ...previous, [mapping.id]: id })); setMappingId(null); }} />}
   </Modal>;
 };

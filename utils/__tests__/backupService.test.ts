@@ -50,3 +50,9 @@ test('stale preview and vanished manual targets fail before journal creation', a
     previewSources: backupLibrarySignature([song]) })).rejects.toThrow('nicht mehr gültig');
   expect(set).not.toHaveBeenCalled();
 });
+test('export preserves missing reference identity but labels it as a missing source rather than a song title', async () => {
+ await storage.setFavoriteSongIds(['missing-id']);
+ const exported = await createMusicBackup();
+ expect(exported.songs).toEqual([{id:'missing-id',title:'Fehlende Quelle',artist:''}]);
+ expect(exported.favorites).toEqual(['missing-id']);
+});

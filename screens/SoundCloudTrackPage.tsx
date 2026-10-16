@@ -31,7 +31,7 @@ const ActiveWaveform = React.memo(({ song, isPlaying, accent, onSeek, gestureHan
 ActiveWaveform.displayName = 'SoundCloudActiveWaveform';
 
 const TrackMetadata = ({ song, onOpenTrackInfo }: { song: Song; onOpenTrackInfo: () => void }) => (
-  <View style={styles.metadata}>
+  <View style={styles.metadata} testID="soundcloud-track-metadata" collapsable={false}>
     <Text style={styles.title} numberOfLines={2}>{displayTitle(song)}</Text>
     <Text style={styles.artist} numberOfLines={1}>{displayArtist(song)}</Text>
     <Pressable style={styles.infoChip} onPress={onOpenTrackInfo} accessibilityRole="button"
@@ -131,16 +131,16 @@ const SoundCloudTrackPage = ({ song, role, isPlaying, accent, canSwipeToNext, to
 
 const styles = StyleSheet.create({
   trackPage: { flex: 1, paddingHorizontal: 18 },
-  metadata: { height: 126, alignItems: 'flex-start', gap: 5, overflow: 'hidden', zIndex: 4 },
+  metadata: { minHeight: 126, flexShrink: 0, alignItems: 'flex-start', gap: 5, zIndex: 4 },
   title: { maxWidth: '88%', color: SOUNDCLOUD_PLAYER_COLORS.foreground,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.titleSurface, paddingHorizontal: 8,
     paddingVertical: 4, fontSize: 18, lineHeight: 23, fontFamily: APP_THEME_TOKENS.fonts.heading },
   artist: { maxWidth: '82%', color: SOUNDCLOUD_PLAYER_COLORS.artistText,
     backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artistSurface,
     paddingHorizontal: 8, paddingVertical: 3, fontSize: 14, fontFamily: APP_THEME_TOKENS.fonts.body },
-  infoChip: { minHeight: 34, maxWidth: '80%', flexDirection: 'row', alignItems: 'center', gap: 7,
+  infoChip: { minHeight: 48, minWidth: 48, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 10, paddingVertical: 6, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.artistSurface },
-  infoChipText: { color: SOUNDCLOUD_PLAYER_COLORS.artistText, fontSize: 13,
+  infoChipText: { flexShrink: 1, color: SOUNDCLOUD_PLAYER_COLORS.artistText, fontSize: 13,
     fontFamily: APP_THEME_TOKENS.fonts.body },
   artworkTapArea: { flex: 1, marginHorizontal: -18, alignItems: 'center', justifyContent: 'center' },
   pauseDim: { ...StyleSheet.absoluteFill, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.pauseScrim },
