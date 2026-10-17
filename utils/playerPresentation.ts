@@ -17,6 +17,6 @@ export const normalizePlayerPresentation = (value: unknown): PlayerPresentation 
     waveformAccent: isAccentId(source.waveformAccent) ? source.waveformAccent : 'cover' };
 };
 export const WAVEFORM_ACCENT_LABELS: Record<WaveformAccent, string> = {
-  ...ACCENT_LABELS, cover: 'Cover-Farbe',
+  ...ACCENT_LABELS, cover: 'Playerfarbe (automatisch)',
 };
 export const getVisibleProgressInterval = (quiet: boolean): number => quiet ? 1000 : 500;

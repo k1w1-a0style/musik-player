@@ -8,6 +8,7 @@ import CrossfadeLayers from '../CrossfadeLayers';
 import { AccentPreferencesProvider } from '../../contexts/AccentPreferencesContext';
 import { AppThemeProvider, useAppTheme } from '../../contexts/AppThemeContext';
 import { storage } from '../../utils/storage';
+import { getSoundCloudWaveformColors } from '../../utils/soundCloudWaveformColors';
 import { ACCENT_IDS } from '../../utils/accentPreferences';
 
 jest.mock('../../utils/storage', () => ({ storage: { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue(true),
@@ -81,4 +82,16 @@ test('waveform choice uses its original separate storage contract',async()=>{
  fireEvent.press(view.getByTestId('settings-waveform-accent-blue'));
  await waitFor(()=>expect(storage.set).toHaveBeenCalledWith('playerPresentationV3',{quiet:false,density:'standard',waveformAccent:'blue'}));
  expect(storage.set).not.toHaveBeenCalledWith('accentPreferencesV4',expect.anything());
+});
+
+test('automatic waveform preview follows the actual player accent without changing its stored waveform id',async()=>{
+ const view=render(settings());
+ fireEvent.press(view.getByTestId('settings-color-target-playerAccent'));
+ await waitFor(()=>expect(view.getByTestId('settings-playerAccent-cyan').props.accessibilityState.disabled).toBe(false));
+ fireEvent.press(view.getByTestId('settings-playerAccent-cyan'));
+ fireEvent.press(view.getByTestId('settings-color-target-waveform'));
+ expect(view.getByTestId('settings-waveform-accent-cover').props.accessibilityState.checked).toBe(true);
+ expect(StyleSheet.flatten(view.getByTestId('settings-color-preview-swatch').props.style).backgroundColor).toBe(getSoundCloudWaveformColors('#29C7EB','cover').played);
+ expect(view.getByText('Automatisch folgt der Playerfarbe; eine feste Waveform-Farbe bleibt unabhängig.')).toBeTruthy();
+ await waitFor(()=>expect(storage.set).toHaveBeenCalled());
 });
