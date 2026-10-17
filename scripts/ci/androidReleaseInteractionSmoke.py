@@ -1747,6 +1747,18 @@ def select_cleaner_safe_playback_queue():
             if node.get('resource-id', '').split(':id/')[-1].startswith('queue-row-')]
     actual_ids = [node.get('resource-id', '').split(':id/')[-1].removeprefix('queue-row-') for node in rows]
     assert actual_ids == expected_ids, 'Public playlist playback did not exclude the cleaner fixture from its queue'
+    frame=tree(compressed=False)
+    keys=['soundcloud-queue-shuffle','soundcloud-queue-repeat','soundcloud-queue-close']
+    geometry=validate_targets(frame,keys,PACKAGE)
+    for left,right in zip(keys,keys[1:]):validate_disjoint(geometry[left],geometry[right])
+    row_geometry={}
+    for song_id in expected_ids:
+        play,drag='queue-long-press-drag-'+song_id,'queue-drag-handle-'+song_id
+        targets=validate_targets(frame,[play,drag],PACKAGE)
+        validate_disjoint(targets[play],targets[drag]);row_geometry.update(targets)
+    proofs=V5_PROOFS.setdefault('cleanerSafeQueueGeometry',[])
+    proofs.append({'fontScale':adb('shell','settings','get','system','font_scale').decode().strip(),'header':geometry,'rows':row_geometry})
+    screenshot('cleaner-safe-native-queue-'+str(len(proofs)))
     tap('soundcloud-queue-close')
     tap('soundcloud-swipe-hitbox')
     find('soundcloud-play-button')

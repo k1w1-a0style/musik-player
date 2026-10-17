@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent } from 'react-native';
 import { GripVertical, Volume2 } from 'lucide-react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -64,15 +64,19 @@ const PlayingBadge = ({ id, visible, accentColor, textColor }: { id: string; vis
   );
 };
 
-const DragHandle = ({ id, visible, enabled, accentColor, colors, gestureHandlers }: { id: string; visible: boolean;
+const DragHandle = ({ id, title, visible, enabled, accentColor, colors, gestureHandlers, onAccessibilityAction }: { id: string; title: string; visible: boolean;
   enabled: boolean; accentColor: string; colors: NowPlayingQueueColors;
+  onAccessibilityAction: (event: AccessibilityActionEvent) => void;
   gestureHandlers: ReturnType<typeof useQueueRowDrag>['handleGestureHandlers'] }) => {
   if (!visible) return null;
   return (
     <PanGestureHandler enabled activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
       {...gestureHandlers} testID={`queue-drag-handle-${id}`}>
       <Animated.View style={[styles.dragHandle, { backgroundColor: colors.surfaceElevated }]}>
-        <Pressable style={styles.dragHandle} onPress={event => event.stopPropagation()}>
+        <Pressable style={styles.dragHandle} onPress={event => event.stopPropagation()}
+          accessibilityRole="adjustable" accessibilityLabel={`${title} verschieben`}
+          accessibilityActions={[{name:'decrement',label:'Nach oben'},{name:'increment',label:'Nach unten'}]}
+          onAccessibilityAction={onAccessibilityAction}>
           <GripVertical color={enabled ? accentColor : colors.textMuted} size={20} />
         </Pressable>
       </Animated.View>
@@ -105,6 +109,11 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
   }, [id, onPress]);
   const accessibilityLabel = artist.trim() ? `${title} von ${artist.trim()} abspielen` : `${title} abspielen`;
   const dragLabel = ' Zum Umsortieren lange drücken und ziehen oder den Griff rechts verwenden.';
+  const handleAccessibilityAction = React.useCallback((event: AccessibilityActionEvent) => {
+    const action=event.nativeEvent.actionName;
+    const target=action==='increment' ? index+1 : action==='decrement' ? index-1 : index;
+    if(canDrag&&target!==index&&target>=minShiftIndex&&target<queueLength)onShift?.(index,target);
+  },[canDrag,index,minShiftIndex,onShift,queueLength]);
 
   return (
     <Animated.View style={[styles.animatedRow,
@@ -131,13 +140,14 @@ const NowPlayingQueuePreviewRow = React.memo(({ id, index = 0, queueLength = 0, 
                 numberOfLines={1} ellipsizeMode="tail">{title}</Text>
               <Text style={[styles.queueArtist, { color: rowColors.textSecondary }]}
                 numberOfLines={1} ellipsizeMode="tail">{artist}</Text>
+              <PlayingBadge id={id} visible={isCurrent} accentColor={resolvedAccentColor}
+                textColor={rowColors.textPrimary} />
             </View>
-            <PlayingBadge id={id} visible={isCurrent} accentColor={resolvedAccentColor}
-              textColor={rowColors.textPrimary} />
           </Animated.View>
         </PanGestureHandler>
-        <DragHandle id={id} visible={canDrag} enabled={drag.dragging}
-          accentColor={resolvedAccentColor} colors={rowColors} gestureHandlers={drag.handleGestureHandlers} />
+        <DragHandle id={id} title={title} visible={canDrag} enabled={drag.dragging}
+          accentColor={resolvedAccentColor} colors={rowColors} gestureHandlers={drag.handleGestureHandlers}
+          onAccessibilityAction={handleAccessibilityAction} />
       </Pressable>
     </Animated.View>
   );
@@ -151,13 +161,13 @@ const styles = StyleSheet.create({
   queueItemDragging: { opacity: 0.97 }, queueItemPressed: { opacity: 0.72 },
   queueAccent: { width: 3, height: 32, borderRadius: 3 },
   queueArtwork: { width: 52, height: 52, borderRadius: 3 },
-  queueTextWrap: { flex: 1 }, queueTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 13 },
+  queueTextWrap: { flex: 1, minWidth: 0 }, queueTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 13 },
   queueTitleActive: { fontWeight: '700' },
   queueArtist: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, marginTop: 2 },
-  playingBadge: { minWidth: 66, maxWidth: 88, height: 28, borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
-  playingLabel: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 9 },
-  dragHandle: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  playingBadge: { minWidth: 66, maxWidth: '100%', minHeight: 28, marginTop: 4, alignSelf: 'flex-start', borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 6, paddingVertical: 4, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 4 },
+  playingLabel: { flexShrink: 1, fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 9 },
+  dragHandle: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
 });
 
 export default NowPlayingQueuePreviewRow;

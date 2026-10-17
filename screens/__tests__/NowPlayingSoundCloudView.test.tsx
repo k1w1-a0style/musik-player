@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
-import { Alert, Animated, BackHandler, Share, StatusBar, StyleSheet, View } from 'react-native';
+import { Alert, Animated, BackHandler, Dimensions, Share, StatusBar, StyleSheet, View } from 'react-native';
 import NowPlayingSoundCloudView from '../NowPlayingSoundCloudView';
 
 const mockWaveformViewport = jest.fn((_props: Record<string, unknown>) => null);
@@ -278,6 +278,22 @@ describe('NowPlayingSoundCloudView', () => {
     act(() => { handled = backCall?.[1]({ type: 'hardwareBackPress', timeStamp: 0 }) ?? false; });
     expect(handled).toBe(true);
     expect(queryByTestId('soundcloud-queue-sheet')).toBeNull();
+  });
+
+  test('queue header wraps its title and keeps all three independent actions at 48dp', () => {
+    const view=renderSoundCloudView();fireEvent.press(view.getByTestId('soundcloud-open-queue'));
+    for(const key of ['shuffle','repeat','close']){
+      const style=StyleSheet.flatten(view.getByTestId('soundcloud-queue-'+key).props.style);
+      expect(style.width).toBeGreaterThanOrEqual(48);expect(style.height).toBeGreaterThanOrEqual(48);
+    }
+    expect(StyleSheet.flatten(view.getByTestId('soundcloud-queue-header').props.style).flexWrap).toBe('wrap');
+  });
+
+  test('queue viewport follows the measured header instead of assuming a fixed 86dp', () => {
+    const view=renderSoundCloudView();fireEvent.press(view.getByTestId('soundcloud-open-queue'));
+    fireEvent(view.getByTestId('soundcloud-queue-header-region'),'layout',{nativeEvent:{layout:{height:160,width:320,x:0,y:0}}});
+    expect(StyleSheet.flatten(view.getByTestId('now-playing-queue-list-frame').props.style).maxHeight)
+      .toBe(Dimensions.get('window').height-16-160-12);
   });
 
   test.each([1, 3])('a passive queue header recognizer ending as %s cannot restore the sheet', state => {

@@ -353,7 +353,9 @@ jobs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/codex' && contains(github.event.head_commit.message, '[preview apk]') }}
     needs: [security-audit, quality-gates, native-gates]
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    # The measured font2 preflight takes about 20 minutes before the full
+    # 36-case matrix, SAF transactions, backup and restart acceptance begin.
+    timeout-minutes: 120
     env:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { PanGestureHandler, State, type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
@@ -47,8 +47,8 @@ const QueueHeader = ({ shuffle, repeatMode, onToggleShuffle, onCycleRepeatMode, 
     : <Repeat color={repeatMode === 'off' ? SOUNDCLOUD_PLAYER_COLORS.queueControlInactive
       : SOUNDCLOUD_PLAYER_COLORS.accent} size={22} />;
   return (
-    <View style={styles.queueHeader}>
-      <View><Text style={styles.queueEyebrow}>SOUNDCLOUD PLAYER</Text><Text style={styles.queueTitle}>Als Nächstes</Text></View>
+    <View style={styles.queueHeader} testID="soundcloud-queue-header">
+      <View style={styles.queueHeaderText}><Text style={styles.queueEyebrow}>SOUNDCLOUD PLAYER</Text><Text style={styles.queueTitle}>Als Nächstes</Text></View>
       <View style={styles.queueHeaderActions}>
         <Pressable style={[styles.queueHeaderButton, shuffle && styles.active]}
           onPress={() => void runPlaybackUiAction('soundcloud-shuffle', onToggleShuffle, { dropIfPending: false })}
@@ -73,6 +73,7 @@ const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, on
   topInset, bottomInset, open, motion, onRestore }: SoundCloudQueueSheetProps) => {
   const { height: windowHeight } = useWindowDimensions();
   const height = Math.max(1, windowHeight);
+  const [headerHeight, setHeaderHeight] = useState(86);
   const dismissY = useRef(new Animated.Value(0)).current;
   const baseTranslateY = useMemo(() => motion.interpolate({
     inputRange: [-height, 0], outputRange: [0, height], extrapolate: 'clamp',
@@ -113,6 +114,7 @@ const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, on
       importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
       style={[styles.queueSheet, { paddingTop: topPadding, paddingBottom: bottomPadding,
         transform: [{ translateY }] }]} testID="soundcloud-queue-sheet">
+      <View testID="soundcloud-queue-header-region" onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
       <PanGestureHandler enabled={open} activeOffsetY={8} failOffsetX={[-24, 24]}
         onGestureEvent={onDismissGesture} onHandlerStateChange={onDismissStateChange}
         testID="soundcloud-queue-dismiss-gesture">
@@ -122,8 +124,9 @@ const SoundCloudQueueSheet = ({ queue, currentSong, onClose, onPlayQueueItem, on
             onCycleRepeatMode={onCycleRepeatMode} onClose={onClose} />
         </Animated.View>
       </PanGestureHandler>
+      </View>
       {open ? <NowPlayingQueueCard queue={queue} currentSongId={currentSong?.id}
-        maxHeight={height - topPadding - 86 - bottomPadding} onPlayQueueItem={onPlayQueueItem}
+        maxHeight={Math.max(0, height - topPadding - headerHeight - bottomPadding)} onPlayQueueItem={onPlayQueueItem}
         onQueueShift={onQueueShift} canShiftQueue={canShiftQueue}
         accentColor={SOUNDCLOUD_PLAYER_COLORS.accent} colors={SOUNDCLOUD_QUEUE_COLORS} showHeader={false} /> : null}
     </Animated.View>
@@ -135,15 +138,17 @@ const styles = StyleSheet.create({
     zIndex: 100, elevation: 30 },
   dismissHandle: { alignSelf: 'center', width: 44, height: 4, borderRadius: 2, marginTop: 7,
     marginBottom: -3, backgroundColor: SOUNDCLOUD_PLAYER_COLORS.queueControlInactive },
-  queueHeader: { height: 70, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center',
+  queueHeader: { minHeight: 70, paddingHorizontal: 18, paddingVertical: 12, gap: 12,
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
     justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: SOUNDCLOUD_PLAYER_COLORS.queueBorder },
   queueEyebrow: { color: SOUNDCLOUD_PLAYER_COLORS.accent, fontSize: 9, letterSpacing: 1.4,
     fontFamily: APP_THEME_TOKENS.fonts.body },
   queueTitle: { color: SOUNDCLOUD_PLAYER_COLORS.foreground, fontSize: 24, lineHeight: 28,
     fontFamily: APP_THEME_TOKENS.fonts.heading },
-  queueHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  queueHeaderButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  queueHeaderText: { flexGrow: 1, flexShrink: 1, minWidth: 160, gap: 3 },
+  queueHeaderActions: { flexShrink: 0, marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  queueHeaderButton: { width: 48, height: 48, flexShrink: 0, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   active: { backgroundColor: SOUNDCLOUD_PLAYER_COLORS.queueControlActive },
 });
 

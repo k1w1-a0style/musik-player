@@ -1,4 +1,5 @@
 import React from 'react';
+import { Dimensions, StyleSheet } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import NowPlayingQueueCard, { resolveQueueAutoScrollDirection } from '../NowPlayingQueueCard';
 import { resolveQueueReorderTargetIndex } from '../NowPlayingQueuePreviewRow';
@@ -146,6 +147,27 @@ test('dragging the visible queue grip uses the native gesture handler and commit
   act(() => unmount());
 });
 
+test('font2 queue layout, drag threshold and accessible reorder use the same row geometry',()=>{
+ const originalGet=(Dimensions.get as jest.Mock).getMockImplementation?.();
+ const dimensions=jest.spyOn(Dimensions,'get').mockReturnValue({width:320,height:640,scale:1,fontScale:2});
+ const move=jest.fn();
+ const view=render(<NowPlayingQueueCard queue={queue} currentSongId="s1" maxHeight={400} onPlayQueueItem={jest.fn()} onQueueShift={move} canShiftQueue accentColor="#3366FF"/>);
+ try{
+  const layout=view.getByTestId('now-playing-queue-list').props.getItemLayout(undefined,2);
+  const rowHeight=StyleSheet.flatten(view.getByTestId('queue-drag-surface-s2').props.style).height;
+  expect(rowHeight).toBeGreaterThan(100);expect(layout).toEqual({length:rowHeight,offset:Number(rowHeight)*2,index:2});
+  const action=view.getByRole('adjustable',{name:'Two verschieben'});
+  expect(StyleSheet.flatten(action.props.style).width).toBeGreaterThanOrEqual(48);
+  fireEvent(action,'accessibilityAction',{nativeEvent:{actionName:'increment'}});
+  expect(move).toHaveBeenCalledWith(1,2);move.mockClear();
+  const handle=view.getByTestId('queue-drag-handle-s2');
+  fireEvent(handle,'handlerStateChange',{nativeEvent:{oldState:2,state:4,translationY:0}});
+  act(()=>emitNativeGesture(handle as never,50));
+  fireEvent(handle,'handlerStateChange',{nativeEvent:{oldState:4,state:5,translationY:50}});
+  expect(move).not.toHaveBeenCalled();
+ }finally{view.unmount();dimensions.mockRestore();if(originalGet)(Dimensions.get as jest.Mock).mockImplementation(originalGet);}
+});
+
 test('long-pressing an upcoming queue row activates drag without taking over normal scrolling first', () => {
   const onQueueShift = jest.fn();
   const { getByTestId } = render(
@@ -224,7 +246,8 @@ test('allows sorting tracks before and at the current track', () => {
     <NowPlayingQueueCard
       queue={queue}
       currentSongId="s2"
-      maxHeight={400}
+      // Fit every scaled row so this test isolates reorder eligibility.
+      maxHeight={600}
       onPlayQueueItem={jest.fn()}
       onQueueShift={jest.fn()}
       canShiftQueue

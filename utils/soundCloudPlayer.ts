@@ -2,6 +2,10 @@ import { WAVEFORM_CACHE_POINT_COUNT } from './waveformTypes';
 
 export const SOUNDCLOUD_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const SOUNDCLOUD_QUEUE_ROW_HEIGHT = 68;
+export const getSoundCloudQueueRowHeight = (fontScale: number): number => {
+  const scale = Number.isFinite(fontScale) ? Math.max(1, fontScale) : 1;
+  return Math.max(SOUNDCLOUD_QUEUE_ROW_HEIGHT, Math.ceil(58 * scale + 10));
+};
 
 const clampUnit = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
