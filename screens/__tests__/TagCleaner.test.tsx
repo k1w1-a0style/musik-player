@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, View } from 'react-native';
 import { render, fireEvent, waitFor, act } from '@testing-library/react-native';
+import {StackRouter,StackActions} from '@react-navigation/routers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TagCleaner from '../TagCleaner';
 import { TagCleanerPreviewRow } from '../../components/TagCleanerPreviewRow';
@@ -8,17 +9,18 @@ import { analyzeCleanerRows } from '../../utils/tagCleanerRules';
 import type { Song } from '../../types/Song';
 const mockSong:Song={id:'cleaner-test',title:'  Clean title  ',artist:'Artist',uri:'file:///readonly.flac',fileInfo:{extension:'flac',filename:'readonly.flac'}};
 let mockParams:{songIds?:string[]}|undefined={songIds:[mockSong.id]};
+const mockPopToTop=jest.fn();
 const mockUpdate=jest.fn(async()=>undefined);
 const mockRead=jest.fn(async(..._args:unknown[])=>({tags:{title:'Raw title',artist:'Artist'},inventory:[],verified:false,error:'Format: Vorschau / Export'}));
 jest.mock('../../hooks/useReducedMotion',()=>({useReducedMotion:()=>true}));
-jest.mock('@react-navigation/native',()=>({useNavigation:()=>({navigate:jest.fn()}),usePreventRemove:jest.fn(),useRoute:()=>({key:'Cleaner',name:'TagCleaner',params:mockParams})}));
+jest.mock('@react-navigation/native',()=>({useNavigation:()=>({popToTop:mockPopToTop,navigate:jest.fn()}),usePreventRemove:jest.fn(),useRoute:()=>({key:'Cleaner',name:'TagCleaner',params:mockParams})}));
 jest.mock('../../contexts/MusicContext',()=>({useLibraryMusicContext:()=>({songs:[mockSong],playlists:[],updateSongMetadataConfirmed:mockUpdate})}));
 jest.mock('../../contexts/AppThemeContext',()=>({useAppTheme:()=>({theme:{palette:{primary:'#aaf',text:{primary:'#fff',secondary:'#aaa'}}}})}));
 jest.mock('../../components/AppBackground',()=>({__esModule:true,default:({children}:any)=>children}));
 jest.mock('../../components/Screen',()=>({__esModule:true,default:({children}:any)=>children}));
 jest.mock('../../utils/storage',()=>({getScanFolders:async()=>[]}));
 jest.mock('../../utils/tagCleanerRead',()=>({readCleanerSnapshot:(...args:any[])=>mockRead(...args)}));
-beforeEach(async()=>{await AsyncStorage.clear();mockParams={songIds:[mockSong.id]};mockUpdate.mockClear();mockRead.mockClear();});
+beforeEach(async()=>{await AsyncStorage.clear();mockParams={songIds:[mockSong.id]};mockUpdate.mockClear();mockRead.mockClear();mockPopToTop.mockReset();});
 afterEach(()=>jest.restoreAllMocks());
 test('wizard defaults to display, preview is read-only, explicit apply waits for confirmed update and reports result',async()=>{
  const screen=render(<TagCleaner/>);
@@ -51,4 +53,21 @@ test('uncertain field requires individual confirmation; editing invalidates old 
  alert.mock.calls.at(-1)![2]![1].onPress!();expect(change).toHaveBeenCalledWith(0,{confirmed:true,selected:true});
  fireEvent.changeText(screen.getByTestId('tag-cleaner-after-review-title'),'User edit');
  expect(change).toHaveBeenLastCalledWith(0,{after:'User edit',confidence:'uncertain',confirmed:false,selected:false});
+});
+
+test('source shortcut returns to the existing root instead of creating a second library route',async()=>{
+ mockParams=undefined;
+ const router=StackRouter({});const options={routeNames:['MainTabs','Settings','TagCleaner'],routeParamList:{},routeGetIdList:{}};
+ let state=router.getInitialState(options);
+ const apply=(action:Parameters<typeof router.getStateForAction>[1])=>{
+  const next=router.getStateForAction(state,action,options);
+  if(!next)throw new Error('Router rejected action');
+  state=router.getRehydratedState(next,options);
+ };
+ apply(StackActions.push('Settings'));apply(StackActions.push('TagCleaner'));
+ mockPopToTop.mockImplementation(()=>apply(StackActions.popToTop()));
+ const view=render(<TagCleaner/>);await act(async()=>{});
+ fireEvent.press(view.getByText('Quellen & Scan in Bibliothek öffnen'));
+ expect(state.routes.map(route=>route.name)).toEqual(['MainTabs']);
+ expect(mockPopToTop).toHaveBeenCalledTimes(1);
 });
