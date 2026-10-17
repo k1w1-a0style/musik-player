@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { MoreVertical, Search, X } from 'lucide-react-native';
+import { MoreVertical, Search, Sparkles, X } from 'lucide-react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { KIWI_MUSIC_ARTWORK } from '../utils/songArtwork';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -10,6 +10,8 @@ export interface LibraryTopBarProps {
   searchOpen?: boolean;
   onToggleSearch: () => void;
   onOpenMenu: () => void;
+  onOpenCleaner?: () => void;
+  cleanerDisabled?: boolean;
 }
 
 const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
@@ -17,6 +19,8 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
   searchOpen = false,
   onToggleSearch,
   onOpenMenu,
+  onOpenCleaner,
+  cleanerDisabled = false,
 }) => {
   const { theme } = useAppTheme();
 
@@ -31,6 +35,17 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
         </View>
       </View>
       <View style={styles.topActions}>
+        {onOpenCleaner && <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sammlung aufräumen"
+          accessibilityState={{ disabled: cleanerDisabled }}
+          disabled={cleanerDisabled}
+          onPress={onOpenCleaner}
+          style={[styles.iconButton, { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border, opacity: cleanerDisabled ? 0.5 : 1 }]}
+          testID="library-open-cleaner"
+        >
+          <Sparkles color={theme.palette.text.primary} size={22} />
+        </Pressable>}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={searchOpen ? 'Suche schließen und Filter löschen' : 'Suche öffnen'}

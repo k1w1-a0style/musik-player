@@ -978,6 +978,10 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_single_case_mode_exercises_only_requested_case_with_existing_geometry_checks(self):
         frame = ET.parse(Path(__file__).parent / 'fixtures' / 'song-info-font2-whole-standard.xml').getroot()
+        # Synthetic current-header control for this harness control-flow test;
+        # retain the historical recorded fixture unchanged as native evidence.
+        ET.SubElement(frame, 'node', {'package':smoke.PACKAGE, 'enabled':'true',
+            'resource-id':'library-open-cleaner', 'bounds':'[210,60][282,132]'})
         first = smoke.candidate('song-card-1000000019',frame)
         menu = smoke.candidate('song-card-info-1000000019',frame)
         def lookup(key, **kwargs):
@@ -1447,11 +1451,14 @@ Audio playback (lastly played comes first)
             tap.assert_not_called()
 
     def test_header_acceptance_rejects_recorded_font2_clip_and_requires_whole_48dp_controls(self):
-        def frame(search,menu,package=smoke.PACKAGE):
-            return ET.fromstring(f'<hierarchy><node package="{package}" enabled="true" resource-id="library-toggle-search" bounds="{search}"/><node package="{package}" enabled="true" resource-id="library-open-menu" bounds="{menu}"/></hierarchy>')
+        def frame(search,menu,package=smoke.PACKAGE,cleaner='[210,60][282,132]'):
+            return ET.fromstring(f'<hierarchy><node package="{package}" enabled="true" resource-id="library-open-cleaner" bounds="{cleaner}"/><node package="{package}" enabled="true" resource-id="library-toggle-search" bounds="{search}"/><node package="{package}" enabled="true" resource-id="library-open-menu" bounds="{menu}"/></hierarchy>')
         for root in (frame('[399,81][456,138]','[468,81][480,138]'),frame('[390,60][462,132]','[470,60][542,132]'),frame('[300,60][380,132]','[370,60][442,132]'),frame('[294,60][366,132]','[378,60][450,132]','com.android.documentsui')):
             with self.assertRaises(AssertionError):smoke.validate_library_header_touch_areas(root)
         self.assertEqual(smoke.validate_library_header_touch_areas(frame('[294,60][366,132]','[378,60][450,132]'))['menuBounds'],[378,60,450,132])
+        for cleaner in ('[230,60][302,132]', '[210,60][282,115]', '[210,-10][282,62]'):
+            with self.assertRaises(AssertionError):
+                smoke.validate_library_header_touch_areas(frame('[294,60][366,132]','[378,60][450,132]',cleaner=cleaner))
 
     def test_reusing_cases_does_not_append_new_cases_to_original_provenance(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -394,15 +394,16 @@ def screenshot(name):
 
 
 def validate_library_header_touch_areas(frame):
-    controls = [candidate(key,frame) for key in ('library-toggle-search','library-open-menu')]
+    controls = [candidate(key,frame) for key in ('library-open-cleaner','library-toggle-search','library-open-menu')]
     for node in controls:
         assert node is not None and node.get('package') == PACKAGE and node.get('enabled') == 'true', 'Header control missing or not enabled app-owned UI'
         x1,y1,x2,y2 = rect(node)
         assert 0 <= x1 < x2 <= 480 and 0 <= y1 < y2 <= 960, 'Header control is clipped by screen'
         assert x2-x1 >= 72 and y2-y1 >= 72, 'Header control is smaller than 48dp'
-    search,menu = (rect(node) for node in controls)
+    cleaner,search,menu = (rect(node) for node in controls)
+    assert cleaner[2] <= search[0], 'Header cleaner overlaps search'
     assert search[2] <= menu[0], 'Header search overlaps menu'
-    return {'searchBounds':search,'menuBounds':menu}
+    return {'cleanerBounds':cleaner,'searchBounds':search,'menuBounds':menu}
 
 
 def validate_library_panel_background(frame, info_key, read_pixel):

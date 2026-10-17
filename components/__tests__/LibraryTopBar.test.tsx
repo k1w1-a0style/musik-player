@@ -27,6 +27,19 @@ jest.mock('../../contexts/AppThemeContext', () => ({
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryTopBar from '../LibraryTopBar';
 
+test('opens the cleaner inside the existing header and respects import readiness', () => {
+  const onOpenCleaner = jest.fn();
+  const props = { onToggleSearch: jest.fn(), onOpenMenu: jest.fn(), onOpenCleaner };
+  const view = render(<LibraryTopBar {...props} />);
+  const button = view.getByLabelText('Sammlung aufräumen');
+  expect(view.getByTestId('library-top-bar').findByProps({ testID: 'library-open-cleaner' })).toBeTruthy();
+  fireEvent.press(button);
+  expect(onOpenCleaner).toHaveBeenCalledTimes(1);
+  view.rerender(<LibraryTopBar {...props} cleanerDisabled />);
+  fireEvent.press(view.getByLabelText('Sammlung aufräumen'));
+  expect(onOpenCleaner).toHaveBeenCalledTimes(1);
+});
+
 test('renders default title', () => {
   const { getByText } = render(<LibraryTopBar onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);
 

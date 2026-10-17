@@ -1,6 +1,4 @@
 import React from 'react';
-import { View } from 'react-native';
-import { TagCleanerButton } from './TagCleanerButton';
 import { LibrarySelectionProvider, type LibrarySelectionScope } from '../contexts/LibrarySelectionContext';
 import LibrarySelectionActions from './LibrarySelectionActions';
 import type { LibraryImportStatusProps } from './LibraryImportStatus';
@@ -44,8 +42,9 @@ const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
   songPlaylistPickerProps,
 }) => (
   <>
-    <LibraryTopBar {...topBarProps} />
-    {selectionScope&&<View style={{paddingHorizontal:20}}><TagCleanerButton testID="library-open-cleaner" label="Sammlung aufräumen" onPress={()=>selectionScope.onOpenCleaner([])} disabled={menuModalProps.loading||!menuModalProps.isReady}/></View>}
+    <LibraryTopBar {...topBarProps}
+      onOpenCleaner={selectionScope ? () => selectionScope.onOpenCleaner([]) : undefined}
+      cleanerDisabled={menuModalProps.loading || !menuModalProps.isReady} />
 
     <LibraryTabs {...tabsProps} />
     <LibrarySelectionActions />
