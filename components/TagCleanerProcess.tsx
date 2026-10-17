@@ -8,7 +8,8 @@ export const TagCleanerProcess = ({process}:{process:CleanerProcess}) => {
   const {theme}=useAppTheme();
   const reduced=useReducedMotion();
   const value=useRef(new Animated.Value(0)).current;
-  const fraction=process.total>0 ? Math.min(1,process.completed/process.total) : 0;
+  const acknowledged=process.operation==='apply'?process.confirmed:process.completed;
+  const fraction=process.total>0 ? Math.min(1,acknowledged/process.total) : 0;
   useEffect(()=>{
     value.stopAnimation();
     // Advancing directly to the confirmed value never animates ahead of an ACK.
@@ -19,8 +20,9 @@ export const TagCleanerProcess = ({process}:{process:CleanerProcess}) => {
   return <View style={{gap:6}}>
     <Text accessibilityLiveRegion="polite" style={{color:theme.palette.text.secondary}}>{phaseLabels[process.phase]} · {Math.floor(fraction*10)*10} % {process.recoveryPending?'· Bestätigung offen':''}</Text>
     <Text style={{color:theme.palette.text.primary}}>{phaseLabels[process.phase]}: {process.completed} von {process.total} {process.phase==='reading'?'gelesen':'bearbeitet'}</Text>
+    {process.operation==='apply'&&<Text style={{color:theme.palette.text.secondary}}>{process.confirmed} bestätigt · {process.failed} fehlgeschlagen</Text>}
     {active&&!reduced&&<ActivityIndicator color={theme.palette.primary}/>}
-    <View accessible accessibilityRole="progressbar" accessibilityValue={{min:0,max:process.total,now:process.completed}}
+    <View accessible accessibilityRole="progressbar" accessibilityValue={{min:0,max:process.total,now:acknowledged}}
       style={{height:6,backgroundColor:theme.palette.text.secondary,borderRadius:3,overflow:'hidden'}}>
       <Animated.View style={{height:6,backgroundColor:theme.palette.primary,width:value.interpolate({inputRange:[0,1],outputRange:['0%','100%']})}}/>
     </View>

@@ -35,7 +35,7 @@ export const useTagCleaner = (songs: Song[], initialIds: string[] | undefined, u
     busyRef.current=true;setBusy(true);setError('');cancelled.current=false;
     const targets=uniqueCleanerSongs(songsRef.current,ids ?? []);
     const snapshots:CleanerSnapshot[]=[];
-    setProcess({phase:'reading',completed:0,total:targets.length,confirmed:0,failed:0,cancelRequested:false,recoveryPending:false,startedAt:Date.now()});
+    setProcess({operation:'analysis',phase:'reading',completed:0,total:targets.length,confirmed:0,failed:0,cancelRequested:false,recoveryPending:false,startedAt:Date.now()});
     try {
       for(let index=0;index<targets.length;index+=1){
         if(cancelled.current)break;
@@ -59,7 +59,7 @@ export const useTagCleaner = (songs: Song[], initialIds: string[] | undefined, u
     if(!journalReady){setError('Cleaner-Journal noch nicht bestätigt geladen.');return;}
     if(!updateSong){setError('Bestätigte Bibliothek-Persistenz ist nicht verfügbar.');return;}
     busyRef.current=true;cancelled.current=false;setBusy(true);setError('');
-    setProcess({phase:'applying',completed:0,total:confirmedRows.filter(row=>row.changes.some(change=>change.selected&&!change.previewOnly)).length,confirmed:0,failed:0,cancelRequested:false,recoveryPending:false,startedAt:Date.now()});
+    setProcess({operation:'apply',phase:'applying',completed:0,total:confirmedRows.filter(row=>row.changes.some(change=>change.selected&&!change.previewOnly)).length,confirmed:0,failed:0,cancelRequested:false,recoveryPending:false,startedAt:Date.now()});
     try {
       const result=await executeCleanerBatch({rows:confirmedRows,options:{mode,getSongs:()=>songsRef.current,cancelled:()=>cancelled.current,updateSong,
         onProgress:(finished,total,currentJournal)=>{if(mounted.current){setProcess(current=>advanceCleanerProcess(current,finished,total,currentJournal));}},
