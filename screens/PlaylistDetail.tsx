@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type ListRenderItem,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -25,7 +26,7 @@ import { useReorderableSongListDrag } from '../hooks/useNowPlayingQueueDrag';
 import { getQueuePreviewOffset } from '../utils/soundCloudPlayer';
 import PlaylistCleanerButton from '../components/PlaylistCleanerButton';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
-import PlaylistDetailSongRow, { PLAYLIST_DETAIL_ROW_HEIGHT } from './PlaylistDetailSongRow';
+import PlaylistDetailSongRow, { playlistDetailRowHeight } from './PlaylistDetailSongRow';
 
 type PlaylistDetailRoute = RouteProp<AppStackParamList, 'PlaylistDetail'>;
 type PlaylistDetailNavigation = NativeStackNavigationProp<AppStackParamList, 'PlaylistDetail'>;
@@ -36,6 +37,8 @@ const PlaylistDetail: React.FC = () => {
   const route = useRoute<PlaylistDetailRoute>();
   const navigation = useNavigation<PlaylistDetailNavigation>();
   const { theme } = useAppTheme();
+  const { fontScale } = useWindowDimensions();
+  const rowHeight = playlistDetailRowHeight(fontScale);
   const {
     playlists,
     deletePlaylist,
@@ -131,7 +134,7 @@ const PlaylistDetail: React.FC = () => {
     listRef,
     scrollOffsetRef,
     viewportHeightRef,
-    rowHeight: PLAYLIST_DETAIL_ROW_HEIGHT,
+    rowHeight,
     minimumReorderIndex: 0,
     contentHeightOffsetRef: headerHeightRef,
     rowStartOffsetRef,
@@ -191,12 +194,12 @@ const PlaylistDetail: React.FC = () => {
         index,
         dragIndex: dragPreview.index,
         targetIndex: dragPreview.targetIndex,
-        rowHeight: PLAYLIST_DETAIL_ROW_HEIGHT,
+        rowHeight,
       }) : 0}
       dragScrollCompensation={dragPreview?.index === index ? dragScrollCompensation : undefined}
       onReorder={handleReorder} onRemove={confirmRemoveSong} onPlay={handlePlaySong} />
   ), [canMoveSongs, confirmRemoveSong, dragPreview, getScrollOffset, handleDragEnd,
-    handleDragPosition, handleReorder, handlePlaySong, dragScrollCompensation, playlistSongs.length]);
+    handleDragPosition, handleReorder, handlePlaySong, dragScrollCompensation, playlistSongs.length, rowHeight]);
 
   if (!playlist) {
     return (
@@ -411,7 +414,7 @@ const styles = StyleSheet.create({
     marginTop: APP_THEME_TOKENS.spacing.sm,
   },
   playButton: {
-    minHeight: 42,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
@@ -420,7 +423,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   addButton: {
-    minHeight: 42,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
@@ -429,7 +432,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   renameButton: {
-    minHeight: 42,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
@@ -438,7 +441,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: APP_THEME_TOKENS.spacing.md,
   },
   deleteButton: {
-    minHeight: 42,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: APP_THEME_TOKENS.spacing.sm,
@@ -483,7 +486,7 @@ const styles = StyleSheet.create({
     gap: APP_THEME_TOKENS.spacing.sm,
   },
   renameActionButton: {
-    minHeight: 42,
+    minHeight: 48,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: APP_THEME_TOKENS.borderRadius.pill,

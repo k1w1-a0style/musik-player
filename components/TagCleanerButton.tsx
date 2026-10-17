@@ -8,4 +8,4 @@ export const TagCleanerButton = ({label,onPress,disabled=false,testID}: {label:s
     <Text style={{color:theme.palette.text.primary}}>{label}</Text>
   </Pressable>;
 };
-const styles=StyleSheet.create({button:{padding:12,borderWidth:1,borderRadius:10,marginVertical:4}});
+const styles=StyleSheet.create({button:{minHeight:48,minWidth:48,justifyContent:'center',padding:12,borderWidth:1,borderRadius:10,marginVertical:4}});

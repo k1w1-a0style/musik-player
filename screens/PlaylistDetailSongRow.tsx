@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type NativeSyntheticEvent,
 } from 'react-native';
 import { GripVertical, Trash2 } from 'lucide-react-native';
@@ -21,6 +22,7 @@ import SongWaveformStatus from '../components/SongWaveformStatus';
 import type { WaveformStatus } from '../utils/waveformStatus';
 
 export const PLAYLIST_DETAIL_ROW_HEIGHT = 68;
+export const playlistDetailRowHeight = (fontScale: number): number => Math.max(68, Math.ceil(58 * Math.max(1, fontScale) + 10));
 
 interface PlaylistDetailSongRowProps {
   song: Song;
@@ -74,11 +76,13 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
 }: PlaylistDetailSongRowProps) => {
   const { theme } = useAppTheme();
   const preparation = useSongPreparation(song);
+  const { fontScale } = useWindowDimensions();
+  const rowHeight = playlistDetailRowHeight(fontScale);
   const canDrag = canReorder && songCount > 1;
   const drag = useQueueRowDrag({
     index,
     queueLength: songCount,
-    rowHeight: PLAYLIST_DETAIL_ROW_HEIGHT,
+    rowHeight,
     minShiftIndex: 0,
     canDrag,
     getScrollOffset,
@@ -95,7 +99,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
   const artist = displayArtist(song);
   const handleAccessibilityAction = usePlaylistRowAccessibilityAction(index, songCount, onReorder);
   return (
-    <Animated.View style={[styles.animatedRow, { height: PLAYLIST_DETAIL_ROW_HEIGHT,
+    <Animated.View style={[styles.animatedRow, { height: rowHeight,
       transform: [{ translateY }] }, drag.dragging && styles.animatedRowDragging]}
       testID={`playlist-detail-drag-surface-${song.id}`}>
       <Pressable testID={`playlist-detail-song-${song.id}`}
@@ -129,7 +133,7 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           <PanGestureHandler enabled={canDrag} activeOffsetY={[-2, 2]} failOffsetX={[-14, 14]}
             {...drag.handleGestureHandlers} testID={`playlist-detail-drag-handle-${song.id}`}>
             <Animated.View style={[styles.dragHandle, { backgroundColor: theme.palette.surface }]}>
-              <Pressable style={styles.dragHandle} onPress={event => event.stopPropagation()}>
+              <Pressable accessibilityRole="adjustable" accessibilityLabel={`${title} verschieben`} accessibilityActions={[{name:'decrement',label:'Nach oben'},{name:'increment',label:'Nach unten'}]} onAccessibilityAction={handleAccessibilityAction} style={styles.dragHandle} onPress={event => event.stopPropagation()}>
                 <GripVertical color={drag.dragging ? theme.palette.primary : theme.palette.text.muted}
                   size={21} />
               </Pressable>
@@ -163,8 +167,8 @@ const styles = StyleSheet.create({
   songTextWrap: { flex: 1, minWidth: 0 },
   songTitle: { fontFamily: APP_THEME_TOKENS.fonts.heading, fontSize: 14 },
   songSubtitle: { fontFamily: APP_THEME_TOKENS.fonts.body, fontSize: 11, marginTop: 2 },
-  dragHandle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
-  removeSongButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
+  dragHandle: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
+  removeSongButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth, borderRadius: APP_THEME_TOKENS.borderRadius.pill },
 });
 

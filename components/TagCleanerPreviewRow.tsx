@@ -17,7 +17,7 @@ export const TagCleanerPreviewRow=({row,onChange,disabled}:{row:CleanerRow;onCha
     <Text style={[styles.title,{color:theme.palette.text.primary}]}>{row.song.title} · {row.song.artist}</Text>
     <Text style={{color:theme.palette.text.secondary}}>{row.song.album??'Ohne Album'} · {statuses[row.status]}</Text>
     {row.changes.map((change,index)=><View key={`${change.field}-${index}`} style={styles.change}>
-      <Pressable testID={`tag-cleaner-change-${row.song.id}-${change.field}`} accessibilityRole="checkbox" accessibilityState={{checked:change.selected,disabled:disabled||change.previewOnly}} disabled={disabled||change.previewOnly} onPress={()=>toggle(index,change)}>
+      <Pressable testID={`tag-cleaner-change-${row.song.id}-${change.field}`} style={styles.checkbox} accessibilityRole="checkbox" accessibilityState={{checked:change.selected,disabled:disabled||change.previewOnly}} disabled={disabled||change.previewOnly} onPress={()=>toggle(index,change)}>
         <Text style={{color:change.confidence==='safe'?theme.palette.primary:theme.palette.text.primary}}>{change.previewOnly?'↗':change.selected?'☑':'☐'} {fields[change.field]} · {confidence[change.confidence]}{change.previewOnly?' · nur Export':''}</Text>
       </Pressable>
       <Text testID={`tag-cleaner-before-${row.song.id}-${change.field}`} selectable style={{color:theme.palette.text.secondary}}>Vorher: {change.before||'(fehlt)'}</Text>
@@ -29,4 +29,4 @@ export const TagCleanerPreviewRow=({row,onChange,disabled}:{row:CleanerRow;onCha
     {row.notes.map((note,index)=><Text key={index} style={{color:theme.palette.text.secondary}}>{note}</Text>)}
   </View>;
 };
-const styles=StyleSheet.create({card:{padding:12,borderWidth:1,borderRadius:12,marginVertical:6,gap:6},title:{fontSize:16,fontWeight:'600'},change:{gap:5,paddingVertical:6},input:{borderWidth:1,borderRadius:6,padding:10,minHeight:44}});
+const styles=StyleSheet.create({checkbox:{minHeight:48,justifyContent:'center',paddingVertical:8},card:{padding:12,borderWidth:1,borderRadius:12,marginVertical:6,gap:6},title:{fontSize:16,fontWeight:'600'},change:{gap:5,paddingVertical:6},input:{borderWidth:1,borderRadius:6,padding:10,minHeight:48}});
