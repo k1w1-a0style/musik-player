@@ -3,6 +3,8 @@
 
 No Metro, run-as, private database writes, injected playlists or debug APK.
 """
+from androidCleanerGeometry import validate_targets, validate_disjoint
+from androidSettingsNavigation import settings_control_order, color_target_for
 import hashlib
 import http.client
 import base64
@@ -32,6 +34,8 @@ CLEANER_TITLE = 'V5  Cleaner'
 CLEANER_ARTIST = 'V5  Proof'
 CLEANER_TARGET = '/sdcard/Music/V5OnlySAF/V5-cleaner.mp3'
 V5_PROOFS = {}
+COMPACT_SETTINGS = False
+SETTINGS_COLOR_TARGET = 'appAccent'
 UI_SNAPSHOTS = {"compact": 0, "full": 0, "seconds": 0.0}
 RETEST_ONLY_PATHS = frozenset({
     'scripts/ci/androidReleaseInteractionSmoke.py',
@@ -295,26 +299,6 @@ def scroll_query_frame(key):
     return frame
 
 
-def settings_control_order(key):
-    # Exact order in the pinned APK's Settings/Accent/Presentation components.
-    exact = {'settings-cover-bass-pulse':(0,0), 'settings-cover-bass-pulse-option':(0,0),
-             'settings-resume':(1,0), 'settings-resume-enabled':(1,0), 'settings-resume-clear':(1,1),
-             'settings-instant-colors':(3,12), 'settings-quiet-profile':(4,0),
-             'settings-backup':(7,0), 'backup-create':(7,1), 'backup-inspect':(7,2),
-             'backup-select-restore':(7,3), 'settings-tag-cleaner':(8,0), 'settings-theme-preview':(12,0)}
-    if key in exact:
-        return exact[key]
-    families = (('settings-appAccent-',2,ACCENT_IDS), ('settings-playerAccent-',3,ACCENT_IDS),
-                ('settings-density-',5,('standard','compact')), ('settings-waveform-accent-',6,ACCENT_IDS),
-                ('settings-appearance-',9,('dark','light')),
-                ('settings-skin-',10,('graphite','minimal','neon-cover')),
-                ('settings-player-layout-',11,('classic','soundcloud')))
-    for prefix,section,options in families:
-        if key.startswith(prefix) and key[len(prefix):] in options:
-            return section,options.index(key[len(prefix):])
-    return None
-
-
 def settings_scroll_direction(frame, key):
     target = settings_control_order(key)
     if target is None:
@@ -333,6 +317,15 @@ def settings_scroll_direction(frame, key):
 
 
 def scroll_to(key, top=False, limit=24):
+    global SETTINGS_COLOR_TARGET
+    target = color_target_for(key) if COMPACT_SETTINGS else None
+    if target and target != SETTINGS_COLOR_TARGET:
+        tap_node(scroll_to('settings-color-target-' + target, top=True))
+        SETTINGS_COLOR_TARGET = target
+    return scroll_to_visible(key, top, limit)
+
+
+def scroll_to_visible(key, top=False, limit=24):
     down, previous, previous_direction, stable = top, None, None, 0
     # Keep the original total gesture budget. Change direction at an observed
     # boundary, not after ten drags that may stop midway through large text.
@@ -568,7 +561,19 @@ def settings():
     x1,y1,x2,y2 = rect(target)
     assert x2-x1 >= 72 and y2-y1 >= 72, 'Settings menu touch area is smaller than 48dp'
     tap_node(target)
-    find('settings-screen')
+    screen = find('settings-screen')
+    if matches(screen, 'settings-screen'):
+        prepare_settings_groups()
+
+
+def prepare_settings_groups():
+    global COMPACT_SETTINGS, SETTINGS_COLOR_TARGET
+    COMPACT_SETTINGS = False
+    SETTINGS_COLOR_TARGET = 'appAccent'
+    screenshot('compact-settings-home')
+    for group in ('appearance', 'player', 'motion', 'library'):
+        select('settings-group-' + group, top=True)
+    COMPACT_SETTINGS = True
 
 
 def checkbox(key, checked):
@@ -1675,23 +1680,26 @@ def open_cleaner_from_song(title, artist):
 
 
 def validate_cleaner_result(root, mode):
-    expected_status = 'Anzeige gespeichert' if mode == 'display' else 'Datei geändert'
+    expected_status = 'Anzeige gespeichert' if mode == 'display' else 'Datei und Anzeige bestätigt'
     result_text = [node.get('text', '') for node in root.iter('node')]
-    assert any(text.endswith(': ' + expected_status) for text in result_text), 'Cleaner did not confirm durable success'
-    assert any(re.fullmatch(r'1 geprüft · \d+ unverändert · 1 geändert · 0 übersprungen · \d+ Konflikte · 0 fehlgeschlagen · 0 offen / unterbrochen', text)
+    assert expected_status in result_text, 'Cleaner did not confirm durable success'
+    assert any(re.fullmatch(r'1 geprüft · \d+ unverändert · 1 geändert · 0 ausgelassen · 0 fehlgeschlagen · 0 offen / unterbrochen', text)
                for text in result_text), 'Cleaner result contains unresolved or failed operations'
 
 
 def cleaner_apply_dialog(mode):
     select('tag-cleaner-apply', top=True)
     root = tree()
-    expected = 'Bibliotheksanzeige speichern' if mode == 'display' else 'Originaldatei-Tags schreiben'
-    assert any(node.get('text') == expected for node in root.iter('node')), 'Wrong cleaner apply confirmation'
-    button = candidate('android:id/button1', root)
-    assert button is not None and button.get('text', '').lower() == 'ausgewählte änderungen anwenden', 'Exact cleaner apply action absent'
+    expected = 'Nur Bibliotheksanzeige' if mode == 'display' else 'Originaldatei-Tags schreiben'
+    assert any(expected in node.get('text', '') for node in root.iter('node')), 'Wrong cleaner apply confirmation'
+    assert candidate('tag-cleaner-confirm-list', root) is not None, 'Exact change list absent'
+    if mode == 'file':
+        select('tag-cleaner-original-backup-ack', top=True)
+        root = tree()
+    button = candidate('tag-cleaner-confirm-apply', root)
+    assert button is not None and button.get('enabled') == 'true', 'Exact cleaner apply action absent or disabled'
     tap_node(button)
     find('tag-cleaner-result', timeout=90)
-    # A rendered result is insufficient: the acknowledged per-file outcome must pass.
     validate_cleaner_result(tree(), mode)
 
 
@@ -1805,10 +1813,50 @@ def cleaner_acceptance():
     V5_PROOFS['cleaner'].update({'readOnlyPreviewExactBytes': True, 'displayApplyExactOriginalBytes': True, 'coldStartPersisted': True, 'fixture': 'generated synthetic SAF MP3, no user music'})
     settings()
     select('settings-tag-cleaner', top=True)
+    find('tag-cleaner-home')
+    select('tag-cleaner-open-selection', top=True)
     find('Welche Musik möchtest du aufräumen?')
     back()
     back()
     CHECKS.append('V5-settings-longpress-selection-raw-preview-display-ack-cold-start-real-SAF-write-audio-APIC-unknown-frames-preserved')
+
+
+def cleaner_playlist_font_acceptance():
+    backup=json.loads((OUT/'exported-backup.json').read_text())
+    song_id=backup['playlists'][0]['songIds'][0]
+    proofs=[]
+    for appearance in ('dark','light'):
+        settings()
+        select('settings-appearance-'+appearance,top=True)
+        checkbox('settings-quiet-profile',True)
+        back()
+        adb('shell','settings','put','system','font_scale','2.0')
+        wait_uncovered_library_header()
+        library_tab('playlists')
+        select('Playlist V3Backup')
+        remove='playlist-detail-remove-song-'+song_id
+        handle='playlist-detail-drag-handle-'+song_id
+        scroll_to(remove,top=True)
+        geometry=validate_targets(tree(compressed=False),[remove,handle],PACKAGE)
+        validate_disjoint(geometry[remove],geometry[handle])
+        screenshot('cleaner-playlist-font2-'+appearance)
+        back()
+        library_tab('tracks')
+        select('library-open-cleaner',top=True)
+        select('tag-cleaner-open-selection',top=True)
+        select('tag-cleaner-entire-library',top=True)
+        field_proofs={}
+        for field in ('title','artist','albumArtist','album','year','genre','trackNumber','discNumber'):
+            key='tag-cleaner-field-'+field
+            scroll_to(key,top=True)
+            field_proofs.update(validate_targets(tree(compressed=False),[key],PACKAGE))
+        screenshot('cleaner-fields-font2-'+appearance)
+        back()
+        proofs.append({'appearance':appearance,'fontScale':'2.0','playlist':geometry,'fields':field_proofs})
+        adb('shell','settings','put','system','font_scale','1.0')
+        wait_uncovered_library_header()
+    V5_PROOFS['cleanerPlaylistFont2']=proofs
+    CHECKS.append('cleaner-playlist-dark-light-font2-native48dp-disjoint-actions')
 
 
 def validate_matrix_coverage(cases):
@@ -2056,6 +2104,7 @@ def final_stage_acceptance(cleaner_only=False):
     stages = (('SAF backup export, inspection and restore', backup_acceptance),
                           ('V5 independent accents and persistence', accent_acceptance),
                           ('V5 cleaner synthetic SAF transaction', cleaner_acceptance),
+                          ('Cleaner and playlist font2 geometry', cleaner_playlist_font_acceptance),
                           ('font, theme and density matrix', ui_matrix))
     for label, action in stages:
         if cleaner_only and action is accent_acceptance:
@@ -2166,6 +2215,8 @@ def main():
         accent_acceptance()
         print('Stage: V5 cleaner synthetic SAF transaction', flush=True)
         cleaner_acceptance()
+        print('Stage: Cleaner and playlist font2 geometry', flush=True)
+        cleaner_playlist_font_acceptance()
         print('Stage: font, theme and density matrix', flush=True)
         ui_matrix()
         logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')

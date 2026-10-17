@@ -1,4 +1,6 @@
-name: Retest inspected release APK
+# Legacy: immutable historical APK evidence only. For current unchanged source use
+# android-manifest-retest.yml; product changes require ci.yml with [preview apk].
+name: Legacy retest of inspected release APK
 
 on:
   push:

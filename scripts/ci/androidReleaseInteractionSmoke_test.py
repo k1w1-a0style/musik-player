@@ -1334,36 +1334,31 @@ Audio playback (lastly played comes first)
         self.assertEqual(len(smoke.ACCENT_IDS), 12)
         self.assertEqual(len(set(smoke.ACCENT_IDS)), 12)
 
-    def test_cleaner_confirms_only_the_expected_mode_and_exact_apply_action(self):
-        result = ET.fromstring('<hierarchy><node text="synthetic: Anzeige gespeichert"/>'
-                              '<node text="1 geprüft · 0 unverändert · 1 geändert · 0 übersprungen · 0 Konflikte · 0 fehlgeschlagen · 0 offen / unterbrochen"/></hierarchy>')
-        for title, action, mode in [('Bibliotheksanzeige speichern', 'Ausgewählte Änderungen anwenden', 'display'),
-                                    ('Originaldatei-Tags schreiben', 'Ausgewählte Änderungen anwenden', 'display'),
-                                    ('Bibliotheksanzeige speichern', 'Löschen', 'display')]:
+    def test_cleaner_confirms_only_exact_change_list_mode_and_enabled_action(self):
+        result = ET.fromstring('<hierarchy><node text="Anzeige gespeichert"/>'
+                              '<node text="1 geprüft · 0 unverändert · 1 geändert · 0 ausgelassen · 0 fehlgeschlagen · 0 offen / unterbrochen"/></hierarchy>')
+        for title, enabled, listed in [('Nur Bibliotheksanzeige','true',True),('Originaldatei-Tags schreiben','true',True),('Nur Bibliotheksanzeige','false',True),('Nur Bibliotheksanzeige','true',False)]:
             dialog = ET.fromstring(f'<hierarchy><node text="{title}"/>'
-                                  f'<node resource-id="android:id/button1" text="{action}" bounds="[1,1][80,80]"/></hierarchy>')
-            with patch.object(smoke, 'select'), patch.object(smoke, 'find'), patch.object(smoke, 'tap_node') as tapped, patch.object(smoke, 'tree', side_effect=[dialog, result]):
-                if title == 'Bibliotheksanzeige speichern' and action.startswith('Ausgewählte'):
-                    smoke.cleaner_apply_dialog(mode)
-                    tapped.assert_called_once()
+                                  f'<node resource-id="tag-cleaner-confirm-apply" enabled="{enabled}" bounds="[1,1][80,80]"/>'
+                                  + ('<node resource-id="tag-cleaner-confirm-list" bounds="[1,100][400,500]"/>' if listed else '') + '</hierarchy>')
+            with patch.object(smoke,'select'),patch.object(smoke,'find'),patch.object(smoke,'tap_node') as tapped,patch.object(smoke,'tree',side_effect=[dialog,result]):
+                if title=='Nur Bibliotheksanzeige' and enabled=='true' and listed:
+                    smoke.cleaner_apply_dialog('display');tapped.assert_called_once()
                 else:
-                    with self.assertRaises(AssertionError):
-                        smoke.cleaner_apply_dialog(mode)
+                    with self.assertRaises(AssertionError):smoke.cleaner_apply_dialog('display')
                     tapped.assert_not_called()
 
     def test_cleaner_result_rejects_failed_pending_skipped_or_other_mode_success(self):
-        summary = '1 geprüft · 0 unverändert · 1 geändert · 0 übersprungen · 0 Konflikte · 0 fehlgeschlagen · 0 offen / unterbrochen'
-        valid = ET.fromstring(f'<hierarchy><node text="synthetic: Datei geändert"/><node text="{summary}"/></hierarchy>')
-        smoke.validate_cleaner_result(valid, 'file')
-        for status, text in [('synthetic: Datei geändert', summary.replace('0 fehlgeschlagen', '1 fehlgeschlagen')),
-                             ('synthetic: Datei geändert', summary.replace('0 offen / unterbrochen', '1 offen / unterbrochen')),
-                             ('synthetic: Datei geändert', summary.replace('0 übersprungen', '1 übersprungen')),
-                             ('synthetic: Datei geändert', summary.replace('1 geprüft', '11 geprüft')),
-                             ('synthetic: Anzeige gespeichert', summary),
-                             ('synthetic: fehlgeschlagen', summary)]:
-            root = ET.fromstring(f'<hierarchy><node text="{status}"/><node text="{text}"/></hierarchy>')
-            with self.assertRaises(AssertionError):
-                smoke.validate_cleaner_result(root, 'file')
+        summary='1 geprüft · 0 unverändert · 1 geändert · 0 ausgelassen · 0 fehlgeschlagen · 0 offen / unterbrochen'
+        valid=ET.fromstring(f'<hierarchy><node text="Datei und Anzeige bestätigt"/><node text="{summary}"/></hierarchy>')
+        smoke.validate_cleaner_result(valid,'file')
+        for status,text in [('Datei und Anzeige bestätigt',summary.replace('0 fehlgeschlagen','1 fehlgeschlagen')),
+                            ('Datei und Anzeige bestätigt',summary.replace('0 offen / unterbrochen','1 offen / unterbrochen')),
+                            ('Datei und Anzeige bestätigt',summary.replace('0 ausgelassen','1 ausgelassen')),
+                            ('Datei und Anzeige bestätigt',summary.replace('1 geprüft','11 geprüft')),
+                            ('Anzeige gespeichert',summary),('Datei geändert – Anzeige nicht bestätigt',summary)]:
+            root=ET.fromstring(f'<hierarchy><node text="{status}"/><node text="{text}"/></hierarchy>')
+            with self.assertRaises(AssertionError):smoke.validate_cleaner_result(root,'file')
 
     def test_settings_scrolls_real_library_menu_and_requires_owned_whole_action(self):
         node = ET.fromstring(f'<node package="{smoke.PACKAGE}" enabled="true" bounds="[70,700][443,792]"/>')
@@ -1405,8 +1400,9 @@ Audio playback (lastly played comes first)
 
     def test_settings_order_uses_exact_owned_observed_controls_and_source_option_order(self):
         root=ET.fromstring(f'<hierarchy><node resource-id="settings-scroll" package="{smoke.PACKAGE}" class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,960]"><node package="{smoke.PACKAGE}" resource-id="settings-tag-cleaner" bounds="[47,457][434,540]"/><node package="{smoke.PACKAGE}" resource-id="settings-appearance-dark" bounds="[21,667][459,871]"/></node></hierarchy>')
-        self.assertIs(smoke.settings_scroll_direction(root,'settings-skin-minimal'),False)
-        self.assertIs(smoke.settings_scroll_direction(root,'settings-quiet-profile'),True)
+        self.assertIsNone(smoke.settings_scroll_direction(root,'settings-skin-minimal'))
+        self.assertIsNone(smoke.settings_scroll_direction(root,'settings-quiet-profile'))
+        self.assertIs(smoke.settings_scroll_direction(root,'settings-color-target-appAccent'),True)
         self.assertIsNone(smoke.settings_scroll_direction(root,'settings-unknown-option'))
         for field,value in (('package','com.android.documentsui'),('resource-id','other-scroll')):
             bad=ET.fromstring(ET.tostring(root));bad[0].set(field,value)
