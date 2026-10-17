@@ -4,6 +4,7 @@ import type { CleanerJournal, CleanerJournalEntry, CleanerProcess, CleanerRow } 
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { TagCleanerButton } from './TagCleanerButton';
 import { cleanerEntryNeedsRecovery } from '../utils/tagCleanerModel';
+import { TagCleanerProcess } from './TagCleanerProcess';
 const statusLabels={planned:'geplant',pending:'Bestätigung / Recovery offen',displayed:'Anzeige gespeichert',written:'Datei und Anzeige bestätigt',skipped:'ausgelassen',failed:'fehlgeschlagen',interrupted:'unterbrochen'};
 export const cleanerResultLabel=(entry:CleanerJournalEntry):string=>{
   if(entry.writeResult?.recoveryPending)return 'Wiederherstellung offen – Dateizustand prüfen';
@@ -28,6 +29,7 @@ export const TagCleanerResult=({rows,journal,process,onExport,onChoose}:{rows:Cl
   return <View style={{flex:1,gap:8}}><Text testID="tag-cleaner-result" style={{color:theme.palette.text.primary,fontSize:20}}>D · Ergebnis</Text>
     <FlatList testID="tag-cleaner-result-list" data={filtered} keyExtractor={entry=>entry.songId} initialNumToRender={10} windowSize={5}
       ListHeaderComponent={<View style={{gap:8}}>
+        {process&&process.phase!=='idle'&&<TagCleanerProcess process={process}/>}
         {!!pending&&<Text accessibilityRole="alert" style={{color:theme.palette.text.primary}}>Dateiabschluss, Wiederherstellung oder Abschlussbereinigung noch offen. Bericht prüfen; nicht erneut schreiben.</Text>}
         {process?.phase==='cancelled'&&<Text style={{color:theme.palette.text.primary}}>Abgebrochen: {process.completed} von {process.total} bearbeitet · {process.recoveryPending?'Keine neue Datei gestartet · Bestätigung / Recovery offen':'0 neue Dateien in Arbeit'}</Text>}
         <Text style={{color:theme.palette.text.primary}}>{rows.length||entries.length} geprüft · {rows.filter(r=>r.status==='clean').length} unverändert · {changed} geändert · {skipped} ausgelassen · {failed} fehlgeschlagen · {pending} offen / unterbrochen</Text>

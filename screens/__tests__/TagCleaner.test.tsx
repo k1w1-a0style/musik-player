@@ -10,7 +10,7 @@ import type { Song } from '../../types/Song';
 const mockSong:Song={id:'cleaner-test',title:'  Clean title  ',artist:'Artist',uri:'file:///readonly.flac',fileInfo:{extension:'flac',filename:'readonly.flac'}};
 let mockParams:{songIds?:string[]}|undefined={songIds:[mockSong.id]};
 const mockPopToTop=jest.fn();
-const mockUpdate=jest.fn(async()=>undefined);
+const mockUpdate=jest.fn(async():Promise<void>=>undefined);
 const mockRead=jest.fn(async(..._args:unknown[])=>({tags:{title:'Raw title',artist:'Artist'},inventory:[],verified:false,error:'Format: Vorschau / Export'}));
 jest.mock('../../hooks/useReducedMotion',()=>({useReducedMotion:()=>true}));
 jest.mock('@react-navigation/native',()=>({useNavigation:()=>({popToTop:mockPopToTop,navigate:jest.fn()}),usePreventRemove:jest.fn(),useRoute:()=>({key:'Cleaner',name:'TagCleaner',params:mockParams})}));
@@ -29,12 +29,14 @@ test('wizard defaults to display, preview is read-only, explicit apply waits for
  await waitFor(()=>expect(screen.getByTestId(`tag-cleaner-before-${mockSong.id}-title`)).toBeTruthy());
  expect(mockUpdate).not.toHaveBeenCalled();expect(mockRead).toHaveBeenCalledTimes(1);
  expect(screen.getByTestId(`tag-cleaner-after-${mockSong.id}-title`).props.value).toBe('Clean title');
+ expect(screen.getByTestId('tag-cleaner-preview-list').findByProps({accessibilityRole:'progressbar'})).toBeTruthy();
  fireEvent.press(screen.getByTestId('tag-cleaner-apply'));
  expect(screen.getByTestId('tag-cleaner-confirm-list')).toBeTruthy();
  expect(mockUpdate).not.toHaveBeenCalled();
  fireEvent.press(screen.getByTestId('tag-cleaner-confirm-apply'));
  await waitFor(()=>expect(screen.getByTestId('tag-cleaner-result')).toBeTruthy());
  expect(mockUpdate).toHaveBeenCalledWith(mockSong.id,{title:'Clean title'});
+ expect(screen.getByTestId('tag-cleaner-result-list').findByProps({accessibilityRole:'progressbar'})).toBeTruthy();
  expect(screen.getByText(/1 geändert/)).toBeTruthy();expect(screen.queryByText('Rückgängig')).toBeNull();
 });
 test('settings entry without params opens shared source chooser and routes selection into rules',async()=>{
@@ -43,6 +45,22 @@ test('settings entry without params opens shared source chooser and routes selec
  expect(screen.getByText('Welche Musik möchtest du aufräumen?')).toBeTruthy();
  fireEvent.press(screen.getByText('Gesamte Bibliothek (1)'));
  expect(screen.getByText('A · 1 eindeutige Titel')).toBeTruthy();expect(mockRead).not.toHaveBeenCalled();
+});
+test('active apply keeps progress and orderly stop visible without the completed-preview footer',async()=>{
+ let finish!:()=>void;
+ mockUpdate.mockImplementationOnce(()=>new Promise<void>(resolve=>{finish=resolve;}));
+ const view=render(<TagCleaner/>);await act(async()=>{});
+ fireEvent.press(view.getByTestId('tag-cleaner-analyze'));
+ await waitFor(()=>expect(view.getByTestId('tag-cleaner-apply')).toBeTruthy());
+ fireEvent.press(view.getByTestId('tag-cleaner-apply'));
+ fireEvent.press(view.getByTestId('tag-cleaner-confirm-apply'));
+ await waitFor(()=>expect(mockUpdate).toHaveBeenCalled());
+ expect(view.queryByTestId('tag-cleaner-preview-list')).toBeNull();
+ expect(view.queryByTestId('tag-cleaner-apply')).toBeNull();
+ expect(view.getByRole('progressbar')).toBeTruthy();
+ expect(view.getByTestId('tag-cleaner-cancel')).toBeTruthy();
+ await act(async()=>{finish();});
+ await waitFor(()=>expect(view.getByTestId('tag-cleaner-result')).toBeTruthy());
 });
 test('uncertain field requires individual confirmation; editing invalidates old confirmation and filename stays preview-only',()=>{
  const input:Song={id:'review',title:'Title - www.example.com/x',artist:'Artist',fileInfo:{filename:'01 - Wrong - Title.mp3'}};

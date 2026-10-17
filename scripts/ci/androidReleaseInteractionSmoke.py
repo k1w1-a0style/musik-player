@@ -1870,8 +1870,17 @@ def cleaner_playlist_font_acceptance():
             scroll_to(key,top=True)
             field_proofs.update(validate_targets(tree(compressed=False),[key],PACKAGE))
         screenshot('cleaner-fields-font2-'+appearance)
+        select('tag-cleaner-analyze',top=True)
+        find('tag-cleaner-preview-list',timeout=120)
+        scroll_to('tag-cleaner-tools',top=True)
+        frame=tree(compressed=False)
+        preview_geometry=validate_targets(frame,['tag-cleaner-tools','tag-cleaner-apply'],PACKAGE)
+        validate_disjoint(preview_geometry['tag-cleaner-tools'],preview_geometry['tag-cleaner-apply'])
+        viewport=rect(candidate('tag-cleaner-preview-list',frame))
+        assert viewport[3]-viewport[1]>=72,'Completed cleaner process leaves no usable font2 preview viewport'
+        screenshot('cleaner-preview-font2-'+appearance)
         back()
-        proofs.append({'appearance':appearance,'fontScale':'2.0','playlist':geometry,'fields':field_proofs,'result':result_geometry})
+        proofs.append({'appearance':appearance,'fontScale':'2.0','playlist':geometry,'fields':field_proofs,'result':result_geometry,'preview':preview_geometry,'previewViewport':viewport})
         adb('shell','settings','put','system','font_scale','1.0')
         wait_uncovered_library_header()
     V5_PROOFS['cleanerPlaylistFont2']=proofs

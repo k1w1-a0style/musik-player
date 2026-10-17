@@ -1,17 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, Text, TextInput, View, StyleSheet } from 'react-native';
-import type { CleanerChange, CleanerRow } from '../types/TagCleaner';
+import type { CleanerChange, CleanerProcess, CleanerRow } from '../types/TagCleaner';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { TagCleanerButton } from './TagCleanerButton';
 import { TagCleanerPreviewRow } from './TagCleanerPreviewRow';
 import { selectedCleanerTags } from '../utils/tagCleanerRules';
+import { TagCleanerProcess } from './TagCleanerProcess';
 const statusOptions=['all','clean','proposal','readonly','conflict','unreadable'] as const;
 const statusLabels=['alle','bereits sauber','Vorschlag','nicht beschreibbar','Konflikt','Original unbestätigt'];
 const confidenceLabels=['alle','sicher','prüfen','unsicher'];
 const fieldLabels=['alle','Titel','Interpret','Albuminterpret','Album','Track','Disc','Genre','Jahr','Kommentar','Dateiname','Website','Ordner'];
 const confidenceOptions=['all','safe','review','uncertain'] as const;
 const fieldOptions=['all','title','artist','albumArtist','album','trackNumber','discNumber','genre','year','comment','filename','website','folder'] as const;
-export const TagCleanerPreview=({rows,busy,onChange,onSafe,onApply,onExport,onRules}:{rows:CleanerRow[];busy:boolean;onChange:(id:string,index:number,patch:Partial<CleanerChange>)=>void;onSafe:(ids?:readonly string[])=>void;onApply:()=>void;onExport:()=>void;onRules:()=>void})=>{
+export const TagCleanerPreview=({rows,busy,process,onChange,onSafe,onApply,onExport,onRules}:{rows:CleanerRow[];busy:boolean;process?:CleanerProcess;onChange:(id:string,index:number,patch:Partial<CleanerChange>)=>void;onSafe:(ids?:readonly string[])=>void;onApply:()=>void;onExport:()=>void;onRules:()=>void})=>{
   const {theme}=useAppTheme();
   const [status,setStatus]=useState(0),[confidence,setConfidence]=useState(0),[field,setField]=useState(0);
   const [filtersOpen,setFiltersOpen]=useState(false);
@@ -27,6 +28,7 @@ export const TagCleanerPreview=({rows,busy,onChange,onSafe,onApply,onExport,onRu
   const selected=rows.filter(row=>Object.keys(selectedCleanerTags(row)).length>0).length;
   const visibleSelected=filtered.filter(row=>Object.keys(selectedCleanerTags(row)).length>0).length;
   const header=<View style={styles.header}>
+    {process&&process.phase!=='idle'&&<TagCleanerProcess process={process}/>}
     <TagCleanerButton testID="tag-cleaner-filters" label={filtersOpen?'Filter schließen':'Filter öffnen'} onPress={()=>setFiltersOpen(!filtersOpen)}/>
     <TagCleanerButton testID="tag-cleaner-tools" label={toolsOpen?'Auswahl & Werkzeuge schließen':'Auswahl & Werkzeuge'} onPress={()=>setToolsOpen(!toolsOpen)}/>
     {toolsOpen&&<View style={styles.header}>    <View style={styles.filters}>
@@ -40,7 +42,7 @@ export const TagCleanerPreview=({rows,busy,onChange,onSafe,onApply,onExport,onRu
     </View>}
   </View>;
   return <View style={{flex:1,gap:6}}>
-    <FlatList data={filtered} keyExtractor={row=>row.song.id} ListHeaderComponent={header} initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5}
+    <FlatList testID="tag-cleaner-preview-list" data={filtered} keyExtractor={row=>row.song.id} ListHeaderComponent={header} initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5}
       ListEmptyComponent={<Text style={{color:theme.palette.text.secondary}}>Keine Titel für diese Filter.</Text>}
       renderItem={({item})=><TagCleanerPreviewRow row={item} disabled={busy} onChange={(index,patch)=>onChange(item.song.id,index,patch)}/>} />
     <Text accessibilityLiveRegion="polite" style={{color:theme.palette.text.primary}}>Sichtbar: {filtered.length} · Insgesamt ausgewählt: {selected} · Außerhalb Filter: {selected-visibleSelected}</Text>

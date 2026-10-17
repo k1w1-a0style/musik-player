@@ -14,7 +14,7 @@ import { TagCleanerButton } from '../components/TagCleanerButton';
 import type { ScanFolder } from '../types/ScanFolder';
 import { getScanFolders } from '../utils/storage';
 import { uniqueCleanerSongs } from '../utils/tagCleanerSelection';
-import type { CleanerRow } from '../types/TagCleaner';
+import type { CleanerJournal, CleanerRow } from '../types/TagCleaner';
 import { TagCleanerConfirmation } from '../components/TagCleanerConfirmation';
 import { TagCleanerHome } from '../components/TagCleanerHome';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,6 +22,12 @@ import type { AppStackParamList } from '../types/navigation';
 import { TagCleanerProcess } from '../components/TagCleanerProcess';
 import { cleanerEntryNeedsRecovery } from '../utils/tagCleanerModel';
 type CleanerRoute=RouteProp<{TagCleaner:{songIds?:string[]}|undefined},'TagCleaner'>;
+const CleanerJournalNotice=({journal,color}:{journal?:CleanerJournal;color:string})=>journal?.entries.some(cleanerEntryNeedsRecovery)
+  ? <Text style={{color}}>Ein früherer Dateiabschluss, eine Wiederherstellung oder Abschlussbereinigung ist noch offen. Nicht erneut schreiben; letzten Lauf und Bericht prüfen.</Text> : null;
+const CleanerRulesStage=({state,count,onChoose}:{state:ReturnType<typeof useTagCleaner>;count:number;onChoose:()=>void})=><ScrollView>
+  {!state.busy&&state.process.phase!=='idle'&&<TagCleanerProcess process={state.process}/>}
+  <TagCleanerRulesPanel count={count} rules={state.rules} fields={state.fields} onFields={state.changeFields} mode={state.mode} onRule={state.configure} onMode={state.changeMode} onProfile={state.profile} onAnalyze={()=>void state.analyze()} onChoose={onChoose} busy={state.busy}/>
+</ScrollView>;
 const TagCleaner=()=>{
   const route=useRoute<CleanerRoute>();
   const navigation=useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -40,13 +46,12 @@ const TagCleaner=()=>{
     <Text style={{color:theme.palette.text.primary,fontSize:22,fontWeight:'600'}}>Musiksammlung aufräumen</Text>
     {!!state.error&&<Text accessibilityRole="alert" style={{color:theme.palette.text.primary}}>{state.error}</Text>}
     {!!folderError&&<Text style={{color:theme.palette.text.secondary}}>{folderError}</Text>}
-    {!!state.journal?.entries.some(cleanerEntryNeedsRecovery)&&<Text style={{color:theme.palette.text.secondary}}>Ein früherer Dateiabschluss, eine Wiederherstellung oder Abschlussbereinigung ist noch offen. Nicht erneut schreiben; letzten Lauf und Bericht prüfen.</Text>}
-    {state.process.phase!=='idle'&&<TagCleanerProcess process={state.process}/>}
-    {state.busy&&<View><TagCleanerButton testID="tag-cleaner-cancel" label="Nach laufender Datei abbrechen" onPress={state.cancel}/></View>}
+    <CleanerJournalNotice journal={state.journal} color={theme.palette.text.secondary}/>
+    {state.busy&&<View style={{flex:1,gap:10}}><ScrollView><TagCleanerProcess process={state.process}/></ScrollView><TagCleanerButton testID="tag-cleaner-cancel" label="Nach laufender Datei abbrechen" onPress={state.cancel}/></View>}
     {state.stage==='selection'&&home&&<TagCleanerHome count={uniqueCleanerSongs(library.songs).length} hasResult={!!state.journal} onChoose={()=>setHome(false)} onSources={()=>navigation.popToTop()} onResult={state.showLastResult}/>}
     {state.stage==='selection'&&!home&&<TagCleanerChooser initialIds={state.ids} songs={library.songs} playlists={library.playlists} folders={folders} onSelect={state.select}/>}
-    {state.stage==='rules'&&<ScrollView><TagCleanerRulesPanel count={uniqueCleanerSongs(library.songs,state.ids??[]).length} rules={state.rules} fields={state.fields} onFields={state.changeFields} mode={state.mode} onRule={state.configure} onMode={state.changeMode} onProfile={state.profile} onAnalyze={()=>void state.analyze()} onChoose={()=>{state.chooseAgain();setHome(true);}} busy={state.busy}/></ScrollView>}
-    {state.stage==='preview'&&<TagCleanerPreview rows={state.rows} busy={state.busy} onChange={state.changeRow} onSafe={state.selectSafe} onApply={confirmApply} onExport={()=>void state.exportReport()} onRules={()=>state.configure({})}/>}
+    {state.stage==='rules'&&!state.busy&&<CleanerRulesStage state={state} count={uniqueCleanerSongs(library.songs,state.ids??[]).length} onChoose={()=>{state.chooseAgain();setHome(true);}}/>}
+    {state.stage==='preview'&&!state.busy&&<TagCleanerPreview rows={state.rows} process={state.process} busy={state.busy} onChange={state.changeRow} onSafe={state.selectSafe} onApply={confirmApply} onExport={()=>void state.exportReport()} onRules={()=>state.configure({})}/>}
     {state.stage==='result'&&<TagCleanerResult rows={state.rows} journal={state.journal} process={state.process} onExport={()=>void state.exportReport()} onChoose={()=>{state.chooseAgain();setHome(true);}}/>}
     {confirmation&&<TagCleanerConfirmation rows={confirmation} mode={state.mode} onClose={()=>setConfirmation(undefined)} onApply={()=>{setConfirmation(undefined);void state.apply(confirmation);}}/>}
   </Screen></AppBackground>;
