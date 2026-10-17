@@ -457,10 +457,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libpulse0
           ldd "$ANDROID_HOME/emulator/qemu/linux-x86_64/qemu-system-x86_64" | tee "$RUNNER_TEMP/emulator-verified-libraries.txt"
-          if rg "not found" "$RUNNER_TEMP/emulator-verified-libraries.txt"; then
-            echo "::error::Unresolved native emulator runtime dependency."
-            exit 1
-          fi
+          python3 scripts/ci/verifyEmulatorLibraries.py "$RUNNER_TEMP/emulator-verified-libraries.txt"
           "$ANDROID_HOME/emulator/emulator" -version
           test -x "$ANDROID_HOME/platform-tools/adb"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \

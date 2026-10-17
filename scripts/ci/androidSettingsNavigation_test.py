@@ -16,6 +16,6 @@ class CleanerPreviewNavigationTest(unittest.TestCase):
         from unittest.mock import patch
         import androidReleaseInteractionSmoke as smoke
         actions=[]
-        with patch.object(smoke,'find',side_effect=lambda key,**kwargs:actions.append(('find',key))),patch.object(smoke,'select',side_effect=lambda key,**kwargs:actions.append(('select',key))):
+        with patch.object(smoke,'find',side_effect=lambda key,**kwargs:actions.append(('find',key))),patch.object(smoke,'select',side_effect=lambda key,**kwargs:actions.append(('select',key))),patch.object(smoke,'scroll_to',side_effect=lambda key,**kwargs:actions.append(('scroll',key))):
             smoke.wait_cleaner_preview_tools()
-        self.assertEqual(actions,[('find','tag-cleaner-apply'),('select','tag-cleaner-tools'),('find','tag-cleaner-select-safe')])
+        self.assertEqual(actions,[('find','tag-cleaner-apply'),('select','tag-cleaner-tools'),('scroll','tag-cleaner-select-safe')])

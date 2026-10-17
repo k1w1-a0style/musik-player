@@ -1687,7 +1687,7 @@ def open_cleaner_from_song(title, artist):
 def wait_cleaner_preview_tools():
     find('tag-cleaner-apply',timeout=90)
     select('tag-cleaner-tools',top=True)
-    find('tag-cleaner-select-safe')
+    scroll_to('tag-cleaner-select-safe',top=True)
 
 
 def validate_cleaner_result(root, mode, entry_root=None):

@@ -1411,6 +1411,20 @@ Audio playback (lastly played comes first)
                     with self.assertRaises(AssertionError):smoke.cleaner_apply_dialog('display')
                     tapped.assert_not_called()
 
+    def test_font2_cleaner_tools_must_scroll_to_offscreen_safe_selection(self):
+        # Run 39076906825 / artifact 12118175468: the expanded tools start at
+        # y=543 in a list ending at y=587. Their safe action is initially offscreen.
+        events=[]
+        def visible_find(key, **kwargs):
+            events.append(('find',key))
+            if key=='tag-cleaner-select-safe':
+                raise AssertionError('Native font2 safe action is outside the current viewport')
+        with patch.object(smoke,'find',side_effect=visible_find), \
+             patch.object(smoke,'select',side_effect=lambda key,**k:events.append(('open',key))), \
+             patch.object(smoke,'scroll_to',side_effect=lambda key,**k:events.append(('scroll',key))):
+            smoke.wait_cleaner_preview_tools()
+        self.assertEqual(events,[('find','tag-cleaner-apply'),('open','tag-cleaner-tools'),('scroll','tag-cleaner-select-safe')])
+
     def test_cleaner_result_rejects_failed_pending_skipped_or_other_mode_success(self):
         summary='1 geprüft · 0 unverändert · 1 geändert · 0 ausgelassen · 0 fehlgeschlagen · 0 offen / unterbrochen'
         valid=ET.fromstring(f'<hierarchy><node text="Datei und Anzeige bestätigt"/><node text="{summary}"/></hierarchy>')
