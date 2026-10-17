@@ -828,6 +828,9 @@ def generated_audio():
 
 
 def play_title(title):
+    # Native stacks retain enabled library nodes beneath the closing player.
+    # Wait for the foreground route before deriving any song tap coordinates.
+    wait_uncovered_library_header()
     node = scroll_to(title + ' von V3 Proof', top=True)
     tap_node(node)
     # Existing mini-player UI can still represent the previous selection.
@@ -1599,7 +1602,8 @@ def wait_uncovered_library_header(timeout=60):
         node = candidate('library-open-menu', frame)
         safe = (node is not None and node.get('package') == PACKAGE
                 and node.get('enabled') == 'true' and visible(node)
-                and candidate('playback-recovery-banner', frame) is None)
+                and candidate('playback-recovery-banner', frame) is None
+                and candidate('now-playing-screen', frame) is None)
         bounds = rect(node) if safe else None
         stable = stable + 1 if bounds is not None and bounds == previous else 0
         previous = bounds

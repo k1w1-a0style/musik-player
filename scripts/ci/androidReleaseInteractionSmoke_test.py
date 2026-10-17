@@ -845,6 +845,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
              patch.object(smoke, 'back'), patch.object(smoke, 'screenshot'), \
              patch.object(smoke, 'tree'), patch.object(smoke, 'import_confirmation_button'), \
              patch.object(smoke, 'wait_collection_idle'), \
+             patch.object(smoke, 'wait_uncovered_library_header', return_value=self.header_frame()), \
              patch.object(smoke, 'choose_folder'), patch.object(smoke, 'adb'), \
              patch.object(smoke.subprocess, 'run'), patch.object(smoke, 'assert_duration') as duration, \
              patch.object(smoke, 'scroll_to', return_value=row) as scroll, \
@@ -1210,10 +1211,30 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_public_song_tap_requires_its_native_title_ack_before_opening_player(self):
         node = ET.fromstring('<node bounds="[28,500][290,583]"/>')
-        with patch.object(smoke,'scroll_to',return_value=node), patch.object(smoke,'tap_node') as tap, patch.object(smoke,'wait_selected_session') as ack, patch.object(smoke,'find'):
+        with patch.object(smoke,'wait_uncovered_library_header') as uncovered, patch.object(smoke,'scroll_to',return_value=node), patch.object(smoke,'tap_node') as tap, patch.object(smoke,'wait_selected_session') as ack, patch.object(smoke,'find'):
             smoke.play_title('V3 SAF')
+            uncovered.assert_called_once()
             tap.assert_called_once_with(node)
             ack.assert_called_once_with('V3 SAF')
+
+    def test_recorded_player_overlay_cannot_expose_underlying_song_to_input(self):
+        # Run 39073420914, artifact 12117515382: Android reports enabled library
+        # rows beneath the actual full-screen player during its closing transition.
+        overlay = ET.parse(Path(__file__).parent/'fixtures/player-over-library.xml').getroot()
+        self.assertIsNotNone(smoke.candidate('V3 M4A von V3 Proof', overlay))
+        self.assertIsNotNone(smoke.candidate('now-playing-screen', overlay))
+        ready = self.header_frame()
+        events = []
+        frames = [overlay, overlay, overlay, ready, ready, ready]
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'tree',side_effect=lambda **kwargs: events.append('frame') or frames.pop(0)), \
+             patch.object(smoke.time,'sleep'), \
+             patch.object(smoke,'scroll_to',side_effect=lambda *a,**k: events.append('locate') or ET.fromstring('<node bounds="[28,545][290,628]"/>')), \
+             patch.object(smoke,'tap_node',side_effect=lambda n: events.append('tap')), \
+             patch.object(smoke,'wait_selected_session',side_effect=lambda title:events.append('native-title-ack')), patch.object(smoke,'find'):
+            smoke.play_title('V3 M4A')
+        self.assertEqual(events, ['frame']*6+['locate','tap','native-title-ack'],
+                         'Underlying library was tapped before the player left the foreground')
 
     def test_missing_or_offscreen_vertical_surface_is_not_touched(self):
         for bounds in ('[12,970][468,1100]', '[-20,220][468,780]', '[12,688][468,710]'):

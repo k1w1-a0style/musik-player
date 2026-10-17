@@ -23,7 +23,9 @@ jobs:
   inspected-apk:
     if: github.ref == 'refs/heads/codex'
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    # Complete fresh 36-case matrix plus native playback, SAF, backup and restart.
+    # Match the source-APK acceptance budget; retain every assertion.
+    timeout-minutes: 120
     env:
       PACKAGE_NAME: com.k1w1a0style.musikplayer
       AVD_NAME: musik-preview-api-35
