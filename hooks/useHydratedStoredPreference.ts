@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { Alert } from 'react-native';
 import { assertPersistenceEpoch, capturePersistenceEpoch, trackPersistenceWork } from '../utils/persistenceMaintenance';
+
+const showPreferenceWriteFailure = (retry:()=>void):void => Alert.alert('Einstellung nicht gespeichert',
+  'Die letzte bestätigte Auswahl wurde wiederhergestellt.', [{text:'OK',style:'cancel'},{text:'Erneut versuchen',onPress:retry}]);
 
 interface HydratedStoredPreferenceOptions<T> {
   defaultValue: T;
@@ -31,6 +35,7 @@ export const useHydratedStoredPreference = <T,>({
   const [value, setValueState] = useState<T>(normalizedDefault);
   const [isHydrated, setIsHydrated] = useState(false);
   const mountedRef = useRef(false);
+  const retryRef = useRef<Dispatch<SetStateAction<T>>>(()=>undefined);
   const valueRef = useRef<T>(normalizedDefault);
   const persistedValueRef = useRef<T>(normalizedDefault);
   const requestIdRef = useRef(0);
@@ -39,8 +44,7 @@ export const useHydratedStoredPreference = <T,>({
   const epochRef = useRef(capturePersistenceEpoch());
   useEffect(() => {
     mountedRef.current = true;
-    const requestIdAtStart = requestIdRef.current;
-    const successfulRequestIdAtStart = successfulRequestIdRef.current;
+    const requestIdAtStart = requestIdRef.current, successfulRequestIdAtStart = successfulRequestIdRef.current;
 
     void load()
       .then(storedValue => {
@@ -68,15 +72,12 @@ export const useHydratedStoredPreference = <T,>({
       mountedRef.current = false;
     };
   }, [label, load, normalize]);
-
   const setValue = useCallback<Dispatch<SetStateAction<T>>>((action) => {
-    const previous = valueRef.current;
     const requested = typeof action === 'function'
-      ? (action as (previousValue: T) => T)(previous)
+      ? (action as (previousValue: T) => T)(valueRef.current)
       : action;
     const next = normalize(requested);
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
+    const requestId = ++requestIdRef.current;
     valueRef.current = next;
     if (mountedRef.current) setValueState(next);
     writeQueueRef.current = trackPersistenceWork(writeQueueRef.current
@@ -93,9 +94,13 @@ export const useHydratedStoredPreference = <T,>({
             const fallback = persistedValueRef.current;
             valueRef.current = fallback;
             setValueState(fallback);
+            showPreferenceWriteFailure(() => {
+              if (mountedRef.current && requestIdRef.current === requestId) retryRef.current(next);
+            });
           }
         }
       }));
   }, [label, normalize, persist]);
+  retryRef.current = setValue;
   return { value, setValue, isHydrated };
 };

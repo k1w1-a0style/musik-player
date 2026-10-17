@@ -17,6 +17,12 @@ import {
   type NowPlayingPlayerLayout,
 } from '../../utils/nowPlayingControlsMode';
 
+const renderSettings = (navigation?: NativeStackNavigationProp<AppStackParamList,'Settings'>) => {
+ const view=render(<Settings navigation={navigation}/>);
+ for(const group of ['appearance','player','motion','library']) fireEvent.press(view.getByTestId(`settings-group-${group}`));
+ return view;
+};
+
 const mockSetAppearance = jest.fn();
 const mockSetBassPulse = jest.fn();
 const mockSetSkin = jest.fn();
@@ -57,7 +63,7 @@ describe('Settings', () => {
   test('opens the separate collection cleaner from its settings entry', () => {
     const navigate = jest.fn();
     const navigation = { navigate } as unknown as NativeStackNavigationProp<AppStackParamList, 'Settings'>;
-    const screen = render(<Settings navigation={navigation} />);
+    const screen = renderSettings(navigation);
     fireEvent.press(screen.getByTestId('settings-tag-cleaner'));
     expect(navigate).toHaveBeenCalledWith('TagCleaner');
   });
@@ -70,7 +76,7 @@ describe('Settings', () => {
   });
 
   test('renders appearance, skin, and player layout controls', () => {
-    const { getByTestId, getByText } = render(<Settings />);
+    const { getByTestId, getByText } = renderSettings();
 
     expect(getByTestId('settings-screen')).toBeTruthy();
     expect(getByText('Hell / Dunkel')).toBeTruthy();
@@ -91,7 +97,7 @@ describe('Settings', () => {
     setMockTheme('light', 'minimal');
     mockNowPlayingPlayerLayout = 'soundcloud';
 
-    const { getByTestId } = render(<Settings />);
+    const { getByTestId } = renderSettings();
 
     expect(getByTestId('settings-appearance-dark').props.accessibilityState.selected).toBe(false);
     expect(getByTestId('settings-appearance-light').props.accessibilityState.selected).toBe(true);
@@ -106,7 +112,7 @@ describe('Settings', () => {
     const activeTheme = setMockTheme('light', 'neon-cover');
     mockNowPlayingPlayerLayout = 'soundcloud';
 
-    const { getByTestId } = render(<Settings />);
+    const { getByTestId } = renderSettings();
     const selectedAppearanceStyle = StyleSheet.flatten(getByTestId('settings-appearance-light').props.style);
     const unselectedAppearanceStyle = StyleSheet.flatten(getByTestId('settings-appearance-dark').props.style);
     const selectedSkinStyle = StyleSheet.flatten(getByTestId('settings-skin-neon-cover').props.style);
@@ -132,7 +138,7 @@ describe('Settings', () => {
   });
 
   test('changes appearance, skin, and player layout through settings controls', () => {
-    const { getByTestId } = render(<Settings />);
+    const { getByTestId } = renderSettings();
 
     fireEvent.press(getByTestId('settings-appearance-light'));
     fireEvent.press(getByTestId('settings-skin-neon-cover'));
@@ -146,7 +152,7 @@ describe('Settings', () => {
   test('shows a theme preview for the selected theme', () => {
     setMockTheme('light', 'minimal');
 
-    const { getByTestId, getByText } = render(<Settings />);
+    const { getByTestId, getByText } = renderSettings();
 
     expect(getByTestId('settings-theme-preview')).toBeTruthy();
     expect(getByText('Minimal Light')).toBeTruthy();
@@ -155,7 +161,7 @@ describe('Settings', () => {
   test('styles the screen, scroll content, and preview from the current theme values', () => {
     const activeTheme = setMockTheme('light', 'neon-cover');
 
-    const { getByTestId, getByText } = render(<Settings />);
+    const { getByTestId, getByText } = renderSettings();
     const screenStyle = StyleSheet.flatten(getByTestId('settings-screen').props.style);
     const scrollContentStyle = StyleSheet.flatten(getByTestId('settings-scroll').props.contentContainerStyle);
     const previewStyle = StyleSheet.flatten(getByTestId('settings-theme-preview').props.style);
@@ -174,22 +180,17 @@ describe('Settings', () => {
 
 
 test('bass pulse can be switched off from Settings', () => {
-  const view = render(<Settings />);
+  const view = renderSettings();
   expect(view.getByTestId('settings-cover-bass-pulse').props.value).toBe(true);
   fireEvent(view.getByTestId('settings-cover-bass-pulse'), 'valueChange', false);
   expect(mockSetBassPulse).toHaveBeenCalledWith(false);
 });
 
-test('places the optional classic cover pulse at the top of the settings', () => {
-  const { getByTestId, getByText } = render(<Settings />);
-  expect(getByText('Cover-Puls zum Bass')).toBeTruthy();
-  expect(getByText('Wiedergabe')).toBeTruthy();
-  const option = getByTestId('settings-cover-bass-pulse-option');
-  const appearance = getByTestId('settings-appearance-dark');
-  const content = getByTestId('settings-scroll').findAll(node => node === option || node === appearance);
-  expect(content).toContain(option);
-  expect(content).toContain(appearance);
-  expect(content.indexOf(option)).toBeLessThan(content.indexOf(appearance));
-  fireEvent(getByTestId('settings-cover-bass-pulse'), 'valueChange', false);
-  expect(mockSetBassPulse).toHaveBeenCalledWith(false);
+test('starts with four compact groups and expands only the requested controls',()=>{
+ const view=render(<Settings/>);
+ expect(view.queryByTestId('settings-appAccent-red')).toBeNull();
+ for(const group of ['appearance','player','motion','library'])expect(view.getByTestId(`settings-group-${group}`).props.accessibilityState.expanded).toBe(false);
+ fireEvent.press(view.getByTestId('settings-group-motion'));
+ expect(view.getByTestId('settings-cover-bass-pulse')).toBeTruthy();
+ expect(view.queryByTestId('settings-appAccent-red')).toBeNull();
 });

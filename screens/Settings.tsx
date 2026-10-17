@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { SettingsGroup } from '../components/SettingsGroup';
 import AppBackground from '../components/AppBackground';
 import PresentationSettings from '../components/PresentationSettings';
 import AccentSettings from '../components/AccentSettings';
@@ -133,13 +134,8 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
         contentContainerStyle={[styles.content, { gap: spacing.md, padding: spacing.md }]}
       >
         <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Wähle Darstellung, Bibliotheksdichte und Player-Ansicht. Du bestimmst die Bewegung und den Waveform-Akzent.</Text>
-        <View style={[styles.section, sectionTokenStyle]}>
-          <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Wiedergabe</Text>
-          <CoverBassPulseSetting /><ResumeSettings /></View>
+        <SettingsGroup id="appearance" title="Darstellung & Farben" summary={`${APP_APPEARANCE_LABELS[appearance]} · ${APP_THEME_SKIN_LABELS[skin]} · App, Player, Waveform`}>
         <AccentSettings />
-        <PresentationSettings />
-        <BackupSettings />
-        <TagCleanerSettings onOpen={getOpenCleanerAction(navigation)} />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
           {APP_APPEARANCES.map(renderAppearanceOption)}
@@ -150,11 +146,21 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
           {APP_THEME_SKINS.map(renderSkinOption)}
         </View>
 
+        <ThemePreview />
+        </SettingsGroup>
+        <SettingsGroup id="player" title="Player & Wiedergabe" summary={`${NOW_PLAYING_PLAYER_LAYOUT_LABELS[nowPlayingPlayerLayout]} · Wiedergabe fortsetzen`}>
+        <ResumeSettings />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Ansicht</Text>
           {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
-        <ThemePreview />
+        </SettingsGroup>
+        <SettingsGroup id="motion" title="Bewegung & Fortschritt" summary="Ruhiges Profil, Cover-Puls und Bibliotheksdichte">
+          <CoverBassPulseSetting /><PresentationSettings />
+        </SettingsGroup>
+        <SettingsGroup id="library" title="Bibliothek & Daten" summary="Aufräumen, Backup und Wiederherstellung">
+          <TagCleanerSettings onOpen={getOpenCleanerAction(navigation)} /><BackupSettings />
+        </SettingsGroup>
       </ScrollView>
     </View>
     </AppBackground>

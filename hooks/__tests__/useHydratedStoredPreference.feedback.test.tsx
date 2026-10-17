@@ -1,0 +1,23 @@
+import {act,renderHook,waitFor} from '@testing-library/react-native';
+import {Alert} from 'react-native';
+import {useHydratedStoredPreference} from '../useHydratedStoredPreference';
+const normalize=(value:number)=>value;
+test('failed write rolls back visibly and retry saves only the latest failed request',async()=>{
+ const alert=jest.spyOn(Alert,'alert').mockImplementation(()=>undefined);
+ const persist=jest.fn().mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(undefined);
+ const load=async()=>2;
+ const view=renderHook(()=>useHydratedStoredPreference({defaultValue:1,load,persist,normalize,label:'test'}));
+ await waitFor(()=>expect(view.result.current.isHydrated).toBe(true));
+ act(()=>view.result.current.setValue(3));
+ await waitFor(()=>expect(alert).toHaveBeenCalled());
+ expect(view.result.current.value).toBe(2);
+ await act(async()=>{alert.mock.calls[0][2]![1].onPress!();});
+ expect(persist).toHaveBeenLastCalledWith(3);expect(view.result.current.value).toBe(3);
+ persist.mockRejectedValueOnce(new Error('disk full'));act(()=>view.result.current.setValue(4));
+ await waitFor(()=>expect(alert).toHaveBeenCalledTimes(2));
+ const stale=alert.mock.calls[1][2]![1].onPress!;
+ await act(async()=>view.result.current.setValue(5));
+ await act(async()=>stale());
+ expect(persist).toHaveBeenLastCalledWith(5);expect(view.result.current.value).toBe(5);
+ alert.mockRestore();
+});

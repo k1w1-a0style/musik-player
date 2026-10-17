@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
-import { WAVEFORM_ACCENT_LABELS, type LibraryDensity, type WaveformAccent } from '../utils/playerPresentation';
+import { type LibraryDensity } from '../utils/playerPresentation';
 
 const PresentationSettings = () => {
   const { theme } = useAppTheme();
@@ -34,13 +34,6 @@ const PresentationSettings = () => {
       {(['standard', 'compact'] as LibraryDensity[]).map(density => option(`density-${density}`,
         density === 'standard' ? 'Standard' : 'Kompakt', presentation.density === density,
         () => setPresentation?.(previous => ({ ...previous, density }))))}
-    </View>
-    <Text style={[styles.label, titleStyle]}>Waveform-Akzent</Text>
-    <Text style={[styles.description, copyStyle]}>Wähle die Farbe des gespielten Abschnitts in der SoundCloud-Ansicht. Der ungespielte Teil bleibt neutral.</Text>
-    <View style={styles.choices} accessibilityRole="radiogroup">
-      {(Object.keys(WAVEFORM_ACCENT_LABELS) as WaveformAccent[]).map(waveformAccent => option(`waveform-accent-${waveformAccent}`,
-        WAVEFORM_ACCENT_LABELS[waveformAccent], presentation.waveformAccent === waveformAccent,
-        () => setPresentation?.(previous => ({ ...previous, waveformAccent }))))}
     </View>
   </View>;
 };

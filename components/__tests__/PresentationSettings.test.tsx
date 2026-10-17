@@ -20,13 +20,13 @@ test('settings apply density, accent and quiet together without overwriting each
   const screen = render(<PlayerPresentationProvider><PresentationSettings /></PlayerPresentationProvider>);
   await waitFor(() => expect(screen.getByTestId('settings-density-compact').props.accessibilityState.disabled).toBe(false));
   fireEvent.press(screen.getByTestId('settings-density-compact'));
-  fireEvent.press(screen.getByTestId('settings-waveform-accent-neutral'));
+
   fireEvent(screen.getByTestId('settings-quiet-profile'), 'valueChange', true);
   await waitFor(() => expect(storage.set).toHaveBeenLastCalledWith('playerPresentationV3', {
-    quiet: true, density: 'compact', waveformAccent: 'neutral',
+    quiet: true, density: 'compact', waveformAccent: 'cover',
   }));
   expect(screen.getByTestId('settings-density-compact').props.accessibilityState.checked).toBe(true);
-  expect(screen.getByTestId('settings-waveform-accent-neutral').props.accessibilityState.checked).toBe(true);
+
 });
 
 test('quiet profile stops the bass controller and color transitions; switching back restores the selected pulse', async () => {
