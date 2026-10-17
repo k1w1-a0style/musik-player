@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, FlatList, View } from 'react-native';
+import { Animated, Dimensions, FlatList, View } from 'react-native';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import type { Song } from '../../types/Song';
 import { getAppTheme } from '../../utils/appTheme';
@@ -7,6 +7,7 @@ import NowPlayingQueueCard from '../NowPlayingQueueCard';
 
 type MockQueueRowProps = {
   id: string;
+  rowHeight: number;
   onDragPosition?: (index: number, dragY: number, movementDirection: -1 | 0 | 1) => void;
   onDragEnd?: () => void;
   dragScrollCompensation?: Animated.Value;
@@ -50,6 +51,7 @@ const getAnimatedValue = (value?: Animated.Value): number | undefined => value
 
 describe('NowPlayingQueueCard auto-scroll timer', () => {
   let scrollToOffsetSpy: jest.SpyInstance;
+  let dimensionsSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -59,11 +61,13 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
 
   afterEach(() => {
     scrollToOffsetSpy.mockRestore();
+    dimensionsSpy.mockRestore();
     jest.useRealTimers();
     mockQueueRowProps.clear();
   });
 
-  test('keeps edge eligibility anchored to the pointer and stops on pointer exit or drag end', () => {
+  test.each([1,2])('keeps edge eligibility anchored to the pointer at fontScale %s and stops on pointer exit or drag end', fontScale => {
+    dimensionsSpy=jest.spyOn(Dimensions,'get').mockReturnValue({width:320,height:640,scale:1,fontScale});
     const { getByTestId, unmount } = render(
       <NowPlayingQueueCard
         queue={queue}
@@ -79,16 +83,18 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
     const row = mockQueueRowProps.get('s6');
     if (!row?.onDragPosition || !row.onDragEnd) throw new Error('Expected mocked queue row drag callbacks.');
     const baselineTimerCount = jest.getTimerCount();
+    // Start the touched row inside the viewport for both actual row heights.
+    const startingOffset=5*row.rowHeight-100;
 
     fireEvent(flatList, 'layout', { nativeEvent: { layout: { height: 220 } } });
-    fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: 0 } } });
+    fireEvent(flatList, 'scroll', { nativeEvent: { contentOffset: { y: startingOffset } } });
 
     act(() => row.onDragPosition?.(5, 120, 1));
     expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
     act(() => jest.advanceTimersByTime(32 * 10));
     expect(scrollToOffsetSpy).toHaveBeenCalledTimes(10);
-    expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 120, animated: false });
+    expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: startingOffset+120, animated: false });
     const dragScrollCompensation = mockQueueRowProps.get('s6')?.dragScrollCompensation;
     expect(getAnimatedValue(dragScrollCompensation)).toBe(120);
     expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
@@ -100,7 +106,7 @@ describe('NowPlayingQueueCard auto-scroll timer', () => {
 
     act(() => row.onDragPosition?.(5, 120, 1));
     act(() => jest.advanceTimersByTime(32));
-    expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: 132, animated: false });
+    expect(scrollToOffsetSpy).toHaveBeenLastCalledWith({ offset: startingOffset+132, animated: false });
     expect(jest.getTimerCount()).toBeGreaterThan(baselineTimerCount);
 
     act(() => row.onDragEnd?.());
