@@ -12,7 +12,7 @@ export const cleanerResultLabel=(entry:CleanerJournalEntry):string=>{
   if(entry.status==='failed'&&entry.writeResult?.operationStatus==='completed'&&entry.writeResult.status==='written')return 'Datei geändert – Anzeige nicht bestätigt';
   return statusLabels[entry.status];
 };
-export const TagCleanerResult=({rows,journal,process,onExport,onChoose}:{rows:CleanerRow[];journal?:CleanerJournal;process?:CleanerProcess;onExport:()=>void;onChoose:()=>void})=>{
+export const TagCleanerResult=({rows,journal,process,notice,onExport,onChoose}:{rows:CleanerRow[];journal?:CleanerJournal;process?:CleanerProcess;notice?:React.ReactNode;onExport:()=>void;onChoose:()=>void})=>{
   const {theme}=useAppTheme();
   const [filter,setFilter]=useState<'all'|'changed'|'failed'|'pending'>('all');
   const [details,setDetails]=useState(false);
@@ -29,6 +29,7 @@ export const TagCleanerResult=({rows,journal,process,onExport,onChoose}:{rows:Cl
   return <View style={{flex:1,gap:8}}><Text testID="tag-cleaner-result" style={{color:theme.palette.text.primary,fontSize:20}}>D · Ergebnis</Text>
     <FlatList testID="tag-cleaner-result-list" data={filtered} keyExtractor={entry=>entry.songId} initialNumToRender={10} windowSize={5}
       ListHeaderComponent={<View style={{gap:8}}>
+        {notice}
         {process&&process.phase!=='idle'&&<TagCleanerProcess process={process}/>}
         {!!pending&&<Text accessibilityRole="alert" style={{color:theme.palette.text.primary}}>Dateiabschluss, Wiederherstellung oder Abschlussbereinigung noch offen. Bericht prüfen; nicht erneut schreiben.</Text>}
         {process?.phase==='cancelled'&&<Text style={{color:theme.palette.text.primary}}>Abgebrochen: {process.completed} von {process.total} bearbeitet · {process.recoveryPending?'Keine neue Datei gestartet · Bestätigung / Recovery offen':'0 neue Dateien in Arbeit'}</Text>}

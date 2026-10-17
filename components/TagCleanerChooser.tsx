@@ -22,7 +22,7 @@ const choicesFor=(kind:Kind,songs:readonly Song[],playlists:readonly Playlist[],
   if(kind==='folders')return folders.map(folder=>({id:folder.id,label:folder.name,songIds:resolveCleanerFolderSelection(songs,[folder],recursive).songIds}));
   return uniqueCleanerSongs(songs).map(song=>({id:song.id,label:`${song.title} · ${song.artist}`,songIds:[song.id]}));
 };
-export const TagCleanerChooser=({songs,playlists,folders,onSelect,initialIds=[]}:{initialIds?:string[];songs:Song[];playlists:Playlist[];folders:ScanFolder[];onSelect:(ids:string[])=>void})=>{
+export const TagCleanerChooser=({songs,playlists,folders,onSelect,initialIds=[],notice}:{initialIds?:string[];songs:Song[];playlists:Playlist[];folders:ScanFolder[];notice?:React.ReactNode;onSelect:(ids:string[])=>void})=>{
   const {theme}=useAppTheme();
   const [kind,setKind]=useState<Kind>('songs');
   const [selection,setSelection]=useState<Record<Kind,Set<string>>>(()=>({songs:new Set(initialIds),albums:new Set(),playlists:new Set(),folders:new Set()}));
@@ -38,6 +38,7 @@ export const TagCleanerChooser=({songs,playlists,folders,onSelect,initialIds=[]}
   const toggle=(id:string)=>{const next=new Set(selected);if(next.has(id))next.delete(id);else next.add(id);setSelected(next);};
   const chooseKind=(next:Kind)=>{setKind(next);setQuery('');};
   const header=<View style={{gap:8}}>
+    {notice}
     <Text style={[styles.heading,{color:theme.palette.text.primary}]}>Welche Musik möchtest du aufräumen?</Text>
     <TagCleanerButton testID="tag-cleaner-entire-library" label={`Gesamte Bibliothek (${uniqueCleanerSongs(songs).length})`} onPress={()=>onSelect(uniqueCleanerSongs(songs).map(s=>s.id))} disabled={!songs.length}/>
     <View style={styles.tabs}>{(['songs','albums','playlists','folders'] as Kind[]).map((tab,index)=><TagCleanerButton key={tab} label={['Titel','Alben','Playlisten','Ordner'][index]} onPress={()=>chooseKind(tab)}/>)}</View>
@@ -48,7 +49,7 @@ export const TagCleanerChooser=({songs,playlists,folders,onSelect,initialIds=[]}
     <View style={styles.tabs}><TagCleanerButton label="Alle auf dieser Liste" onPress={()=>setSelected(new Set([...selected,...choices.map(c=>c.id)]))}/><TagCleanerButton label="Diesen Tab leeren" onPress={()=>setSelected(new Set())}/></View>
   </View>;
   return <View style={styles.fill}>
-    <FlatList data={choices} ListHeaderComponent={header} initialNumToRender={10} windowSize={5} keyExtractor={choice=>choice.id} extraData={selected} renderItem={({item})=><Pressable accessibilityRole="checkbox" accessibilityState={{checked:selected.has(item.id)}} onPress={()=>toggle(item.id)} style={styles.choice}>
+    <FlatList testID="tag-cleaner-choice-list" data={choices} ListHeaderComponent={header} initialNumToRender={10} windowSize={5} keyExtractor={choice=>choice.id} extraData={selected} renderItem={({item})=><Pressable accessibilityRole="checkbox" accessibilityState={{checked:selected.has(item.id)}} onPress={()=>toggle(item.id)} style={styles.choice}>
       <Text style={{color:theme.palette.text.primary}}>{selected.has(item.id)?'☑':'☐'} {item.label}</Text><Text style={{color:theme.palette.text.secondary}}>{item.songIds.length} Zuordnungen</Text>
     </Pressable>}/>
     <TagCleanerButton label={`${ids.length} eindeutige Titel · Weiter`} onPress={()=>onSelect(ids)} disabled={!ids.length}/>

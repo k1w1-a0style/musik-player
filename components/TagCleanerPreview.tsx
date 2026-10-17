@@ -12,7 +12,7 @@ const confidenceLabels=['alle','sicher','prüfen','unsicher'];
 const fieldLabels=['alle','Titel','Interpret','Albuminterpret','Album','Track','Disc','Genre','Jahr','Kommentar','Dateiname','Website','Ordner'];
 const confidenceOptions=['all','safe','review','uncertain'] as const;
 const fieldOptions=['all','title','artist','albumArtist','album','trackNumber','discNumber','genre','year','comment','filename','website','folder'] as const;
-export const TagCleanerPreview=({rows,busy,process,onChange,onSafe,onApply,onExport,onRules}:{rows:CleanerRow[];busy:boolean;process?:CleanerProcess;onChange:(id:string,index:number,patch:Partial<CleanerChange>)=>void;onSafe:(ids?:readonly string[])=>void;onApply:()=>void;onExport:()=>void;onRules:()=>void})=>{
+export const TagCleanerPreview=({rows,busy,process,notice,onChange,onSafe,onApply,onExport,onRules}:{rows:CleanerRow[];busy:boolean;process?:CleanerProcess;notice?:React.ReactNode;onChange:(id:string,index:number,patch:Partial<CleanerChange>)=>void;onSafe:(ids?:readonly string[])=>void;onApply:()=>void;onExport:()=>void;onRules:()=>void})=>{
   const {theme}=useAppTheme();
   const [status,setStatus]=useState(0),[confidence,setConfidence]=useState(0),[field,setField]=useState(0);
   const [filtersOpen,setFiltersOpen]=useState(false);
@@ -28,6 +28,7 @@ export const TagCleanerPreview=({rows,busy,process,onChange,onSafe,onApply,onExp
   const selected=rows.filter(row=>Object.keys(selectedCleanerTags(row)).length>0).length;
   const visibleSelected=filtered.filter(row=>Object.keys(selectedCleanerTags(row)).length>0).length;
   const header=<View style={styles.header}>
+    {notice}
     {process&&process.phase!=='idle'&&<TagCleanerProcess process={process}/>}
     <TagCleanerButton testID="tag-cleaner-filters" label={filtersOpen?'Filter schließen':'Filter öffnen'} onPress={()=>setFiltersOpen(!filtersOpen)}/>
     <TagCleanerButton testID="tag-cleaner-tools" label={toolsOpen?'Auswahl & Werkzeuge schließen':'Auswahl & Werkzeuge'} onPress={()=>setToolsOpen(!toolsOpen)}/>

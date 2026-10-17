@@ -62,6 +62,21 @@ test('active apply keeps progress and orderly stop visible without the completed
  await act(async()=>{finish();});
  await waitFor(()=>expect(view.getByTestId('tag-cleaner-result')).toBeTruthy());
 });
+test('saved recovery notices scroll with home, result, chooser, rules and preview',async()=>{
+ mockParams=undefined;
+ await AsyncStorage.setItem('tag-cleaner-journal-v1',JSON.stringify({version:1,id:'saved-cleanup',createdAt:1,entries:[{songId:'saved',sourceKey:'content://saved',mode:'file',status:'written',before:{title:'Alt'},after:{title:'Neu'},operationId:'saved-op',writeResult:{status:'written',warnings:[],terminal:true,operationStatus:'completed',cleanupPending:true}}]}));
+ const view=render(<TagCleaner/>);
+ await waitFor(()=>expect(view.getByText(/Ein früherer Dateiabschluss/)).toBeTruthy());
+ const inside=(key:string)=>expect(view.getByTestId(key).findByProps({testID:'tag-cleaner-notices'})).toBeTruthy();
+ inside('tag-cleaner-home');
+ fireEvent.press(view.getByTestId('tag-cleaner-last-result'));inside('tag-cleaner-result-list');
+ fireEvent.press(view.getByTestId('tag-cleaner-new-selection'));
+ fireEvent.press(view.getByTestId('tag-cleaner-open-selection'));inside('tag-cleaner-choice-list');
+ fireEvent.press(view.getByTestId('tag-cleaner-entire-library'));inside('tag-cleaner-rules-scroll');
+ fireEvent.press(view.getByTestId('tag-cleaner-analyze'));
+ await waitFor(()=>expect(view.getByTestId('tag-cleaner-preview-list')).toBeTruthy());
+ inside('tag-cleaner-preview-list');
+});
 test('uncertain field requires individual confirmation; editing invalidates old confirmation and filename stays preview-only',()=>{
  const input:Song={id:'review',title:'Title - www.example.com/x',artist:'Artist',fileInfo:{filename:'01 - Wrong - Title.mp3'}};
  const row=analyzeCleanerRows([input],[{tags:{},inventory:[],verified:false}])[0];
