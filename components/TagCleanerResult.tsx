@@ -3,8 +3,11 @@ import { FlatList, Text, View } from 'react-native';
 import type { CleanerJournal, CleanerJournalEntry, CleanerProcess, CleanerRow } from '../types/TagCleaner';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { TagCleanerButton } from './TagCleanerButton';
+import { cleanerEntryNeedsRecovery } from '../utils/tagCleanerModel';
 const statusLabels={planned:'geplant',pending:'Bestätigung / Recovery offen',displayed:'Anzeige gespeichert',written:'Datei und Anzeige bestätigt',skipped:'ausgelassen',failed:'fehlgeschlagen',interrupted:'unterbrochen'};
 export const cleanerResultLabel=(entry:CleanerJournalEntry):string=>{
+  if(entry.writeResult?.recoveryPending)return 'Wiederherstellung offen – Dateizustand prüfen';
+  if(entry.status==='written'&&entry.writeResult?.cleanupPending)return 'Datei und Anzeige bestätigt – Abschlussbereinigung offen';
   if(entry.status==='failed'&&entry.writeResult?.operationStatus==='completed'&&entry.writeResult.status==='written')return 'Datei geändert – Anzeige nicht bestätigt';
   return statusLabels[entry.status];
 };
@@ -14,17 +17,18 @@ export const TagCleanerResult=({rows,journal,process,onExport,onChoose}:{rows:Cl
   const [details,setDetails]=useState(false);
   const entries=journal?.entries??[];
   const byId=useMemo(()=>new Map(rows.map(row=>[row.song.id,row.song])),[rows]);
-  const filtered=entries.filter(entry=>filter==='all'||(filter==='changed'&&['written','displayed'].includes(entry.status))||(filter==='failed'&&entry.status==='failed')||(filter==='pending'&&['pending','interrupted'].includes(entry.status)));
+  const filtered=entries.filter(entry=>filter==='all'||(filter==='changed'&&['written','displayed'].includes(entry.status))||(filter==='failed'&&entry.status==='failed')||(filter==='pending'&&cleanerEntryNeedsRecovery(entry)));
   const journalIds=new Set(entries.map(entry=>entry.songId));
   const unselected=rows.filter(row=>row.status!=='clean'&&!journalIds.has(row.song.id)).length;
   const conflicts=rows.filter(row=>row.status==='conflict').length;
   const changed=entries.filter(e=>e.status==='written'||e.status==='displayed').length;
   const skipped=entries.filter(e=>e.status==='skipped').length;
   const failed=entries.filter(e=>e.status==='failed').length;
-  const pending=entries.filter(e=>e.status==='pending'||e.status==='interrupted').length;
+  const pending=entries.filter(cleanerEntryNeedsRecovery).length;
   return <View style={{flex:1,gap:8}}><Text testID="tag-cleaner-result" style={{color:theme.palette.text.primary,fontSize:20}}>D · Ergebnis</Text>
     <FlatList testID="tag-cleaner-result-list" data={filtered} keyExtractor={entry=>entry.songId} initialNumToRender={10} windowSize={5}
       ListHeaderComponent={<View style={{gap:8}}>
+        {!!pending&&<Text accessibilityRole="alert" style={{color:theme.palette.text.primary}}>Dateiabschluss, Wiederherstellung oder Abschlussbereinigung noch offen. Bericht prüfen; nicht erneut schreiben.</Text>}
         {process?.phase==='cancelled'&&<Text style={{color:theme.palette.text.primary}}>Abgebrochen: {process.completed} von {process.total} bearbeitet · {process.recoveryPending?'Keine neue Datei gestartet · Bestätigung / Recovery offen':'0 neue Dateien in Arbeit'}</Text>}
         <Text style={{color:theme.palette.text.primary}}>{rows.length||entries.length} geprüft · {rows.filter(r=>r.status==='clean').length} unverändert · {changed} geändert · {skipped} ausgelassen · {failed} fehlgeschlagen · {pending} offen / unterbrochen</Text>
         {!!unselected&&<Text style={{color:theme.palette.text.secondary}}>{unselected} Titel ohne Freigabe · {conflicts} Titel mit Vorschlägen zum Prüfen</Text>}

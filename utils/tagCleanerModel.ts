@@ -17,12 +17,12 @@ export const restrictCleanerFields = (rows: readonly CleanerRow[], fields: reado
 export const selectedCleanerRows = (rows: readonly CleanerRow[]): CleanerRow[] =>
   rows.filter(row => Object.keys(selectedCleanerTags(row)).length > 0);
 
-const needsRecovery = (entry:CleanerJournalEntry):boolean => entry.status==='pending'||entry.status==='interrupted'
+export const cleanerEntryNeedsRecovery = (entry:CleanerJournalEntry):boolean => entry.status==='pending'||entry.status==='interrupted'
   || entry.writeResult?.recoveryPending===true || entry.writeResult?.cleanupPending===true
   || (entry.mode==='file'&&entry.status==='failed'&&!!entry.operationId);
 export const cleanerJournalCounts = (journal: CleanerJournal) => journal.entries.reduce((counts,entry)=>({
   confirmed:counts.confirmed+Number(entry.status==='written'||entry.status==='displayed'),
-  failed:counts.failed+Number(entry.status==='failed'),recoveryPending:counts.recoveryPending||needsRecovery(entry),
+  failed:counts.failed+Number(entry.status==='failed'),recoveryPending:counts.recoveryPending||cleanerEntryNeedsRecovery(entry),
 }),{confirmed:0,failed:0,recoveryPending:false});
 
 /** The batch emits one durable entry ACK at a time; avoid rescanning its whole journal per ACK. */
@@ -30,7 +30,7 @@ export const advanceCleanerProcess=(current:CleanerProcess,finished:number,total
   if(finished<=current.completed)return current;
   const entry=journal.entries[finished-1];
   return {...current,completed:finished,total,confirmed:current.confirmed+Number(entry.status==='written'||entry.status==='displayed'),
-    failed:current.failed+Number(entry.status==='failed'),recoveryPending:current.recoveryPending||needsRecovery(entry)};
+    failed:current.failed+Number(entry.status==='failed'),recoveryPending:current.recoveryPending||cleanerEntryNeedsRecovery(entry)};
 };
 export const finishCleanerProcess=(current:CleanerProcess,journal:CleanerJournal,cancelled:boolean):CleanerProcess=>{
   const counts=cleanerJournalCounts(journal);

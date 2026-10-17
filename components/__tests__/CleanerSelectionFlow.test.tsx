@@ -41,3 +41,12 @@ test('result accounts for analyzed proposals that were not approved',()=>{
  const view=render(<TagCleanerResult rows={rows} journal={{version:1,id:'subset',createdAt:1,entries:[{songId:'a',sourceKey:'id:a',before:{title:'  First '},after:{title:'First'},mode:'display',status:'displayed'}]}} onChoose={jest.fn()} onExport={jest.fn()}/>);
  expect(view.getByText('1 Titel ohne Freigabe · 0 Titel mit Vorschlägen zum Prüfen')).toBeTruthy();
 });
+test('reopened persisted results expose pending cleanup without an in-memory process',()=>{
+ const entry={songId:'saved',sourceKey:'content://saved',before:{title:'Alt'},after:{title:'Neu'},mode:'file' as const,status:'written' as const,operationId:'saved-op',writeResult:{status:'written' as const,warnings:[],terminal:true,operationStatus:'completed' as const,cleanupPending:true}};
+ const journal=JSON.parse(JSON.stringify({version:1,id:'saved',createdAt:1,entries:[entry,{...entry,songId:'done',writeResult:{...entry.writeResult,cleanupPending:false}}]}));
+ const view=render(<TagCleanerResult rows={[]} journal={journal} onChoose={jest.fn()} onExport={jest.fn()}/>);
+ expect(view.getByText('Datei und Anzeige bestätigt – Abschlussbereinigung offen')).toBeTruthy();
+ expect(view.getByRole('alert')).toBeTruthy();
+ fireEvent.press(view.getByText('Offen'));
+ expect(view.getByTestId('tag-cleaner-result-list').props.data.map((item:any)=>item.songId)).toEqual(['saved']);
+});

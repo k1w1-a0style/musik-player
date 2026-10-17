@@ -20,6 +20,7 @@ import { TagCleanerHome } from '../components/TagCleanerHome';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../types/navigation';
 import { TagCleanerProcess } from '../components/TagCleanerProcess';
+import { cleanerEntryNeedsRecovery } from '../utils/tagCleanerModel';
 type CleanerRoute=RouteProp<{TagCleaner:{songIds?:string[]}|undefined},'TagCleaner'>;
 const TagCleaner=()=>{
   const route=useRoute<CleanerRoute>();
@@ -39,7 +40,7 @@ const TagCleaner=()=>{
     <Text style={{color:theme.palette.text.primary,fontSize:22,fontWeight:'600'}}>Musiksammlung aufräumen</Text>
     {!!state.error&&<Text accessibilityRole="alert" style={{color:theme.palette.text.primary}}>{state.error}</Text>}
     {!!folderError&&<Text style={{color:theme.palette.text.secondary}}>{folderError}</Text>}
-    {!!state.journal?.entries.some(e=>e.status==='interrupted'||e.status==='pending')&&<Text style={{color:theme.palette.text.secondary}}>Ein früherer Lauf ist offen oder unterbrochen. Kein automatisches Wiederholen; natives Recovery prüfen und Bericht exportieren.</Text>}
+    {!!state.journal?.entries.some(cleanerEntryNeedsRecovery)&&<Text style={{color:theme.palette.text.secondary}}>Ein früherer Dateiabschluss, eine Wiederherstellung oder Abschlussbereinigung ist noch offen. Nicht erneut schreiben; letzten Lauf und Bericht prüfen.</Text>}
     {state.process.phase!=='idle'&&<TagCleanerProcess process={state.process}/>}
     {state.busy&&<View><TagCleanerButton testID="tag-cleaner-cancel" label="Nach laufender Datei abbrechen" onPress={state.cancel}/></View>}
     {state.stage==='selection'&&home&&<TagCleanerHome count={uniqueCleanerSongs(library.songs).length} hasResult={!!state.journal} onChoose={()=>setHome(false)} onSources={()=>navigation.popToTop()} onResult={state.showLastResult}/>}
