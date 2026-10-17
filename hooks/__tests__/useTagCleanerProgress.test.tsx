@@ -21,6 +21,9 @@ test('cancelling a partial analysis retains exact completed/total counts and sta
  expect(view.result.current.process).toMatchObject({phase:'cancelled',completed:1,total:2,cancelRequested:true});
  expect(view.result.current.rows).toHaveLength(1);
  expect(view.result.current.busy).toBe(false);
+ act(()=>view.result.current.chooseAgain());
+ expect(view.result.current.process).toMatchObject({phase:'idle',completed:0,cancelRequested:false});
+ expect(view.result.current.rows).toEqual([]);
 });
 test('unmount during a pending read never starts another file',async()=>{
  let finish!:(value:CleanerSnapshot)=>void;

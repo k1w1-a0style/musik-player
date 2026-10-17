@@ -16,10 +16,11 @@ export const TagCleanerConfirmation=({rows,mode,onClose,onApply}:{rows:CleanerRo
  const changes=selected.reduce((count,row)=>count+Object.keys(selectedCleanerTags(row)).length,0);
  return <Modal animationType={reduced?'none':'fade'} onRequestClose={onClose}>
   <View style={{flex:1,backgroundColor:theme.palette.background}}><Screen contentStyle={{padding:16,gap:10}}>
-   <Text accessibilityRole="header" style={{fontSize:22,color:theme.palette.text.primary}}>Änderungen abschließend prüfen</Text>
-   <Text style={{color:theme.palette.text.primary}}>{selected.length} Titel · {changes} Feldänderungen · {mode==='file'?'Originaldatei-Tags schreiben':'Nur Bibliotheksanzeige'}</Text>
+   <Text accessibilityRole="header" style={{fontSize:22,color:theme.palette.text.primary}}>Änderungen prüfen</Text>
    <FlatList testID="tag-cleaner-confirm-list" data={selected} keyExtractor={row=>row.song.id} initialNumToRender={5} windowSize={5}
     ListHeaderComponent={<View style={{gap:8}}>
+    <Text style={{color:theme.palette.text.primary}}>{selected.length} Titel · {changes} Feldänderungen · {mode==='file'?'Originaldatei-Tags schreiben':'Nur Bibliotheksanzeige'}</Text>
+
      {mode==='file'?<>
       <Text accessibilityRole="alert" style={{color:theme.palette.text.primary}}>Kein dauerhaftes Rückgängig. Das Bibliotheksbackup sichert keine Musikdateien. Sichere die Originale vorher separat. Recovery schützt nur eine laufende Transaktion. Bei Abbruch stoppt der Lauf nach der aktuellen Datei.</Text>
       <Pressable testID="tag-cleaner-original-backup-ack" accessibilityRole="checkbox" accessibilityState={{checked:ack}} onPress={()=>setAck(!ack)} style={{minHeight:48,paddingVertical:10,justifyContent:'center'}}>

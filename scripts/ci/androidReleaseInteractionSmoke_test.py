@@ -1341,7 +1341,7 @@ Audio playback (lastly played comes first)
             dialog = ET.fromstring(f'<hierarchy><node text="{title}"/>'
                                   f'<node resource-id="tag-cleaner-confirm-apply" enabled="{enabled}" bounds="[1,1][80,80]"/>'
                                   + ('<node resource-id="tag-cleaner-confirm-list" bounds="[1,100][400,500]"/>' if listed else '') + '</hierarchy>')
-            with patch.object(smoke,'select'),patch.object(smoke,'find'),patch.object(smoke,'tap_node') as tapped,patch.object(smoke,'tree',side_effect=[dialog,result]):
+            with patch.object(smoke,'select'),patch.object(smoke,'find'),patch.object(smoke,'tap_node') as tapped,patch.object(smoke,'scroll_to'),patch.object(smoke,'tree',side_effect=[dialog,result,result]):
                 if title=='Nur Bibliotheksanzeige' and enabled=='true' and listed:
                     smoke.cleaner_apply_dialog('display');tapped.assert_called_once()
                 else:

@@ -1679,10 +1679,17 @@ def open_cleaner_from_song(title, artist):
     scroll_to('tag-cleaner-analyze', top=True)
 
 
-def validate_cleaner_result(root, mode):
+def wait_cleaner_preview_tools():
+    find('tag-cleaner-apply',timeout=90)
+    select('tag-cleaner-tools',top=True)
+    find('tag-cleaner-select-safe')
+
+
+def validate_cleaner_result(root, mode, entry_root=None):
     expected_status = 'Anzeige gespeichert' if mode == 'display' else 'Datei und Anzeige bestätigt'
     result_text = [node.get('text', '') for node in root.iter('node')]
-    assert expected_status in result_text, 'Cleaner did not confirm durable success'
+    entry_text=[node.get('text','') for node in (entry_root if entry_root is not None else root).iter('node')]
+    assert expected_status in entry_text, 'Cleaner did not confirm durable success'
     assert any(re.fullmatch(r'1 geprüft · \d+ unverändert · 1 geändert · 0 ausgelassen · 0 fehlgeschlagen · 0 offen / unterbrochen', text)
                for text in result_text), 'Cleaner result contains unresolved or failed operations'
 
@@ -1700,7 +1707,10 @@ def cleaner_apply_dialog(mode):
     assert button is not None and button.get('enabled') == 'true', 'Exact cleaner apply action absent or disabled'
     tap_node(button)
     find('tag-cleaner-result', timeout=90)
-    validate_cleaner_result(tree(), mode)
+    summary=tree()
+    status='Anzeige gespeichert' if mode=='display' else 'Datei und Anzeige bestätigt'
+    scroll_to(status,top=True)
+    validate_cleaner_result(summary,mode,tree())
 
 
 def validate_native_queue_size(session, title, size):
@@ -1765,7 +1775,7 @@ def cleaner_acceptance():
     select_cleaner_safe_playback_queue()
     open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
     select('tag-cleaner-analyze')
-    find('tag-cleaner-select-safe', timeout=90)
+    wait_cleaner_preview_tools()
     screenshot('v5-cleaner-read-only-display-preview')
     pulled = OUT / 'audio' / 'V5-after-preview.mp3'
     adb('pull', CLEANER_TARGET, str(pulled))
@@ -1781,14 +1791,14 @@ def cleaner_acceptance():
     scroll_to('V5 Cleaner von V5 Proof', top=True)
     open_cleaner_from_song('V5 Cleaner', 'V5 Proof')
     select('tag-cleaner-analyze')
-    find('tag-cleaner-select-safe', timeout=90)
+    wait_cleaner_preview_tools()
     clean = scroll_to('V5 Acceptance · bereits sauber', top=True)
     assert clean.get('package') == PACKAGE, 'Display cleanup lost its acknowledged correction on cold start'
     assert scroll_to('tag-cleaner-apply', top=True).get('enabled') == 'false', 'Already clean display fields can be applied again'
     select('Regeln ändern', top=True)
     select('tag-cleaner-mode-file', top=True)
     select('tag-cleaner-analyze', top=True)
-    find('tag-cleaner-select-safe', timeout=90)
+    wait_cleaner_preview_tools()
     raw = scroll_to('Vorher: ' + CLEANER_TITLE, top=True)
     assert raw.get('text') == 'Vorher: ' + CLEANER_TITLE and raw.get('package') == PACKAGE, 'File preview omitted original raw whitespace'
     screenshot('v5-cleaner-raw-file-preview')
@@ -1796,7 +1806,9 @@ def cleaner_acceptance():
     assert pulled.read_bytes() == original, 'File-tag analysis modified the original'
     select('tag-cleaner-select-safe', top=True)
     validate_native_queue_size(app_media_session(), TITLES[0], 2)
+    adb('shell','settings','put','system','font_scale','2.0')
     cleaner_apply_dialog('file')
+    adb('shell','settings','put','system','font_scale','1.0')
     screenshot('v5-cleaner-confirmed-saf-file-result')
     adb('pull', CLEANER_TARGET, str(pulled))
     V5_PROOFS['cleaner'] = validate_cleaner_write(original, pulled.read_bytes())
@@ -1843,6 +1855,12 @@ def cleaner_playlist_font_acceptance():
         back()
         library_tab('tracks')
         select('library-open-cleaner',top=True)
+        select('tag-cleaner-last-result',top=True)
+        find('tag-cleaner-result')
+        scroll_to('tag-cleaner-result-export',top=True)
+        result_geometry=validate_targets(tree(compressed=False),['tag-cleaner-result-export','tag-cleaner-new-selection'],PACKAGE)
+        screenshot('cleaner-result-font2-'+appearance)
+        select('tag-cleaner-new-selection',top=True)
         select('tag-cleaner-open-selection',top=True)
         select('tag-cleaner-entire-library',top=True)
         field_proofs={}
@@ -1852,7 +1870,7 @@ def cleaner_playlist_font_acceptance():
             field_proofs.update(validate_targets(tree(compressed=False),[key],PACKAGE))
         screenshot('cleaner-fields-font2-'+appearance)
         back()
-        proofs.append({'appearance':appearance,'fontScale':'2.0','playlist':geometry,'fields':field_proofs})
+        proofs.append({'appearance':appearance,'fontScale':'2.0','playlist':geometry,'fields':field_proofs,'result':result_geometry})
         adb('shell','settings','put','system','font_scale','1.0')
         wait_uncovered_library_header()
     V5_PROOFS['cleanerPlaylistFont2']=proofs

@@ -35,3 +35,9 @@ test('result virtualizes ten thousand entries and never calls a completed native
  expect(view.getByTestId('tag-cleaner-result-list').props.data).toHaveLength(10000);
  expect(view.getAllByText('Datei geändert – Anzeige nicht bestätigt').length).toBeLessThan(100);
 });
+test('result accounts for analyzed proposals that were not approved',()=>{
+ const rows=analyzeCleanerRows(songs,songs.map(()=>({tags:{},inventory:[],verified:false})));
+ rows[1].changes.forEach(change=>{change.selected=false;});
+ const view=render(<TagCleanerResult rows={rows} journal={{version:1,id:'subset',createdAt:1,entries:[{songId:'a',sourceKey:'id:a',before:{title:'  First '},after:{title:'First'},mode:'display',status:'displayed'}]}} onChoose={jest.fn()} onExport={jest.fn()}/>);
+ expect(view.getByText('1 Titel ohne Freigabe · 0 Titel mit Vorschlägen zum Prüfen')).toBeTruthy();
+});

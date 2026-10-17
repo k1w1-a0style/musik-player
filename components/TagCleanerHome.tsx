@@ -11,7 +11,7 @@ export const TagCleanerHome=({count,hasResult,onChoose,onSources,onResult}:{coun
    </View>
    <TagCleanerButton testID="tag-cleaner-open-selection" label="Tags korrigieren" onPress={onChoose} disabled={!count}/>
    <TagCleanerButton label="Quellen & Scan in Bibliothek öffnen" onPress={onSources}/>
-   <TagCleanerButton label="Letzten Lauf ansehen" onPress={onResult} disabled={!hasResult}/>
+   <TagCleanerButton testID="tag-cleaner-last-result" label="Letzten Lauf ansehen" onPress={onResult} disabled={!hasResult}/>
    <Text style={{color:theme.palette.text.secondary}}>Standardmäßig wird nur die Anzeige geändert. Originaldateien benötigen eine gesonderte Bestätigung.</Text>
  </ScrollView>;
 };
