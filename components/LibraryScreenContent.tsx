@@ -1,4 +1,6 @@
 import React from 'react';
+import { View } from 'react-native';
+import { TagCleanerButton } from './TagCleanerButton';
 import { LibrarySelectionProvider, type LibrarySelectionScope } from '../contexts/LibrarySelectionContext';
 import LibrarySelectionActions from './LibrarySelectionActions';
 import type { LibraryImportStatusProps } from './LibraryImportStatus';
@@ -29,6 +31,7 @@ export interface LibraryScreenContentProps extends LibraryScreenVisibilityProps 
 }
 
 const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
+  selectionScope,
   importStatusProps,
   menuModalProps,
   searchBarProps,
@@ -42,6 +45,7 @@ const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
 }) => (
   <>
     <LibraryTopBar {...topBarProps} />
+    {selectionScope&&<View style={{paddingHorizontal:20}}><TagCleanerButton testID="library-open-cleaner" label="Sammlung aufräumen" onPress={()=>selectionScope.onOpenCleaner([])} disabled={menuModalProps.loading||!menuModalProps.isReady}/></View>}
 
     <LibraryTabs {...tabsProps} />
     <LibrarySelectionActions />
@@ -51,7 +55,7 @@ const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
 
     <LibraryTabContent {...tabContentProps} />
 
-    <LibraryMenuModal {...menuModalProps} />
+    <LibraryMenuModal {...menuModalProps} onOpenCleaner={selectionScope?()=>{menuModalProps.onClose();selectionScope.onOpenCleaner([]);}:undefined} />
     <SongActionMenuModal {...songActionMenuProps} />
     <SongPlaylistPickerModal {...songPlaylistPickerProps} />
   </>

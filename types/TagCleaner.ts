@@ -29,3 +29,9 @@ export interface CleanerJournalEntry {
   error?: string; operationId?: string; writeResult?: WriteTagsResult;
 }
 export interface CleanerJournal { version: 1; id: string; createdAt: number; entries: CleanerJournalEntry[] }
+
+export interface CleanerProcess {
+  phase: 'idle' | 'reading' | 'applying' | 'complete' | 'cancelled' | 'failed';
+  completed: number; total: number; confirmed: number; failed: number;
+  cancelRequested: boolean; recoveryPending: boolean; currentDisplayLabel?: string; startedAt?: number;
+}

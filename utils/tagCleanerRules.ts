@@ -38,7 +38,7 @@ const optionalChanges = (song: Song, snapshot: CleanerSnapshot, tags: EditableTr
   }
   return changes;
 };
-const rowStatus = (changes: CleanerChange[], snapshot: CleanerSnapshot, writable: boolean, mode: CleanerMode): CleanerRow['status'] => {
+export const cleanerRowStatus = (changes: CleanerChange[], snapshot: CleanerSnapshot, writable: boolean, mode: CleanerMode): CleanerRow['status'] => {
   if (mode === 'file' && !snapshot.verified) return 'unreadable';
   if (!changes.length) return 'clean';
   if (changes.some(change => change.confidence !== 'safe')) return 'conflict';
@@ -65,7 +65,7 @@ export const analyzeCleanerRows = (songs: readonly Song[], snapshots: readonly C
     if (original.inventory.some(item => item.id === 'WXXX')) notes.push('WXXX: separates Website-Metadatenfeld, standardmäßig erhalten.');
     if (capability.reason && !capability.canWrite) notes.push(capability.reason);
     return { song, original, displayBefore: cleanerDisplayTags(song), sourceKey: getSongSourceKey(song.fileInfo?.uri ?? song.uri) ?? `id:${song.id}`,
-      writable, changes, notes, status: rowStatus(changes, original, writable, mode) };
+      writable, changes, notes, status: cleanerRowStatus(changes, original, writable, mode) };
   });
 };
 export const selectedCleanerTags = (row: CleanerRow): EditableTrackTags => {

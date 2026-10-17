@@ -1,0 +1,34 @@
+import {act,renderHook,waitFor} from '@testing-library/react-native';
+import {useTagCleaner} from '../useTagCleaner';
+import type {CleanerSnapshot} from '../../types/TagCleaner';
+const mockRead=jest.fn();
+jest.mock('../../utils/tagCleanerRead',()=>({readCleanerSnapshot:(...args:unknown[])=>mockRead(...args)}));
+jest.mock('../../utils/tagCleanerJournal',()=>({loadCleanerJournal:async()=>undefined}));
+jest.mock('../../utils/tagCleanerReport',()=>({exportCleanerReport:jest.fn()}));
+jest.mock('../../utils/tagCleanerExecution',()=>({executeCleanerBatch:jest.fn()}));
+test('cancelling a partial analysis retains exact completed/total counts and starts no further file',async()=>{
+ let finish!:(value:CleanerSnapshot)=>void;
+ mockRead.mockImplementationOnce(()=>new Promise<CleanerSnapshot>(resolve=>{finish=resolve;}));
+ const songs=[{id:'a',title:'  A ',artist:'Artist'},{id:'b',title:'  B ',artist:'Artist'}];
+ const view=renderHook(()=>useTagCleaner(songs,['a','b'],jest.fn()));
+ await act(async()=>{});
+ let job!:Promise<void>;
+ act(()=>{job=view.result.current.analyze();});
+ expect(view.result.current.process.completed).toBe(0);
+ act(()=>view.result.current.cancel());
+ await act(async()=>{finish({tags:{},inventory:[],verified:false});await job;});
+ expect(mockRead).toHaveBeenCalledTimes(1);
+ expect(view.result.current.process).toMatchObject({phase:'cancelled',completed:1,total:2,cancelRequested:true});
+ expect(view.result.current.rows).toHaveLength(1);
+ expect(view.result.current.busy).toBe(false);
+});
+test('unmount during a pending read never starts another file',async()=>{
+ let finish!:(value:CleanerSnapshot)=>void;
+ mockRead.mockReset().mockImplementationOnce(()=>new Promise<CleanerSnapshot>(resolve=>{finish=resolve;}));
+ const songs=[{id:'a',title:'A',artist:'Artist'},{id:'b',title:'B',artist:'Artist'}];
+ const view=renderHook(()=>useTagCleaner(songs,['a','b'],jest.fn()));
+ await act(async()=>{});let job!:Promise<void>;act(()=>{job=view.result.current.analyze();});
+ await waitFor(()=>expect(mockRead).toHaveBeenCalledTimes(1));
+ view.unmount();await act(async()=>{finish({tags:{},inventory:[],verified:false});await job;});
+ expect(mockRead).toHaveBeenCalledTimes(1);
+});

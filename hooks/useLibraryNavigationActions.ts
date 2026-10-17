@@ -33,7 +33,7 @@ export const useLibraryNavigationActions = (): UseLibraryNavigationActionsResult
   }, [navigation]);
 
   const openTagCleaner = useCallback((songIds: string[]) => {
-    navigation.navigate('TagCleaner', { songIds });
+    navigation.navigate('TagCleaner', songIds.length ? { songIds } : undefined);
   }, [navigation]);
   return { openTagCleaner, openTrackInfo, openEqualizer, openSettings, openPlaylistDetail };
 };

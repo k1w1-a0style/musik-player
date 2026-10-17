@@ -10,7 +10,8 @@ const mockSong:Song={id:'cleaner-test',title:'  Clean title  ',artist:'Artist',u
 let mockParams:{songIds?:string[]}|undefined={songIds:[mockSong.id]};
 const mockUpdate=jest.fn(async()=>undefined);
 const mockRead=jest.fn(async(..._args:unknown[])=>({tags:{title:'Raw title',artist:'Artist'},inventory:[],verified:false,error:'Format: Vorschau / Export'}));
-jest.mock('@react-navigation/native',()=>({useRoute:()=>({key:'Cleaner',name:'TagCleaner',params:mockParams})}));
+jest.mock('../../hooks/useReducedMotion',()=>({useReducedMotion:()=>true}));
+jest.mock('@react-navigation/native',()=>({useNavigation:()=>({navigate:jest.fn()}),usePreventRemove:jest.fn(),useRoute:()=>({key:'Cleaner',name:'TagCleaner',params:mockParams})}));
 jest.mock('../../contexts/MusicContext',()=>({useLibraryMusicContext:()=>({songs:[mockSong],playlists:[],updateSongMetadataConfirmed:mockUpdate})}));
 jest.mock('../../contexts/AppThemeContext',()=>({useAppTheme:()=>({theme:{palette:{primary:'#aaf',text:{primary:'#fff',secondary:'#aaa'}}}})}));
 jest.mock('../../components/AppBackground',()=>({__esModule:true,default:({children}:any)=>children}));
@@ -20,22 +21,23 @@ jest.mock('../../utils/tagCleanerRead',()=>({readCleanerSnapshot:(...args:any[])
 beforeEach(async()=>{await AsyncStorage.clear();mockParams={songIds:[mockSong.id]};mockUpdate.mockClear();mockRead.mockClear();});
 afterEach(()=>jest.restoreAllMocks());
 test('wizard defaults to display, preview is read-only, explicit apply waits for confirmed update and reports result',async()=>{
- const alert=jest.spyOn(Alert,'alert');const screen=render(<TagCleaner/>);
+ const screen=render(<TagCleaner/>);
  expect(screen.getByText('Ziel: Nur Bibliotheksanzeige')).toBeTruthy();
  fireEvent.press(screen.getByTestId('tag-cleaner-analyze'));
  await waitFor(()=>expect(screen.getByTestId(`tag-cleaner-before-${mockSong.id}-title`)).toBeTruthy());
  expect(mockUpdate).not.toHaveBeenCalled();expect(mockRead).toHaveBeenCalledTimes(1);
  expect(screen.getByTestId(`tag-cleaner-after-${mockSong.id}-title`).props.value).toBe('Clean title');
  fireEvent.press(screen.getByTestId('tag-cleaner-apply'));
- expect(alert).toHaveBeenCalledWith('Bibliotheksanzeige speichern',expect.any(String),expect.any(Array));
+ expect(screen.getByTestId('tag-cleaner-confirm-list')).toBeTruthy();
  expect(mockUpdate).not.toHaveBeenCalled();
- await act(async()=>{await alert.mock.calls.at(-1)![2]![1].onPress!();});
+ fireEvent.press(screen.getByTestId('tag-cleaner-confirm-apply'));
  await waitFor(()=>expect(screen.getByTestId('tag-cleaner-result')).toBeTruthy());
  expect(mockUpdate).toHaveBeenCalledWith(mockSong.id,{title:'Clean title'});
  expect(screen.getByText(/1 geändert/)).toBeTruthy();expect(screen.queryByText('Rückgängig')).toBeNull();
 });
 test('settings entry without params opens shared source chooser and routes selection into rules',async()=>{
  mockParams=undefined;const screen=render(<TagCleaner/>);await act(async()=>{});
+ fireEvent.press(screen.getByTestId('tag-cleaner-open-selection'));
  expect(screen.getByText('Welche Musik möchtest du aufräumen?')).toBeTruthy();
  fireEvent.press(screen.getByText('Gesamte Bibliothek (1)'));
  expect(screen.getByText('A · 1 eindeutige Titel')).toBeTruthy();expect(mockRead).not.toHaveBeenCalled();

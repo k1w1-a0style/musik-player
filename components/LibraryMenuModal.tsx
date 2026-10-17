@@ -16,6 +16,7 @@ export interface LibraryMenuModalProps {
   onClose: () => void;
   onImport: () => void;
   onDeepScan?: () => void;
+  onOpenCleaner?: () => void;
   onRefreshMetadata: () => void;
   onAddFolder: () => void;
   onShowFolders: () => void;
@@ -31,6 +32,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
   onClose,
   onImport,
   onDeepScan,
+  onOpenCleaner,
   onAddFolder,
   onShowFolders,
   onOpenSettings,
@@ -61,6 +63,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
         >
           <ScrollView style={[styles.menuScroll, { maxHeight: Math.max(48, height - 80) }]} contentContainerStyle={styles.menuContent}>
           {selection ? <LibraryMenuItem icon={ListMusic} label="Auswählen" onPress={() => { selection.store.start(); onClose(); }} /> : null}
+          {onOpenCleaner&&<LibraryMenuItem icon={SlidersHorizontal} label="Sammlung aufräumen" description="Musik und Felder auswählen, Änderungen zuerst prüfen." onPress={onOpenCleaner} disabled={loading||!isReady}/>}
           <LibraryMenuItem icon={Music} label="Schnellscan / Import" description="Neue oder geänderte Dateien einlesen."
             onPress={onImport} disabled={loading || !isReady} />
           {onDeepScan ? <LibraryMenuItem icon={Music} label="Vollständiger Scan" description="Alle Dateien und ihren Inhalt erneut prüfen."
