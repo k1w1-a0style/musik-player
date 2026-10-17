@@ -741,6 +741,44 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                                   (('tag-cleaner-analyze',),{'top':True})])
                 self.assertEqual(fixture.read_bytes(), b'synthetic original')
 
+    def test_cleaner_font2_is_configured_before_reentry_not_during_the_file_preview(self):
+        class ReachedFileApply(Exception):
+            pass
+        state={'font':'1.0','route':'library'}
+        events=[]
+        original=b'synthetic original; no native write in this control-flow test'
+        def adb(*args,**kwargs):
+            if args[:5]==('shell','settings','put','system','font_scale'):
+                state.update(font=args[5],route='library')  # observed Android activity recreation
+                events.append(('font',args[5]))
+            if args[0]=='pull':
+                target=Path(args[2]);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(original)
+            return b''
+        def restart():
+            state['route']='library';events.append(('restart',state['font']))
+        def open_cleaner(*args):
+            state['route']='cleaner';events.append(('open',state['font']))
+        def apply(mode):
+            self.assertEqual(state['route'],'cleaner','Font-scale change discarded the active preview')
+            events.append(('apply-'+mode,state['font']))
+            if mode=='file':
+                self.assertEqual(state['font'],'2.0')
+                raise ReachedFileApply()
+        def target(key,**kwargs):
+            return ET.Element('node',{'package':smoke.PACKAGE,'enabled':'false','text':key})
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);fixture=root/'synthetic.mp3';fixture.write_bytes(original)
+            with patch.object(smoke,'OUT',root),patch.object(smoke,'dirty_cleaner_fixture',return_value=fixture), \
+                 patch.object(smoke,'adb',side_effect=adb),patch.object(smoke,'tap'),patch.object(smoke,'choose_folder'), \
+                 patch.object(smoke,'wait_collection_idle'),patch.object(smoke,'quiesce_optional_preparation'), \
+                 patch.object(smoke,'select_cleaner_safe_playback_queue'),patch.object(smoke,'open_cleaner_from_song',side_effect=open_cleaner), \
+                 patch.object(smoke,'select'),patch.object(smoke,'scroll_to',side_effect=target),patch.object(smoke,'wait_cleaner_preview_tools'), \
+                 patch.object(smoke,'screenshot'),patch.object(smoke,'cleaner_apply_dialog',side_effect=apply), \
+                 patch.object(smoke,'public_cold_start',side_effect=restart),patch.object(smoke,'library_tab'), \
+                 patch.object(smoke,'app_media_session',return_value='native session fixture'),patch.object(smoke,'validate_native_queue_size'):
+                with self.assertRaises(ReachedFileApply):smoke.cleaner_acceptance()
+        self.assertEqual(events,[('open','1.0'),('apply-display','1.0'),('font','2.0'),('restart','2.0'),('open','2.0'),('apply-file','2.0')])
+
     def test_resume_confirmation_rejects_other_dialogs_actions_owners_and_disabled_buttons(self):
         root = self.resume_dialog()
         self.assertEqual(smoke.resume_confirmation_button(root).get('text'), 'FORTSETZEN')

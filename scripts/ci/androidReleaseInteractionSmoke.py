@@ -1786,6 +1786,9 @@ def cleaner_acceptance():
     screenshot('v5-cleaner-confirmed-display-result')
     adb('pull', CLEANER_TARGET, str(pulled))
     assert pulled.read_bytes() == original, 'Display-only apply modified the original file'
+    # Android recreates the activity when system font scale changes. Configure
+    # font2 before the explicit cold start and public reentry, not on a live preview.
+    adb('shell','settings','put','system','font_scale','2.0')
     public_cold_start()
     select_cleaner_safe_playback_queue()
     library_tab('tracks')
@@ -1807,9 +1810,7 @@ def cleaner_acceptance():
     assert pulled.read_bytes() == original, 'File-tag analysis modified the original'
     select('tag-cleaner-select-safe', top=True)
     validate_native_queue_size(app_media_session(), TITLES[0], 2)
-    adb('shell','settings','put','system','font_scale','2.0')
     cleaner_apply_dialog('file')
-    adb('shell','settings','put','system','font_scale','1.0')
     screenshot('v5-cleaner-confirmed-saf-file-result')
     adb('pull', CLEANER_TARGET, str(pulled))
     V5_PROOFS['cleaner'] = validate_cleaner_write(original, pulled.read_bytes())
@@ -1821,6 +1822,8 @@ def cleaner_acceptance():
     (OUT / 'v5-cleaner-independent-ffprobe.json').write_bytes(probe.stdout)
     assert abs(float(json.loads(probe.stdout)['format']['duration']) - 75) < .25, 'Cleaned synthetic audio duration changed'
     public_cold_start()
+    adb('shell','settings','put','system','font_scale','1.0')
+    wait_uncovered_library_header()
     library_tab('tracks')
     scroll_to('V5 Cleaner von V5 Proof', top=True)
     V5_PROOFS['cleaner'].update({'readOnlyPreviewExactBytes': True, 'displayApplyExactOriginalBytes': True, 'coldStartPersisted': True, 'fixture': 'generated synthetic SAF MP3, no user music'})
