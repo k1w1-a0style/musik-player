@@ -1,0 +1,36 @@
+{
+  "verified": true,
+  "apkSha256": "c627760a5103bcc05a582b41a9e4b468e7008ca57320260d7ffb75e2290995bb",
+  "sizeBytes": 100860941,
+  "scheme": "APK v2",
+  "algorithm": "RSA-2048 PKCS1/SHA256",
+  "signers": 1,
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "contentDigest": "3dcdaf902b12898f4274613dc5e0ef6544a53f540de9e256cc5a5484fda10f9e",
+  "contentChunks": 99,
+  "attributes": 0,
+  "sourceCommit": "35b3ae2cc785fe38f2997dfd977a18fc5f199df1",
+  "runId": 39690780242,
+  "artifactId": 12389336910,
+  "artifactDigest": "sha256:726f8233f796e901fb1e87ed3141dc68f2d60e96c10de864e6ea1f08747a5f85",
+  "uiAccepted": false,
+  "releaseAccepted": false,
+  "nativeJUnit": {
+    "tests": 178,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "archiveSizeBytes": 48116938,
+  "sourceQuality": {
+    "suites": 435,
+    "tests": 4195,
+    "pythonTests": 174,
+    "lineCoveragePercent": 96.03
+  },
+  "security": {
+    "releaseReviewDate": "2026-10-22",
+    "exceptionsExpireOn": "2026-10-21",
+    "status": "blocked-expired-exceptions"
+  }
+}
