@@ -115,11 +115,9 @@ jobs:
           print('Official emulator archive verified and installed.',flush=True)
           SDK
           test -x "$ANDROID_HOME/emulator/emulator"
-          ldd "$ANDROID_HOME/emulator/qemu/linux-x86_64/qemu-system-x86_64" | tee "$RUNNER_TEMP/emulator-linked-libraries.txt"
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libpulse0
-          ldd "$ANDROID_HOME/emulator/qemu/linux-x86_64/qemu-system-x86_64" | tee "$RUNNER_TEMP/emulator-verified-libraries.txt"
-          python3 scripts/ci/verifyEmulatorLibraries.py "$RUNNER_TEMP/emulator-verified-libraries.txt"
+          python3 scripts/ci/verifyEmulatorLibraries.py "$ANDROID_HOME/emulator" "$RUNNER_TEMP/emulator-verified-libraries.txt"
           "$ANDROID_HOME/emulator/emulator" -version
           test -x "$ANDROID_HOME/platform-tools/adb"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
