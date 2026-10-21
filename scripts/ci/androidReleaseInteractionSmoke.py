@@ -254,7 +254,12 @@ def scroll_candidate(key, root):
             x1, y1, x2, y2 = rect(node)
             # Android reports child bounds outside the parent clip and behind
             # the mini player. Such a label is not proof of a usable touch area.
-            if key.startswith(('song-card-info-', 'library-menu-item-', 'tag-cleaner-')) and (x2-x1 < 72 or y2-y1 < 72):
+            cleaner_action = key.startswith('tag-cleaner-') and node.get('clickable') == 'true'
+            # Full-width buttons are legitimate. At a vertical clip edge,
+            # however, even >=48dp of a tall font2 button can hide its label.
+            if cleaner_action and (y1 <= sy1 or y2 >= sy2):
+                return None
+            if (key.startswith(('song-card-info-', 'library-menu-item-')) or cleaner_action) and (x2-x1 < 72 or y2-y1 < 72):
                 # Android can report already-clipped child bounds exactly at the
                 # parent edge; inside-parent geometry alone is not whole visibility.
                 if x1 <= sx1 or x2 >= sx2 or y1 <= sy1 or y2 >= sy2:

@@ -1616,6 +1616,15 @@ class CleanerResultScrollRegressionTest(unittest.TestCase):
         from androidCleanerGeometry import validate_targets
         validate_targets(whole,[self.key],smoke.PACKAGE)
 
+    def test_tall_clipped_export_requires_clearance_even_above_the_touch_minimum(self):
+        clipped=self.recorded()
+        target=next(n for n in clipped.iter('node') if n.get('resource-id')==self.key)
+        target.set('bounds','[24,680][456,784]')
+        # 104 visible pixels meet the touch minimum but can still hide text.
+        self.assertIsNone(smoke.scroll_candidate(self.key,clipped))
+        target.set('bounds','[24,620][456,760]')
+        self.assertIs(smoke.scroll_candidate(self.key,clipped),target)
+
     def test_permanently_clipped_export_still_fails_without_tapping(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
              patch.object(smoke,'scroll_query_frame',side_effect=lambda key:self.recorded()), \
