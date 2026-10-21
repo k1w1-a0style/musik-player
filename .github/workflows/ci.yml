@@ -532,6 +532,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Checkout exact final policy
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Reject security exceptions that expired during the build or UI acceptance
+        run: node scripts/ci/checkNpmAuditExpiry.cjs
+
       - name: Require every independent gate to succeed
         env:
           SECURITY_RESULT: ${{ needs.security-audit.result }}

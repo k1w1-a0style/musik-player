@@ -5,6 +5,10 @@ const script = path.join(__dirname, '..', 'checkNpmAudit.cjs');
 const { evaluateAudit } = require(script) as {
   evaluateAudit: (input: Record<string, unknown>) => { failures: string[]; warnings: string[] };
 };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { policyExpiryFailures } = require('../checkNpmAuditExpiry.cjs') as {
+  policyExpiryFailures: (policy: unknown, today: string) => string[];
+};
 
 const lock = (versions: Record<string, string> = { 'node_modules/brace-expansion': '2.1.2' }) => ({
   packages: Object.fromEntries(
@@ -51,6 +55,21 @@ const vulnerableLock = () => lock({
 });
 
 describe('npm audit policy gate', () => {
+  it('rejects release after midnight even when the source audit passed before expiry', () => {
+    const earlier = evaluateAudit({ audit: audit({ 'brace-expansion': braceExpansion }),
+      policy, lock: vulnerableLock(), today: '2026-08-31' });
+    expect(earlier.failures).toEqual([]);
+    expect(policyExpiryFailures(policy, '2026-09-01')).toEqual([
+      'brace-expansion: exception expired on 2026-08-31',
+    ]);
+  });
+
+  it('fails closed on missing or malformed policy at the final release gate', () => {
+    for (const invalid of [undefined, {}, { schemaVersion: 2, exceptions: null }]) {
+      expect(policyExpiryFailures(invalid, '2026-09-01')).toEqual(['unsupported npm audit exception policy']);
+    }
+  });
+
   it('passes with an empty exception list when no high or critical findings remain', () => {
     const result = evaluateAudit({
       audit: audit({}),

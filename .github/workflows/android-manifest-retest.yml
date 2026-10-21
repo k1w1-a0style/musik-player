@@ -154,6 +154,9 @@ jobs:
           adb logcat -c
           "$RUNNER_TEMP/release-ui-venv/bin/python" scripts/ci/androidReleaseInteractionSmoke.py 2>&1 | tee ci-logs/release-ui.log
 
+      - name: Reject security exceptions that expired since the source audit
+        run: node scripts/ci/checkNpmAuditExpiry.cjs
+
       - name: Capture diagnostics after any device failure
         if: always()
         run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
