@@ -1593,5 +1593,37 @@ Audio playback (lastly played comes first)
 
 
 
+class CleanerResultScrollRegressionTest(unittest.TestCase):
+    # Exact final.xml from run39688915146/artifact12389495057, archive SHA256
+    # f1477c60434a68e09135722ddbc52ba15eb9f2cc7012529faab1e4bf11287dbe.
+    key = 'tag-cleaner-result-export'
+
+    def recorded(self):
+        return ET.parse(Path(__file__).parent / 'fixtures/cleaner-result-font2-clipped-39688915146.xml').getroot()
+
+    def test_recorded_clipped_export_is_scrolled_before_geometry_validation(self):
+        clipped=self.recorded()
+        self.assertEqual(rect(smoke.candidate(self.key,clipped)),[24,728,456,784])
+        self.assertIsNone(smoke.scroll_candidate(self.key,clipped))
+        whole=self.recorded()
+        target=next(n for n in whole.iter('node') if n.get('resource-id')==self.key)
+        target.set('bounds','[24,620][456,760]')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'scroll_query_frame',side_effect=[clipped,whole]), \
+             patch.object(smoke,'adb') as adb, patch.object(smoke.time,'sleep'):
+            self.assertIs(smoke.scroll_to(self.key),target)
+            adb.assert_called_once_with('shell','input','swipe','240','661','240','495','800')
+        from androidCleanerGeometry import validate_targets
+        validate_targets(whole,[self.key],smoke.PACKAGE)
+
+    def test_permanently_clipped_export_still_fails_without_tapping(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke,'OUT',Path(directory)), \
+             patch.object(smoke,'scroll_query_frame',side_effect=lambda key:self.recorded()), \
+             patch.object(smoke,'adb'), patch.object(smoke,'tap_node') as tap, patch.object(smoke.time,'sleep'):
+            with self.assertRaisesRegex(AssertionError,'not reachable'):
+                smoke.scroll_to(self.key,limit=2)
+            tap.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
