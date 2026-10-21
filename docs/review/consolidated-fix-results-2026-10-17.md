@@ -1,5 +1,7 @@
 # Konsolidierter Deep Scan – Umsetzung und Nachweise
 
+**Aktualisierung22.10.2026:** Gesamtfreigabe weiterhin blockiert. Aktuelle Sicherheitsfristprüfung in [security-expiry-2026-10-22.md](security-expiry-2026-10-22.md); frühere Zahlen unten sind historische17.10.-Zwischenstände. Aktuelle Source-CI siehe letzter Abschnitt.
+
 Basis: `151f8c6774790e6dee46daa168175d2d558f02ea`, Arbeitsbranch `codex`.
 Der Arbeitsplan steht in [consolidated-fix-plan-2026-10-17.md](consolidated-fix-plan-2026-10-17.md).
 Rückfallbranch: `backup/codex-before-consolidated-fixes-20261017` (auch remote gesichert).
@@ -65,4 +67,8 @@ Primärquellen zur Upstream-Lage (17.10.2026):
 
 ## Integrierte Source-CI
 
-Wird nach Veröffentlichung des geprüften Endstands ergänzt. Ein noch laufender oder fehlgeschlagener Job ist keine Freigabe.
+Aktuelle Quelle: `35b3ae2cc785fe38f2997dfd977a18fc5f199df1`, [CI39690780242](https://github.com/k1w1-a0style/musik-player/actions/runs/39690780242).
+
+Qualitätsjob119536649099 erfolgreich: **435Suiten/4195Tests**,174Python, TypeScript, strengerLint, Expo-Kompatibilität, NUL-/Komplexitäts-/Konfigurations-/Manifestgates; Hermes-Bundlegrenze1Map/1688Quellen. Coverage92.94/85.31/94.10/96.03% (Statements/Branches/Functions/Lines). Emulator-Runtimefix zuvor im echten Runner39688915146 erfolgreich bestätigt. Notwendiger SDK57.0.31-Abgleich ist integriert; vorherige Quellen werden nicht als neuer APK-Nachweis verwendet.
+
+Native-/APK-/UI-Abnahme am neuen Stand läuft noch. Die abgelaufenen Sicherheitsausnahmen bleiben unabhängig vom UTC-bedingt noch grünen Anfangsaudit blockierend. Neuer finaler Ablaufcheck schließt Freigabe mit während langer Tests veralteten Ausnahmen. Noch keine vollständige Projekt-/APK-Freigabe.
