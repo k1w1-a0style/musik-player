@@ -259,6 +259,11 @@ describe('GitHub workflow CI strategy', () => {
     const aggregate = workflow.jobs['release-ready'];
     expect(aggregate.if).toBe('${{ always() }}');
     expect(aggregate.needs).toEqual(['security-audit', 'quality-gates', 'native-gates', 'release-emulator']);
+    // The result aggregate needs no checkout; expiry is checked last so a
+    // successful source audit cannot outlive its policy during device work.
+    const checkout = aggregate.steps.find((item: { name?: string }) => item.name === 'Checkout exact final policy');
+    expect(checkout?.with?.['persist-credentials']).toBe(false);
+    expect(aggregate.steps.at(-1)?.run).toBe('node scripts/ci/checkNpmAuditExpiry.cjs');
     const step = aggregate.steps[0];
     for (const result of ['SECURITY_RESULT', 'QUALITY_RESULT', 'NATIVE_RESULT']) {
       expect(step.run).toContain(`test "$${result}" = success`);
