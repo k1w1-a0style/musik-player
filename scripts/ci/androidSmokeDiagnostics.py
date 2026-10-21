@@ -2,6 +2,31 @@
 import json
 from pathlib import Path
 import subprocess
+import sys
+
+
+def host_state(output, proc=Path('/proc')):
+    state = {'meminfo': (proc / 'meminfo').read_text()}
+    pid_file = Path(output).parent / 'emulator.pid'
+    if pid_file.exists():
+        pid = int(pid_file.read_text().strip())
+        assert pid > 0, 'Invalid emulator PID'
+        state['emulatorPid'] = pid
+        try:
+            state['emulatorStatus'] = (proc / str(pid) / 'status').read_text()
+        except FileNotFoundError:
+            state['emulatorExited'] = True
+    return state
+
+
+def capture_final_snapshot(capture):
+    primary_error = sys.exc_info()[1]
+    try:
+        capture()
+    except Exception as error:
+        if primary_error is None:
+            raise
+        print('Final snapshot failed; preserving original smoke failure: ' + repr(error), flush=True)
 
 
 def collect_diagnostics(output, package, timeout=15):
@@ -24,6 +49,11 @@ def collect_diagnostics(output, package, timeout=15):
                                     'stderr': result.stderr.decode(errors='replace')}
         except Exception as error:
             errors[filename] = {'error': str(error)}
+    try:
+        output.mkdir(parents=True, exist_ok=True)
+        (output / 'host-state.json').write_text(json.dumps(host_state(output), indent=2))
+    except Exception as error:
+        errors['host-state.json'] = {'error': str(error)}
     try:
         output.mkdir(parents=True, exist_ok=True)
         (output / 'diagnostic-errors.json').write_text(json.dumps(errors, indent=2))

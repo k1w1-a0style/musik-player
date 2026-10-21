@@ -2283,9 +2283,9 @@ def main():
         (OUT / 'result.json').write_text(json.dumps(result, indent=2))
         print(json.dumps(result), flush=True)
     finally:
-        from androidSmokeDiagnostics import collect_diagnostics
+        from androidSmokeDiagnostics import collect_diagnostics, capture_final_snapshot
         collect_diagnostics(OUT, PACKAGE)
-        screenshot('final')
+        capture_final_snapshot(lambda: screenshot('final'))
         (OUT / 'meminfo.txt').write_bytes(adb('shell', 'dumpsys', 'meminfo', PACKAGE, check=False))
         (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, 'framestats', check=False))
 

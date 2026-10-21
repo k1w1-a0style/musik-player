@@ -5,10 +5,40 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from androidSmokeDiagnostics import collect_diagnostics
+from androidSmokeDiagnostics import collect_diagnostics, capture_final_snapshot, host_state
 
 
 class AndroidDiagnosticsTest(unittest.TestCase):
+    def test_final_snapshot_keeps_original_failure_when_device_goes_offline(self):
+        def offline():
+            raise subprocess.CalledProcessError(255, ['adb', 'screencap'])
+        with self.assertRaisesRegex(AssertionError, 'original UI transport error'):
+            try:
+                raise AssertionError('original UI transport error')
+            finally:
+                capture_final_snapshot(offline)
+
+    def test_final_snapshot_failure_after_success_still_fails_acceptance(self):
+        def offline():
+            raise subprocess.CalledProcessError(255, ['adb', 'screencap'])
+        with self.assertRaises(subprocess.CalledProcessError):
+            capture_final_snapshot(offline)
+
+    def test_host_state_distinguishes_live_emulator_from_exited_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            proc = root / 'proc'
+            process = proc / '123'
+            process.mkdir(parents=True)
+            (proc / 'meminfo').write_text('MemAvailable: 123456 kB\n')
+            (process / 'status').write_text('Name: qemu-system-x86\nVmRSS: 45678 kB\n')
+            (root / 'emulator.pid').write_text('123\n')
+            snapshot = host_state(root / 'stage', proc)
+            self.assertEqual(snapshot['emulatorPid'], 123)
+            self.assertIn('VmRSS: 45678', snapshot['emulatorStatus'])
+            (process / 'status').unlink()
+            self.assertIs(host_state(root / 'stage', proc)['emulatorExited'], True)
+
     def test_screenshot_failure_keeps_other_diagnostics_and_primary_error(self):
         def run(command, **kwargs):
             failed = 'screencap' in command

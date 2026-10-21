@@ -32,5 +32,19 @@
     "releaseReviewDate": "2026-10-22",
     "exceptionsExpireOn": "2026-10-21",
     "status": "blocked-expired-exceptions"
-  }
+  },
+  "uiAttempts": [
+    {
+      "runId": 39690780242,
+      "jobId": 119543395576,
+      "harnessCommit": "35b3ae2cc785fe38f2997dfd977a18fc5f199df1",
+      "status": "failed-transport",
+      "completedFont2Cases": 10,
+      "requiredFont2Cases": 12,
+      "artifactId": 12390018225,
+      "artifactDigest": "sha256:8487d40df323abd4a2a0df786d9d210b30a72bf6f9d8e7e429a9998816e84f54",
+      "archiveSizeBytes": 14914467,
+      "fullAcceptanceStarted": false
+    }
+  ]
 }
