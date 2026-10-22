@@ -20,7 +20,7 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 
 ## Tech-Stack
 
-- Expo ~57.0.27, React Native 0.86.3, React 19.2.3, TypeScript 6; Node 22
+- Expo 57.0.31, React Native 0.86.3, React 19.2.3, TypeScript 6; Node 22
 - Lokale Kompatibilitätsschicht `modules/playback-backend` über `@rntp/player@5.12.1`, New Architecture aktiviert
 - Jest + jest-expo, ESLint 10
 
@@ -83,6 +83,16 @@ npm test -- --runInBand
 - Der versionsgebundene Postinstall-Patch ergänzt native Bereitschaft, echte Command-Bestätigungen und die Audio-Session-ID. Versions- oder Quellabweichungen stoppen die Installation.
 - RNTP 5 ist laut mitgelieferter Lizenz kostenlos für private, persönliche Nutzung; andere Nutzung benötigt eine gesonderte Lizenz. Es wurde keine Lizenz gekauft.
 - Migrationsnachweis und offene Geräteprüfungen: [`docs/review/auftrag-1-2026-10-07.md`](docs/review/auftrag-1-2026-10-07.md).
+
+## Projektfreigabe / letzter technischer Stand (22.10.2026)
+
+Der neueste nachgewiesene Produktcode ist `63d5a61bad64af8af9be604e25dffbffb1298898`: 437 Jest-Suiten / 4.227 Tests, 182 Python-Regressionen und 215 native Tests bestanden. Die signierte Preview-APK ist als Testkandidat vorhanden, aber **nicht final freigegeben**.
+
+- Das verpflichtende CI-Sicherheitsgate bleibt wegen der am 21.10.2026 abgelaufenen Ausnahmen für `braces@3.0.3` und `node-forge@1.4.0` rot: [Issue #396](https://github.com/k1w1-a0style/musik-player/issues/396). Beide Pakete sind auf diesem Stand in Tooling-Dependency-Pfaden noch installiert. Keine stillschweigende Fristverlängerung.
+- Die neuste Audio-Leseberechtigungskorrektur hat Quality-, Manifest-, APK-Signatur- und Native-Gates bestanden. Installation und Android-UI-/Cover-Pause-/Back-Prüfung dieser **exakten** APK sind nicht nachgewiesen: [aktueller Nachweis](docs/review/audio-read-permission-fix-2026-10-22.md).
+- Echte Samsung-/Huawei-, SAF-Provider-, Bluetooth-/Headset- und TalkBack-Abnahmen bleiben offen: [Gerätegate](docs/review/v4-real-device-gate.md).
+- Interne Playlisten sind vorhanden; M3U-/M3U8-Dateiimport und -export sind noch nicht implementiert. Nicht mit nativen Playlisten verwechseln.
+- Keine Übernahme alter V5-UI-Nachweise auf neue APK-Bytes, kein `codex` → `main`-Merge und keine Produktionsfreigabe ohne bestandene Gates.
 
 ## Release-Hinweise
 
