@@ -1,6 +1,6 @@
 # Audio-Leseberechtigung – Reparatur und Abnahme vom 22.10.2026
 
-Status: Korrektur implementiert, native Abnahme ausstehend. Arbeitsbranch ausschließlich `codex`; `main` unverändert. Übernahmestand `0ee18941696dd660e3d5945b866d74ac467a6f94`, keine ungesicherten Arbeiten oder aktive aktuelle CI beim Einstieg.
+Status: Korrektur und vollständige Qualitäts-CI erfolgreich; native Abnahme ausstehend. Produktquelle `63d5a61bad64af8af9be604e25dffbffb1298898`, [CI39828111896](https://github.com/k1w1-a0style/musik-player/actions/runs/39828111896). Arbeitsbranch ausschließlich `codex`; `main` unverändert. Übernahmestand `0ee18941696dd660e3d5945b866d74ac467a6f94`, keine ungesicherten Arbeiten oder aktive aktuelle CI beim Einstieg.
 
 ## Reihenfolge und Abgleich
 
@@ -56,7 +56,7 @@ Neue native Tests kompilieren den exakten in Expo installierten Helper. Geplant:
 - TypeScript, strenger Lint und Komplexitätsgate (4313 Produktionsfunktionen) erfolgreich. Gemeinsame Import-Flow-Verdrahtung dedupliziert; Schwellen unverändert.
 - Tatsächlicher Expo-Prebuild und generierter Manifest-Gate erfolgreich; READ_EXTERNAL_STORAGE cap32, READ_MEDIA_AUDIO und nötige Playback-Rechte vorhanden, breite Schreib-/Visual-Rechte ausgeschlossen.
 - Postinstall prüft RNTP, neue Audio-Lesegrenze und beide Tooling-Security-Payloads erfolgreich und idempotent. Lockfile/Abhängigkeitsversionen unverändert.
-- Nächster Nachweis: genau eine integrierte CI mit vollständigem Jest/Coverage, nativem API-Test und neuer signierter APK. Kein identischer zusätzlicher Build vorgesehen.
+- Integrierte Qualitäts-CI119996711139 vollständig erfolgreich: **437 Suiten /4227 Tests**, **182 Python** in0,434s; TypeScript, strenger Lint, Expo-/NUL-/Komplexitäts-/Bundle-/Konfigurations-/Manifestgates. Coverage92,94/85,34/94,11/96,03%. Alle3 zuvor korrigierten Integrationserwartungen sind im vollständigen Lauf bestätigt. Native119996710623 läuft noch; Security119996711265 scheitert an den zwei unverändert abgelaufenen Ausnahmen. Kein identischer zusätzlicher Build.
 
 ## Security und offene Abnahme
 
