@@ -11,7 +11,7 @@ import {
 test('exports stable static import and refresh messages', () => {
   expect(libraryImportMessages.preparingImport).toBe('Import wird vorbereitet…');
   expect(libraryImportMessages.readingId3Metadata).toBe('ID3-Metadaten werden gelesen…');
-  expect(libraryImportMessages.permissionRequiredTitle).toBe('Berechtigung benötigt');
+  expect(libraryImportMessages.permissionRequiredTitle).toBe('Musikzugriff erforderlich');
   expect(libraryImportMessages.partiallyImportedMessage).toMatch(/Importierbare Titel/);
 });
 

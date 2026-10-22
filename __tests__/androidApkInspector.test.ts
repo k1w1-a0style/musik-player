@@ -39,6 +39,16 @@ const makeFailingApksignerPath = () => {
 };
 
 describe('Android APK inspector', () => {
+  it.each(['32', '31', undefined])('validates the compiled legacy-read SDK cap: %s', cap => {
+    const parsed = parseBadgingViaNode(`uses-permission: name='android.permission.READ_EXTERNAL_STORAGE'${cap ? ` maxSdkVersion='${cap}'` : ''}`);
+    const result = spawnSync(process.execPath, ['-e',
+      `const { validateAndroidPermissionSdkCaps } = require(${JSON.stringify(path.join(__dirname, '..', 'scripts/ci/androidPermissionPolicy.cjs'))}); console.log(JSON.stringify(validateAndroidPermissionSdkCaps(JSON.parse(process.argv[1]))));`,
+      JSON.stringify(parsed.permissionEntries)], { encoding: 'utf8' });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(cap === '32' ? [] : [
+      'legacy permission android.permission.READ_EXTERNAL_STORAGE must declare android:maxSdkVersion="32"',
+    ]);
+  });
   it('prints APK-like ZIP structure and tolerates optional signature failures', () => {
     const { dir, apk } = makeApkLikeZip();
     const binDir = makeFailingApksignerPath();

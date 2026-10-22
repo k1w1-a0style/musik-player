@@ -2,7 +2,7 @@
 'use strict';
 
 const fs = require('fs');
-const { validateAndroidPermissions } = require('./androidPermissionPolicy.cjs');
+const { validateAndroidPermissions, validateAndroidPermissionSdkCaps } = require('./androidPermissionPolicy.cjs');
 
 const manifestPath = process.argv[2] || 'android/app/src/main/AndroidManifest.xml';
 const xml = fs.readFileSync(manifestPath, 'utf8');
@@ -25,13 +25,7 @@ while ((match = permissionRegex.exec(xml)) !== null) {
 
 const failures = validateAndroidPermissions(permissions)
   .map(failure => `Generated AndroidManifest ${failure}`);
-if (permissionEntries.some(entry =>
-  entry.name === 'android.permission.READ_EXTERNAL_STORAGE'
-  && entry.maxSdkVersion !== '32')) {
-  failures.push(
-    'Generated AndroidManifest legacy permission android.permission.READ_EXTERNAL_STORAGE must declare android:maxSdkVersion="32"',
-  );
-}
+failures.push(...validateAndroidPermissionSdkCaps(permissionEntries).map(failure => `Generated AndroidManifest ${failure}`));
 if (/\bandroid:requestLegacyExternalStorage\s*=/.test(xml)) {
   failures.push('Generated AndroidManifest must not declare android:requestLegacyExternalStorage');
 }

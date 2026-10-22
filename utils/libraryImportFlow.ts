@@ -11,6 +11,7 @@ import {
   tracksSavingStatus,
 } from './libraryImportMessages';
 import { mergeSongs } from './libraryPresentation';
+import { isMediaLibraryReadAccessError } from './mediaLibraryReadAccess';
 
 interface LibraryAlertMessage {
   title: string;
@@ -228,7 +229,8 @@ export const buildMetadataRefreshResult = (songs: Song[], updated: number, skipp
     : getMetadataRefreshCompleteAlert(updated, skipped, failed),
 });
 
-export const getImportStoppedAlert = (error: unknown): LibraryAlertMessage => ({
+export const getImportStoppedAlert = (error: unknown): LibraryAlertMessage => isMediaLibraryReadAccessError(error)
+  ? getMediaLibraryPermissionDeniedAlert() : ({
   title: libraryImportMessages.importStoppedTitle,
   message: getErrorMessage(error, libraryImportMessages.importFallbackError),
 });

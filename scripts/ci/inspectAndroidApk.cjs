@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { validateAndroidPermissions } = require('./androidPermissionPolicy.cjs');
+const { validateAndroidPermissions, validateAndroidPermissionSdkCaps } = require('./androidPermissionPolicy.cjs');
 
 const tools = new Map();
 
@@ -160,7 +160,7 @@ const parseNativeCode = line => {
 };
 
 const parseBadging = output => {
-  const data = { permissions: [] };
+  const data = { permissions: [], permissionEntries: [] };
   for (const rawLine of output.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line.startsWith('package:')) Object.assign(data, parseAttributes(line));
@@ -169,8 +169,11 @@ const parseBadging = output => {
     if (line.startsWith('targetSdkVersion:')) data.targetSdkVersion = parseColonQuotedValue(line, 'targetSdkVersion');
     if (line.startsWith('native-code:')) data.nativeCode = parseNativeCode(line);
     if (line.startsWith('uses-permission:')) {
-      const name = parseAttributes(line).name;
-      if (name) data.permissions.push(name);
+      const entry = parseAttributes(line);
+      if (entry.name) {
+        data.permissions.push(entry.name);
+        data.permissionEntries.push(entry);
+      }
     }
   }
   return data;
@@ -257,9 +260,12 @@ const inspectApk = options => {
       info('targetSdkVersion', badging.targetSdkVersion);
       info('nativeCode', badging.nativeCode || 'none');
       info('permissions', badging.permissions.length ? badging.permissions.sort().join(',') : 'none');
+      const legacyRead = badging.permissionEntries.find(entry => entry.name === 'android.permission.READ_EXTERNAL_STORAGE');
+      if (legacyRead) info('legacyReadMaxSdkVersion', legacyRead.maxSdkVersion ?? 'uncapped');
       const failures = validateBadging(badging, options);
       if (options.enforcePermissionPolicy) {
         failures.push(...validateAndroidPermissions(badging.permissions));
+        failures.push(...validateAndroidPermissionSdkCaps(badging.permissionEntries));
       }
       if (failures.length > 0) {
         console.error(failures.map(item => `error: ${item}`).join('\n'));

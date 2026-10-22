@@ -356,6 +356,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     onFolderAdded: expect.any(Function),
   });
   expect(useLibraryImportActions).toHaveBeenCalledWith({
+    onSelectMusicFolder: mockScanFolderActions.onAddScanFolder,
     persistChangedFolderUpdates: mockScanFolderActions.persistChangedFolderUpdates,
     scanFolders: [],
     setActiveTab: mockScreenState.setActiveTab,

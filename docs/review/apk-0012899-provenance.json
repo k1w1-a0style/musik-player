@@ -66,6 +66,7 @@
   "nativeCrashFixAndroidVerified": false,
   "uiAccepted": false,
   "releaseAccepted": false,
-  "status": "unreleased-build-candidate",
-  "verificationScope": "Archive SHA/size/CRC, recorded source SHA and APK checksum, APK v2 RSA signature/certificate/content digest, official CI inspection and native JUnit. No installation or Android UI acceptance of these bytes."
+  "status": "superseded-permission-defect",
+  "verificationScope": "Archive SHA/size/CRC, recorded source SHA and APK checksum, APK v2 RSA signature/certificate/content digest, official CI inspection and native JUnit. No installation or Android UI acceptance of these bytes.",
+  "knownAppBlocker": "Expo legacy native audio reads require WRITE_EXTERNAL_STORAGE below API33 despite the read-only manifest. Superseded by pinned audio-read compatibility fix; no release or UI acceptance."
 }

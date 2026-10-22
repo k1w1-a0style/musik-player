@@ -11,9 +11,10 @@ const gateScript = path.join(
   'checkAndroidManifestPermissions.cjs',
 );
 
+const permissionXml = (permission: string): string => `<uses-permission android:name="${permission}"${permission === 'android.permission.READ_EXTERNAL_STORAGE' ? ' android:maxSdkVersion="32"' : ''} />`;
 const manifest = (permissions: string[]): string => `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-${permissions.map(permission => `  <uses-permission android:name="${permission}" />`).join('\n')}
+${permissions.map(permission => `  ${permissionXml(permission)}`).join('\n')}
 </manifest>
 `;
 
@@ -29,15 +30,21 @@ const runGate = (permissions: string[] | string) => {
 const requiredPermissions = [
   'android.permission.MODIFY_AUDIO_SETTINGS',
   'android.permission.READ_MEDIA_AUDIO',
+  'android.permission.READ_EXTERNAL_STORAGE',
   'android.permission.FOREGROUND_SERVICE',
   'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
 ];
 
 describe('generated AndroidManifest permission gate', () => {
+  test('fails when the legacy read declaration is missing for supported Android 7–12 devices', () => {
+    const result = runGate(requiredPermissions.filter(permission => permission !== 'android.permission.READ_EXTERNAL_STORAGE'));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('missing required permission: android.permission.READ_EXTERNAL_STORAGE');
+  });
   test('ignores permissions explicitly removed by the manifest merger', () => {
     const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-  ${requiredPermissions.map(permission => `<uses-permission android:name="${permission}" />`).join('\n  ')}
+  ${requiredPermissions.map(permissionXml).join('\n  ')}
   <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
   <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
 </manifest>`);
@@ -68,7 +75,7 @@ describe('generated AndroidManifest permission gate', () => {
   it('accepts legacy read access only when capped at Android 12L', () => {
     const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  ${requiredPermissions.map(permission => `<uses-permission android:name="${permission}" />`).join('\n  ')}
+  ${requiredPermissions.map(permissionXml).join('\n  ')}
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 </manifest>`);
 
@@ -76,7 +83,7 @@ describe('generated AndroidManifest permission gate', () => {
   });
 
   it('fails when legacy read access is not capped', () => {
-    const result = runGate([...requiredPermissions, 'android.permission.READ_EXTERNAL_STORAGE']);
+    const result = runGate(manifest(requiredPermissions).replace(' android:maxSdkVersion="32"', ''));
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
@@ -96,7 +103,7 @@ describe('generated AndroidManifest permission gate', () => {
   it('fails when legacy external-storage mode is requested', () => {
     const result = runGate(`<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  ${requiredPermissions.map(permission => `<uses-permission android:name="${permission}" />`).join('\n  ')}
+  ${requiredPermissions.map(permissionXml).join('\n  ')}
   <application android:requestLegacyExternalStorage="true" />
 </manifest>`);
 

@@ -3,6 +3,7 @@
 const REQUIRED_ANDROID_PERMISSIONS = Object.freeze([
   'android.permission.MODIFY_AUDIO_SETTINGS',
   'android.permission.READ_MEDIA_AUDIO',
+  'android.permission.READ_EXTERNAL_STORAGE',
   'android.permission.FOREGROUND_SERVICE',
   'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
 ]);
@@ -20,7 +21,6 @@ const ALLOWED_ANDROID_PERMISSIONS = Object.freeze([
   'android.permission.WAKE_LOCK',
   'android.permission.VIBRATE',
   'android.permission.POST_NOTIFICATIONS',
-  'android.permission.READ_EXTERNAL_STORAGE',
   // AndroidX Core protects non-exported receivers with this app-private,
   // signature-only permission. Allow the exact release package, no wildcard.
   'com.k1w1a0style.musikplayer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION',
@@ -58,9 +58,14 @@ const validateAndroidPermissions = permissions => {
   return failures;
 };
 
+const validateAndroidPermissionSdkCaps = entries => entries
+  .filter(entry => entry.name === 'android.permission.READ_EXTERNAL_STORAGE' && entry.maxSdkVersion !== '32')
+  .map(() => 'legacy permission android.permission.READ_EXTERNAL_STORAGE must declare android:maxSdkVersion="32"');
+
 module.exports = {
   REQUIRED_ANDROID_PERMISSIONS,
   ALLOWED_ANDROID_PERMISSIONS,
   FORBIDDEN_ANDROID_PERMISSIONS,
   validateAndroidPermissions,
+  validateAndroidPermissionSdkCaps,
 };

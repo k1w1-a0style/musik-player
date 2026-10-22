@@ -1,0 +1,9 @@
+{
+  "version": "57.0.5",
+  "path": "android/src/main/java/expo/modules/medialibrary/MediaLibraryModule.kt",
+  "upstreamSha256": "e4363128600a8a0a2e0d545b619e1d39b486222e284bd6f9c8e145b0754d3212",
+  "patchedSha256": "17985466b4fcd5f69244f54aa3f23acac58e414903d4421d0a1edb17ddf10ec4",
+  "from": "  private fun hasReadPermissions(): Boolean {\n    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {\n      val permissions = allowedPermissionsList.map { it.toManifestPermission() }.toMutableList()\n      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {\n        permissions.add(READ_MEDIA_VISUAL_USER_SELECTED)\n      }\n\n      // Android will only return albums that the user allowed access to.\n      permissions.map { permission ->\n        appContext.permissions\n          ?.hasGrantedPermissions(permission) ?: false\n      }.any { it }.not()\n    } else {\n      val permissions = arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE)\n      appContext.permissions\n        ?.hasGrantedPermissions(*permissions)\n        ?.not() ?: false\n    }\n  }\n",
+  "to": "  private fun hasReadPermissions(): Boolean =\n    AudioReadPermissionPolicy.isMissing(Build.VERSION.SDK_INT) { permission ->\n      appContext.permissions?.hasGrantedPermissions(permission) ?: false\n    }\n",
+  "helperSha256": "ba7e817d9b29e0e89a4c4aba2cdf58fc0e06e8c1e2ebfa6f42f31923f868b1c7"
+}

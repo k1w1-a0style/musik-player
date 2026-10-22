@@ -58,6 +58,8 @@ interface HookHarnessProps {
   importTimeoutMs?: number;
   importSongsFromSourcesImpl?: jest.Mock;
   requestMediaLibraryPermissionsAsync?: jest.Mock;
+  getMediaLibraryPermissionsAsync?: jest.Mock;
+  onSelectMusicFolder?: () => void;
   scanMediaLibraryCandidatesImpl?: jest.Mock;
   enrichMediaLibraryAssetsImpl?: jest.Mock;
   confirmLibraryImportImpl?: jest.Mock;
@@ -74,6 +76,9 @@ const HookHarness = ({
   importTimeoutMs,
   importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: [], folderUpdates: undefined }),
   requestMediaLibraryPermissionsAsync = jest.fn().mockResolvedValue({ status: 'granted' }),
+  getMediaLibraryPermissionsAsync = jest.fn().mockResolvedValueOnce({ status: 'undetermined', canAskAgain: true })
+    .mockResolvedValue({ status: 'granted' }),
+  onSelectMusicFolder,
   scanMediaLibraryCandidatesImpl = jest.fn().mockResolvedValue({ assets: [{ id: 'asset-1' }], skipped: [] }),
   enrichMediaLibraryAssetsImpl = jest.fn().mockResolvedValue({ songs: [song('media-song')] }),
   confirmLibraryImportImpl = jest.fn().mockResolvedValue(true),
@@ -100,6 +105,8 @@ const HookHarness = ({
     importTimeoutMs,
     importSongsFromSourcesImpl,
     requestMediaLibraryPermissionsAsync,
+    getMediaLibraryPermissionsAsync,
+    onSelectMusicFolder,
     scanMediaLibraryCandidatesImpl,
     enrichMediaLibraryAssetsImpl,
     confirmLibraryImportImpl,
@@ -595,6 +602,29 @@ test('uses media library import when no active scan folders exist', async () => 
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
 });
 
+test.each([false, true])('explains a native MEDIA_LIBRARY rejection and retains saved data (full: %s)', async fullScan => {
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const existing = song('saved-before-permission-failure');
+  const state = createSongLibraryState([existing]);
+  const persist = jest.fn(async (read: () => Song[]) => read());
+  state.configurePersistence(persist);
+  const scan = jest.fn().mockRejectedValue(new Error(
+    "Call to function 'ExpoMediaLibrary.getAssetsAsync' has been rejected. → Caused by: Missing MEDIA_LIBRARY permissions."));
+  const screen = render(<HookHarness fullScan={fullScan} songs={[existing]} songImport={state}
+    scanMediaLibraryCandidatesImpl={scan} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({
+    title: 'Musikzugriff erforderlich', message: expect.stringContaining('Musikordner'),
+  }));
+  expect(JSON.stringify(showAlert.mock.calls)).not.toContain('ExpoMediaLibrary');
+  expect(state.getCurrent()).toEqual([existing]);
+  expect(persist).not.toHaveBeenCalled();
+  expect(persistChangedFolderUpdates).not.toHaveBeenCalled();
+  expect(getLibraryScanOperation()).toMatchObject({ status: 'failed', fullScan });
+  expect(scan).toHaveBeenCalledTimes(1);
+});
+
 test('does not import media assets when permission is denied', async () => {
   const requestMediaLibraryPermissionsAsync = jest.fn().mockResolvedValue({ status: 'denied' });
   const scanMediaLibraryCandidatesImpl = jest.fn();
@@ -608,9 +638,51 @@ test('does not import media assets when permission is denied', async () => {
 
   fireEvent.press(screen.getByText('import'));
 
-  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getMediaLibraryPermissionDeniedAlert()));
+  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(expect.objectContaining(getMediaLibraryPermissionDeniedAlert())));
   expect(scanMediaLibraryCandidatesImpl).not.toHaveBeenCalled();
   expect(setSongs).not.toHaveBeenCalled();
+  expect(getLibraryScanOperation().status).toBe('failed');
+});
+
+test.each([false, true])('does not scan or save after the audio recheck rejects access (full: %s)', async fullScan => {
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const existing = song('keep-permission-recheck');
+  const state = createSongLibraryState([existing]);
+  const persist = jest.fn(async (read: () => Song[]) => read()); state.configurePersistence(persist);
+  const scan = jest.fn(); const selectFolder = jest.fn();
+  const get = jest.fn().mockResolvedValue({ status: 'denied', canAskAgain: true });
+  const screen = render(<HookHarness fullScan={fullScan} songs={[existing]} songImport={state}
+    getMediaLibraryPermissionsAsync={get} scanMediaLibraryCandidatesImpl={scan} onSelectMusicFolder={selectFolder} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(showAlert).toHaveBeenCalled());
+  expect(scan).not.toHaveBeenCalled();
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(state.getCurrent()).toEqual([existing]); expect(persist).not.toHaveBeenCalled();
+  expect(persistChangedFolderUpdates).not.toHaveBeenCalled();
+  expect(getLibraryScanOperation()).toMatchObject({ status: 'failed', fullScan });
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  const buttons = showAlert.mock.calls[0][0].buttons;
+  buttons.find((button: { text: string }) => button.text === 'Musikordner auswählen').onPress();
+  expect(selectFolder).toHaveBeenCalledTimes(1);
+});
+
+test('a timed-out permission check cannot prompt or scan after a late native result', async () => {
+  jest.useFakeTimers();
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let complete!: (value: { status: string; canAskAgain: boolean }) => void;
+  const get = jest.fn(() => new Promise(resolve => { complete = resolve; }));
+  const request = jest.fn(); const scan = jest.fn();
+  const screen = render(<HookHarness getMediaLibraryPermissionsAsync={get}
+    requestMediaLibraryPermissionsAsync={request} scanMediaLibraryCandidatesImpl={scan}
+    importTimeoutMs={10} withTimeoutImpl={withTimeout} />);
+  fireEvent.press(screen.getByText('import'));
+  await act(async () => { await jest.advanceTimersByTimeAsync(10); });
+  expect(setLoading).toHaveBeenLastCalledWith(false);
+  expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Musikzugriff konnte nicht rechtzeitig') }));
+  await act(async () => { complete({ status: 'denied', canAskAgain: true }); await Promise.resolve(); });
+  expect(request).not.toHaveBeenCalled(); expect(scan).not.toHaveBeenCalled();
+  expect(setSongs).not.toHaveBeenCalled();
+  jest.useRealTimers();
 });
 
 test('shows empty media library alert without confirmation or enrichment', async () => {

@@ -71,7 +71,8 @@ const mockUpdateScanFolder = jest.fn(async (_id: string, _patch: any) => []);
 const mockRemoveScanFolder = jest.fn(async (_id: string) => []);
 const mockAddScanFolder = jest.fn<Promise<any[]>, [any]>(async (_folder: any) => []);
 const mockRequestDirPermissions = jest.fn<Promise<{ granted: boolean; directoryUri?: string }>, []>(async () => ({ granted: false }));
-const mockMediaPermission = jest.fn(async () => ({ status: 'granted' }));
+const mockMediaPermission = jest.fn(async (_writeOnly?: boolean, _granular?: string[]) => ({ status: 'granted' }));
+const mockGetMediaPermission = jest.fn(async (_writeOnly?: boolean, _granular?: string[]) => ({ status: 'granted', canAskAgain: true }));
 const mockImportSongs = jest.fn<Promise<any>, [any?]>(async (_options?: any) => ({ songs: [], skipped: [], errors: [], sourceSummary: [], folderUpdates: [] }));
 const mockMediaCandidates = jest.fn<Promise<any>, []>(async () => ({ assets: [], skipped: [] }));
 const mockMediaEnrich = jest.fn<Promise<any>, any[]>(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
@@ -138,7 +139,8 @@ jest.mock('expo-file-system/legacy', () => ({
 }));
 
 jest.mock('expo-media-library/legacy', () => ({
-  requestPermissionsAsync: () => mockMediaPermission(),
+  requestPermissionsAsync: (writeOnly?: boolean, granular?: string[]) => mockMediaPermission(writeOnly, granular),
+  getPermissionsAsync: (writeOnly?: boolean, granular?: string[]) => mockGetMediaPermission(writeOnly, granular),
 }));
 
 jest.mock('../../components/AppBackground', () => ({ children }: { children: React.ReactNode }) => <>{children}</>);
@@ -158,6 +160,8 @@ const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText']) 
 describe('Library', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetMediaPermission.mockReset().mockResolvedValueOnce({ status: 'undetermined', canAskAgain: true })
+      .mockResolvedValue({ status: 'granted', canAskAgain: true });
     mockPlaylists = [];
     mockLibraryControllerCrash = false;
     mockSongLibrary = createSongLibraryState([{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }]);
@@ -387,7 +391,27 @@ describe('Library', () => {
     pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockMediaPermission).toHaveBeenCalled());
+    expect(mockMediaPermission).toHaveBeenCalledWith(false, ['audio']);
+    expect(mockGetMediaPermission).toHaveBeenLastCalledWith(false, ['audio']);
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalled());
+    view.unmount();
+  });
+
+  test('offers the real SAF picker after permanently denied global access without changing saved titles', async () => {
+    mockGetMediaPermission.mockReset().mockResolvedValue({ status: 'denied', canAskAgain: false });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const view = render(<Library />);
+    await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
+    const before = mockSongLibrary.getCurrent();
+    openOverflowMenu(view.getByLabelText); pressImportMenuItem(view.getByText);
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Musikzugriff erforderlich', expect.any(String), expect.any(Array)));
+    expect(mockMediaPermission).not.toHaveBeenCalled();
+    expect(mockMediaCandidates).not.toHaveBeenCalled(); expect(mockMediaEnrich).not.toHaveBeenCalled();
+    expect(mockSongLibrary.getCurrent()).toEqual(before);
+    const buttons = alert.mock.calls.find(call => call[0] === 'Musikzugriff erforderlich')![2]!;
+    await act(async () => buttons.find(button => button.text === 'Musikordner auswählen')!.onPress!());
+    expect(mockRequestDirPermissions).toHaveBeenCalledTimes(1);
+    expect(mockSongLibrary.getCurrent()).toEqual(before);
     view.unmount();
   });
 });

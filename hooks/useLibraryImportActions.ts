@@ -26,6 +26,8 @@ import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImport
 import { createCoverCacheProtection } from '../utils/coverCacheCleanup';
 import { beginLibraryScan, completeLibraryScan, stopLibraryScan } from '../utils/libraryScanOperation';
 import type { Song } from '../types/Song';
+import { isMediaLibraryReadAccessError } from '../utils/mediaLibraryReadAccess';
+import { musicAccessButtons } from './useLibraryAlerts';
 
 export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
 
@@ -60,6 +62,7 @@ const reportLibraryImportFailure = (
   generation: ImportGeneration,
   isCurrentImport: IsCurrentImport,
   showAlert: ImportAlert,
+  onSelectMusicFolder?: () => void,
 ): void => {
   if (!isCurrentImport(generation) || isAbortError(error)) {
     console.warn('[Import] Import cancelled.', error);
@@ -69,7 +72,9 @@ const reportLibraryImportFailure = (
   } else {
     console.warn('[Import] Import failed.', error);
   }
-  showAlert(getImportStoppedAlert(error));
+  const alert = getImportStoppedAlert(error);
+  showAlert(isMediaLibraryReadAccessError(error)
+    ? { ...alert, buttons: musicAccessButtons(onSelectMusicFolder) } : alert);
 };
 
 const recordScanFailure = (error: unknown, generation: ImportGeneration): void => {
@@ -87,6 +92,8 @@ export const useLibraryImportActions = ({
   importTimeoutMs = DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS,
   importSongsFromSourcesImpl = importSongsFromSources,
   requestMediaLibraryPermissionsAsync = MediaLibrary.requestPermissionsAsync,
+  getMediaLibraryPermissionsAsync = MediaLibrary.getPermissionsAsync,
+  onSelectMusicFolder,
   scanMediaLibraryCandidatesImpl = scanMediaLibraryCandidates,
   enrichMediaLibraryAssetsImpl = enrichMediaLibraryAssets,
   confirmLibraryImportImpl = confirmLibraryImport,
@@ -95,30 +102,23 @@ export const useLibraryImportActions = ({
   const { startImport, isCurrentImport, ensureCurrentImport, finishImport, cancelImport } =
     useLibraryImportLifecycle({ setLoading, setImportStatus });
   const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport, timeoutMs: importTimeoutMs });
+  const sharedFlowOptions = {
+    songs, setImportStatus, showAlert, importTimeoutMs, withTimeoutImpl,
+    ensureCurrentImport, applyImportedSongsUpdate, publishImportedSongs,
+  };
   const { importFromScanFolders } = useLibraryScanFolderImportFlow({
-    songs,
-    setImportStatus,
-    showAlert,
+    ...sharedFlowOptions,
     persistChangedFolderUpdates,
     platformOs,
-    importTimeoutMs,
     importSongsFromSourcesImpl,
-    withTimeoutImpl,
-    ensureCurrentImport,
-    applyImportedSongsUpdate, publishImportedSongs,
   });
   const { importFromMediaLibrary } = useLibraryMediaLibraryImportFlow({
-    songs,
-    setImportStatus,
-    showAlert,
-    importTimeoutMs,
+    ...sharedFlowOptions,
     requestMediaLibraryPermissionsAsync,
+    getMediaLibraryPermissionsAsync,
     scanMediaLibraryCandidatesImpl,
     enrichMediaLibraryAssetsImpl,
     confirmLibraryImportImpl,
-    withTimeoutImpl,
-    ensureCurrentImport,
-    applyImportedSongsUpdate, publishImportedSongs,
   });
 
   const importFromDevice = useCallback(async (options?: { folders?: typeof scanFolders; refreshExisting?: boolean }): Promise<void> => {
@@ -145,7 +145,7 @@ export const useLibraryImportActions = ({
       scanCompleted = true;
     } catch (error) {
       recordScanFailure(error, generation);
-      reportLibraryImportFailure(error, generation, isCurrentImport, showAlert);
+      reportLibraryImportFailure(error, generation, isCurrentImport, showAlert, onSelectMusicFolder);
     } finally {
       generation.coverCacheProtection?.release();
       endMetadataRefreshActivity();
@@ -155,7 +155,7 @@ export const useLibraryImportActions = ({
     // The durable scan has finished. Optional analysis owns its own cancellation
     // and status; navigation or a scan observer must not turn it into a hung scan.
     if (scanCompleted) startOptionalWaveformPreparation(preparationSongs);
-  }, [ensureCurrentImport, finishImport, importFromMediaLibrary, importFromScanFolders, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, songs, startImport]);
+  }, [ensureCurrentImport, finishImport, importFromMediaLibrary, importFromScanFolders, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, songs, startImport, onSelectMusicFolder]);
 
   return { importFromDevice, cancelImport };
 };

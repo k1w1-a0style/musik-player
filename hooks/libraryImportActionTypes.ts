@@ -9,6 +9,7 @@ import type { confirmLibraryImport } from '../utils/libraryImportConfirmation';
 import type { CancellableOperation, TimeoutOptions } from '../utils/withTimeout';
 import type { getLibraryImportFlowCopy, ImportedSongsDelta } from '../utils/libraryImportFlow';
 import type { CoverCacheProtection } from '../utils/coverCacheCleanup';
+import type { AudioPermissionQuery } from '../utils/mediaLibraryReadAccess';
 
 export type ImportedSongsStateUpdate = ImportedSongsDelta;
 
@@ -21,7 +22,7 @@ export interface ImportGeneration {
 
 export type LibraryImportFlowCopy = ReturnType<typeof getLibraryImportFlowCopy>;
 
-export type RequestMediaLibraryPermissions = () => Promise<{ status: string }>;
+export type RequestMediaLibraryPermissions = AudioPermissionQuery;
 export type TimeoutRunner = <T>(operation: Promise<T> | CancellableOperation<T>, timeoutMs: number, timeoutMessage: string, options?: TimeoutOptions) => Promise<T>;
 
 export interface UseLibraryImportActionsOptions {
@@ -39,6 +40,8 @@ export interface UseLibraryImportActionsOptions {
   importTimeoutMs?: number;
   importSongsFromSourcesImpl?: typeof importSongsFromSources;
   requestMediaLibraryPermissionsAsync?: RequestMediaLibraryPermissions;
+  getMediaLibraryPermissionsAsync?: RequestMediaLibraryPermissions;
+  onSelectMusicFolder?: () => void;
   scanMediaLibraryCandidatesImpl?: typeof scanMediaLibraryCandidates;
   enrichMediaLibraryAssetsImpl?: typeof enrichMediaLibraryAssets;
   confirmLibraryImportImpl?: typeof confirmLibraryImport;

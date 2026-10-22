@@ -91,6 +91,7 @@ export const useLibraryControllerActions = ({
     setMenuOpen,
     setSongs,
     showAlert,
+    onSelectMusicFolder: onAddScanFolder,
     songs, songImport,
   });
   importActionRef.current = importFromDevice;

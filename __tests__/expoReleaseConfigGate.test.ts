@@ -14,6 +14,7 @@ const baseConfig = {
     permissions: [
       'android.permission.MODIFY_AUDIO_SETTINGS',
       'android.permission.READ_MEDIA_AUDIO',
+      'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     ],

@@ -374,6 +374,30 @@ describe('mediaLibraryImport', () => {
     endCursor: undefined,
   })) as any;
 
+  test.each([0, 1, 1000, 10000])('reads %i audio entries across real scan pages without losing or duplicating candidates', async count => {
+    const assets = Array.from({ length: count }, (_, index) => mediaAsset(String(index), `music-${index}.mp3`, 180,
+      `content://media/external/audio/media/${index}`, 'audio/mpeg', 'audio'));
+    const get = jest.fn(async ({ first, after }: { first: number; after?: string }) => {
+      const start = Number(after ?? 0); const end = Math.min(start + first, count);
+      return { assets: assets.slice(start, end), hasNextPage: end < count, endCursor: String(end), totalCount: count };
+    });
+    const progress = jest.fn();
+    const result = await mediaImport.scanAudioAssetsFromMediaLibrary(get as any, { onProgress: progress });
+    expect(result.assets).toEqual(assets); expect(result.skipped).toEqual([]);
+    expect(new Set(result.assets.map(asset => asset.id)).size).toBe(count);
+    expect(get).toHaveBeenCalledTimes(Math.max(1, Math.ceil(count / 200)));
+    for (const [options] of get.mock.calls) expect(options).toMatchObject({ first: 200, mediaType: 'audio' });
+    expect(progress).toHaveBeenLastCalledWith(count, Math.max(1, Math.ceil(count / 200)));
+  });
+
+  test('permission loss on a later page rejects the candidate scan instead of reporting an empty completed library', async () => {
+    const error = new Error('Missing MEDIA_LIBRARY permissions.');
+    const get = jest.fn().mockResolvedValueOnce({ assets: [mediaAsset('1', 'song.mp3', 180)],
+      hasNextPage: true, endCursor: '1' }).mockRejectedValue(error);
+    await expect(mediaImport.scanAudioAssetsFromMediaLibrary(get)).rejects.toBe(error);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
   test('enrichMediaLibraryAssets uses native duration when MediaLibrary duration is zero', async () => {
     (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValueOnce({
       durationMs: 245000,
