@@ -4,7 +4,7 @@
 
 Arbeitsbranch: `codex`. Aktuelle Produktquelle: `0012899a8e93a66b5b18ebbc28e56edfe808a892`.
 [Source-CI 39698476835](https://github.com/k1w1-a0style/musik-player/actions/runs/39698476835).
-`main` und ursprüngliche Musikdateien wurden nicht verändert. Abschließender Remote-Abgleich: `main` weiterhin `b62b91b59c7400fd310a5db8fcbf9fc6444ff393`; kein anderer aktiver Lauf unter den aktuellen codex-Runs. Nach Quelle0012899 wurden ausschließlich Nachweisdokumente ergänzt.
+`main` und ursprüngliche Musikdateien wurden nicht verändert. Abschließender Remote-Abgleich: `main` weiterhin `b62b91b59c7400fd310a5db8fcbf9fc6444ff393`; kein anderer aktiver Lauf unter den aktuellen codex-Runs. Nach Quelle0012899 wurden Nachweisdokumente und eine auf das originale CRLF-XML begrenzte Git-Attributregel ergänzt; Produktcode und APK-Bytes bleiben identisch. Die Regel erhält die Originalbytes und alle Standard-Whitespace-Prüfungen einschließlich Erkennung von Leerzeichen vor dem Zeilenende.
 
 ## Übernahme und erledigte Arbeit
 

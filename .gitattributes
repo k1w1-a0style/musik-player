@@ -1,2 +1,6 @@
 # Unified patch context encodes an empty source line as a single space.
 scripts/patches/**/*.patch whitespace=-blank-at-eol
+
+# Preserve the byte-exact Android hierarchy capture, including its CRLF endings.
+# Keep default whitespace checks and recognize CR as part of the line ending.
+scripts/ci/fixtures/cleaner-result-font2-clipped-39688915146.xml -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
