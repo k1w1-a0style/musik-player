@@ -58,6 +58,23 @@ test('failed and missing artwork uses the Kiwi logo', () => {
   expect(view.UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
 });
 
+test.each(['missing', 'failed'])('keeps the %s artwork fallback attached through pause', kind => {
+  const song = kind === 'missing' ? { ...songs[1], cover: undefined } : songs[1];
+  const props = { song, isPlaying: true, accent: '#123456', coverSize: 160 };
+  const view = render(<NowPlayingCoverArtwork {...props} />);
+  if (kind === 'failed') fireEvent(view.getByTestId('now-playing-cover-image'), 'error');
+  const parent = view.getByTestId('now-playing-cover-fallback');
+  const image = view.UNSAFE_getByType(Image);
+  expect(StyleSheet.flatten(parent.props.style).opacity).toBe(0.95);
+  view.rerender(<NowPlayingCoverArtwork {...props} isPlaying={false} />);
+  expect(view.getByTestId('now-playing-cover-fallback')).toBe(parent);
+  expect(view.UNSAFE_getByType(Image)).toBe(image);
+  expect(image.props.source).toBe(KIWI_MUSIC_ARTWORK);
+  expect(StyleSheet.flatten(parent.props.style).opacity).toBeUndefined();
+  // The pause style becomes layout-only; Fabric must retain its native parent.
+  expect(parent.props.collapsable).toBe(false);
+});
+
 test('bass pulse is mounted only for the enabled current cover', () => {
   mockTheme.bassPulseEnabled = true;
   const view = render(<NowPlayingCoverArtwork {...defaults} />);

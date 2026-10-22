@@ -846,7 +846,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
              patch.object(smoke, 'tree'), patch.object(smoke, 'import_confirmation_button'), \
              patch.object(smoke, 'wait_collection_idle'), \
              patch.object(smoke, 'wait_uncovered_library_header', return_value=self.header_frame()), \
-             patch.object(smoke, 'choose_folder'), patch.object(smoke, 'adb'), \
+             patch.object(smoke, 'choose_folder'), patch.object(smoke, 'adb', return_value=b''), \
              patch.object(smoke.subprocess, 'run'), patch.object(smoke, 'assert_duration') as duration, \
              patch.object(smoke, 'scroll_to', return_value=row) as scroll, \
              patch.object(smoke, 'wait_selected_session') as selected, \
@@ -1632,6 +1632,26 @@ class CleanerResultScrollRegressionTest(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError,'not reachable'):
                 smoke.scroll_to(self.key,limit=2)
             tap.assert_not_called()
+
+
+class FormatPlayerBackRuntimeTest(unittest.TestCase):
+    def test_recorded_native_image_parent_crash_blocks_library_ack(self):
+        trace=(Path(__file__).parent/'fixtures/fabric-cover-pause-back-crash-39696123417.txt').read_bytes()
+        with patch.object(smoke,'back') as back, patch.object(smoke,'adb',return_value=trace) as adb, \
+             patch.object(smoke,'wait_uncovered_library_header') as header:
+            with self.assertRaisesRegex(AssertionError,'Runtime failure returning'):
+                smoke.return_format_player_to_library()
+            back.assert_called_once_with()
+            adb.assert_called_once_with('logcat','-d','-v','threadtime')
+            header.assert_not_called()
+
+    def test_healthy_player_back_requires_runtime_check_then_stable_library(self):
+        events=[]
+        with patch.object(smoke,'back',side_effect=lambda:events.append('hardware-back')), \
+             patch.object(smoke,'adb',side_effect=lambda *args:events.append('runtime-check') or b'healthy'), \
+             patch.object(smoke,'wait_uncovered_library_header',side_effect=lambda:events.append('library-ack')):
+            smoke.return_format_player_to_library()
+        self.assertEqual(events,['hardware-back','runtime-check','library-ack'])
 
 
 if __name__ == '__main__':

@@ -64,7 +64,9 @@ const CoverCard = React.memo(({ role, song, artworkUri, isPlaying, coverSize,
           resizeMode="cover" resizeMethod="resize" fadeDuration={0} accessible={false}
           testID={getImageTestId(role)} />
       ) : (
-        <View style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}
+        // Pause removes opacity/transform. Keep this image parent native while
+        // native-stack retains the outgoing screen for its removal animation.
+        <View collapsable={false} style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}
           testID={getFallbackTestId(role)}>
           <Image source={KIWI_MUSIC_ARTWORK} style={styles.coverImage} resizeMode="cover"
             resizeMethod="resize" fadeDuration={0} accessible={false} />

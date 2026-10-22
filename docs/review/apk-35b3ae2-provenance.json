@@ -45,6 +45,17 @@
       "artifactDigest": "sha256:8487d40df323abd4a2a0df786d9d210b30a72bf6f9d8e7e429a9998816e84f54",
       "archiveSizeBytes": 14914467,
       "fullAcceptanceStarted": false
+    },
+    {
+      "runId": 39696123417,
+      "jobId": 119553807043,
+      "harnessCommit": "00af54e6a52d60436473e8a03887cef250273d60",
+      "status": "failed-app-native-runtime",
+      "artifactId": 12391372512,
+      "artifactDigest": "sha256:825acb9c08a9717354600f0719bcb9b734bba8fce1972e5a5e9efcbbad61e913",
+      "archiveSizeBytes": 5446006,
+      "fullMatrixStarted": false
     }
-  ]
+  ],
+  "knownAppBlocker": "Native Fabric crash on pause + hardware back: ReactImageView reparented while native-stack removal transition retains its old parent. Superseded by explicit native fallback-parent fix; do not release this APK."
 }

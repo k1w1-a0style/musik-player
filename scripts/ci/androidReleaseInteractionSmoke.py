@@ -913,6 +913,13 @@ def import_public_collection():
     CHECKS.append('MediaStore-import-public-UI')
 
 
+def return_format_player_to_library():
+    back()
+    logs = adb('logcat', '-d', '-v', 'threadtime').decode(errors='replace')
+    assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'Runtime failure returning from format player'
+    wait_uncovered_library_header()
+
+
 def prepare_collection():
     import_public_collection()
     # A visible first row is not a terminal import ACK. Metadata batches can
@@ -926,7 +933,7 @@ def prepare_collection():
         assert_native_playback(TITLES[index], duration)
         screenshot('format-' + str(index))
         tap('controls-play-pause')
-        back()
+        return_format_player_to_library()
     CHECKS.append('MP3-M4A-FLAC-native-duration-and-playback')
     path = OUT / 'audio' / 'V3-SAF.mp3'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=22050',
@@ -2286,8 +2293,8 @@ def main():
         from androidSmokeDiagnostics import collect_diagnostics, capture_final_snapshot
         collect_diagnostics(OUT, PACKAGE)
         capture_final_snapshot(lambda: screenshot('final'))
-        (OUT / 'meminfo.txt').write_bytes(adb('shell', 'dumpsys', 'meminfo', PACKAGE, check=False))
-        (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, 'framestats', check=False))
+        capture_final_snapshot(lambda: (OUT / 'meminfo.txt').write_bytes(adb('shell', 'dumpsys', 'meminfo', PACKAGE, check=False)))
+        capture_final_snapshot(lambda: (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, 'framestats', check=False)))
 
 
 if __name__ == '__main__':
