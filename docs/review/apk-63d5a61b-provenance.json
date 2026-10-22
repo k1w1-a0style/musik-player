@@ -1,0 +1,170 @@
+{
+  "verified": true,
+  "apkSha256": "9f440d79f0d9eadf0afc8059c48c01d48762424ef3ebeb5b821208c080453965",
+  "sizeBytes": 100865033,
+  "scheme": "APK v2",
+  "algorithm": "RSA-2048 PKCS1/SHA256",
+  "signers": 1,
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "contentDigest": "12ca7f7283edb7168944dbf9e075186c51de2ba137a92082455995bf305c0e87",
+  "contentChunks": 99,
+  "attributes": 0,
+  "status": "unreleased-permission-fix-candidate",
+  "sourceCommit": "63d5a61bad64af8af9be604e25dffbffb1298898",
+  "sourceTree": "6ea48e1912ea53d594e64ef3d38c96208c85b584",
+  "runId": 39828111896,
+  "nativeJobId": 119996710623,
+  "artifactId": 12448233207,
+  "archiveSizeBytes": 48117862,
+  "artifactDigest": "sha256:780acea2aec9bf89c2bfee9fcbe6152b89a9c856224948ccc8558fd11e4ed52f",
+  "packageName": "com.k1w1a0style.musikplayer",
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "minSdkVersion": 24,
+  "targetSdkVersion": 36,
+  "nativeLibAbis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "manifest": {
+    "actualAaptVerified": true,
+    "audioReadRequired": true,
+    "legacyReadRequired": true,
+    "legacyReadMaxSdkVersion": 32,
+    "storageWriteDeclared": false,
+    "manageExternalStorageDeclared": false,
+    "visualMediaReadDeclared": false
+  },
+  "sourceQuality": {
+    "jobId": 119996711139,
+    "status": "success",
+    "suites": 437,
+    "tests": 4227,
+    "pythonTests": 182,
+    "lineCoveragePercent": 96.03
+  },
+  "nativeJUnit": {
+    "tests": 215,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": 26
+  },
+  "nativeJUnitArtifactId": 12449600026,
+  "nativeJUnitArchiveSha256": "d8cc9e7c51df1d2081606ade931534d4751559e699739c966f2a1fe1520250cb",
+  "audioReadNativeProof": {
+    "robolectricSdkLevels": [
+      24,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "frameworkPermissionCases": 36,
+    "android36": "policy-contract-only",
+    "reports": [
+      {
+        "name": "expo.modules.medialibrary.AudioReadPermissionPolicyContractTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "xmlSha256": "a86199717060a4509d2a025de135314ee4b0f033b335dc70a164fd408d09e218",
+        "cases": [
+          "android36RequiresAudioAndRejectsLegacyGrant"
+        ]
+      },
+      {
+        "name": "expo.modules.medialibrary.AudioReadPermissionPolicyTest",
+        "tests": 36,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "xmlSha256": "2ecfbc192e8ec09e75edb4a6074c6376ed3ddbc87cfd5491947370be44a3dc03",
+        "cases": [
+          "audioReadWithoutWriteAllowsImport[24]",
+          "audioReadWithoutWriteAllowsImport[28]",
+          "audioReadWithoutWriteAllowsImport[29]",
+          "audioReadWithoutWriteAllowsImport[30]",
+          "audioReadWithoutWriteAllowsImport[31]",
+          "audioReadWithoutWriteAllowsImport[32]",
+          "audioReadWithoutWriteAllowsImport[33]",
+          "audioReadWithoutWriteAllowsImport[34]",
+          "audioReadWithoutWriteAllowsImport",
+          "revocationIsObservedWithoutRestartOrCachedGrant[24]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[28]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[29]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[30]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[31]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[32]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[33]",
+          "revocationIsObservedWithoutRestartOrCachedGrant[34]",
+          "revocationIsObservedWithoutRestartOrCachedGrant",
+          "writePermissionAloneCannotAuthorizeRead[24]",
+          "writePermissionAloneCannotAuthorizeRead[28]",
+          "writePermissionAloneCannotAuthorizeRead[29]",
+          "writePermissionAloneCannotAuthorizeRead[30]",
+          "writePermissionAloneCannotAuthorizeRead[31]",
+          "writePermissionAloneCannotAuthorizeRead[32]",
+          "writePermissionAloneCannotAuthorizeRead[33]",
+          "writePermissionAloneCannotAuthorizeRead[34]",
+          "writePermissionAloneCannotAuthorizeRead",
+          "absentPermissionManagerFailsClosed[24]",
+          "absentPermissionManagerFailsClosed[28]",
+          "absentPermissionManagerFailsClosed[29]",
+          "absentPermissionManagerFailsClosed[30]",
+          "absentPermissionManagerFailsClosed[31]",
+          "absentPermissionManagerFailsClosed[32]",
+          "absentPermissionManagerFailsClosed[33]",
+          "absentPermissionManagerFailsClosed[34]",
+          "absentPermissionManagerFailsClosed"
+        ]
+      }
+    ],
+    "isApkDeviceProof": false
+  },
+  "security": {
+    "jobId": 119996711265,
+    "status": "blocked-expired-exceptions",
+    "reviewDate": "2026-10-22",
+    "exceptionsExpireOn": "2026-10-21",
+    "expiredPackages": [
+      "braces@3.0.3",
+      "node-forge@1.4.0"
+    ],
+    "critical": 0,
+    "high": 23,
+    "moderate": 5,
+    "auditArtifactId": 12448026174,
+    "auditArchiveSha256": "24f5ea4884b2662835623e7529e578185db54e873f74179ebb4bdd8a82da317a"
+  },
+  "ciConclusion": "failure",
+  "uiJobId": 120007393235,
+  "uiJobStatus": "skipped-security-gate",
+  "installationVerified": false,
+  "nativeCrashFixAndroidVerified": false,
+  "uiAccepted": false,
+  "releaseAccepted": false,
+  "independentSignatureVerifierSha256": "89302b0cc103b3121cfe929f6fc7d1f7a46254de9af69d82fd2891b8f9c13ad7",
+  "negativeSignatureCheck": {
+    "mutatedPayloadRejected": true,
+    "outerFileShaUpdatedForNegativeCheck": true,
+    "reason": "APK content digest mismatch",
+    "positiveApkSha256": "9f440d79f0d9eadf0afc8059c48c01d48762424ef3ebeb5b821208c080453965"
+  },
+  "externalDiagnostic": {
+    "emulatorCreated": false,
+    "userDeviceAndroidVersion": "unknown",
+    "userInstalledApkSha256": "unknown",
+    "appOpsOnUserDevice": "unavailable",
+    "optionalYepCodeHashCheck": "rejected-by-automatic-approval-review-not-executed",
+    "reason": "Presigned CloudConvert URLs contain temporary access credentials; destination-specific authorization for a third-party sandbox was missing. No retry or indirect hash execution."
+  },
+  "verificationScope": "Original artifact sizes/SHA/CRC, CI source SHA and APK checksum, actual compiled manifest, official apksigner and independent APKv2 RSA/certificate/content-digest verification, all native JUnit XML. No installation or Android UI acceptance of these APK bytes."
+}

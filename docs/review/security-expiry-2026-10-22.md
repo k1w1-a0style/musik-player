@@ -45,3 +45,7 @@ Primärquellen (frisch gelesen):
 - https://github.com/micromatch/braces/issues/70
 - https://github.com/digitalbazaar/forge/pull/1152
 - https://github.com/k1w1-a0style/musik-player/issues/396
+
+## Erneuter Abgleich nach dem Audio-Lesefix
+
+Quelle63d5a61bad64af8af9be604e25dffbffb1298898, CI39828111896, Security119996711265: unverändert0kritisch/23hoch/5moderat,2Wurzeln/21Effekte und verifizierte Patches. Ausschließlich braces/node-forge am21.10.2026 abgelaufen. Aktuelles Original-Audit-Artefakt12448026174 auf Größe2178Bytes/SHA24f5ea4884b2662835623e7529e578185db54e873f74179ebb4bdd8a82da317a/volleZIPCRC geprüft. Registry und offizielle Advisories erneut ohne gepatchte Veröffentlichung; keine Frist-/Policyänderung. Qualitäts- und Native-/APK-Gates erfolgreich, Gesamtfreigabe bleibt blockiert. Weitere Nachweise: [Audio-Leseberechtigung](audio-read-permission-fix-2026-10-22.md).

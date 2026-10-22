@@ -1,6 +1,6 @@
 # K1W1 – Fortsetzung und Abnahmestand vom 22.10.2026
 
-**Nachfolgender P0-Nutzerbefund:** Der globale Import scheitert an MEDIA_LIBRARY-Leserechten. Aktuelle Reparatur und Prüfung in [Audio-Leseberechtigung](audio-read-permission-fix-2026-10-22.md). Die untenstehenden0012899-Zahlen und APK-Belege bleiben historische, ausdrücklich nicht freigegebene Nachweise.
+**Nachfolgender P0-Nutzerbefund:** Der globale Import scheitert an MEDIA_LIBRARY-Leserechten. Aktuelle Produktquelle63d5a61b:437 Suiten/4227 Jest,182 Python,215 native Tests erfolgreich; APK-Signatur/Manifest geprüft, Installation/UI offen. Reparatur und Prüfung in [Audio-Leseberechtigung](audio-read-permission-fix-2026-10-22.md). Die untenstehenden0012899-Zahlen und APK-Belege bleiben historische, ausdrücklich nicht freigegebene Nachweise.
 
 **Nicht vollständig freigegeben.** Der aktuelle Code ist gesichert; die abgelaufenen Sicherheitsausnahmen blockieren die Android-Abnahme. Der native Cover-Crash wurde eingegrenzt und eine gezielte Korrektur implementiert. Ihre Bestätigung auf Android steht aus.
 
