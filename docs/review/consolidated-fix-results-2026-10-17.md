@@ -65,10 +65,12 @@ Primärquellen zur Upstream-Lage (17.10.2026):
 - https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
 - https://github.com/advisories/GHSA-86w9-cpqp-85rv
 
-## Integrierte Source-CI
+## Integrierte Source-CI und Fortsetzung vom 22.10.2026
 
-Aktuelle Quelle: `35b3ae2cc785fe38f2997dfd977a18fc5f199df1`, [CI39690780242](https://github.com/k1w1-a0style/musik-player/actions/runs/39690780242).
+Aktuelle Produktquelle: `0012899a8e93a66b5b18ebbc28e56edfe808a892`, [CI39698476835](https://github.com/k1w1-a0style/musik-player/actions/runs/39698476835). Vollständiger aktueller Befund und APK-Zuordnung: [Fortsetzungsbericht](continuation-status-2026-10-22.md).
 
-Qualitätsjob119536649099 erfolgreich: **435Suiten/4195Tests**,174Python, TypeScript, strengerLint, Expo-Kompatibilität, NUL-/Komplexitäts-/Konfigurations-/Manifestgates; Hermes-Bundlegrenze1Map/1688Quellen. Coverage92.94/85.31/94.10/96.03% (Statements/Branches/Functions/Lines). Emulator-Runtimefix zuvor im echten Runner39688915146 erfolgreich bestätigt. Notwendiger SDK57.0.31-Abgleich ist integriert; vorherige Quellen werden nicht als neuer APK-Nachweis verwendet.
+Qualitätsjob119561587355 erfolgreich: **435 Suiten / 4.197 Tests**, **182 Python-Tests**, TypeScript, strenger Lint, Expo-Kompatibilität, NUL-/Komplexitäts-/Konfigurations-/Manifestgates; Hermes-Bundlegrenze 1 Map / 1.688 Quellen. Coverage 92,94 / 85,32 / 94,10 / 96,03 % (Statements / Branches / Functions / Lines). Emulator-Runtimefix wurde im echten Runner bestätigt. SDK57.0.31-Abgleich ist integriert.
 
-Native-/APK-/UI-Abnahme am neuen Stand läuft noch. Die abgelaufenen Sicherheitsausnahmen bleiben unabhängig vom UTC-bedingt noch grünen Anfangsaudit blockierend. Neuer finaler Ablaufcheck schließt Freigabe mit während langer Tests veralteten Ausnahmen. Noch keine vollständige Projekt-/APK-Freigabe.
+Der echte Native-Fabric-Absturz der vorherigen Quelle35b3ae2 ist dokumentiert; ihre APK wurde ausdrücklich nicht freigegeben. Die neue Quelle hält den Fallback-Cover-Parent stabil nativ. Struktur-/Lifecycle- und Crash-Erkennungsregressionen bestehen; Bestätigung des Fixes auf Android steht noch aus. Neue Produktbytes werden nicht mit alten UI-/APK-Nachweisen freigegeben.
+
+Securityjob119561587625 scheitert am tatsächlichen 22.10. UTC ausschließlich wegen beider abgelaufenen Ausnahmen vom21.10.2026. Payload- und Graphprüfung sind unverändert streng. Die davon abhängige aktuelle UI-Abnahme bleibt blockiert. **Keine vollständige Projekt-/APK-Freigabe.** Nativejob119561587790 ist erfolgreich: 24 Suiten / 178 Tests ohne Fehler oder Skips, signierte APK der Quelle0012899 unabhängig auf Herkunft, SHA-256 und APKv2-Inhaltsdigest geprüft. Herkunft und Abnahmegrenzen stehen im [Fortsetzungsbericht](continuation-status-2026-10-22.md). Kein Umgehen des Securitygates und keine Übertragung alter Gerätebelege auf neue Bytes.

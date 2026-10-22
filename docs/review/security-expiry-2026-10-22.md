@@ -4,6 +4,12 @@
 
 Prüfstand: codex/fc29652c6fcb74b54ea7cc1c91360b72116cf81b, fortgesetzter Auftrag vom 22.10.2026. Die Laufzeit meldet 21.10.2026, 22:48 UTC (22.10.2026 in Berlin). Die bisherige CLI verwendet UTC-Kalendertage und besteht deshalb noch vor ihrer UTC-Grenze. Für diesen Auftrag wird daraus ausdrücklich keine Freigabe abgeleitet: die Prüfung mit Stichtag **2026-10-22** lehnt beide Ausnahmen ab. Weder Uhr noch Ablaufdatum wurden geändert.
 
+## Tatsächlicher UTC-Befund der aktuellen Quelle
+
+Am **22.10.2026, 00:14:53 UTC** lehnt die unveränderte CLI die Ausnahmen auch ohne simulierten Stichtag ab. Source `0012899a8e93a66b5b18ebbc28e56edfe808a892`, [CI39698476835](https://github.com/k1w1-a0style/musik-player/actions/runs/39698476835), Securityjob119561587625: verifizierte Kompensationspayloads und exakt gebundener Graph mit 0 kritisch / 23 hoch / 5 moderat; danach ausschließlich `braces: exception expired on 2026-10-21` und `node-forge: exception expired on 2026-10-21`. Die Android-UI-Stufe benötigt ein erfolgreiches Securitygate und bleibt deshalb blockiert. Der native Build und die Qualitätsprüfungen laufen unabhängig; das ist keine Gesamtfreigabe.
+
+Erneuter Registry-/Advisoryabgleich kurz nach dem Tageswechsel: braces weiterhin3.0.3, node-forge weiterhin1.4.0; keine gepatchte Veröffentlichung in beiden offiziellen Advisories. Das vorherige Vor-Mitternacht-Ergebnis oben bleibt als Verlauf erhalten. Aktueller Gesamtstand: [Fortsetzungsbericht](continuation-status-2026-10-22.md).
+
 ## Frische Prüfung
 
 - Sauberes npm ci: erfolgreich, 851 Pakete; vier RNTP- und acht Tooling-Payloads geprüft/gepatcht. Package-/Lockfile unverändert.

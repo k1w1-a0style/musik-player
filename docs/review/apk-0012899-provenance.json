@@ -1,0 +1,71 @@
+{
+  "verified": true,
+  "apkSha256": "d0cecca14954efcaed7aa0e3653d0fa4a691aa38391e9795f942d05c110785a5",
+  "sizeBytes": 100860957,
+  "scheme": "APK v2",
+  "algorithm": "RSA-2048 PKCS1/SHA256",
+  "signers": 1,
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "contentDigest": "8858558a7443f32cf715113c896bee8cc3d14cbf0a5e9dea0f21c59a75080336",
+  "contentChunks": 99,
+  "attributes": 0,
+  "sourceCommit": "0012899a8e93a66b5b18ebbc28e56edfe808a892",
+  "sourceTree": "a4b5cc0603cb47546a5056b6ac70983e37585955",
+  "runId": 39698476835,
+  "nativeJobId": 119561587790,
+  "artifactId": 12392467026,
+  "artifactDigest": "sha256:37266fb184f7e880ac69482841e582a4a14c6b2622ce80a799982dc9f062f689",
+  "archiveSizeBytes": 48116946,
+  "packageName": "com.k1w1a0style.musikplayer",
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "minSdkVersion": 24,
+  "targetSdkVersion": 36,
+  "nativeLibAbis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "nativeJUnit": {
+    "tests": 178,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": 24
+  },
+  "nativeJUnitArtifactId": 12391878875,
+  "nativeJUnitArchiveSha256": "e0e0391aa53e139f0951b49df3d47a8dd372f96ef11d6090b90e8fb7cd3cf93e",
+  "sourceQuality": {
+    "jobId": 119561587355,
+    "status": "success",
+    "suites": 435,
+    "tests": 4197,
+    "pythonTests": 182,
+    "lineCoveragePercent": 96.03
+  },
+  "security": {
+    "jobId": 119561587625,
+    "status": "blocked-expired-exceptions",
+    "reviewDate": "2026-10-22",
+    "exceptionsExpireOn": "2026-10-21",
+    "expiredPackages": [
+      "braces@3.0.3",
+      "node-forge@1.4.0"
+    ],
+    "critical": 0,
+    "high": 23,
+    "moderate": 5,
+    "auditArtifactId": 12390619337,
+    "auditArchiveSha256": "7369370f71134953807eaa99b83bb08614a439181f80e191c046aa2864ba7cd4"
+  },
+  "ciConclusion": "failure",
+  "uiJobId": 119568184548,
+  "uiJobStatus": "skipped-security-gate",
+  "installationVerified": false,
+  "nativeCrashFixAndroidVerified": false,
+  "uiAccepted": false,
+  "releaseAccepted": false,
+  "status": "unreleased-build-candidate",
+  "verificationScope": "Archive SHA/size/CRC, recorded source SHA and APK checksum, APK v2 RSA signature/certificate/content digest, official CI inspection and native JUnit. No installation or Android UI acceptance of these bytes."
+}

@@ -4,7 +4,7 @@
 
 Arbeitsbranch: `codex`. Aktuelle Produktquelle: `0012899a8e93a66b5b18ebbc28e56edfe808a892`.
 [Source-CI 39698476835](https://github.com/k1w1-a0style/musik-player/actions/runs/39698476835).
-`main` und ursprüngliche Musikdateien wurden nicht verändert.
+`main` und ursprüngliche Musikdateien wurden nicht verändert. Abschließender Remote-Abgleich: `main` weiterhin `b62b91b59c7400fd310a5db8fcbf9fc6444ff393`; kein anderer aktiver Lauf unter den aktuellen codex-Runs. Nach Quelle0012899 wurden ausschließlich Nachweisdokumente ergänzt.
 
 ## Übernahme und erledigte Arbeit
 
@@ -32,8 +32,9 @@ Der gemeinsame CoverCard-Pfad deckt statische und Queue-Covers ab. New Architect
 | Python-Harness und Diagnose | 182 Tests erfolgreich |
 | Android-Hermes-Bundle | 1 Map / 1.688 Quellen; Tooling-Pakete ausgeschlossen |
 | Security-Audit | **fehlgeschlagen:** ausschließlich beide Ausnahmen am 21.10.2026 abgelaufen; 0 kritisch / 23 hoch / 5 moderat, 2 Wurzeln / 21 Effekte |
-| Aktueller nativer Build / JUnit / APK | läuft; Nachweis wird nach Abschluss ergänzt |
-| Vollständige aktuelle Android-UI-Abnahme | durch Security-Gate blockiert; kein Erfolg behauptet |
+| Nativer Build / JUnit / APK | erfolgreich: 19m14s Build, 24 Suiten / 178 Tests, 0 Fehler / Failures / Skips; exakte APK geprüft |
+| Vollständige aktuelle Android-UI-Abnahme | Job119568184548 wegen Security-Gate übersprungen; keine Installation / UI-Abnahme dieser Bytes |
+| Gesamt-CI / Required release checks | fehlgeschlagen wegen Security; keine Gesamtfreigabe |
 
 Die lokale Audit-CLI lehnt seit dem tatsächlichen UTC-Tageswechsel ebenfalls beide Ausnahmen ab. Hashgebundene Tooling-Patches bleiben verifiziert. Frische npm-Abfragen liefern weiterhin braces 3.0.3 und node-forge 1.4.0; die offiziellen Advisories nennen keine gepatchte Veröffentlichung. Die Frist wurde nicht verlängert. Details: [security-expiry-2026-10-22.md](security-expiry-2026-10-22.md).
 
@@ -48,7 +49,20 @@ Aufgezeichnete Originalartefakte wurden jeweils auf Größe, SHA-256 und vollst�
 
 ## APK-Herkunft
 
-APK_PROOF_PENDING
+**Signierter Prüfkandidat, nicht freigegeben.** Nativejob119561587790 und seine offiziellen APK-/Signaturgates sind erfolgreich. APK und JUnit wurden unabhängig aus den Originalartefakten geladen und auf Archivgröße, SHA-256 und volle ZIP-CRC geprüft. Die Zuordnung zu Quelle0012899 wurde aus dem CI-Run und `source-commit.txt` bestätigt. Die APK-Signatur bindet die APK-Bytes; die Zuordnung zum Git-Commit stammt aus dem CI-Build und den Artefaktmetadaten.
+
+| Merkmal | Nachweis |
+|---|---|
+| APK | 100.860.957 Bytes; Paket `com.k1w1a0style.musikplayer`, Version1.0.0 / Code1 |
+| APK-SHA-256 | `d0cecca14954efcaed7aa0e3653d0fa4a691aa38391e9795f942d05c110785a5` |
+| Signatur | APKv2, ein Signer, RSA2048 / PKCS1-SHA256; offizielles apksigner und unabhängige RSA-/Inhaltsdigestprüfung erfolgreich |
+| Zertifikat-SHA-256 | `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c` |
+| Android | minSdk24, targetSdk36; arm64-v8a / armeabi-v7a / x86 / x86_64 |
+| Originalartefakt | [12392467026](https://github.com/k1w1-a0style/musik-player/actions/runs/39698476835/artifacts/12392467026), 48.116.946 Bytes |
+| Archiv-SHA-256 | `37266fb184f7e880ac69482841e582a4a14c6b2622ce80a799982dc9f062f689` |
+| Native JUnit | Artefakt12391878875, 79.508 Bytes, SHA `e0e0391aa53e139f0951b49df3d47a8dd372f96ef11d6090b90e8fb7cd3cf93e`; alle 24 XML-Suiten unabhängig summiert: 178 Tests, 0 Fehler / Failures / Skips |
+
+[Maschinenlesbare Herkunft und Grenzen](apk-0012899-provenance.json). Die aktuelle UI-Stufe wurde wegen des roten Source-Securitygates nicht ausgeführt. Installation, vollständige UI-Matrix und Bestätigung des nativen Crash-Fixes sind daher für genau diese APK **nicht nachgewiesen**. Der Kandidat ersetzt keine abgenommene Release-APK.
 
 ## Verbleibende Freigabegrenzen
 
