@@ -161,3 +161,13 @@ test('an unconfirmed library save remains visible with its retry even after scan
   expect(retry).toHaveBeenCalledTimes(1);
   jest.useRealTimers();
 });
+
+test('unknown folder contents are never advertised as zero unchecked files', () => {
+  const id = beginLibraryScan(true);
+  recordLibraryScanResult(id, { completed: false, statistics: { ...emptyImportScanStatistics(), errorCount: 1 },
+    diagnostics: { directoryErrorCount: 1, fileErrorCount: 0, importedCount: 0 } });
+  completeLibraryScan(id);
+  const screen = render(<LibraryPreparationStatus visible={false} />);
+  expect(screen.getByText(/Inhalt nicht vollständig erfasst/)).toBeTruthy();
+  expect(screen.queryByText('0 ungeprüft · 1 Leseprobleme')).toBeNull();
+});

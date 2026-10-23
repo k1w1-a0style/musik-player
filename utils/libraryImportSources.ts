@@ -50,7 +50,17 @@ export const createImportSourceSelection = (options: { existingSongs?: Song[]; r
     reused += 1;
     return decision;
   };
-  return { previousSources, select, include: (uri: string, revision?: ImportFileRevision) => select(uri, revision).include,
+  const recordVerifiedAccess = (uri: string, revision: ImportFileRevision): void => {
+    const previous = previousSources.get(getImportSourceKey(uri) ?? uri);
+    if (!previous) return;
+    const index = revisionUpdates.findIndex(song => song.id === previous.id);
+    const current = index < 0 ? previous : revisionUpdates[index];
+    const rebound = rebindVerifiedImportSource(current, uri, revision);
+    if (rebound === current) return;
+    if (index < 0) revisionUpdates.push(rebound);
+    else revisionUpdates[index] = rebound;
+  };
+  return { previousSources, select, recordVerifiedAccess, include: (uri: string, revision?: ImportFileRevision) => select(uri, revision).include,
     getRevisionUpdates: () => revisionUpdates,
     getReusedCount: () => reused, getUnverifiedCount: () => unverified, getSkippedCount: () => reused + duplicates };
 };
@@ -75,4 +85,11 @@ export const getImportedPreparationSongs = (imported: Song[], merged: Song[]): S
   const importedIds = new Set(imported.filter(song => !song.uri).map(song => song.id));
   return merged.filter(song => importedKeys.has(getImportSourceKey(song.fileInfo?.uri ?? song.uri) ?? '')
     || importedIds.has(song.id));
+};
+
+/** A successful stat on an equivalent document proves the newly granted URI.
+ * Keep song/playlist identity and user edits while retiring a stale grant URI. */
+export const rebindVerifiedImportSource = (song: Song, uri: string, revision: ImportFileRevision): Song => {
+  if (!revision.size || revision.size <= 0 || song.uri === uri || getImportSourceKey(song.uri) !== getImportSourceKey(uri)) return song;
+  return { ...song, uri, fileInfo: { ...song.fileInfo, uri } };
 };

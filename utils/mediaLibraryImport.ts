@@ -11,7 +11,7 @@ import { getAudioAssetRejectReason, isLikelyMusicAsset, type AudioImportFilterOp
 import { OperationAbortError, throwIfAborted } from './withTimeout';
 import { EXTENSION_MIME_MAP, KNOWN_NON_AUDIO_EXTENSIONS } from './audioExtensions';
 import { isSupportedAudioCandidate, normalizeAudioCandidateMimeType } from './audioImportCandidates';
-import { createImportSourceSelection, getImportSourceKey, preserveImportedSource } from './libraryImportSources';
+import { createImportSourceSelection, getImportSourceKey, preserveImportedSource, rebindVerifiedImportSource } from './libraryImportSources';
 import { readImportFileRevision } from './importFileRevision';
 import { createImportFileProgressReporter, type ImportFileProgress } from './libraryImportProgress';
 import { runImportFileWorkers, withImportFileBudget } from './libraryImportBudget';
@@ -73,6 +73,7 @@ export interface ImportScanResult {
   completed?: boolean;
   remainingCount?: number;
   statistics?: ImportScanStatistics;
+  diagnostics?: { directoryErrorCount: number; fileErrorCount: number; importedCount: number };
 }
 
 export interface SafDirectoryScanProgress {
@@ -457,6 +458,7 @@ interface SafDirectoryReadOptions {
   onProgress?: (progress: SafDirectoryScanProgress) => void;
   /** Per top-level scan only. Never share this set across user-initiated scans. */
   timedOutDirectoryUris?: Set<string>;
+  onDirectoryError?: (uri: string, error: unknown) => void;
 }
 
 export class SafDirectoryReadTimeoutError extends Error {
@@ -610,7 +612,7 @@ const shouldRecordSafReadError = (error: unknown, reportError: boolean): boolean
 const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 
 const readSafEntries = async (uri: string, readDirectory: (uri: string) => Promise<string[]>,
-  options: SafDirectoryReadOptions, reportError: boolean, recordError: (uri: string) => void,
+  options: SafDirectoryReadOptions, reportError: boolean, recordError: (uri: string, error?: unknown) => void,
   emitProgress: (uri: string) => void, maybeYield: (force?: boolean) => Promise<void>): Promise<string[] | null> => {
   try {
     const raw = await readSafDirectoryWithTimeout(uri, readDirectory, options);
@@ -624,7 +626,7 @@ const readSafEntries = async (uri: string, readDirectory: (uri: string) => Promi
   } catch (error) {
     if (error instanceof SafDirectoryReadAbortedError) throw error;
     throwIfAborted(options.signal);
-    if (shouldRecordSafReadError(error, reportError)) recordError(uri);
+    if (shouldRecordSafReadError(error, reportError)) recordError(uri, error);
     else emitProgress(uri);
     await maybeYield(true);
     return null;
@@ -666,9 +668,10 @@ export const readAudioUrisFromSafDirectory = async (
     });
   };
 
-  const recordSafError = (uri: string): void => {
+  const recordSafError = (uri: string, error?: unknown): void => {
     const previousErrorCount = errors.length;
     addNormalizedSafError(uri, errors, seenErrors);
+    options.onDirectoryError?.(uri, error ?? new Error('Ordnerinhalt unvollständig: Providerdaten oder Scan-Grenze'));
     if (errors.length !== previousErrorCount) emitProgress(uri);
   };
 
@@ -853,7 +856,7 @@ export const enrichMediaLibraryAssets = async (
   await checkpoint.flush(workerResult.processed, assets.length);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, errorDetails, statistics: progress.getStatistics(),
+  return { songs: dedupedSongs, skipped, errors, errorDetails, diagnostics: getImportDiagnostics(errorDetails, dedupedSongs.length), statistics: progress.getStatistics(),
     ...importReuseSummary(selection),
     ...(workerResult.interrupted || errors.length ? { completed: false, remainingCount: workerResult.remaining } : {}),
     sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }] };
@@ -903,6 +906,7 @@ const readSafImportSource = async (uri: string, options: SafImportOptions,
   const revisionCount = selection.getRevisionUpdates().length;
   const decision = selection.select(uri, revision);
   if (!decision.include) {
+    selection.recordVerifiedAccess(uri, revision);
     const update = selection.getRevisionUpdates()[revisionCount];
     await yieldKnownSource(options.signal);
     return { song: update, imported: false, decision };
@@ -912,13 +916,19 @@ const readSafImportSource = async (uri: string, options: SafImportOptions,
   const imported = await importSafFile(uri, options, recordError);
   throwIfAborted(options.signal);
   if (!imported) return { imported: false };
-  return { imported: true, decision, song: preserveImportedSource({ ...imported,
+  return { imported: true, decision, song: rebindVerifiedImportSource(preserveImportedSource({ ...imported,
     fileInfo: { ...imported.fileInfo, modificationTime: revision.modificationTime,
       contentHash: revision.contentHash, size: imported.fileInfo?.size ?? revision.size } }, previous,
-  options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash)) };
+  options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash)), uri, revision) };
 };
 
-const getScannedFolderUpdate = (folder: ScanFolder, files: string[], errors: string[], interrupted: boolean): ScanFolder => {
+const getImportDiagnostics = (details: ImportErrorDetail[], importedCount: number): NonNullable<ImportScanResult['diagnostics']> => ({
+  directoryErrorCount: new Set(details.filter(detail => detail.phase === 'directory').map(detail => detail.uri)).size,
+  fileErrorCount: new Set(details.filter(detail => detail.phase !== 'directory').map(detail => detail.uri)).size, importedCount,
+});
+
+const getScannedFolderUpdate = (folder: ScanFolder, files: string[], errors: string[], fileErrors: boolean, interrupted: boolean): ScanFolder => {
+  if (fileErrors) return { ...folder, lastError: 'Datei-Leseproblem; Scan wiederholen' };
   if (interrupted) return { ...folder, lastError: 'Teilfortschritt gespeichert; Scan wiederholen' };
   if (errors.length) return { ...folder, lastError: files.length ? 'Teilweise nicht lesbar' : 'Nicht lesbar' };
   return folder.lastError ? { ...folder, lastError: undefined } : folder;
@@ -973,12 +983,13 @@ export const scanFromSafFolders = async (
     }
 
     const { files, errors: folderErrors } = await readAudioUrisFromSafDirectory(folder.uri, StorageAccessFramework.readDirectoryAsync,
-      { signal, onProgress, readTimeoutMs, timedOutDirectoryUris });
+      { signal, onProgress, readTimeoutMs, timedOutDirectoryUris, onDirectoryError: (uri, error) =>
+        addImportErrorDetail(uri, 'directory', error, true, errorDetails, seenErrorDetails) });
     throwIfAborted(signal);
     if (folderErrors.length > 0) {
       folderErrors.forEach(uri => {
         recordImportError(uri);
-        addImportErrorDetail(uri, 'directory', new Error('SAF directory could not be read.'), true, errorDetails, seenErrorDetails);
+
       });
     }
 
@@ -1011,13 +1022,14 @@ export const scanFromSafFolders = async (
     remainingCount += workerResult.remaining;
     interrupted ||= workerResult.interrupted;
     await checkpoint.flush(processed, total, folder.uri);
-    folderUpdates.push(getScannedFolderUpdate(folder, files, folderErrors, workerResult.interrupted));
+    const fileErrors = files.some(uri => seenErrors.has(normalizeImportUriForDedupe(uri) ?? uri));
+    folderUpdates.push(getScannedFolderUpdate(folder, files, folderErrors, fileErrors, workerResult.interrupted));
   }
 
   throwIfAborted(signal);
   const dedupedSongs = dedupeSongsByImportUri(songs);
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
-  return { songs: dedupedSongs, skipped, errors, errorDetails, ...importReuseSummary(selection), statistics: progress.getStatistics(),
+  return { songs: dedupedSongs, skipped, errors, errorDetails, diagnostics: getImportDiagnostics(errorDetails, dedupedSongs.length), ...importReuseSummary(selection), statistics: progress.getStatistics(),
     ...(interrupted || errors.length ? { completed: false, remainingCount } : {}),
     sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
 };

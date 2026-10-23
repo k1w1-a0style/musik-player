@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
+import { type LibraryScanRequest } from '../utils/libraryScanSources';
 import { clearWaveformPreparation, prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
 import { clearImportFileProgress } from '../utils/libraryImportProgress';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from '../utils/metadataRefreshActivity';
@@ -19,6 +20,7 @@ import type {
   UseLibraryImportActionsOptions,
   UseLibraryImportActionsResult,
 } from './libraryImportActionTypes';
+import { useLibrarySelectedSourceFlow } from './useLibrarySelectedSourceFlow';
 import { useLibraryImportLifecycle } from './useLibraryImportLifecycle';
 import { useLibraryImportStateUpdate } from './useLibraryImportStateUpdate';
 import { useLibraryScanFolderImportFlow } from './useLibraryScanFolderImportFlow';
@@ -49,8 +51,8 @@ const waitForImportPersistence = async (songImport: UseLibraryImportActionsOptio
     { signal: generation.controller.signal });
 };
 
-const beginImportActivities = (generation: ImportGeneration, fullScan: boolean): void => {
-  generation.scanOperationId = beginLibraryScan(fullScan);
+const beginImportActivities = (generation: ImportGeneration, fullScan: boolean, source?: LibraryScanRequest['source']): void => {
+  generation.scanOperationId = beginLibraryScan(fullScan, source);
   generation.coverCacheProtection = createCoverCacheProtection();
   clearWaveformPreparation();
   clearImportFileProgress();
@@ -99,6 +101,7 @@ export const useLibraryImportActions = ({
   confirmLibraryImportImpl = confirmLibraryImport,
   withTimeoutImpl = withTimeout,
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
+  const lastSource = useRef<LibraryScanRequest['source']>(undefined);
   const { startImport, isCurrentImport, ensureCurrentImport, finishImport, cancelImport } =
     useLibraryImportLifecycle({ setLoading, setImportStatus });
   const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport, timeoutMs: importTimeoutMs });
@@ -121,9 +124,13 @@ export const useLibraryImportActions = ({
     confirmLibraryImportImpl,
   });
 
-  const importFromDevice = useCallback(async (options?: { folders?: typeof scanFolders; refreshExisting?: boolean }): Promise<void> => {
+  const runSourceFlow = useLibrarySelectedSourceFlow({ songs, songImport, scanFolders, importFromMediaLibrary, importFromScanFolders });
+
+  const importFromDevice = useCallback(async (options?: LibraryScanRequest & { folders?: typeof scanFolders }): Promise<void> => {
     const generation = startImport();
-    beginImportActivities(generation, options?.refreshExisting ?? false);
+    const selectedSource = options?.source ?? (options?.folders ? 'folders' : lastSource.current)
+      ?? (shouldImportFromScanFolders(getEnabledScanFolders(scanFolders), platformOs) ? 'folders' : 'media-library');
+    beginImportActivities(generation, options?.refreshExisting ?? false, selectedSource);
     setMenuOpen(false);
     setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
@@ -133,13 +140,8 @@ export const useLibraryImportActions = ({
       setImportStatus(importCopy.preparingStatus);
       await waitForImportPersistence(songImport, generation, importTimeoutMs);
       ensureCurrentImport(generation);
-      const baselineSongs = songImport?.getCurrent() ?? songs;
-      const activeFolders = getEnabledScanFolders(options?.folders ?? scanFolders);
-      if (shouldImportFromScanFolders(activeFolders, platformOs)) {
-        preparationSongs = await importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? false, baselineSongs);
-      } else {
-        preparationSongs = await importFromMediaLibrary(importCopy, generation, options?.refreshExisting ?? false, baselineSongs);
-      }
+      lastSource.current = selectedSource;
+      preparationSongs = await runSourceFlow(generation, selectedSource, importCopy, options);
       ensureCurrentImport(generation);
       completeLibraryScan(generation.scanOperationId);
       scanCompleted = true;
@@ -155,7 +157,7 @@ export const useLibraryImportActions = ({
     // The durable scan has finished. Optional analysis owns its own cancellation
     // and status; navigation or a scan observer must not turn it into a hung scan.
     if (scanCompleted) startOptionalWaveformPreparation(preparationSongs);
-  }, [ensureCurrentImport, finishImport, importFromMediaLibrary, importFromScanFolders, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, songs, startImport, onSelectMusicFolder]);
+  }, [ensureCurrentImport, finishImport, runSourceFlow, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, startImport, onSelectMusicFolder]);
 
   return { importFromDevice, cancelImport };
 };

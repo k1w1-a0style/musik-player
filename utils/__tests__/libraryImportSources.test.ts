@@ -74,3 +74,12 @@ test('legacy Expo seconds migrate on reuse without changing IDs or audio prepara
   expect(preserveImportedSource({ ...previous, id: 'new-id', fileInfo: { ...previous.fileInfo, ...current, importedAt: 50 } }, previous))
     .toMatchObject({ id: previous.id, fileInfo: { importedAt: previous.fileInfo.importedAt } });
 });
+
+test('verified SAF reauthorization rebinds the accessible URI while preserving ids and user data', () => {
+  const { rebindVerifiedImportSource } = require('../libraryImportSources');
+  const previous = { ...old, title: 'User title', comment: 'Keep me' };
+  expect(rebindVerifiedImportSource(previous, newUri, { size: 1000 })).toMatchObject({ id: old.id, uri: newUri,
+    title: 'User title', comment: 'Keep me', fileInfo: { uri: newUri, importedAt: 10 } });
+  expect(rebindVerifiedImportSource(previous, newUri, {})).toBe(previous);
+  expect(rebindVerifiedImportSource(previous, 'content://other/document/different', { size: 1000 })).toBe(previous);
+});

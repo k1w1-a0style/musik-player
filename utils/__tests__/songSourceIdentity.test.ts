@@ -25,3 +25,16 @@ test('empty and malformed sources are handled conservatively', () => {
   expect(getSongSourceKey(' ')).toBeUndefined();
   expect(getSongSourceKey('content://provider/document/a%ZZ')).toBe('content://provider/document/a%ZZ');
 });
+
+test('Android external storage documents and MediaStore file paths share proven volume and path identity', () => {
+  const saf = 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2FMy%20Track.mp3';
+  expect(getSongSourceKey(saf)).toBe(getSongSourceKey('file:///storage/emulated/0/Music/My%20Track.mp3'));
+  expect(getSongSourceKey(saf)).not.toBe(getSongSourceKey('file:///storage/emulated/10/Music/My%20Track.mp3'));
+  const sd = 'content://com.android.externalstorage.documents/document/ABCD-1234%3AMusic%2FTrack.mp3';
+  expect(getSongSourceKey(sd)).toBe(getSongSourceKey('file:///storage/ABCD-1234/Music/Track.mp3'));
+  expect(getSongSourceKey(saf)).not.toBe(getSongSourceKey(saf.replace('My%20Track', 'my%20track')));
+});
+test('other providers and path traversal are never guessed as external-storage aliases', () => {
+  expect(getSongSourceKey('content://cloud/document/primary%3AMusic%2FTrack.mp3')).not.toBe(getSongSourceKey('file:///storage/emulated/0/Music/Track.mp3'));
+  expect(getSongSourceKey('content://com.android.externalstorage.documents/document/primary%3AMusic%2F..%2FTrack.mp3')).not.toBe(getSongSourceKey('file:///storage/emulated/0/Track.mp3'));
+});

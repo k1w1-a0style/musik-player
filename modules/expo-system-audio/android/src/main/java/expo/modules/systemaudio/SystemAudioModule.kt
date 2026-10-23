@@ -72,6 +72,7 @@ class SystemAudioModule : Module() {
   )
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
+    Constants("primaryStoragePath" to android.os.Environment.getExternalStorageDirectory().absolutePath)
 
     // ---------- Equalizer ----------
 

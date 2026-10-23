@@ -1,3 +1,4 @@
+import type { LibraryScanRequest } from '../utils/libraryScanSources';
 import type { SongImportController } from '../contexts/songLibraryState';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
@@ -49,6 +50,6 @@ export interface UseLibraryImportActionsOptions {
 }
 
 export interface UseLibraryImportActionsResult {
-  importFromDevice: (options?: { folders?: ScanFolder[]; refreshExisting?: boolean }) => Promise<void>;
+  importFromDevice: (options?: LibraryScanRequest & { folders?: ScanFolder[] }) => Promise<void>;
   cancelImport: () => boolean;
 }

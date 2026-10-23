@@ -31,7 +31,7 @@ const runSongQueueAction = (
 );
 
 const useRetryLibraryScan = (importFromDevice: ReturnType<typeof useLibraryControllerActions>['importFromDevice']) =>
-  useCallback(() => { void importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan }); }, [importFromDevice]);
+  useCallback(() => { void importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan, source: getLibraryScanOperation().source }); }, [importFromDevice]);
 
 export const useLibraryController = (): UseLibraryControllerResult => {
   const {

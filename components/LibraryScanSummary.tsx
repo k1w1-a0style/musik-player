@@ -24,6 +24,7 @@ const ScanDetails = ({ scan, color }: { scan: LibraryScanOperation; color: strin
     + ` · Ungeprüft: ${statistics.unverifiedCount} · Leseprobleme: ${statistics.errorCount}` : undefined;
   return <View style={styles.details}>
     {counts ? <Text style={[styles.counts, { color }]} testID="library-scan-summary-counts">{counts}</Text> : null}
+    {scan.diagnostics ? <Text style={[styles.counts, { color }]}>{`${scan.diagnostics.importedCount} Titel eingelesen · ${scan.diagnostics.fileErrorCount} Dateiprobleme · ${statistics?.duplicateCount ?? 0} doppelte Quellen übersprungen`}</Text> : null}
     {scan.progress ? <Text style={[styles.counts, { color }]}>
       {`${scan.progress.processed} von ${scan.progress.total} gefundenen Dateien verarbeitet`}
     </Text> : null}
@@ -43,7 +44,7 @@ const canAutoDismiss = (scan: LibraryScanOperation): boolean => {
 };
 const shouldShowSummary = (scan: LibraryScanOperation, refreshStatus: string): boolean =>
   scan.status !== 'idle' && scan.status !== 'running'
-    && Boolean(scan.progress?.statistics || scan.folderPersistenceWarning || scan.status === 'failed' || scan.status === 'cancelled')
+    && Boolean(scan.errorMessage || scan.progress?.statistics || scan.folderPersistenceWarning || scan.status === 'failed' || scan.status === 'cancelled')
     && refreshStatus !== 'running' && refreshStatus !== 'cancelling';
 
 const LibraryScanSummary = ({ onRetry, persistenceWarning }: {
@@ -65,7 +66,9 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning }: {
   }, [cleanSuccess, details, scan.id]);
   if (!shouldShowSummary(scan, refresh.status)) return null;
   const title = `${scan.fullScan ? 'Vollständiger Scan' : 'Schnellscan'} – ${labels[scan.status]}`;
-  const issues = statistics ? `${statistics.unverifiedCount} ungeprüft · ${statistics.errorCount} Leseprobleme` : '';
+  const issues = scan.diagnostics?.directoryErrorCount
+    ? `${scan.diagnostics.directoryErrorCount} Ordnerproblem(e) · Inhalt nicht vollständig erfasst · ${scan.diagnostics.fileErrorCount} Dateiproblem(e)`
+    : statistics ? `${statistics.unverifiedCount} ungeprüft · ${statistics.errorCount} Leseprobleme` : '';
   return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border }]}
     testID="library-scan-summary">
     <View style={styles.row}>
@@ -96,7 +99,7 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning }: {
 };
 const styles = StyleSheet.create({
   box: { marginHorizontal: 20, marginBottom: 8, paddingVertical: 4, paddingHorizontal: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 }, title: { flex: 1, fontSize: 12, fontWeight: '600' },
+  row: { flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', gap: 8 }, title: { flex: 1, fontSize: 12, fontWeight: '600' },
   details: { gap: 4 },
   counts: { fontSize: 12 }, dismiss: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
 });

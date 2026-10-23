@@ -92,3 +92,30 @@ test('directory failure is visible even when no audio file could be discovered',
   expect(await scanning).toMatchObject({ songs: [], completed: false, statistics: { errorCount: 1, newCount: 0 } });
   expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ processed: 0, total: 0, statistics: expect.objectContaining({ errorCount: 1 }) }));
 });
+
+test('a per-file timeout marks the owning folder partial without affecting a following empty folder', async () => {
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockImplementation(async (value: string) => value === folder.uri ? [uri('hung')] : []);
+  (parseId3FromUri as jest.Mock).mockImplementation(() => new Promise(() => {}));
+  const scanning = scanFromSafFolders([folder, { ...folder, id: 'empty', uri: 'content://empty' }], { perFileTimeoutMs: 50 });
+  await jest.advanceTimersByTimeAsync(100);
+  const result = await scanning;
+  expect(result.folderUpdates?.[0].lastError).toMatch(/Datei/);
+  expect(result.folderUpdates?.[1].lastError).toBeUndefined();
+  expect(result.diagnostics).toMatchObject({ directoryErrorCount: 0, fileErrorCount: 1 });
+});
+
+test('MediaStore and SAF imports of the same Android file keep one song and its original id', async () => {
+  const mediaUri = 'file:///storage/emulated/0/Music/Track.mp3';
+  const safUri = 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2FTrack.mp3';
+  const readingMedia = enrichMediaLibraryAssets([{ id: 'media-id', uri: mediaUri, filename: 'Track.mp3', duration: 120 }] as any, 0, { loadNativeCover: false });
+  await jest.advanceTimersByTimeAsync(100);
+  const media = await readingMedia;
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue([safUri]);
+  const readingSaf = scanFromSafFolders([folder], { existingSongs: media.songs, loadNativeCover: false });
+  await jest.advanceTimersByTimeAsync(100);
+  const saf = await readingSaf;
+  expect(media.songs).toHaveLength(1);
+  expect(media.songs[0].id).toBe('media-id');
+  expect(saf.songs).toHaveLength(0);
+  expect(saf.reusedCount).toBe(1);
+});

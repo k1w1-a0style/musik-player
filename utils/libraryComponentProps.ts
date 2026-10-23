@@ -1,3 +1,4 @@
+import type { LibraryScanRequest } from './libraryScanSources';
 import type { LibraryImportStatusProps } from '../components/LibraryImportStatus';
 import type { LibraryMenuModalProps } from '../components/LibraryMenuModal';
 import type { LibrarySearchBarProps } from '../components/LibrarySearchBar';
@@ -77,7 +78,7 @@ export interface LibraryTabContentPropsBuilderOptions {
 export interface LibraryMenuModalPropsBuilderOptions {
   activeFolders: number;
   closeMenu: () => void;
-  importFromDevice: (options?: { refreshExisting?: boolean }) => void;
+  importFromDevice: (options?: LibraryScanRequest) => void;
   isReady: boolean;
   loading: boolean;
   menuOpen: boolean;
@@ -161,7 +162,7 @@ export const buildLibraryMenuModalProps = (options: LibraryMenuModalPropsBuilder
   canResumeRefresh: Boolean(options.canResumeRefresh),
   onClose: options.closeMenu,
   onImport: options.importFromDevice,
-  onDeepScan: () => options.importFromDevice({ refreshExisting: true }),
+  onDeepScan: request => options.importFromDevice({ ...request, refreshExisting: true }),
   onRefreshMetadata: options.refreshMetadataFromFiles,
   onAddFolder: options.onAddScanFolder,
   onShowFolders: options.showScanFolders,

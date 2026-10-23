@@ -1,10 +1,12 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, View, ScrollView, useWindowDimensions } from 'react-native';
-import { FolderPlus, ListMusic, Music, Settings, SlidersHorizontal } from 'lucide-react-native';
+import { FolderPlus, ListMusic, Settings, SlidersHorizontal } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
 import { useLibrarySelection } from '../contexts/LibrarySelectionContext';
 import LibraryMenuItem from './LibraryMenuItem';
+import LibraryScanSourceActions from './LibraryScanSourceActions';
+import type { LibraryScanRequest } from '../utils/libraryScanSources';
 
 export interface LibraryMenuModalProps {
   visible: boolean;
@@ -14,8 +16,8 @@ export interface LibraryMenuModalProps {
   activeFolders: number;
   canResumeRefresh?: boolean;
   onClose: () => void;
-  onImport: () => void;
-  onDeepScan?: () => void;
+  onImport: (options?: LibraryScanRequest) => void;
+  onDeepScan?: (options?: LibraryScanRequest) => void;
   onOpenCleaner?: () => void;
   onRefreshMetadata: () => void;
   onAddFolder: () => void;
@@ -64,10 +66,8 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
           <ScrollView style={[styles.menuScroll, { maxHeight: Math.max(48, height - 80) }]} contentContainerStyle={styles.menuContent}>
           {selection ? <LibraryMenuItem icon={ListMusic} label="Auswählen" onPress={() => { selection.store.start(); onClose(); }} /> : null}
           {onOpenCleaner&&<LibraryMenuItem icon={SlidersHorizontal} label="Sammlung aufräumen" description="Musik und Felder auswählen, Änderungen zuerst prüfen." onPress={onOpenCleaner} disabled={loading||!isReady}/>}
-          <LibraryMenuItem icon={Music} label="Schnellscan / Import" description="Neue oder geänderte Dateien einlesen."
-            onPress={onImport} disabled={loading || !isReady} />
-          {onDeepScan ? <LibraryMenuItem icon={Music} label="Vollständiger Scan" description="Alle Dateien und ihren Inhalt erneut prüfen."
-            onPress={onDeepScan} disabled={loading || !isReady} /> : null}
+          {visible ? <LibraryScanSourceActions disabled={loading || !isReady} activeFolders={activeFolders}
+            onImport={onImport} onDeepScan={onDeepScan} /> : null}
           <LibraryMenuItem icon={FolderPlus} label="Ordner hinzufügen" onPress={onAddFolder} disabled={loading || !isReady} />
           <LibraryMenuItem icon={ListMusic} label={`Aktive Scan-Ordner: ${activeFolders}`} onPress={onShowFolders} muted />
           <View style={[styles.divider, { backgroundColor: theme.palette.border }]} testID="library-menu-section-divider" />
@@ -83,7 +83,8 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
 const styles = StyleSheet.create({
   menuBackdrop: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 24 },
   menuCard: {
-    width: 250,
+    width: 280,
+    maxWidth: '100%',
     borderRadius: 22,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 10,

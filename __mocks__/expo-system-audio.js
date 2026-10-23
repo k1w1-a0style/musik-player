@@ -1,4 +1,5 @@
 const SystemAudio = {
+  primaryStoragePath: "/storage/emulated/0",
   isAvailable: false,
   hasNativeTagWriter: false,
   hasNativeMetadataFastPath: false,

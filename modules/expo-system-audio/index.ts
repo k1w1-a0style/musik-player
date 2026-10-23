@@ -169,6 +169,7 @@ export type RecoveryRunResult = {
 };
 
 declare class ExpoSystemAudioModule extends NativeModule {
+  primaryStoragePath?: string;
   eqInit(audioSessionId: number): Promise<EqInitResult | null>;
   eqSetEnabled(enabled: boolean): boolean;
   eqSetBandLevel(band: number, millibel: number): boolean;
@@ -324,6 +325,7 @@ const runBoundedNativeRead = async <T>(
 };
 
 export const SystemAudio = {
+  primaryStoragePath: native?.primaryStoragePath,
   isAvailable: native !== null,
   hasNativeTagWriter,
   hasNativeMetadataFastPath,
