@@ -9,9 +9,10 @@ import { displayFolderName } from '../utils/libraryPresentation';
 interface LibraryFolderRowProps {
   folder: ScanFolder;
   onRemove: (folder: ScanFolder) => void | Promise<void>;
+  onRepair?: (folder: ScanFolder) => void | Promise<void>;
 }
 
-const LibraryFolderRow: React.FC<LibraryFolderRowProps> = ({ folder, onRemove }) => {
+const LibraryFolderRow: React.FC<LibraryFolderRowProps> = ({ folder, onRemove, onRepair }) => {
   const { theme } = useAppTheme();
   const cleaner = useLibraryCleanerMenu();
   const folderName = displayFolderName(folder);
@@ -31,6 +32,13 @@ const LibraryFolderRow: React.FC<LibraryFolderRowProps> = ({ folder, onRemove })
           {folder.lastError ?? folder.uri}
         </Text>
       </Pressable>
+      {folder.lastError?.toLowerCase().includes('lesbar') && onRepair ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Zugriff auf Scan-Ordner ${folderName} erneuern`}
+          onPress={() => void onRepair(folder)} style={styles.repairFolderButton}
+          testID={`repair-folder-${folder.id}`}>
+          <Text style={[styles.repairFolderText, { color: theme.palette.primary }]}>Zugriff erneuern</Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Scan-Ordner ${folderName} entfernen`}
@@ -62,6 +70,8 @@ const styles = StyleSheet.create({
   folderTextWrap: { flex: 1, minWidth: 0 },
   folderName: { fontFamily: staticTokens.fonts.heading, fontSize: 14 },
   folderMeta: { fontFamily: staticTokens.fonts.body, fontSize: 11, marginTop: 2 },
+  repairFolderButton: { paddingHorizontal: 8, paddingVertical: 12, minHeight: 48, justifyContent: 'center' },
+  repairFolderText: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
   removeFolderButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,

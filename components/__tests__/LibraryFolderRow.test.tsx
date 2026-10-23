@@ -73,3 +73,19 @@ test('uses app theme row chrome and text colors', () => {
   expect(JSON.stringify(getByText('content://music').props.style)).toContain(mockAppTheme.palette.text.muted);
   expect(JSON.stringify(getByText('Entfernen').props.style)).toContain(mockAppTheme.palette.text.secondary);
 });
+
+test('unreadable folder offers grant repair without removing source', () => {
+  const onRepair = jest.fn();
+  const onRemove = jest.fn();
+  const broken = folder({ id: 'broken', lastError: 'Nicht lesbar' });
+  const { getByTestId, getByText } = render(<LibraryFolderRow folder={broken} onRemove={onRemove} onRepair={onRepair} />);
+  expect(getByText('Zugriff erneuern')).toBeTruthy();
+  fireEvent.press(getByTestId('repair-folder-broken'));
+  expect(onRepair).toHaveBeenCalledWith(broken);
+  expect(onRemove).not.toHaveBeenCalled();
+});
+
+test('healthy folder has no unnecessary grant repair control', () => {
+  const { queryByTestId } = render(<LibraryFolderRow folder={folder()} onRemove={jest.fn()} onRepair={jest.fn()} />);
+  expect(queryByTestId('repair-folder-f1')).toBeNull();
+});

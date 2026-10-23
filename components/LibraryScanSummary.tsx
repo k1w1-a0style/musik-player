@@ -82,6 +82,9 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning }: {
     {scan.errorMessage ? <Text accessibilityRole="alert" testID="library-scan-summary-error"
       style={[styles.counts, { color: theme.palette.text.secondary }]}>{scan.errorMessage}</Text> : null}
     {!cleanSuccess && issues ? <Text style={[styles.counts, { color: theme.palette.text.secondary }]}>{issues}</Text> : null}
+    {statistics && statistics.errorCount > 0 ? <Text style={[styles.counts, { color: theme.palette.text.secondary }]}>
+      Nicht lesbare Scan-Ordner kannst du unter „Scan-Ordner“ mit „Zugriff erneuern“ wieder freigeben.
+    </Text> : null}
     {scan.remainingCount ? <Text style={[styles.counts, { color: theme.palette.text.secondary }]}>
       {`${scan.remainingCount} Datei(en) noch nicht geprüft`}
     </Text> : null}
