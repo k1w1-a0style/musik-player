@@ -16,6 +16,7 @@ export interface UseLibraryControllerRenderersOptions {
   playPlaylist: (playlistId: string) => unknown;
   playSong: (song: Song, queue?: Song[]) => unknown;
   removeFolder: (folder: ScanFolder) => void | Promise<void>;
+  repairFolder: (folder: ScanFolder) => void | Promise<void>;
   setAlbumViewMode: Dispatch<SetStateAction<LibraryAlbumViewMode>>;
   songsForActiveList: Song[];
   songViewMode?: LibrarySongViewMode;
@@ -37,6 +38,7 @@ export const useLibraryControllerRenderers = ({
   playPlaylist,
   playSong,
   removeFolder,
+  repairFolder,
   setAlbumViewMode,
   songsForActiveList,
   songViewMode,
@@ -51,6 +53,7 @@ export const useLibraryControllerRenderers = ({
     playPlaylist,
     playSong,
     removeFolder,
+    repairFolder,
     songViewMode,
   });
 

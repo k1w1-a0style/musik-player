@@ -9,6 +9,7 @@ export type LibraryRendererPlaySong = (song: Song, queue: Song[]) => unknown;
 export type LibraryRendererPlayPlaylist = (playlistId: string) => unknown;
 export type LibraryRendererOpenPlaylistDetail = (playlistId: string) => unknown;
 export type LibraryRendererRemoveFolder = (folder: ScanFolder) => void | Promise<void>;
+export type LibraryRendererRepairFolder = (folder: ScanFolder) => void | Promise<void>;
 export type LibraryRendererOpenTrackInfo = (song: Song) => void;
 export type LibraryRendererOpenSongActions = (song: Song) => void;
 export type LibraryRendererHandleSongPress = (song: Song, queue?: Song[]) => void;
@@ -23,6 +24,7 @@ export interface UseLibraryRenderersOptions {
   playPlaylist: LibraryRendererPlayPlaylist;
   playSong: LibraryRendererPlaySong;
   removeFolder: LibraryRendererRemoveFolder;
+  repairFolder: LibraryRendererRepairFolder;
   songViewMode?: LibrarySongViewMode;
 }
 

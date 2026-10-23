@@ -110,6 +110,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     cancelMetadataRefresh,
     resumeMetadataRefresh,
     removeFolder,
+    repairFolder,
     showScanFolders,
     toggleSearch,
   } = useLibraryControllerActions({
@@ -196,6 +197,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     playPlaylist,
     playSong,
     removeFolder,
+    repairFolder,
     setAlbumViewMode,
     songsForActiveList,
     songViewMode: viewMode,

@@ -9,12 +9,14 @@ import type {
   LibraryRendererOpenPlaylistDetail,
   LibraryRendererPlayPlaylist,
   LibraryRendererRemoveFolder,
+  LibraryRendererRepairFolder,
 } from './libraryRendererTypes';
 
 interface UseLibraryPlaylistFolderRenderersOptions {
   onOpenPlaylistDetail?: LibraryRendererOpenPlaylistDetail;
   playPlaylist: LibraryRendererPlayPlaylist;
   removeFolder: LibraryRendererRemoveFolder;
+  repairFolder: LibraryRendererRepairFolder;
 }
 
 interface UseLibraryPlaylistFolderRenderersResult {
@@ -26,6 +28,7 @@ export const useLibraryPlaylistFolderRenderers = ({
   onOpenPlaylistDetail,
   playPlaylist,
   removeFolder,
+  repairFolder,
 }: UseLibraryPlaylistFolderRenderersOptions): UseLibraryPlaylistFolderRenderersResult => {
   const renderPlaylistItem = useCallback(({ item }: { item: LibraryPlaylistItem }) => (
     <LibraryPlaylistRow
@@ -38,8 +41,8 @@ export const useLibraryPlaylistFolderRenderers = ({
   ), [onOpenPlaylistDetail, playPlaylist]);
 
   const renderFolderItem = useCallback(({ item }: { item: ScanFolder }) => (
-    <LibraryFolderRow folder={item} onRemove={removeFolder} />
-  ), [removeFolder]);
+    <LibraryFolderRow folder={item} onRemove={removeFolder} onRepair={repairFolder} />
+  ), [removeFolder, repairFolder]);
 
   return {
     renderFolderItem,

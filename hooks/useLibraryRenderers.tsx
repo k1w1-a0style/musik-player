@@ -23,6 +23,7 @@ export const useLibraryRenderers = ({
   playPlaylist,
   playSong,
   removeFolder,
+  repairFolder,
   songViewMode,
 }: UseLibraryRenderersOptions): UseLibraryRenderersResult => {
   const songRenderers = useLibrarySongRenderer({
@@ -43,6 +44,7 @@ export const useLibraryRenderers = ({
     onOpenPlaylistDetail,
     playPlaylist,
     removeFolder,
+    repairFolder,
   });
 
   return {

@@ -43,6 +43,7 @@ export interface UseLibraryControllerActionsResult {
   cancelMetadataRefresh: () => boolean;
   resumeMetadataRefresh: () => Promise<void>;
   removeFolder: (folder: ScanFolder) => Promise<void>;
+  repairFolder: (folder: ScanFolder) => Promise<void>;
   showScanFolders: () => void;
   toggleSearch: () => void;
 }
@@ -72,7 +73,7 @@ export const useLibraryControllerActions = ({
     onOpenSettings: navigateToSettings,
   });
 
-  const { onAddScanFolder, persistChangedFolderUpdates, removeFolder, showScanFolders } =
+  const { onAddScanFolder, persistChangedFolderUpdates, removeFolder, repairFolder, showScanFolders } =
     useLibraryScanFolderActions({
       scanFolders,
       setActiveTab,
@@ -120,6 +121,7 @@ export const useLibraryControllerActions = ({
     cancelMetadataRefresh: cancelRefresh,
     resumeMetadataRefresh,
     removeFolder,
+    repairFolder,
     showScanFolders,
     toggleSearch,
   };
