@@ -136,7 +136,6 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     createPlaylist(trimmedName);
     setNewPlaylistName('');
   }, [createPlaylist, newPlaylistName]);
-
   const [songActionSong, setSongActionSong] = useState<Song | null>(null);
   const [playlistPickerSong, setPlaylistPickerSong] = useState<Song | null>(null);
 
