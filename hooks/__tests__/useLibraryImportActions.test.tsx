@@ -49,6 +49,7 @@ const showAlert = jest.fn();
 const persistChangedFolderUpdates = jest.fn();
 
 interface HookHarnessProps {
+  source?: import('../../utils/libraryScanSources').LibraryScanSource;
   fullScan?: boolean;
   showScanSummary?: boolean;
   scanFolders?: ScanFolder[];
@@ -67,6 +68,7 @@ interface HookHarnessProps {
 }
 
 const HookHarness = ({
+  source,
   fullScan = false,
   showScanSummary = false,
   scanFolders = [],
@@ -114,7 +116,7 @@ const HookHarness = ({
   });
 
   return <>
-    <Button title="import" onPress={() => void actions.importFromDevice({ refreshExisting: fullScan })} />
+    <Button title="import" onPress={() => void actions.importFromDevice({ refreshExisting: fullScan, source })} />
     <Button title="cancel import" onPress={() => actions.cancelImport()} />
     {showScanSummary ? <LibraryPreparationStatus visible={false} onRetryScan={() => {
       void actions.importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan });
@@ -780,4 +782,15 @@ test('reports a folder-state write failure as visible partial success', async ()
   expect(setSongs).toHaveBeenCalledWith([imported]);
   expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({ title: 'Bibliothek gespeichert – Ordnerdaten fehlen' }));
   expect(getLibraryScanOperation().status).toBe('partial');
+});
+
+
+test('cancelling media confirmation in both-source mode cancels the scan before any folder import', async () => {
+  const folderImport = jest.fn();
+  const screen = render(<HookHarness source="both" scanFolders={[folder('music')]}
+    confirmLibraryImportImpl={jest.fn().mockResolvedValue(false)} importSongsFromSourcesImpl={folderImport} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(folderImport).not.toHaveBeenCalled();
+  expect(getLibraryScanOperation().status).toBe('cancelled');
 });

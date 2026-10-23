@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { OperationAbortError } from '../utils/withTimeout';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
@@ -87,7 +88,7 @@ export const useLibraryMediaLibraryImportFlow = ({
     }
     const shouldImport = await confirmLibraryImportImpl(candidates.assets.length, candidates.skipped.length);
     ensureCurrentImport(generation);
-    if (!shouldImport) return [];
+    if (!shouldImport) throw new OperationAbortError('Musikimport abgebrochen.');
     setImportStatus(importCopy.importingMetadataAndCoversStatus);
     let callbacks: ReturnType<typeof createImportProgressCallbacks> | undefined;
     let mediaResult: Awaited<ReturnType<typeof enrichMediaLibraryAssetsImpl>>;
