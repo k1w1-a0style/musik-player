@@ -2,7 +2,7 @@
   "expo": {
     "name": "k1w1-Musik",
     "slug": "musik-player",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "platforms": [
       "android"
     ],
@@ -32,7 +32,8 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+      ],
+      "versionCode": 2
     },
     "plugins": [
       [

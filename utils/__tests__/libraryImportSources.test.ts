@@ -1,4 +1,4 @@
-import { createImportSourceSelection, getImportSourceKey, preserveImportedSource } from '../libraryImportSources';
+import { createImportSourceSelection, getImportSourceKey, preserveImportedSource, rebindVerifiedImportSource } from '../libraryImportSources';
 import { getWaveformSourceIdentity } from '../waveformGenerator';
 
 const oldUri = 'content://provider/tree/primary%3AMusic/document/primary%3AMusic%2FTrack.mp3';
@@ -76,7 +76,6 @@ test('legacy Expo seconds migrate on reuse without changing IDs or audio prepara
 });
 
 test('verified SAF reauthorization rebinds the accessible URI while preserving ids and user data', () => {
-  const { rebindVerifiedImportSource } = require('../libraryImportSources');
   const previous = { ...old, title: 'User title', comment: 'Keep me' };
   expect(rebindVerifiedImportSource(previous, newUri, { size: 1000 })).toMatchObject({ id: old.id, uri: newUri,
     title: 'User title', comment: 'Keep me', fileInfo: { uri: newUri, importedAt: 10 } });

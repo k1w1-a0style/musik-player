@@ -153,8 +153,9 @@ const openOverflowMenu = (getByLabelText: ReturnType<typeof render>['getByLabelT
   fireEvent.press(getByLabelText('Mehr Optionen'));
 };
 
-const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText']) => {
+const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText'], source = 'Android-Musikbibliothek') => {
   fireEvent.press(getByText('Schnellscan / Import'));
+  fireEvent.press(getByText(source));
 };
 
 describe('Library', () => {
@@ -264,7 +265,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     openOverflowMenu(getByLabelText);
     expect(view.queryByText('Metadaten aktualisieren')).toBeNull();
-    pressImportMenuItem(getByText);
+    pressImportMenuItem(getByText, 'Nur Scan-Ordner');
 
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 's1', title: 'Fresh Song' })])));
     expect(mockImportSongs).toHaveBeenCalledTimes(1);
@@ -292,7 +293,7 @@ describe('Library', () => {
     const view = render(<Library />);
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     openOverflowMenu(view.getByLabelText);
-    pressImportMenuItem(view.getByText);
+    pressImportMenuItem(view.getByText, 'Nur Scan-Ordner');
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([confirmed])));
 
     fireEvent.press(view.getByLabelText('Scan abbrechen'));
@@ -369,7 +370,7 @@ describe('Library', () => {
 
     await waitFor(() => expect(mockGetScanFolders).toHaveBeenCalled());
     openOverflowMenu(getByLabelText);
-    pressImportMenuItem(getByText);
+    pressImportMenuItem(getByText, 'Nur Scan-Ordner');
 
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
     expect(Alert.alert).toHaveBeenCalledWith('Teilweise importiert', expect.any(String));

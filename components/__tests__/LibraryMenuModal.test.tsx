@@ -66,6 +66,9 @@ test('calls menu action callbacks', () => {
   const { getByText } = renderMenu({ onImport, onRefreshMetadata, onAddFolder, onShowFolders, onOpenSettings, onOpenEqualizer });
 
   fireEvent.press(getByText('Schnellscan / Import'));
+  expect(onImport).not.toHaveBeenCalled();
+  fireEvent.press(getByText('Android-Musikbibliothek'));
+  expect(onImport).toHaveBeenCalledWith({ source: 'media-library' });
   fireEvent.press(getByText('Ordner hinzufügen'));
   fireEvent.press(getByText('Aktive Scan-Ordner: 2'));
   fireEvent.press(getByText('Equalizer'));
@@ -110,9 +113,12 @@ test('calls onClose when backdrop is pressed', () => {
 test('offers and disables the explicit full scan alongside the normal import', () => {
   const onDeepScan = jest.fn();
   const screen = render(<LibraryMenuModal {...defaultProps} onDeepScan={onDeepScan} />);
-  expect(screen.getByText('Neue oder geänderte Dateien einlesen.')).toBeTruthy();
-  expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityHint).toBe('Alle Dateien und ihren Inhalt erneut prüfen.');
+  expect(screen.getByText('Quelle wählen, neue oder geänderte Dateien einlesen.')).toBeTruthy();
+  expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityHint).toBe('Quelle wählen, Dateien und Inhalt erneut prüfen.');
   fireEvent.press(screen.getByText('Vollständiger Scan'));
+  expect(onDeepScan).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText('Beide Quellen'));
+  expect(onDeepScan).toHaveBeenCalledWith({ source: 'both' });
   expect(onDeepScan).toHaveBeenCalledTimes(1);
   screen.rerender(<LibraryMenuModal {...defaultProps} loading onDeepScan={onDeepScan} />);
   expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityState.disabled).toBe(true);
