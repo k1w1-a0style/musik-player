@@ -112,6 +112,7 @@ const mockScanFolderActions: UseLibraryScanFolderActionsResult = {
   onAddScanFolder: asyncFn,
   persistChangedFolderUpdates: asyncFn,
   removeFolder: asyncFn,
+  repairFolder: asyncFn,
 };
 
 const mockComponentProps: UseLibraryComponentPropsResult = {
@@ -385,6 +386,7 @@ test('wires controller state, actions, renderers, playback, and props without ch
     playPlaylist: mockMusicContext.playPlaylist,
     playSong: mockMusicContext.playSong,
     removeFolder: mockScanFolderActions.removeFolder,
+    repairFolder: mockScanFolderActions.repairFolder,
     songViewMode: 'list',
   }));
   expect(useLibraryPlaybackActions).toHaveBeenCalledWith({

@@ -733,7 +733,8 @@ export const removeScanFolder = async (id: string): Promise<ScanFolder[]> =>
 
 export type ReauthorizeScanFolderResult =
   | { kind: 'repaired'; folders: ScanFolder[]; folder: ScanFolder }
-  | { kind: 'missing' | 'duplicate' };
+  | { kind: 'missing' }
+  | { kind: 'duplicate' };
 
 /** Atomically replace a stale SAF tree grant without deleting library entries or
  * introducing duplicate folder sources. */

@@ -146,6 +146,7 @@ const HookHarness = ({
     playPlaylist,
     playSong,
     removeFolder,
+    repairFolder: jest.fn(),
   };
 
   const renderers = useLibraryRenderers(options);
