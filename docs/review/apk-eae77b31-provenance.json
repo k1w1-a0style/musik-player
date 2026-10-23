@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-23",
+  "repository": "k1w1-a0style/musik-player",
+  "branch": "codex",
+  "sourceCommit": "eae77b31432bb010e86ca7aa9ea5123900c51348",
+  "workflowRun": 39976843895,
+  "workflowUrl": "https://github.com/k1w1-a0style/musik-player/actions/runs/39976843895",
+  "apk": {
+    "artifactId": 12513151757,
+    "sizeBytes": 100924657,
+    "sha256": "5b8a637dbf3aa9e5e846c074e873bc4184fc4e958041f00f5280d5303267e2d0",
+    "archiveSizeBytes": 48164174,
+    "archiveSha256": "dbcb6ceac79387b442748df229652306f7aca591abccad6e0dfe8d2b91478f8c",
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "scheme": "APK v2",
+    "algorithm": "RSA-2048 PKCS1/SHA256",
+    "signers": 1,
+    "contentDigest": "f7ee8c43486e63d499c915a2a81025c546a2a82973cfec02700ac57b335c70f7",
+    "contentChunks": 99,
+    "officialApksignerVerified": true,
+    "independentV2Verified": true,
+    "sourceRecordVerified": true,
+    "zipCrcVerified": true,
+    "packageName": "com.k1w1a0style.musikplayer",
+    "versionName": "1.0.0",
+    "versionCode": 1,
+    "minSdkVersion": 24,
+    "targetSdkVersion": 36,
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86",
+      "x86_64"
+    ],
+    "legacyReadMaxSdkVersion": 32,
+    "readMediaAudio": true,
+    "broadStorageWritePermission": false,
+    "visualMediaReadPermissions": false
+  },
+  "quality": {
+    "jobId": 120493543931,
+    "conclusion": "success",
+    "jestSuites": 441,
+    "jestTests": 4265,
+    "pythonTests": 182,
+    "coverage": {
+      "statements": 92.98,
+      "branches": 85.31,
+      "functions": 94.13,
+      "lines": 96.07
+    },
+    "onlineExpoCheck": true,
+    "manifestCheck": true,
+    "hermesSources": 1697,
+    "artifactId": 12512240856,
+    "archiveSizeBytes": 30843,
+    "archiveSha256": "89d74277141aaed648a61a34c5ad7ec8733158669124b81d76fc38ea9e64432a"
+  },
+  "native": {
+    "jobId": 120493544385,
+    "conclusion": "success",
+    "buildDuration": "20m30s",
+    "artifactId": 12513141481,
+    "archiveSizeBytes": 84140,
+    "archiveSha256": "f64119415d54935de498807cef3821f78292b33e438fe956fe82e54938ce89b2",
+    "suites": 26,
+    "tests": 215,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "independentlyCountedOriginalXml": true,
+    "audioReadFrameworkCases": 36,
+    "frameworkApis": [
+      24,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "api36PolicyContractOnly": true
+  },
+  "security": {
+    "jobId": 120493544240,
+    "conclusion": "failure",
+    "critical": 0,
+    "high": 4,
+    "moderate": 0,
+    "blockingAdvisoryRoots": 1,
+    "transitiveEffects": 3,
+    "reason": "node-forge exception expired 2026-10-21; GHSA-86w9-cpqp-85rv remains active",
+    "bracesAdvisoryWithdrawn": "2026-10-23",
+    "artifactId": 12510998848,
+    "archiveSizeBytes": 1055,
+    "archiveSha256": "6d47ef020a42156403260a47953b8061715da50a9f555e368d914cfacdc8cf04"
+  },
+  "requiredReleaseChecks": {
+    "jobId": 120504124900,
+    "conclusion": "failure"
+  },
+  "androidUi": {
+    "jobId": 120504126535,
+    "conclusion": "skipped",
+    "independentLimrunStarted": false,
+    "reason": "Regular UI gate blocked by security; independent CloudConvert APK/fixture upload rejected by automatic approval review for missing explicit destination authorization"
+  },
+  "downloadDelivery": {
+    "githubArtifactAvailable": true,
+    "directLibraryUpload": false,
+    "reason": "Execution environment became unavailable after verification; no primary turn environment available for upload"
+  },
+  "installationVerified": false,
+  "uiAccepted": false,
+  "nativeCrashFixAndroidVerified": false,
+  "releaseAccepted": false,
+  "originalMusicModified": false,
+  "mainChanged": false
+}
