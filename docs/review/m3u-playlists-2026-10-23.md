@@ -1,0 +1,17 @@
+# M3U/M3U8 – Implementierung und Abnahmegrenzen
+
+Issue #411; Arbeitsbranch codex. Neue Funktion auf der bestehenden internen Playlist-Verwaltung, keine zweite Persistenz-/Wiedergabearchitektur.
+
+## Verhalten
+- Bibliothek → Playlisten → „M3U / M3U8 importieren“ öffnet die System-Dateiauswahl. Expo Document Picker57.0.3 entspricht exakt der SDK57-Kompatibilitätstabelle; nur diese neue Abhängigkeit und ihr Lockeintrag hinzugefügt.
+- UTF-8/BOM, LF/CRLF/CR, einfache Einträge und EXTINF werden gelesen. Begrenzungen: 2Mi Codeeinheiten Text,10.000 Einträge,8192 Zeichen pro Zeile; nativer Textread mit Offset und Byteobergrenze. Ungültige/UTF16-/Ersatzzeichen-Texte werden verständlich verweigert.
+- Zuordnung ausschließlich anhand exakter lokaler Quellen oder normalisierter absoluter Pfade. Relative Pfade werden nur bei bekanntem echten Basisordner aufgelöst (file:// und Android-ExternalStorage-Document-Vertrag). Opaque Provider-IDs bleiben opaque. Keine Titel-/Dateinamenheuristik, keine automatische Dateisuche, kein Download von Streams. Fehlende, mehrdeutige, relative nicht auflösbare und fremde Quellen werden in einer virtualisierten Vorschau getrennt bezeichnet.
+- Die Reihenfolge bleibt erhalten. Doppelte Song-IDs werden entsprechend der bestehenden Playlist-Semantik einmal übernommen und gezählt. Erst ausdrückliche Bestätigung prüft jeden Titel durch einen echten begrenzten Einbyte-Read (höchstens vier gleichzeitig). Entzogene Rechte/fehlende Dateien erfordern eine aktualisierte Vorschau und erneute Bestätigung. Abbruch, Timeout, Unmount oder zwischenzeitlich geänderte Quelldateien verhindern späte Übernahme.
+- Vorhandene Aktion saveQueueAsPlaylist erzeugt atomar einen eindeutigen Playlist-Namen. Bestehende Detailansicht übernimmt Wiedergabe, Umbenennen, Sortieren/Drag, Hinzufügen und Entfernen. Keine Musikdatei wird beim Import geschrieben.
+- Detailansicht → „Als M3U8 exportieren“ → SAF-Zielordner. Neue UTF-8-Datei mit EXTINF/Originalquellverweisen; vollständiges Rücklesen muss exakt passen. Bei fehlenden internen Titeln ist zusätzliche Bestätigung erforderlich. Textmetadaten werden gegen Zeileneinschleusung bereinigt. Fehlerbereinigung betrifft nur die neu erzeugte Playlistdatei und wartet auf tatsächliches Ende einer verspäteten Schreiboperation. Originalmusik bleibt unangetastet.
+- Lokale content://-Verweise sind geräte-/berechtigungsgebunden. Ein Export überträgt keine Audiodateien und erteilt auf anderen Geräten keine Zugriffsrechte.
+
+## Gezielte Tests
+89 Tests /8 Suiten erfolgreich: Parser/Roundtrip/Unicode/Bounds/10.000 Titel; native Dateiserviceverträge, Berechtigungsentzug, Einbyte-Reads, Parallelitätsgrenze, Abbruch/Timeout/verspäteter Write; Hook- und öffentliche Komponenteninteraktion; bisherige Playlist-/Library-Oberflächen und Context-Adapter. TypeScript, ESLint ohne Warnungen und unveränderte Komplexitätsgrenzen grün.
+
+Online Expo-Kompatibilitätsprüfung zunächst durch HTTP-Proxy-Timeout blockiert; Offline-Prüfung und integrierte CI werden anschließend protokolliert. Vollständige aktuelle Tests und native APK-Abnahme stehen zu diesem Checkpoint noch aus. #411 bleibt bis zu seiner realen Android-SAF-/APK-Abnahme offen; Implementierung allein ist kein Gerätebeleg. Security #396 bleibt unabhängig blockierend.

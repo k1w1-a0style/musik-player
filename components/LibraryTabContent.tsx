@@ -10,6 +10,7 @@ import LibrarySectionHeader from './LibrarySectionHeader';
 import LibrarySortControl from './LibrarySortControl';
 import LibrarySongViewControl from './LibrarySongViewControl';
 import PlaylistCreateForm from '../screens/PlaylistCreateForm';
+import PlaylistFileImportButton from './PlaylistFileImportButton';
 import type { LibrarySortMode } from '../utils/librarySort';
 import { getLibrarySongViewColumns, type LibrarySongViewMode } from '../utils/libraryViewMode';
 import type { Song } from '../types/Song';
@@ -216,6 +217,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
           windowSize={GROUP_WINDOW_SIZE}
           removeClippedSubviews={shouldRemoveClippedSubviews}
           ListHeaderComponent={(
+            <>
+            <PlaylistFileImportButton />
             <PlaylistCreateForm
               value={newPlaylistName}
               onChangeText={onChangePlaylistName}
@@ -225,6 +228,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
               buttonTestID="library-playlist-create-button"
               helperText="Erstelle eine leere Playlist und füge später Titel hinzu."
             />
+            </>
           )}
           ListEmptyComponent={emptyState}
         />

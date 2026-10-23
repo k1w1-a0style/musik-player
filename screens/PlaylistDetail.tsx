@@ -25,6 +25,7 @@ import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import { useReorderableSongListDrag } from '../hooks/useNowPlayingQueueDrag';
 import { getQueuePreviewOffset } from '../utils/soundCloudPlayer';
 import PlaylistCleanerButton from '../components/PlaylistCleanerButton';
+import PlaylistFileExportButton from '../components/PlaylistFileExportButton';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
 import PlaylistDetailSongRow, { playlistDetailRowHeight } from './PlaylistDetailSongRow';
 
@@ -238,6 +239,7 @@ const PlaylistDetail: React.FC = () => {
               {playlist.name}
             </Text>
             <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>{playlistTrackLabel(playlistSongs.length)}</Text>
+            <PlaylistFileExportButton name={playlist.name} songs={playlistSongs} missingCount={missingSongs} />
             <View style={styles.actionRow}>
               <PlaylistCleanerButton songs={playlistSongs} onOpen={ids => navigation.navigate('TagCleaner', { songIds: ids })} />
               <Pressable
