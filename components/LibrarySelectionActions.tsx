@@ -23,9 +23,9 @@ const ActiveSelectionActions: React.FC<{ selection: NonNullable<ReturnType<typeo
       {snapshot.count} ausgewählt · {snapshot.visibleCount} auf dieser Liste
     </Text>
     <View style={styles.buttons}>
-      <SelectionButton label="Alle auf dieser Liste auswählen" onPress={selection.store.selectVisible} />
-      <SelectionButton label="Auswahl aufheben" onPress={selection.store.clear} />
-      <SelectionButton label="Tags bereinigen" onPress={selection.openSelected} disabled={!snapshot.count} />
+      {snapshot.visibleCount > 0 ? <SelectionButton label="Alle auf dieser Liste auswählen" onPress={selection.store.selectVisible} /> : null}
+      {snapshot.count > 0 ? <SelectionButton label="Auswahl aufheben" onPress={selection.store.clear} /> : null}
+      {snapshot.count > 0 ? <SelectionButton label="Tags bereinigen" onPress={selection.openSelected} /> : null}
       <SelectionButton label="Auswahl beenden" onPress={selection.store.close} />
     </View>
   </View>;

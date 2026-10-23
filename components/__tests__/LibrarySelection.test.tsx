@@ -105,3 +105,15 @@ test('library menu starts selection without triggering playback or cleaning auto
   fireEvent.press(screen.getByText('Alle auf dieser Liste auswählen')); fireEvent.press(screen.getByText('Tags bereinigen'));
   expect(open).toHaveBeenCalledWith(['a','b']);
 });
+
+test('empty selection hides ineffective bulk actions while exit remains operable', () => {
+  let selection: ReturnType<typeof useLibrarySelection>;
+  const Capture = () => { selection = useLibrarySelection(); return <LibrarySelectionActions />; };
+  const screen = render(<LibrarySelectionProvider songs={[]} visibleSongs={[]} onOpenCleaner={jest.fn()}><Capture /></LibrarySelectionProvider>);
+  act(() => selection!.store.start());
+  expect(screen.queryByText('Alle auf dieser Liste auswählen')).toBeNull();
+  expect(screen.queryByText('Auswahl aufheben')).toBeNull();
+  expect(screen.queryByText('Tags bereinigen')).toBeNull();
+  fireEvent.press(screen.getByText('Auswahl beenden'));
+  expect(screen.queryByTestId('library-selection-actions')).toBeNull();
+});
