@@ -58,6 +58,7 @@ const baseValue: MusicContextValue = {
 describe('music context value builders', () => {
   test('builds the library slice', () => {
     expect(buildLibraryMusicContextValue(baseValue)).toEqual({
+      saveQueueAsPlaylist: baseValue.saveQueueAsPlaylist,
       songs: baseValue.songs,
       setSongs: baseValue.setSongs,
       currentSong: baseValue.currentSong,

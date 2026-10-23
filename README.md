@@ -6,6 +6,8 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 - **Expo slug:** `musik-player`
 - **Android package:** `com.k1w1a0style.musikplayer`
 
+Aktueller Fortsetzungsstand vom 23.10.2026: [M3U/M3U8 und Abnahmegrenzen](docs/review/m3u-playlists-2026-10-23.md), [Security-Abgleich](docs/review/security-expiry-2026-10-23.md). Noch keine Gesamtfreigabe.
+
 ## Features (aktueller Stand)
 
 - Lokale Musikbibliothek via `expo-media-library` und SAF-Ordnerimport inklusive ID3-Auslese.
@@ -13,7 +15,7 @@ Android-first Musikplayer auf Basis von Expo/React Native.
 - Native AudioInfo-Ermittlung für lokale und SAF-Quellen beim Import sowie Backfill für bereits gespeicherte Titel.
 - AlbumArtist-Erkennung, Album-Gruppierung und Tag-Editor-Unterstützung.
 - Wiedergabe mit dem gepatchten RNTP-V5-Adapter über `@rntp/player@5.12.1` (Lockscreen/Bluetooth/Background).
-- Playlists, Cover-Ansichten, Tag-Editor, Equalizer-UI.
+- Playlists mit M3U/M3U8-Dateiimport, kontrollierter lokaler Zuordnung und geprüftem M3U8-Export; Cover-Ansichten, Tag-Editor, Equalizer-UI.
 - Native Visualizer/FFT-Auswertung ist im Release-Pfad entfernt; Now Playing zeigt keine FFT-Daten an.
 
 > Hinweis: Push-Notifications werden nicht mehr als separates Utility geführt.

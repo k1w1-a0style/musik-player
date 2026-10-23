@@ -66,17 +66,42 @@ test('bounded concurrency stays at four native reads, abort schedules no later b
   const releases: Array<() => void> = [];
   read.mockImplementation(() => new Promise(resolve => releases.push(() => resolve('YQ=='))));
   const pending = verifyPlaylistSources(Array.from({ length: 100 }, (_, i) => ({ ...songs[0], id: String(i) })), controller.signal);
+  await Promise.resolve();
   expect(read).toHaveBeenCalledTimes(4);
   controller.abort(); releases.forEach(finish => finish());
   await expect(pending).rejects.toThrow();
   expect(read).toHaveBeenCalledTimes(4);
 });
 test('a stalled provider fails rather than accumulating more timed-out reads', async () => {
-  jest.useFakeTimers(); read.mockReturnValue(new Promise(() => undefined));
+  jest.useFakeTimers();
+  const finishes: Array<() => void> = [];
+  read.mockImplementation(() => new Promise(resolve => finishes.push(() => resolve('YQ=='))));
   const pending = verifyPlaylistSources(Array.from({ length: 100 }, (_, i) => ({ ...songs[0], id: String(i) })));
   const assertion = expect(pending).rejects.toThrow('antwortet nicht');
   await jest.advanceTimersByTimeAsync(5000); await assertion;
   expect(read).toHaveBeenCalledTimes(4);
+  await expect(verifyPlaylistSources(songs)).rejects.toThrow('frühere Leseanfragen');
+  expect(read).toHaveBeenCalledTimes(4);
+  finishes.forEach(finish => finish());
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  read.mockResolvedValue('YQ==');
+  await expect(verifyPlaylistSources(songs)).resolves.toEqual({ readable: songs, unreadable: [] });
+});
+test('one worker failure stops all other workers from scheduling a later batch', async () => {
+  jest.useFakeTimers();
+  let finish!: (value: string) => void;
+  read.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }))
+    .mockRejectedValueOnce(new Error('permission revoked'));
+  // Workers 1–3 are initially slow; worker 0 times out first. Resolving another
+  // native read after the rejected operation must not start document 5.
+  read.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve('YQ=='), 4999)));
+  const pending = verifyPlaylistSources(Array.from({ length: 10 }, (_, i) => ({ ...songs[0], id: String(i) })));
+  const assertion = expect(pending).rejects.toThrow('antwortet nicht');
+  await jest.advanceTimersByTimeAsync(5000); await assertion;
+  const callsAtFailure = read.mock.calls.length;
+  await jest.advanceTimersByTimeAsync(5000);
+  expect(read).toHaveBeenCalledTimes(callsAtFailure);
+  finish('YQ==');
 });
 test('M3U8 export creates a new file in the chosen destination, verifies exact roundtrip, never writes audio', async () => {
   await expect(writePlaylistFile('Road/trip', songs)).resolves.toBe('content://new-export');

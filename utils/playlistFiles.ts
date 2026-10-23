@@ -6,6 +6,18 @@ import { isTimeoutError, throwIfAborted, withTimeout } from './withTimeout';
 
 export interface PlaylistImportPreview extends M3uResolution { name: string }
 const textReadOptions = () => ({ encoding: EncodingType.UTF8, position: 0, length: MAX_M3U_CODE_UNITS * 3 + 1 });
+class PlaylistReadCapacityError extends Error {}
+let pendingSourceReads = 0;
+const readSourceByte = async (uri: string, signal?: AbortSignal): Promise<string> => {
+  if (pendingSourceReads >= 4) throw new PlaylistReadCapacityError('Der Dateianbieter bearbeitet noch frühere Leseanfragen. Bitte warte einen Moment.');
+  pendingSourceReads += 1;
+  // Keep capacity until the real native read settles, including after timeout
+  // or cancellation. Retrying must not accumulate unbounded provider calls.
+  const reading = Promise.resolve().then(() => readAsStringAsync(uri, {
+    encoding: EncodingType.Base64, position: 0, length: 1,
+  })).finally(() => { pendingSourceReads -= 1; });
+  return withTimeout(reading, 5_000, 'Die Audiodatei antwortet nicht.', { signal });
+};
 
 export const pickPlaylistFile = async (library: Song[], signal?: AbortSignal): Promise<PlaylistImportPreview | null> => {
   throwIfAborted(signal);
@@ -29,32 +41,34 @@ export const verifyPlaylistSources = async (songs: Song[], signal?: AbortSignal,
   onProgress?: (done: number, total: number) => void): Promise<{ readable: Song[]; unreadable: Song[] }> => {
   let cursor = 0;
   let done = 0;
+  let stopped = false;
   const accepted = new Set<string>();
   const worker = async () => {
     while (cursor < songs.length) {
       throwIfAborted(signal);
+      if (stopped) return;
       const song = songs[cursor++];
       const uri = songPlaylistUri(song);
       try {
         if (uri) {
           // A real bounded read checks current access; a stored grant/stat alone
           // does not prove that a SAF provider can still open this document.
-          const firstByte = await withTimeout(readAsStringAsync(uri, {
-            encoding: EncodingType.Base64, position: 0, length: 1,
-          }), 5_000, 'Die Audiodatei antwortet nicht.', { signal });
+          const firstByte = await readSourceByte(uri, signal);
           if (firstByte) accepted.add(song.id);
         }
       } catch (error) {
         throwIfAborted(signal);
         // Do not accumulate timed-out provider reads in further batches.
-        if (isTimeoutError(error)) throw error;
+        if (isTimeoutError(error) || error instanceof PlaylistReadCapacityError) throw error;
       }
       throwIfAborted(signal);
+      if (stopped) return;
       done += 1;
       onProgress?.(done, songs.length);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(4, songs.length) }, worker));
+  try { await Promise.all(Array.from({ length: Math.min(4, songs.length) }, worker)); }
+  finally { stopped = true; }
   return { readable: songs.filter(song => accepted.has(song.id)), unreadable: songs.filter(song => !accepted.has(song.id)) };
 };
 

@@ -1,3 +1,16 @@
+## Aktueller Fortsetzungsstand – 23.10.2026
+
+Dieser Abschnitt ersetzt ältere SDK-/NewArch-/Abnahmeangaben als aktuellen Status; die Einträge darunter bleiben historische Protokolle.
+
+- codex übernommen von20278b88, main unverändert b62b91b59c7400fd310a5db8fcbf9fc6444ff393. Expo57.0.31/RN0.86.3/React19.2.3, New Architecture aktiviert, lokaler V5-Adapter über @rntp/player5.12.1.
+- Security: braces-Advisory am23.10. upstream zurückgezogen, ungenutzte Ausnahme entfernt. Frischer Audit0Critical/4High/0Moderate, nur node-forge-Wurzel plus3Effekte; Ausnahme21.10. weiterhin abgelaufen. Keine Policy-/Fristabschächung; #396 offen.
+- #411 M3U/M3U8-Dateiauswahl, sichere lokale Zuordnung mit Vorschau/Lesbarkeitsprüfung und geprüfter SAF-M3U8-Export implementiert; vorhandene Playlist-/Edit-/Reorder-/Playback-Persistenz wiederverwendet. Keine Originalmusik geschrieben. Android-SAF-/APK-Abnahme noch offen.
+- Sauberes npmci mit exakt verifizierten RNTP-/Read-only-/Security-Patches erfolgreich. TypeScript/Lint/Komplexität gezielt grün,182 Python-Regressionen bestanden. Erster Coverage-Gesamtlauf440/441Suiten und4264/4265Tests grün; eine veraltete Erwartung des erweiterten Library-Context wurde gezielt korrigiert und nachgeprüft. Kein fälschlich grüner Gesamtlauf; maßgebliche abschließende CI folgt.
+- Folgefehler nach Provider-Timeout rot reproduziert und behoben: gemeinsame Stopplanung und echte globale Grenze von4 noch nicht abgeschlossenen Reads über Retries hinweg; Freigabe erst bei realem Native-Abschluss. Neue Reads/Importe dürfen hängende Provider nicht unbeschränkt vervielfachen.
+- Native215Tests/APK63d5 sind historische Nachweise. Geänderte App erfordert neue exakte APK mit eigenem Hash/Signatur-/Manifest- und Android-UI-Beleg. Physische Samsung-/Huawei-/externe Provider-Gates bleiben offen; keine unverifizierte Freigabe.
+
+Details: docs/review/m3u-playlists-2026-10-23.md, docs/review/security-expiry-2026-10-23.md, docs/CODEX-V5-CHECKPOINTS.md.
+
 # Project Checklog
 
 ## Konsolidierte Deep-Scan-Härtung (2026-07-25)
