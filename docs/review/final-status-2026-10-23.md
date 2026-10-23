@@ -1,6 +1,6 @@
 # K1W1 Musikplayer – Abschlussstand 23.10.2026
 
-**Implementierung, aktuelle Qualitätsprüfung, native Tests und signierte APK nachgewiesen. Gesamtfreigabe weiterhin blockiert.**
+**Implementierung, Qualitätsprüfung, native Tests sowie unabhängige Funktionstests der exakten APK auf Android 15 nachgewiesen. Gesamtfreigabe weiterhin blockiert.**
 
 Arbeitsbranch: `codex`. Übernommen: `20278b88f9f9c31fd8f2b8c191ab117666e57f5d`.
 Geprüfter Produktcommit: `eae77b31432bb010e86ca7aa9ea5123900c51348`.
@@ -14,7 +14,7 @@ Keine Force-Pushes, kein Main-Merge, kein Produktionsrelease, keine Änderung ur
 - [Vollständiger aktueller CI-Lauf](https://github.com/k1w1-a0style/musik-player/actions/runs/39976843895).
 - [Maschinenlesbare APK-Herkunft](apk-eae77b31-provenance.json).
 
-Ein direktes APK-Downloadobjekt und ein zusätzliches Nachweisarchiv konnten nach dem Ausfall der Arbeitsumgebung nicht mehr dauerhaft bereitgestellt werden. Die signierte APK liegt unverändert im oben verlinkten GitHub-Originalartefakt. Die Abschlussdokumentation wird direkt über GitHub gesichert.
+Die exakte APK wurde inzwischen erfolgreich als direkte Datei bereitgestellt: `K1W1-eae77b31-Testversion-nicht-freigegeben.apk`. Ergänzende Geräte-/CI-Nachweise: `K1W1-eae77b31-Android-und-CI-Nachweise.zip`, SHA-256 `79492e057ec5029438fb1fb950e2eddb1af1e5e9495172f53601f35a2332e37d`; vollständige ZIP-CRC geprüft (63 Dateien). Dieser vollständige Bericht bleibt auf codex gesichert. [Android-Funktionsbericht](android-eae77b31-2026-10-23.md) und [maschinelle Gerätebelege](android-eae77b31-evidence.json).
 
 ## Übernahme und Arbeitsfolge
 
@@ -72,6 +72,7 @@ Maßgeblich ist [CI 39976843895](https://github.com/k1w1-a0style/musik-player/ac
 | APK | Build, Signatur, Manifest, SHA-256 und unabhängige APK-v2-Inhaltsprüfung erfolgreich |
 | Security | **fehlgeschlagen: node-forge-Ausnahme seit 21.10. abgelaufen** |
 | Reguläre APK-UI | wegen fehlgeschlagenem Security-Gate übersprungen; **nicht bestanden** |
+| Unabhängige exakte APK auf Android 15 | Installation, Audio-Rechte, Scans, SAF, Formate, Pause/Back, Queue/Playlist-Drag, M3U8-Roundtrip, große Schrift und Neustart/Fortsetzen erfolgreich beobachtet; kein vollständiger Geräte-/Logcat-Gate |
 | Gesamtfreigabe | **nicht erteilt** |
 
 Quality-Job: `120493543931`; Native: `120493544385`; Security: `120493544240`; Required-releasechecks: `120504124900`; exakte APK-UI: `120504126535`.
@@ -117,24 +118,28 @@ GitHub hat GHSA-vfj7-8cjw-p6xm am 23.10.2026 als nicht praktisch ausnutzbar zur�
 
 GHSA-86w9-cpqp-85rv bleibt aktiv. Neueste Registry-Version node-forge 1.4.0 weiterhin ohne gepatchten Release. Kompatible Elternpakete ebenfalls aktuell: Expo 57.0.31 / CLI 57.0.32; neueste Zertifikatsbibliothek 0.0.7 verlangt noch forge ^1.4.0. CLI verwendet forge zusätzlich direkt. Ein kleiner kompatibler Elternwechsel entfernt den Pfad nicht; der vorgeschlagene Rückschritt auf Expo 44.0.6 ist keine sichere SDK-57-Lösung.
 
-Aktueller Audit: 0 Critical / 4 High / 0 Moderate, eine forge-Wurzel und drei Effekte. Hashgebundener DER-Backport verifiziert; er ersetzt keine gültige Freigaberegel. Ausnahmefrist 21.10. bleibt abgelaufen. Keine Fristverlängerung, Paket-/Versionsmanipulation, Major-Erzwingung oder Gate-Abschwächung. Issue bleibt offen.
+Aktueller Audit und erneuter echter Audit nach dem Gerätetest: 0 Critical / 4 High / 0 Moderate, eine forge-Wurzel und drei Effekte. Unveränderter Policy-Checker bestätigt die Payloads und verweigert mit EXIT1 ausschließlich die abgelaufene Frist. Hashgebundener DER-Backport verifiziert; er ersetzt keine gültige Freigaberegel. Ausnahmefrist 21.10. bleibt abgelaufen. Keine Fristverlängerung, Paket-/Versionsmanipulation, Major-Erzwingung oder Gate-Abschwächung. Issue bleibt offen.
 
-### Aktuelle Android-Abnahme und #411
+### Aktuelle Android-Diagnose und #411
 
-Installation, Berechtigungen mit Ablehnung/erneuter Erteilung/Settings-Rückkehr, Quick-/Full-/SAF-Scan, Daten-/Abbruchpfade, Cover-/Fabric-Pause/Hardware-Zurück, mehrere Titel, MP3/M4A/FLAC, Queue, Hintergrund/Lockscreen/Benachrichtigung und Restart/Resume bleiben am aktuellen APK-Gerätetest zu bestätigen.
+Die ausdrücklich genehmigte CloudConvert-Übertragung und Limrun-Installation wurden tatsächlich ausgeführt. APK und ausschließlich selbst erzeugte Audios nach vollständiger Rücklesegröße/SHA geprüft; keine Nutzermusik und keine vorbereitete M3U-Datei übertragen. Android 15 / limdroid_x86_64_only / BP1A.250505.005.D1 in Systemeinstellungen bestätigt. Isolierte Instanz nach Sicherung beendet.
 
-M3U-Systempicker, SAF-Export und Roundtrip sind durch Host-/Serviceverträge getestet; **echte aktuelle APK-UI-Abnahme fehlt**. #411 wird deshalb nicht vorzeitig geschlossen.
+Erfolgreich beobachtet: Ablehnung/erneute Erteilung, Entzug/Settings-Link/Rückkehr, Importabbruch und Datenerhalt, Quick-/Full-/SAF-Scans, SAF ohne globale Audiofreigabe, MP3/M4A/FLAC und content-URI-Wiedergabe, je Format Fallback-Cover → Pause → Hardware-BACK, Queue-Auswahl und Ziehen bei erhaltener aktiver Songidentität, Hintergrund-/Android-Mediensteuerung, Neustart mit gespeicherten Titeln/Playlists. Bei maximaler Android-Schrifteinstellung bleiben Player und Track-Info bedienbar.
 
-Die unabhängige Limrun-Diagnose konnte nicht starten: Die automatische Freigabeprüfung lehnte den Upload der unveröffentlichten APK und synthetischen Testdateien zu CloudConvert wegen fehlender ausdrücklicher Zielautorisierung ab. Keine Dateien übertragen; kein alternativer oder indirekter Übertragungsversuch. Hierfür ist eine ausdrückliche Freigabe für CloudConvert → isolierter Limrun-Emulator erforderlich.
+Der Positionsspeicher ist standardmäßig aus und gilt erst ab 20 Minuten. Deshalb zusätzlicher selbst erzeugter 21-Minuten-Titel: Funktion aktiviert, bei 1:32 pausiert und App per Stopp erzwingen beendet. Nach Neustart bietet erneute Auswahl 1:32 an; Fortsetzen läuft bei 1:34 weiter. Abbrechen erhält anderen aktiven Titel; Von vorn startet bei 0:02. Kurzdateien wurden nicht fälschlich als Positionsnachweis ausgegeben.
+
+M3U8 direkt in der App erstellt: Export in ausgewählten Documents/K1W1Tests-SAF-Ordner, exakte Rückleseverifikation, Systempicker und Importvorschau 3 lokal/0 fehlend, eindeutiger neuer Name und ursprüngliche Reihenfolge. Importierte Playlist umbenannt, Titel entfernt/ergänzt und per Griff umgeordnet. Fehlender ursprünglicher Bibliothekstitel wird einzeln angezeigt (2 lokal/1 fehlend), obwohl gleichnamige Kopien existieren; Abbruch erhält Playlistanzahl. Damit ist die Funktionslücke #411 inklusive Android-SAF-Smoke belegt geschlossen; keine Gesamtfreigabe daraus abgeleitet.
+
+[Reproduktionsbericht und genaue Grenzen](android-eae77b31-2026-10-23.md). Keine neuen reproduzierbaren App-Fehler in diesen Abläufen und keine weitere Produktänderung erforderlich. Reguläres CI-UI-Gate bleibt SKIPPED. Kein Logcat-/ADB-Nachweis über die verfügbare Testoberfläche; kein sicherer Lockscreen, beschädigtes eingebettetes Cover oder vollständige Versions-/Gerätematrix geprüft. Diese Grenzen bleiben offen.
 
 ### Hardware #234 / #236
 
 Samsung/Huawei, externe Hersteller-/Cloud-SAF-Provider, echte Headsets/Bluetooth und gesprochene TalkBack-Bedienung sind ohne Hardware nicht abgenommen. Diese Tracker bleiben offen. Historische V5-Emulatorergebnisse bestätigen keine neue APK und keine physischen Geräte.
 
-### Ausfall der Arbeitsumgebung
+### Wiederherstellung und Sicherung
 
-Nach vollständigem Build und unabhängiger APK-/XML-Prüfung fiel die Ausführungsumgebung aus. Dadurch scheiterten die nachfolgenden lokale Dateiübertragung und dauerhafte Direkt-APK-/Nachweisarchivbereitstellung. Der GitHub-Download und sämtliche Produktcommits bleiben verfügbar. Abschlussbericht, Herkunft und Checkpoint werden über die GitHub-API gesichert; kein identischer Neubuild als Reaktion auf diesen Umgebungsfehler.
+Die Arbeitsumgebung wurde wieder verfügbar. Vorhandene lokale Dokumentationsentwürfe zuerst im Git-Stash gesichert, danach sauber auf den aktuellen codex-HEAD vorgerückt. Keine parallelen Branch-Schreiber festgestellt. 49 UI-Beobachtungen (davon eine lokale Teilsicherung ausdrücklich markiert) und 17 Screenshots gesichert; vollständige maschinenlesbare Knoten in komprimierter Datei auf codex. APK-Direktbereitstellung erfolgreich. Keine identischen Builds oder Änderungen an Sicherheitsregeln.
 
 ## Freigabeentscheidung
 
-Keine Gesamtfreigabe. Implementierbare Produktarbeiten sind gesichert und die aktuellen automatisierten Qualitäts-/Native-/APK-Prüfungen nachgewiesen. Eine sichere kompatible forge-Lösung sowie aktuelle Android-/Herstellerabnahmen fehlen. Die bereitgestellte APK ist ausdrücklich eine **nicht freigegebene Testversion**.
+Keine Gesamtfreigabe. Implementierbare Produktarbeiten sind gesichert und die aktuellen automatisierten Qualitäts-/Native-/APK-Prüfungen nachgewiesen. Eine sichere kompatible forge-Lösung, das reguläre Sicherheits-/UI-Release-Gate sowie die vollständigen Geräte-/Herstellerabnahmen fehlen. Die unabhängigen Android-15-Funktionstests sind durchgeführt und bleiben ausdrücklich enger als eine Gesamtfreigabe. Die bereitgestellte APK ist ausdrücklich eine **nicht freigegebene Testversion**.

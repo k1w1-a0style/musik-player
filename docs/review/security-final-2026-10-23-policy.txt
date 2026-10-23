@@ -1,0 +1,4 @@
+npm audit policy: verified compensating payloads node-forge@1.4.0, braces@3.0.3
+npm audit policy: audit counts: 0 critical, 4 high, 0 moderate
+npm audit policy: blocking advisory roots: 1; collapsed transitive effect entries: 3
+- node-forge: exception expired on 2026-10-21

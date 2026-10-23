@@ -95,7 +95,9 @@
     "bracesAdvisoryWithdrawn": "2026-10-23",
     "artifactId": 12510998848,
     "archiveSizeBytes": 1055,
-    "archiveSha256": "6d47ef020a42156403260a47953b8061715da50a9f555e368d914cfacdc8cf04"
+    "archiveSha256": "6d47ef020a42156403260a47953b8061715da50a9f555e368d914cfacdc8cf04",
+    "finalAuditRepeatedAfterDeviceTests": true,
+    "finalPolicyExitCode": 1
   },
   "requiredReleaseChecks": {
     "jobId": 120504124900,
@@ -104,18 +106,43 @@
   "androidUi": {
     "jobId": 120504126535,
     "conclusion": "skipped",
-    "independentLimrunStarted": false,
-    "reason": "Regular UI gate blocked by security; independent CloudConvert APK/fixture upload rejected by automatic approval review for missing explicit destination authorization"
+    "independentLimrunStarted": true,
+    "reason": "Regular CI UI gate remains skipped because security fails. Independent authorized Android 15 functional diagnosis completed; see device report.",
+    "independentFunctionalSmokePassed": true,
+    "independentReport": "android-eae77b31-2026-10-23.md",
+    "independentEvidence": "android-eae77b31-evidence.json",
+    "os": "Android 15",
+    "model": "limdroid_x86_64_only",
+    "build": "BP1A.250505.005.D1",
+    "instanceId": "android_euna_01m5msa8j7f9rt9jx8ee1kneve",
+    "instanceDeleted": true,
+    "fullNativeRuntimeLogVerified": false,
+    "fullDeviceMatrixAccepted": false
   },
   "downloadDelivery": {
     "githubArtifactAvailable": true,
-    "directLibraryUpload": false,
-    "reason": "Execution environment became unavailable after verification; no primary turn environment available for upload"
+    "directLibraryUpload": true,
+    "apkLibraryFileId": "libfile_34e0b1cdb20c8191b097ab32fefc7cd3",
+    "apkFileId": "file_0000000025648230894e86a16492e890",
+    "apkFileName": "K1W1-eae77b31-Testversion-nicht-freigegeben.apk",
+    "evidenceArchive": {
+      "fileName": "K1W1-eae77b31-Android-und-CI-Nachweise.zip",
+      "sizeBytes": 5442523,
+      "sha256": "79492e057ec5029438fb1fb950e2eddb1af1e5e9495172f53601f35a2332e37d",
+      "zipEntries": 63,
+      "zipCrcVerified": true,
+      "libraryFileId": "libfile_197ba6bda9408191afed05128ff5b8f9",
+      "fileId": "file_00000000238481fda95a7e8cb401de50",
+      "directLibraryUpload": true
+    },
+    "checksumsLibraryFileId": "libfile_3a2c7da483d88191ac33e855f7adf75d"
   },
-  "installationVerified": false,
+  "installationVerified": true,
   "uiAccepted": false,
-  "nativeCrashFixAndroidVerified": false,
+  "nativeCrashFixAndroidVerified": true,
   "releaseAccepted": false,
   "originalMusicModified": false,
-  "mainChanged": false
+  "mainChanged": false,
+  "nativeCrashVerificationScope": "Missing-artwork fallback, pause and hardware BACK on MP3/M4A/FLAC in exact Android 15 APK; UI remains responsive. Corrupt embedded art/full logcat/other devices not verified.",
+  "independentFunctionalSmokePassed": true
 }

@@ -1,0 +1,154 @@
+{
+  "summary": {
+    "date": "2026-10-23",
+    "sourceCommit": "eae77b31432bb010e86ca7aa9ea5123900c51348",
+    "apkSha256": "5b8a637dbf3aa9e5e846c074e873bc4184fc4e958041f00f5280d5303267e2d0",
+    "instanceId": "android_euna_01m5msa8j7f9rt9jx8ee1kneve",
+    "instanceDeleted": true,
+    "os": "Android 15",
+    "model": "limdroid_x86_64_only",
+    "build": "BP1A.250505.005.D1",
+    "resolution": [
+      720,
+      1616
+    ],
+    "mode": "Independent authorized diagnostic; regular CI UI gate still skipped",
+    "installationVerified": true,
+    "newReproducibleAppErrors": 0,
+    "productCodeChanged": false,
+    "functionalSmokePassed": true,
+    "fullReleaseAccepted": false,
+    "passed": [
+      "APK installation and launch",
+      "audio permission deny / retry / grant",
+      "global quick and full scans",
+      "import confirmation cancellation preserves library",
+      "permission revocation retains songs and playlists",
+      "app-settings link and permission regrant / return",
+      "SAF directory selection / scan independent of global audio grant",
+      "MP3 M4A FLAC playback progression",
+      "content-URI M4A playback",
+      "fallback-cover pause / hardware BACK for all three formats",
+      "queue select and drag with current-track identity preserved",
+      "background and Android media pause / resume",
+      "force-stop / relaunch retains library playlists and current track",
+      "21-minute synthetic resume enabled: save 1:32; force-stop; offer 1:32; resume 1:34",
+      "resume choice cancel retains other track; from-start plays 0:02",
+      "playlist create add rename remove re-add and drag reorder",
+      "SAF M3U8 export with application exact readback",
+      "M3U8 import roundtrip: 3 resolved / 0 unresolved, preserved order",
+      "missing library track: 2 resolved / 1 unresolved despite same-title copies",
+      "import preview cancellation preserves playlist count",
+      "maximum Android font setting: controls and Track Info reachable",
+      "large-font M3U preview actions and problem list reachable",
+      "Cleaner direct entry and no-original-write default visible",
+      "compact settings and separate color targets visible"
+    ],
+    "notVerified": [
+      "Android 10-14 and 16 installed devices",
+      "Samsung/Huawei physical devices",
+      "external/cloud SAF providers",
+      "secure lockscreen",
+      "corrupted embedded cover",
+      "audible quality and Bluetooth/headset",
+      "spoken TalkBack",
+      "large device library FPS/RAM",
+      "full native runtime logcat acceptance",
+      "regular security-gated CI UI acceptance"
+    ],
+    "cloudConvertJobs": [
+      "7d64a9bb-174d-438a-9617-6ad0dea3d02a",
+      "6f6c5d29-fb97-45b7-8ae6-401476fb1750"
+    ]
+  },
+  "observations": 49,
+  "partialObservations": 1,
+  "observationArchiveSha256": "80441f03a2acb279384154ad02516de53fad037e4c9e1c7c3cc90d2931d60a10",
+  "screenshots": [
+    {
+      "file": "cleanerSnap.png",
+      "sizeBytes": 187351,
+      "sha256": "b992d88c9b578fee1777a60d36850cc385c123a2ecca65c663a2cf444c2695eb"
+    },
+    {
+      "file": "denialSnap.png",
+      "sizeBytes": 149775,
+      "sha256": "d372b2bd1318f0992459defa817ced6efb0442ddcc88d575123f15741d948a3c"
+    },
+    {
+      "file": "exportSuccessSnap.png",
+      "sizeBytes": 113533,
+      "sha256": "d2cfb40eaa38522d90bc1132984a73ddd7b88e18c3ba34e7c5301ded5593cd3e"
+    },
+    {
+      "file": "flacPlaySnap.png",
+      "sizeBytes": 568205,
+      "sha256": "6c2439d42c169bdcb324858fa1a4f51a2d6e479586d2edb9933df6bdac830bb7"
+    },
+    {
+      "file": "largeFontPlayerSnap.png",
+      "sizeBytes": 558807,
+      "sha256": "23a392a21a0633dd344b520fd5c311a78043b9219525d611ebcc2d2fd71c1f58"
+    },
+    {
+      "file": "longResumePromptSnap.png",
+      "sizeBytes": 221187,
+      "sha256": "89e3406388d650820e9ce75fcfc5bd2d93b4d0c50a5884a770e37f046a9ac8a6"
+    },
+    {
+      "file": "longResumeSuccessSnap.png",
+      "sizeBytes": 574481,
+      "sha256": "d0d5df5851228140b1178469c4a8807b535824da97bfc99c5235a6cc10f1c1ef"
+    },
+    {
+      "file": "m3uMissingSnap.png",
+      "sizeBytes": 192232,
+      "sha256": "3df6e4ebf15a9d90cd1e1016c13f9de50d30f69f8f4a66c5f68a2cd64d0b5b89"
+    },
+    {
+      "file": "m3uPreviewSnap.png",
+      "sizeBytes": 172972,
+      "sha256": "5ae7cd5c28389583eb16f12336e0eb51155d110a44b1fb5b2492e8c051f071ac"
+    },
+    {
+      "file": "m4aPlaySnap.png",
+      "sizeBytes": 568992,
+      "sha256": "3c934490d5c73291856126a6cd88c680d283e29a3ebde332633d45375e3e76b9"
+    },
+    {
+      "file": "notificationSnap.png",
+      "sizeBytes": 125748,
+      "sha256": "1cef2e48bb710fdcd43eeb5af78e737479721d87d2846e6d86c9dd3c02e30eb5"
+    },
+    {
+      "file": "osSnap.png",
+      "sizeBytes": 88246,
+      "sha256": "4b2b82187bd74bfa57f1fcbbc84ab5d7d61f96a5d02f35f1ad429e75f437ec9b"
+    },
+    {
+      "file": "pauseBackMp3Snap.png",
+      "sizeBytes": 320117,
+      "sha256": "8e8d35dbd0e615a3929ddbd41e644a6f129531c9db20726c0981e36fd56d3f5b"
+    },
+    {
+      "file": "queueReorderedSnap.png",
+      "sizeBytes": 287279,
+      "sha256": "002a3f7f2e5a55a41920641fdb356e5168f7699aaa6f50478e3f3039479d1ced"
+    },
+    {
+      "file": "reorderAttemptSnap.png",
+      "sizeBytes": 174976,
+      "sha256": "4449f660d87ad1b0d4c3f83fa3840c2872843c77a46e4399b626493bc555d83b"
+    },
+    {
+      "file": "restartResumeSnap.png",
+      "sizeBytes": 564050,
+      "sha256": "f2771c5c8d47d6ddf675712679f7ce46b5d52d618915683c3a60cfb36951c0dc"
+    },
+    {
+      "file": "safPlaybackSnap.png",
+      "sizeBytes": 561538,
+      "sha256": "f22e7b41479888492d3682b2bce1b2483829186d7f1debae2bee7a99ec8aed65"
+    }
+  ]
+}

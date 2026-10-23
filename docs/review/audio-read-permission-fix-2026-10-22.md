@@ -1,5 +1,7 @@
 # Audio-Leseberechtigung – Reparatur und Abnahme vom 22.10.2026
 
+Fortsetzung 23.10.: Der Fix wurde inzwischen in der exakten eae77b31-APK auf Android 15 mit Ablehnung/erneuter Erteilung, Entzug/Settings-Rückkehr, Schnell-/Vollscan, SAF und Datenerhalt geprüft. [Aktueller Gerätebericht](android-eae77b31-2026-10-23.md). Die Angaben darunter sind der historische Stand vom 22.10.; keine Gesamtfreigabe.
+
 Status: Codekorrektur, vollständige Qualitäts-CI und native JUnit-/APK-Prüfung erfolgreich. Installation und Android-UI-Abnahme ausstehend; keine Release-Freigabe. Produktquelle `63d5a61bad64af8af9be604e25dffbffb1298898`, [CI39828111896](https://github.com/k1w1-a0style/musik-player/actions/runs/39828111896). Arbeitsbranch ausschließlich `codex`; `main` unverändert. Übernahmestand `0ee18941696dd660e3d5945b866d74ac467a6f94`, keine ungesicherten Arbeiten oder aktive aktuelle CI beim Einstieg.
 
 ## Reihenfolge und Abgleich
