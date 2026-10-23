@@ -10,6 +10,7 @@ import {
   normalizeVolumeForStorage,
   migrateLegacySongFavoritesFromStoredSongs,
   removeScanFolder,
+  reauthorizeScanFolder,
   setFavoriteSongId,
   storage,
   StorageKeys,
@@ -1965,4 +1966,26 @@ describe('storage', () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.ALBUM_VIEW_MODE), JSON.stringify('bogus'));
     await expect(storage.getAlbumViewMode()).resolves.toBe('grid');
   });
+});
+
+test('SAF repair preserves folder identity and clears obsolete read error', async () => {
+  const original = { id: 'a', name: 'downloads', uri: 'content://old', addedAt: 12,
+    enabled: true, lastError: 'Nicht lesbar' };
+  await storage.setScanFolders([original]);
+  const repaired = await reauthorizeScanFolder('a', 'content://new', 'Music');
+  expect(repaired).toEqual({
+    kind: 'repaired',
+    folder: { ...original, uri: 'content://new', name: 'Music', lastError: undefined },
+    folders: [{ ...original, uri: 'content://new', name: 'Music', lastError: undefined }],
+  });
+  await expect(getScanFolders()).resolves.toEqual(repaired.kind === 'repaired' ? repaired.folders : []);
+});
+
+test('SAF repair rejects duplicate sources and stale removed folder without data loss', async () => {
+  const a = { id: 'a', name: 'A', uri: 'content://a', addedAt: 1, enabled: true };
+  const b = { id: 'b', name: 'B', uri: 'content://b', addedAt: 2, enabled: true };
+  await storage.setScanFolders([a, b]);
+  await expect(reauthorizeScanFolder('a', b.uri, 'Wrong')).resolves.toEqual({ kind: 'duplicate' });
+  await expect(reauthorizeScanFolder('missing', 'content://new', 'New')).resolves.toEqual({ kind: 'missing' });
+  await expect(getScanFolders()).resolves.toEqual([a, b]);
 });

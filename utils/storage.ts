@@ -731,6 +731,26 @@ export const removeScanFolder = async (id: string): Promise<ScanFolder[]> =>
     return next;
   });
 
+export type ReauthorizeScanFolderResult =
+  | { kind: 'repaired'; folders: ScanFolder[]; folder: ScanFolder }
+  | { kind: 'missing' | 'duplicate' };
+
+/** Atomically replace a stale SAF tree grant without deleting library entries or
+ * introducing duplicate folder sources. */
+export const reauthorizeScanFolder = async (
+  id: string, uri: string, name: string,
+): Promise<ReauthorizeScanFolderResult> => withScanFoldersMutationLock(async () => {
+  if (!uri.trim()) throw new Error('Cannot save an empty SAF tree URI');
+  const folders = await getScanFolders();
+  const existing = folders.find(folder => folder.id === id);
+  if (!existing) return { kind: 'missing' };
+  if (folders.some(folder => folder.id !== id && folder.uri === uri)) return { kind: 'duplicate' };
+  const repaired: ScanFolder = { ...existing, uri, name, lastError: undefined };
+  const next = folders.map(folder => folder.id === id ? repaired : folder);
+  await storage.setScanFolders(next);
+  return { kind: 'repaired', folders: next, folder: repaired };
+});
+
 const isSameScanFolderShallow = (left: ScanFolder, right: ScanFolder): boolean =>
   Object.keys(left).length === Object.keys(right).length
   && Object.entries(left).every(([key, value]) =>
