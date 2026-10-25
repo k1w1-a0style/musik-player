@@ -271,6 +271,28 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         root[0].set('package',smoke.PACKAGE)
         self.assertIsNone(smoke.folder_access_button(root,'K1W1ScanFix'))
 
+    def test_picker_processes_the_observed_drawer_after_a_slow_hierarchy_response(self):
+        pkg='com.android.documentsui'
+        initial=ET.fromstring(f'<hierarchy><node package="{pkg}" content-desc="Show roots" enabled="true" bounds="[12,48][96,120]"/></hierarchy>')
+        drawer=ET.fromstring(f'<hierarchy><node package="{pkg}" text="Open from" bounds="[24,47][194,96]"/></hierarchy>')
+        now=[0]
+        def slow_tree(**_kwargs):
+            now[0]=26
+            return drawer
+        with patch.object(smoke,'tree',side_effect=slow_tree),patch.object(smoke.time,'monotonic',side_effect=lambda:now[0]),patch.object(smoke,'tap_node') as tap:
+            self.assertIs(smoke.open_picker_roots(initial,timeout=25),drawer)
+            tap.assert_called_once()
+
+    def test_startup_header_handles_only_one_recorded_launcher_dialog_then_rechecks_app(self):
+        dialog=ET.fromstring('<hierarchy><node resource-id="android:id/alertTitle" text="Pixel Launcher isn&apos;t responding"/><node resource-id="android:id/aerr_close" text="Close app" bounds="[24,461][456,533]"/></hierarchy>')
+        header=self.header_frame()
+        with tempfile.TemporaryDirectory() as directory,patch.object(smoke,'OUT',Path(directory)),patch.object(smoke,'LAUNCHER_DIALOGS',0), \
+             patch.object(smoke,'tree',side_effect=[dialog,header,header,header]),patch.object(smoke,'screenshot'),patch.object(smoke,'tap_node') as tap, \
+             patch.object(smoke,'adb') as adb,patch.object(smoke.time,'sleep'):
+            self.assertIsNotNone(smoke.wait_uncovered_library_header())
+            tap.assert_called_once()
+            adb.assert_called_once_with('shell','am','start','-W','-n',smoke.PACKAGE+'/.MainActivity')
+
     def picker_trail_frame(self, current_root=False):
         pkg='com.google.android.documentsui'
         root=ET.Element('hierarchy')

@@ -132,7 +132,7 @@ def main():
     assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|ANR in ' + re.escape(ui.PACKAGE), logs), 'App runtime failure'
     result = {'status': 'diagnostics-passed', 'releaseAccepted': False, 'api': api, 'sourceCommit': os.environ.get('REVIEWED_APK_SOURCE_COMMIT', os.environ['GITHUB_SHA']), 'harnessCommit': os.environ['GITHUB_SHA'],
               'apkSha256': expected, 'syntheticFixtures': fixtures, 'firstScanCounts': first, 'repeatScanCounts': repeated,
-              'restartRows': len(TITLES), 'nativePlayback': ui.PLAYBACK_PROOFS, 'fontScale': 2, 'settingsCategories': categories,
+              'restartRows': len(TITLES), 'nativePlayback': ui.PLAYBACK_PROOFS, 'fontScale': 2, 'settingsCategories': categories, 'launcherDialogs': ui.LAUNCHER_DIALOGS,
               'limitations': ['no physical Samsung provider', 'permanently blocked provider behavior covered by host regressions, not this device fixture',
                               'security and full release acceptance remain independent requirements']}
     (OUT / 'result.json').write_text(json.dumps(result, indent=2))

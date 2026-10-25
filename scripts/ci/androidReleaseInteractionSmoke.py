@@ -172,19 +172,25 @@ def candidate(key, root=None):
                  if matches(node, key) and visible(node)), None)
 
 
-def find(key, timeout=25):
+def dismiss_recorded_launcher_dialog(frame):
     global LAUNCHER_DIALOGS
+    launcher = pixel_launcher_close_button(frame)
+    if launcher is None:
+        return False
+    assert LAUNCHER_DIALOGS == 0, 'Pixel Launcher repeatedly stopped responding'
+    screenshot('startup-pixel-launcher-dialog')
+    LAUNCHER_DIALOGS += 1
+    print('Closing the recorded Pixel Launcher system ANR dialog only.', flush=True)
+    tap_node(launcher)
+    time.sleep(.6)
+    return True
+
+
+def find(key, timeout=25):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         frame = tree()
-        launcher = pixel_launcher_close_button(frame)
-        if launcher is not None:
-            assert LAUNCHER_DIALOGS == 0, 'Pixel Launcher repeatedly stopped responding'
-            screenshot('startup-pixel-launcher-dialog')
-            LAUNCHER_DIALOGS += 1
-            print('Closing the recorded Pixel Launcher system ANR dialog only.', flush=True)
-            tap_node(launcher)
-            time.sleep(.6)
+        if dismiss_recorded_launcher_dialog(frame):
             continue
         found = candidate(key, frame)
         if found is None:
@@ -758,6 +764,29 @@ def reveal_internal_storage(root):
     tap_node(option)
 
 
+def picker_drawer_open(root):
+    return any(node.get('text') == 'Open from' for node in document_nodes(root))
+
+
+def open_picker_roots(root, timeout=25):
+    if picker_drawer_open(root):
+        return root
+    opener = next((node for node in document_nodes(root) if node.get('content-desc') in ('Show roots', 'Navigate up')
+                   and node.get('enabled') == 'true'), None)
+    assert opener is not None, 'System storage navigation action absent'
+    tap_node(opener)
+    deadline = time.monotonic() + timeout
+    while True:
+        root = tree(compressed=False)
+        # A slow dump can return the requested acknowledged frame at the end of
+        # the budget. Process that frame before deciding whether to read again.
+        if picker_drawer_open(root) or any(storage_label(node) for node in document_nodes(root)):
+            return root
+        if time.monotonic() >= deadline:
+            raise AssertionError('System picker roots drawer did not arrive')
+        time.sleep(.3)
+
+
 def select_picker_storage(timeout=25):
     root = wait_document_picker(timeout)
     if picker_at_internal_root(root):
@@ -765,31 +794,25 @@ def select_picker_storage(timeout=25):
     if picker_breadcrumbs(root):
         navigate_picker_root(root, timeout)
         return
-    revealed = False
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        nodes = document_nodes(root)
-        storage = [node for node in nodes if storage_label(node)]
-        if storage:
-            assert len(storage) == 1, 'System internal-storage action ambiguous'
-            tap_node(storage[0])
-            return
-        # AOSP Android 10 can expose only Downloads in the roots drawer.
-        # Close that drawer and enable storage through the actual overflow menu.
-        drawer = any(node.get('text') == 'Open from' for node in nodes)
-        if drawer and not revealed:
-            back()
-            reveal_internal_storage(tree(compressed=False))
-            revealed = True
+    root = open_picker_roots(root, timeout)
+    storage = [node for node in document_nodes(root) if storage_label(node)]
+    if not storage:
+        assert picker_drawer_open(root), 'System storage roots have no observed navigation surface'
+        back()
+        deadline = time.monotonic() + timeout
+        while True:
             root = tree(compressed=False)
-            continue
-        opener = next((node for node in nodes if node.get('content-desc') in ('Show roots', 'Navigate up')
-                       and node.get('enabled') == 'true'), None)
-        if opener is not None and not drawer:
-            tap_node(opener)
-        time.sleep(.3)
-        root = tree(compressed=False)
-    raise AssertionError('Internal storage did not arrive in the actual system picker')
+            if not picker_drawer_open(root):
+                break
+            if time.monotonic() >= deadline:
+                raise AssertionError('System picker roots drawer did not close')
+            time.sleep(.3)
+        reveal_internal_storage(root)
+        root = open_picker_roots(tree(compressed=False), timeout)
+        storage = [node for node in document_nodes(root) if storage_label(node)]
+    assert len(storage) == 1, 'System internal-storage action absent or ambiguous'
+    tap_node(storage[0])
+
 
 
 def folder_access_button(root, folder):
@@ -1637,6 +1660,10 @@ def wait_uncovered_library_header(timeout=60):
     previous, stable = None, 0
     while time.monotonic() < deadline:
         frame = tree(compressed=False)
+        if dismiss_recorded_launcher_dialog(frame):
+            adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
+            previous, stable = None, 0
+            continue
         node = candidate('library-open-menu', frame)
         safe = (node is not None and node.get('package') == PACKAGE
                 and node.get('enabled') == 'true' and visible(node)
