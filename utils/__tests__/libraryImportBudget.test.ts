@@ -50,11 +50,11 @@ test('two detached file reads keep reservations across retries until their sourc
   await jest.advanceTimersByTimeAsync(0);
 });
 
-test('retiring hung workers reports the unprocessed tail instead of issuing unbounded reads', async () => {
+test('bounded recovery reports a permanently blocked tail without issuing unbounded reads', async () => {
   const read = jest.fn(() => new Promise<void>(() => undefined));
   const onFailure = jest.fn();
   const result = runImportFileWorkers([1, 2, 3, 4, 5, 6], { read, onFailure, perFileTimeoutMs: 10 });
-  await jest.advanceTimersByTimeAsync(10);
+  await jest.advanceTimersByTimeAsync(20);
   await expect(result).resolves.toEqual({ processed: 2, remaining: 4, interrupted: true });
   expect(read).toHaveBeenCalledTimes(2);
   expect(onFailure).toHaveBeenCalledTimes(2);

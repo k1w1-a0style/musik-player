@@ -47,7 +47,7 @@ export interface MediaLibraryScanOptions extends AudioImportFilterOptions {
   onProgress?: (assetCount: number, pageCount: number) => void;
 }
 
-export type ImportErrorPhase = 'directory' | 'tags' | 'audioInfo' | 'cover' | 'songBuild';
+export type ImportErrorPhase = 'directory' | 'revision' | 'tags' | 'audioInfo' | 'cover' | 'songBuild';
 
 export interface ImportErrorDetail {
   uri: string;
@@ -119,6 +119,8 @@ interface BuildSongOptions {
   signal?: AbortSignal;
   coverCacheProtection?: CoverCacheProtection;
   nativeArtworkInspection?: EmbeddedArtworkInspection;
+  onReadActivity?: () => void;
+  onReadPhase?: (phase: ImportErrorPhase) => void;
 }
 
 interface ImportEnrichmentOptions extends BuildSongOptions {
@@ -307,19 +309,23 @@ const artworkInspectionCompleted = (parsedCover: string | undefined,
   Boolean(parsedCover || (inspection?.checked && (!inspection.artwork?.uri || permanentCover)));
 
 const readImportArtwork = async (source: BuildSongSource, cover: string | undefined, options: BuildSongOptions) => {
+  options.onReadPhase?.('cover');
   const cachedCover = await cacheBase64Cover(source.id, cover, options.coverCacheProtection);
   throwIfAborted(options.signal);
+  options.onReadActivity?.();
   const parsedCover = cachedCover ?? (cover && !isBase64ImageDataUri(cover) ? cover : undefined);
   const inspection = parsedCover || options.loadNativeCover === false ? null
     : options.nativeArtworkInspection ?? await inspectEmbeddedArtwork(source.uri);
   const nativeArtwork = inspection?.artwork;
   try {
     throwIfAborted(options.signal);
+    options.onReadActivity?.();
     // The native receipt keeps staging pinned even if permanent-cache cleanup
     // delays the copy. Import protection owns the permanent file afterwards.
     const nativeCover = nativeArtwork?.uri;
     const permanentCover = nativeCover ? await cacheLocalCoverFile(source.id, nativeCover, options.coverCacheProtection) : undefined;
     throwIfAborted(options.signal);
+    options.onReadActivity?.();
     const artwork = parsedCover ?? permanentCover;
     const status = artwork ? (cachedCover || permanentCover ? 'cached' : 'external') : 'none';
     const embeddedArtworkChecked = options.loadNativeCover !== false
@@ -332,13 +338,16 @@ const readImportArtwork = async (source: BuildSongSource, cover: string | undefi
 
 const buildSongWithNativeSnapshot = async (source: BuildSongSource, tags: Id3Tags,
   options: BuildSongOptions): Promise<Song> => {
+  options.onReadPhase?.('audioInfo');
   const includeArtwork = options.loadNativeCover !== false && !tags.cover;
   const snapshot = typeof SystemAudio.extractImportSnapshot === 'function'
     ? await SystemAudio.extractImportSnapshot(source.uri, includeArtwork) : null;
   try {
     throwIfAborted(options.signal);
+    options.onReadActivity?.();
     const audio = snapshot ? snapshot.audioInfo : await getNativeAudioInfo(source.uri);
     throwIfAborted(options.signal);
+    options.onReadActivity?.();
     return await buildSongFromImportSource(mergeAudioInfoIntoSource(source, audio), tags,
       { ...options, nativeArtworkInspection: includeArtwork ? snapshot?.artwork : undefined });
   } finally {
@@ -781,12 +790,57 @@ export const scanAudioAssetsFromMediaLibrary = async (
 
 export const scanMediaLibraryCandidates = async (options: MediaLibraryScanOptions = {}): Promise<AudioImportScanResult> => scanAudioAssetsFromMediaLibrary(MediaLibrary.getAssetsAsync, options);
 
+const readMediaLibraryImportSource = async (asset: MediaAsset, options: ImportEnrichmentOptions,
+  selection: ReturnType<typeof createImportSourceSelection>, yieldKnownSource: ReturnType<typeof createQuickScanYieldBudget>) => {
+  const { signal: childSignal, loadNativeCover = true, readId3Tags = true } = options;
+  options.onReadPhase?.('revision');
+  const revision = await readImportFileRevision(asset.uri, {
+    size: (asset as { fileSize?: number }).fileSize, modificationTime: asset.modificationTime,
+  }, childSignal, { previous: selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)?.fileInfo,
+    verifyContent: options.refreshExisting });
+  throwIfAborted(childSignal);
+  options.onReadActivity?.();
+  const revisionCount = selection.getRevisionUpdates().length;
+  const decision = selection.select(asset.uri, revision);
+  if (!decision.include) {
+    const update = selection.getRevisionUpdates()[revisionCount];
+    await yieldKnownSource(childSignal);
+    return { song: update, decision };
+  }
+  await yieldToEventLoop();
+  throwIfAborted(childSignal);
+  const assetMimeType = (asset as { mimeType?: string }).mimeType;
+  const assetExtension = deriveExtension(asset.filename ?? asset.uri);
+  options.onReadPhase?.('tags');
+  const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, childSignal, {
+    filename: asset.filename,
+    mimeType: assetMimeType,
+    extension: assetExtension,
+  });
+  throwIfAborted(childSignal);
+  options.onReadActivity?.();
+  const imported = await buildSongWithNativeSnapshot({
+    id: asset.id,
+    uri: asset.uri,
+    filename: asset.filename,
+    durationMs: durationSecondsToMs(asset.duration),
+    mimeType: assetMimeType,
+    ...revision,
+    source: 'media-library',
+  }, tags, { ...options, loadNativeCover, signal: childSignal });
+  throwIfAborted(childSignal);
+  const previous = selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id);
+  const song = preserveImportedSource(imported, previous,
+    options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash));
+  return { song, decision };
+};
+
 export const enrichMediaLibraryAssets = async (
   assets: MediaAsset[],
   skippedCount = 0,
   options: ImportEnrichmentOptions = {},
 ): Promise<ImportScanResult> => {
-  const { loadNativeCover = true, readId3Tags = true, signal } = options;
+  const { signal } = options;
   throwIfAborted(signal);
   const skipped: string[] = [];
   const songs: Song[] = [];
@@ -797,57 +851,27 @@ export const enrichMediaLibraryAssets = async (
   const progress = createImportFileProgressReporter(options.onFileProgress, signal, true);
   const checkpoint = createImportCheckpointReporter(options.onCheckpoint, signal);
   const yieldKnownSource = createQuickScanYieldBudget();
+  const phases = new Map<string, ImportErrorPhase>();
   let accepted = 0;
   progress.addFiles(assets.length);
   const workerResult = await runImportFileWorkers(assets, {
     signal, perFileTimeoutMs: options.perFileTimeoutMs,
-    read: async (asset, childSignal) => {
+    read: async (asset, childSignal, activity) => {
       progress.start(asset.uri);
-      const revision = await readImportFileRevision(asset.uri, {
-        size: (asset as { fileSize?: number }).fileSize, modificationTime: asset.modificationTime,
-      }, childSignal, { previous: selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id)?.fileInfo,
-        verifyContent: options.refreshExisting });
-      throwIfAborted(childSignal);
-      const revisionCount = selection.getRevisionUpdates().length;
-      const decision = selection.select(asset.uri, revision);
-      if (!decision.include) {
-        const update = selection.getRevisionUpdates()[revisionCount];
-        await yieldKnownSource(childSignal);
-        return { song: update, decision };
-      }
-      await yieldToEventLoop();
-      throwIfAborted(childSignal);
-      const assetMimeType = (asset as { mimeType?: string }).mimeType;
-      const assetExtension = deriveExtension(asset.filename ?? asset.uri);
-      const tags = await readId3TagsIfEnabled(asset.uri, readId3Tags, childSignal, {
-        filename: asset.filename,
-        mimeType: assetMimeType,
-        extension: assetExtension,
-      });
-      throwIfAborted(childSignal);
-      const imported = await buildSongWithNativeSnapshot({
-        id: asset.id,
-        uri: asset.uri,
-        filename: asset.filename,
-        durationMs: durationSecondsToMs(asset.duration),
-        mimeType: assetMimeType,
-        ...revision,
-        source: 'media-library',
-      }, tags, { loadNativeCover, signal: childSignal, coverCacheProtection: options.coverCacheProtection });
-      throwIfAborted(childSignal);
-      const previous = selection.previousSources.get(getImportSourceKey(asset.uri) ?? asset.id);
-      const song = preserveImportedSource(imported, previous,
-        options.refreshExisting && (!previous?.fileInfo?.contentHash || !revision.contentHash));
-      songs.push(song);
-      return { song, decision };
+      const result = await readMediaLibraryImportSource(asset, { ...options, signal: childSignal,
+        onReadActivity: activity, onReadPhase: phase => { phases.set(asset.uri, phase); } }, selection, yieldKnownSource);
+      if (result.song && result.decision.include) songs.push(result.song);
+      return result;
     },
     onResult: async (result, asset) => {
+      phases.delete(asset.uri);
       progress.finish(asset.uri, result.decision);
       if (result.song) await checkpoint.add(result.song, ++accepted, assets.length, asset.uri);
     },
     onFailure: (asset, error) => {
       errors.push(asset.uri);
-      addImportErrorDetail(asset.uri, 'songBuild', error, true, errorDetails, seenErrorDetails);
+      addImportErrorDetail(asset.uri, phases.get(asset.uri) ?? 'songBuild', error, true, errorDetails, seenErrorDetails);
+      phases.delete(asset.uri);
       progress.errors(errors.length);
       progress.finish(asset.uri);
     },
@@ -873,15 +897,17 @@ export const scanFromMediaLibrary = async (options: ImportEnrichmentOptions = {}
 
 const buildSafSong = async (uri: string, tags: Id3Tags, options: SafImportOptions): Promise<Song> => {
   return buildSongWithNativeSnapshot({ id: uri, uri, source: 'saf' },
-    tags, { loadNativeCover: options.loadNativeCover ?? true, signal: options.signal, coverCacheProtection: options.coverCacheProtection });
+    tags, { ...options, loadNativeCover: options.loadNativeCover ?? true });
 };
 
 const importSafFile = async (uri: string, options: SafImportOptions,
   recordError: (error: unknown, recoverable: boolean) => void): Promise<Song | null> => {
   try {
+    options.onReadPhase?.('tags');
     const tags = await readId3TagsIfEnabled(uri, options.readId3Tags ?? true, options.signal,
       { extension: deriveExtension(uri) });
     throwIfAborted(options.signal);
+    options.onReadActivity?.();
     return await buildSafSong(uri, tags, options);
   } catch (error) {
     throwIfAborted(options.signal);
@@ -900,9 +926,11 @@ const readSafImportSource = async (uri: string, options: SafImportOptions,
   selection: ReturnType<typeof createImportSourceSelection>,
   recordError: (error: unknown, recoverable: boolean) => void, yieldKnownSource: ReturnType<typeof createQuickScanYieldBudget>): Promise<{ song?: Song; imported: boolean; decision?: ImportSourceDecision }> => {
   const previous = selection.previousSources.get(getImportSourceKey(uri) ?? uri);
+  options.onReadPhase?.('revision');
   const revision = await readImportFileRevision(uri, {}, options.signal,
     { previous: previous?.fileInfo, verifyContent: options.refreshExisting });
   throwIfAborted(options.signal);
+  options.onReadActivity?.();
   const revisionCount = selection.getRevisionUpdates().length;
   const decision = selection.select(uri, revision);
   if (!decision.include) {
@@ -986,36 +1014,34 @@ export const scanFromSafFolders = async (
       { signal, onProgress, readTimeoutMs, timedOutDirectoryUris, onDirectoryError: (uri, error) =>
         addImportErrorDetail(uri, 'directory', error, true, errorDetails, seenErrorDetails) });
     throwIfAborted(signal);
-    if (folderErrors.length > 0) {
-      folderErrors.forEach(uri => {
-        recordImportError(uri);
-
-      });
-    }
+    folderErrors.forEach(recordImportError);
 
     total += files.length;
     progress.addFiles(files.length);
     const yieldKnownSource = createQuickScanYieldBudget();
+    const phases = new Map<string, ImportErrorPhase>();
     const workerResult = await runImportFileWorkers(files, {
       signal, perFileTimeoutMs: options.perFileTimeoutMs,
-      read: async (uri, childSignal) => {
+      read: async (uri, childSignal, activity) => {
         progress.start(uri);
-        const result = await readSafImportSource(uri, { ...options, signal: childSignal }, selection,
+        const result = await readSafImportSource(uri, { ...options, signal: childSignal,
+          onReadActivity: activity, onReadPhase: phase => { phases.set(uri, phase); } }, selection,
           (error, recoverable) => recordSafSongBuildError(uri, error, recoverable, recordImportError, errorDetails, seenErrorDetails), yieldKnownSource);
         throwIfAborted(childSignal);
         processed += 1;
-        if (result.song) {
-          if (result.imported) songs.push(result.song);
-        }
+        if (result.song && result.imported) songs.push(result.song);
         return result;
       },
       onResult: async (result, uri) => {
+        phases.delete(uri);
         progress.finish(uri, result.decision);
         if (result.song) await checkpoint.add(result.song, processed, total, folder.uri);
       },
       onFailure: (uri, error) => {
         processed += 1;
-        recordSafSongBuildError(uri, error, true, recordImportError, errorDetails, seenErrorDetails);
+        recordImportError(uri);
+        addImportErrorDetail(uri, phases.get(uri) ?? 'songBuild', error, true, errorDetails, seenErrorDetails);
+        phases.delete(uri);
         progress.finish(uri);
       },
     });
