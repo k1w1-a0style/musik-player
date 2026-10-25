@@ -73,13 +73,18 @@ export const runImportFileWorkers = async <T, R = void>(items: T[], options: {
   onResult?: (result: R, item: T) => Promise<void>;
   onFailure: (item: T, error: unknown) => void;
 }): Promise<ImportWorkerResult> => {
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const abort = (): void => { controller.abort(options.signal?.reason); };
+  if (options.signal?.aborted) abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
   let next = 0;
   let processed = 0;
   const timeoutMs = options.perFileTimeoutMs ?? DEFAULT_IMPORT_FILE_TIMEOUT_MS;
   const worker = async (): Promise<void> => {
     while (next < items.length) {
-      throwIfAborted(options.signal);
-      if (!await waitForImportCapacity(options.signal, timeoutMs)) return;
+      throwIfAborted(signal);
+      if (!await waitForImportCapacity(signal, timeoutMs)) return;
       let index = -1;
       let result!: R;
       try {
@@ -87,9 +92,9 @@ export const runImportFileWorkers = async <T, R = void>(items: T[], options: {
           if (next >= items.length) return;
           index = next++;
           result = await options.read(items[index], signal, activity);
-        }, options.signal, timeoutMs);
+        }, signal, timeoutMs);
       } catch (error) {
-        throwIfAborted(options.signal);
+        throwIfAborted(signal);
         if (index < 0) {
           if (error instanceof ImportFileReadCapacityError) continue;
           throw error;
@@ -105,9 +110,18 @@ export const runImportFileWorkers = async <T, R = void>(items: T[], options: {
       processed += 1;
     }
   };
-  await Promise.all(Array.from({ length: Math.min(MAX_FILE_READS_IN_FLIGHT, items.length) }, worker));
-  throwIfAborted(options.signal);
-  return { processed, remaining: items.length - next, interrupted: next < items.length };
+  try {
+    await Promise.all(Array.from({ length: Math.min(MAX_FILE_READS_IN_FLIGHT, items.length) }, worker));
+    throwIfAborted(signal);
+    return { processed, remaining: items.length - next, interrupted: next < items.length };
+  } catch (error) {
+    // A failed durable acknowledgement is terminal for the whole batch. Other
+    // readers retain raw reservations but cannot start or publish further work.
+    controller.abort(error);
+    throw error;
+  } finally {
+    options.signal?.removeEventListener('abort', abort);
+  }
 };
 
 type TimeoutRunner = <T>(operation: Promise<T> | CancellableOperation<T>, timeoutMs: number,

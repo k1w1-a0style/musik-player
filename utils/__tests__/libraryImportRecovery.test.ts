@@ -84,3 +84,17 @@ test('a damaged file does not prevent healthy acknowledgements', async () => {
   })).resolves.toEqual({ processed: 4, remaining: 0, interrupted: false });
   expect(confirmed.sort()).toEqual([1, 3, 4]); expect(onFailure).toHaveBeenCalledTimes(1);
 });
+
+test('a durable failure aborts sibling readers and never publishes their late results', async () => {
+  let release!: () => void;
+  let siblingSignal!: AbortSignal;
+  const onResult = jest.fn(async (_result: number, item: number) => { if (item === 1) throw new Error('disk full'); });
+  const read = jest.fn(async (item: number, signal: AbortSignal) => {
+    if (item === 2) { siblingSignal = signal; await new Promise<void>(resolve => { release = resolve; }); }
+    throwIfAborted(signal); return item;
+  });
+  await expect(runImportFileWorkers([1, 2, 3, 4], { read, onResult, onFailure: jest.fn() })).rejects.toThrow('disk full');
+  expect(siblingSignal.aborted).toBe(true);
+  release(); await jest.advanceTimersByTimeAsync(0);
+  expect(read).toHaveBeenCalledTimes(2); expect(onResult).toHaveBeenCalledTimes(1);
+});

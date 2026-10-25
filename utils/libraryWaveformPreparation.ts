@@ -28,6 +28,7 @@ const idle: WaveformPreparationState = {
 let state = idle;
 let active: AbortController | null = null;
 let lastSongs: Song[] = [];
+let deferredSongs: Song[] = [];
 const listeners = new Set<() => void>();
 const publish = (next: WaveformPreparationState): void => {
   state = next;
@@ -98,15 +99,19 @@ export const retrySongPreparation = (song: Song): Promise<boolean> =>
 export const prepareLibraryWaveforms = async (
   songs: Song[], { signal }: { signal?: AbortSignal } = {},
 ): Promise<void> => {
+  const unfinished = state.status === 'running' || state.status === 'cancelled' ? lastSongs.slice(state.processed) : [];
+  const queue = [...new Map([...deferredSongs, ...unfinished, ...songs]
+    .map(song => [getWaveformSourceIdentity(song).sourceFingerprint, song])).values()];
+  deferredSongs = [];
   active?.abort(new OperationAbortError('Preparation superseded'));
   const controller = new AbortController();
   active = controller;
-  lastSongs = [...songs];
+  lastSongs = queue;
   const abort = () => controller.abort(new OperationAbortError('Preparation cancelled'));
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
   beginMetadataRefreshActivity();
-  publish({ ...idle, status: 'running', total: songs.length });
+  publish({ ...idle, status: 'running', total: queue.length });
   try {
     // History is optional. Actual cache data, rather than this hydration, is
     // what decides whether a decoder is needed.
@@ -115,7 +120,7 @@ export const prepareLibraryWaveforms = async (
     // prepareSong validates durable data once per source. Only real scheduler
     // contention retries recheck it, because playback may publish that data.
     // Count checked sources consistently, including already cached waveforms.
-    for (const song of songs) {
+    for (const song of queue) {
       throwIfAborted(controller.signal);
       publish({ ...state, currentTitle: song.title, currentFingerprint: getWaveformSourceIdentity(song).sourceFingerprint });
       const ready = await prepareSongSafely(song, controller.signal);
@@ -138,10 +143,12 @@ export const prepareLibraryWaveforms = async (
 export const cancelWaveformPreparation = (): void => active?.abort(new OperationAbortError('Preparation cancelled'));
 export const resumeWaveformPreparation = (): Promise<void> => prepareLibraryWaveforms(lastSongs);
 export const clearWaveformPreparation = (): void => {
+  if (state.status === 'running' || state.status === 'cancelled') deferredSongs = lastSongs.slice(state.processed);
   active?.abort(new OperationAbortError('New library operation'));
   active = null;
   publish(idle);
 };
 export const resetWaveformPreparationForTests = (): void => {
-  active?.abort(); active = null; lastSongs = []; state = idle; listeners.clear();
+  active?.abort(); active = null; lastSongs = []; deferredSongs = []; state = idle; listeners.clear();
 };
+
