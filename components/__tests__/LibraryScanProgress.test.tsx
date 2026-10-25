@@ -21,6 +21,8 @@ test('a previous completed preparation does not hide a new folder discovery scan
   (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'completed', failed: 0, ready: 3 });
   const view = render(<LibraryPreparationStatus visible scanning status="Ordner wird geprüft…" />);
   expect(view.getByTestId('library-import-scan-animation')).toBeTruthy();
+  expect(view.queryByText('Ordner wird geprüft…')).toBeNull();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Ordner wird geprüft…')).toBeTruthy();
 });
 
@@ -38,7 +40,10 @@ test('keeps only a compact scan control; only unfinished tracks animate', () => 
   (useWaveformPreparation as jest.Mock).mockReturnValue({ status: 'running', total: 3,
     processed: 1, ready: 1, failed: 0, currentTitle: 'Current', currentFingerprint: 'current-source' });
   const view = render(<LibraryPreparationStatus visible />);
-  expect(view.getByText('Scan fertig – Waveforms werden vorbereitet')).toBeTruthy();
+  expect(view.queryByText('Scan fertig – Waveforms werden vorbereitet')).toBeNull();
+  expect(view.getByTestId('library-processing-control')).toBeTruthy();
+  expect(view.queryByTestId('library-waveform-preparation')).toBeNull();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.queryByTestId('library-current-track-progress')).toBeNull();
   expect(view.queryByTestId('library-waveform-preparation-counts')).toBeNull();
   fireEvent.press(view.getByText('Abbrechen'));

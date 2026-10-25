@@ -22,6 +22,8 @@ test('refresh cancellation keeps independent waveform progress and its cancel co
   beginMetadataRefreshOperation(10, 0);
   const cancelRefresh = jest.fn(() => markMetadataRefreshCancelling());
   const view = render(<LibraryPreparationStatus visible onCancelRefresh={cancelRefresh} />);
+  expect(view.queryByTestId('library-import-status')).toBeNull();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   fireEvent.press(view.getByLabelText('Aktualisierung abbrechen'));
   expect(cancelRefresh).toHaveBeenCalledTimes(1);
   expect(view.getByTestId('library-waveform-preparation')).toBeTruthy();
@@ -33,7 +35,7 @@ test('refresh cancellation keeps independent waveform progress and its cancel co
 test('waveform statistics stay behind details and controls retain 48 dp targets', () => {
   const view = render(<LibraryPreparationStatus visible={false} />);
   expect(view.queryByText('Current waveform')).toBeNull();
-  const details = view.getByLabelText('Waveform-Details');
+  const details = view.getByLabelText('Verarbeitungsdetails öffnen');
   expect(StyleSheet.flatten(details.props.style).minHeight).toBe(48);
   act(() => fireEvent.press(details));
   expect(view.getByText('Current waveform')).toBeTruthy();

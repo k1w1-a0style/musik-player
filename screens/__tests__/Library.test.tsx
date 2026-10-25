@@ -154,7 +154,7 @@ const openOverflowMenu = (getByLabelText: ReturnType<typeof render>['getByLabelT
 };
 
 const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText'], source = 'Android-Musikbibliothek') => {
-  fireEvent.press(getByText('Schnellscan / Import'));
+  fireEvent.press(getByText('Musikbibliothek aktualisieren'));
   fireEvent.press(getByText(source));
 };
 
@@ -296,11 +296,10 @@ describe('Library', () => {
     pressImportMenuItem(view.getByText, 'Nur Scan-Ordner');
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([confirmed])));
 
+    fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
     fireEvent.press(view.getByLabelText('Scan abbrechen'));
     expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
     expect(view.getByText('Schnellscan – abgebrochen')).toBeTruthy();
-    expect(view.queryByText('1 von 2 gefundenen Dateien verarbeitet')).toBeNull();
-    fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
     expect(view.getByText('1 von 2 gefundenen Dateien verarbeitet')).toBeTruthy();
     await waitFor(() => expect(scanOptions.signal.aborted).toBe(true));
     const publications = mockSetSongs.mock.calls.length;

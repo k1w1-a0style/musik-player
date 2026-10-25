@@ -20,6 +20,13 @@ import { createLibraryScanProgressCallbacks } from '../utils/libraryScanProgress
 
 const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
 
+const showCompletedScanAlert = (completed: boolean | undefined, verification: LibraryAlertCopy | undefined,
+  fallback: LibraryAlertCopy | undefined, showAlert: (alert: LibraryAlertCopy) => void): void => {
+  if (completed === false) return;
+  const alert = verification ?? fallback;
+  if (alert) showAlert(alert);
+};
+
 const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string => {
   if (progress.filesFound === 0) return 'Ordner wird auf neue oder geänderte Titel geprüft…';
   if (progress.directoriesVisited > 0) {
@@ -120,15 +127,14 @@ export const useLibraryScanFolderImportFlow = ({
       ensureCurrentImport(generation);
       // Partial outcomes remain actionable in the persistent scan summary.
       // An additional blocking native alert hides the library for no benefit.
-      if (result.completed !== false && verificationAlert) showAlert(verificationAlert);
-      else if (result.completed !== false && (!result.reusedCount || result.errors?.length)) showAlert(scanResult.alert);
+      showCompletedScanAlert(result.completed, verificationAlert,
+        !result.reusedCount || result.errors?.length ? scanResult.alert : undefined, showAlert);
       await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,
         { scanId: generation.scanOperationId, signal: generation.controller.signal, timeoutMs: importTimeoutMs, showAlert });
       ensureCurrentImport(generation);
       return [];
     }
-    if (result.completed !== false && verificationAlert) showAlert(verificationAlert);
-    else if (result.completed !== false && scanResult.partialAlert) showAlert(scanResult.partialAlert);
+    showCompletedScanAlert(result.completed, verificationAlert, scanResult.partialAlert, showAlert);
     const acceptedSongs = await applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
     await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,

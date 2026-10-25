@@ -19,6 +19,7 @@ export interface LibraryImportStatusProps {
   persistenceWarning?: string | null;
   onRetryPersistence?: () => void;
   onRetryScan?: () => void;
+  expandedByDefault?: boolean;
 }
 
 type MetadataRefreshErrorDetail = {
@@ -173,9 +174,9 @@ const PersistenceWarning = ({ warning, retry, color, actionColor }: {
 </View> : null;
 
 const LibraryImportStatus: React.FC<LibraryImportStatusProps> = ({ status, scanning = false, onCancelScan, onCancelRefresh, onResumeRefresh,
-  persistenceWarning, onRetryPersistence }) => {
+  persistenceWarning, onRetryPersistence, expandedByDefault = false }) => {
   const { theme } = useAppTheme();
-  const [details, setDetails] = useState(false);
+  const [details, setDetails] = useState(expandedByDefault);
   const operation = useMetadataRefreshOperation();
   const isRunning = operation.status === 'running';
   const isCancelling = operation.status === 'cancelling';

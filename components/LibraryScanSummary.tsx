@@ -4,6 +4,10 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { dismissLibraryScan, useLibraryScanOperation, type LibraryScanStatus } from '../utils/libraryScanOperation';
 import type { LibraryScanOperation } from '../utils/libraryScanOperation';
 import { useMetadataRefreshOperation } from '../utils/metadataRefreshOperation';
+import type { ImportErrorPhase } from '../utils/mediaLibraryImport';
+
+const phaseLabels: Record<ImportErrorPhase, string> = { directory: 'Ordner lesen', revision: 'Datei prüfen',
+  tags: 'Tags lesen', audioInfo: 'Audio analysieren', cover: 'Cover lesen', songBuild: 'Titel erfassen' };
 
 const labels: Record<LibraryScanStatus, string> = { idle: '', running: 'läuft', completed: 'abgeschlossen',
   partial: 'teilweise abgeschlossen', cancelled: 'abgebrochen', failed: 'fehlgeschlagen' };
@@ -32,6 +36,9 @@ const ScanDetails = ({ scan, color }: { scan: LibraryScanOperation; color: strin
       {scan.fullScan ? 'Ungeprüft: Revision nicht sicher vergleichbar; umfasst auch neue/geänderte Dateien ohne Inhaltsprüfung.'
         : 'Ungeprüft: bekannte Dateien ohne verlässliche Änderungsdaten. Der vollständige Scan prüft den Inhalt.'}
     </Text> : null}
+    {scan.errorDetails?.map((detail, index) => <Text key={`${detail.uri}-${index}`} style={[styles.counts, { color }]}>
+      {`${phaseLabels[detail.phase]} · ${detail.code}: ${detail.message}`}
+    </Text>)}
   </View>;
 };
 
@@ -47,14 +54,20 @@ const shouldShowSummary = (scan: LibraryScanOperation, refreshStatus: string): b
     && Boolean(scan.errorMessage || scan.progress?.statistics || scan.folderPersistenceWarning || scan.status === 'failed' || scan.status === 'cancelled')
     && refreshStatus !== 'running' && refreshStatus !== 'cancelling';
 
-const LibraryScanSummary = ({ onRetry, persistenceWarning }: {
-  onRetry?: () => void; persistenceWarning?: string | null;
+const scanIssues = (scan: LibraryScanOperation): string => {
+  if (scan.diagnostics?.directoryErrorCount) return `${scan.diagnostics.directoryErrorCount} Ordnerproblem(e) · Inhalt nicht vollständig erfasst · ${scan.diagnostics.fileErrorCount} Dateiproblem(e)`;
+  const statistics = scan.progress?.statistics;
+  return statistics ? `${statistics.unverifiedCount} ungeprüft · ${statistics.errorCount} Leseprobleme` : '';
+};
+
+const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = false }: {
+  onRetry?: () => void; persistenceWarning?: string | null; expandedByDefault?: boolean;
 }) => {
   const { theme } = useAppTheme();
   const scan = useLibraryScanOperation();
   const refresh = useMetadataRefreshOperation();
   // Key the expanded state to the operation so a new scan starts compact.
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(expandedByDefault ? scan.id : null);
   const details = expandedId === scan.id;
   const statistics = scan.progress?.statistics;
   const warning = scan.folderPersistenceWarning;
@@ -66,9 +79,7 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning }: {
   }, [cleanSuccess, details, scan.id]);
   if (!shouldShowSummary(scan, refresh.status)) return null;
   const title = `${scan.fullScan ? 'Vollständiger Scan' : 'Schnellscan'} – ${labels[scan.status]}`;
-  const issues = scan.diagnostics?.directoryErrorCount
-    ? `${scan.diagnostics.directoryErrorCount} Ordnerproblem(e) · Inhalt nicht vollständig erfasst · ${scan.diagnostics.fileErrorCount} Dateiproblem(e)`
-    : statistics ? `${statistics.unverifiedCount} ungeprüft · ${statistics.errorCount} Leseprobleme` : '';
+  const issues = scanIssues(scan);
   return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border }]}
     testID="library-scan-summary">
     <View style={styles.row}>

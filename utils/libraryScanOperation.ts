@@ -10,6 +10,7 @@ export interface LibraryScanOperation {
   fullScan: boolean;
   source?: LibraryScanSource;
   diagnostics?: ImportScanResult['diagnostics'];
+  errorDetails?: ImportScanResult['errorDetails'];
   status: LibraryScanStatus;
   progress?: ImportFileProgress;
   remainingCount?: number;
@@ -47,7 +48,7 @@ export const updateLibraryScanProgress = (id: number | undefined, progress: Impo
 };
 
 export const recordLibraryScanResult = (id: number | undefined,
-  result: Pick<ImportScanResult, 'statistics' | 'completed' | 'remainingCount' | 'diagnostics'>): void => {
+  result: Pick<ImportScanResult, 'statistics' | 'completed' | 'remainingCount' | 'diagnostics' | 'errorDetails'>): void => {
   if (!current(id) || !result.statistics) return;
   resultStatus = result.completed === false || resultStatus === 'partial' ? 'partial' : 'completed';
   const progress = { processed: 0, total: 0, currentTitle: '', ...pending, statistics: sumScanStatistics(sourceOffset?.statistics, result.statistics) };
@@ -56,7 +57,9 @@ export const recordLibraryScanResult = (id: number | undefined,
   const next = result.diagnostics;
   const diagnostics = next ? { directoryErrorCount: (old?.directoryErrorCount ?? 0) + next.directoryErrorCount,
     fileErrorCount: (old?.fileErrorCount ?? 0) + next.fileErrorCount, importedCount: (old?.importedCount ?? 0) + next.importedCount } : old;
-  publish({ ...state, progress, diagnostics, remainingCount: (state.remainingCount ?? 0) + (result.remainingCount ?? 0) });
+  const errorDetails = [...(state.errorDetails ?? []), ...(result.errorDetails ?? [])].slice(0, 20);
+  publish({ ...state, progress, diagnostics, ...(errorDetails.length ? { errorDetails } : {}),
+    remainingCount: (state.remainingCount ?? 0) + (result.remainingCount ?? 0) });
 };
 
 export const completeLibraryScan = (id: number | undefined): void => {

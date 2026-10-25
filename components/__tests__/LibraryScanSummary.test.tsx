@@ -24,9 +24,10 @@ test('retains an honest completed scan summary after the import and preparation 
   const id = beginLibraryScan(false);
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => { updateLibraryScanProgress(id, progress); recordLibraryScanResult(id, { statistics }); completeLibraryScan(id); });
-  expect(view.getByText('Schnellscan – abgeschlossen')).toBeTruthy();
+  expect(view.getByTestId('library-processing-control')).toBeTruthy();
   expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
-  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
+  expect(view.getByText('Schnellscan – abgeschlossen')).toBeTruthy();
   expect(view.getByTestId('library-scan-summary-counts').props.children).toBe('Neu: 1 · Geändert: 2 · Unverändert: 3 · Ungeprüft: 4 · Leseprobleme: 1');
   expect(view.getByText(/bekannte Dateien ohne verlässliche Änderungsdaten/)).toBeTruthy();
   expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
@@ -42,8 +43,8 @@ test('cancellation flushes the newest internal counters and rejects old-generati
   act(() => { updateLibraryScanProgress(first, latest, false); });
   expect(view.queryByText(/12 von/)).toBeNull();
   act(() => stopLibraryScan(first, 'cancelled'));
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Schnellscan – abgebrochen')).toBeTruthy();
-  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
   expect(view.getByText('12 von 20 gefundenen Dateien verarbeitet')).toBeTruthy();
   let second = 0;
   act(() => { second = beginLibraryScan(true); });
@@ -69,6 +70,7 @@ test('retains a failure before file enumeration without inventing counters', () 
   const id = beginLibraryScan(false); stopLibraryScan(id, 'failed');
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => jest.advanceTimersByTime(10000));
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Schnellscan – fehlgeschlagen')).toBeTruthy();
   expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
   jest.useRealTimers();
@@ -78,6 +80,7 @@ test('shows failed scan counters, but keeps them separate from an active metadat
   const id = beginLibraryScan(false);
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => { updateLibraryScanProgress(id, progress); stopLibraryScan(id, 'failed'); });
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Schnellscan – fehlgeschlagen')).toBeTruthy();
   act(() => { beginMetadataRefreshOperation(2, 0); });
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
@@ -89,6 +92,8 @@ test('does not dismiss a running scan or duplicate its progress bar', () => {
   const view = render(<LibraryPreparationStatus visible scanning status="Dateien prüfen…" />);
   act(dismissLibraryScan);
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
+  expect(view.queryByText('Dateien prüfen…')).toBeNull();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Dateien prüfen…')).toBeTruthy();
   expect(view.queryByLabelText('Scan-Ergebnis ausblenden')).toBeNull();
   expect(view.queryByTestId('library-metadata-scan-progress')).toBeNull();
@@ -101,6 +106,7 @@ test('keeps a folder-state warning visible without fabricated file counters and 
   setLibraryScanFolderWarning(id, { message: 'Ordnerstatus fehlt, Titel bleiben gespeichert.', retrying: false, retry });
   completeLibraryScan(id);
   const view = render(<LibraryPreparationStatus visible={false} />);
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
   expect(view.getByText('Ordnerstatus fehlt, Titel bleiben gespeichert.')).toBeTruthy();
   expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
@@ -119,11 +125,11 @@ test('auto-hides a fully processed clean success after four seconds and pauses w
   recordLibraryScanResult(id, { statistics: clean }); completeLibraryScan(id);
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => jest.advanceTimersByTime(3999));
-  expect(view.getByTestId('library-scan-summary')).toBeTruthy();
-  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
+  expect(view.getByTestId('library-processing-control')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   act(() => jest.advanceTimersByTime(10000));
   expect(view.getByTestId('library-scan-summary')).toBeTruthy();
-  fireEvent.press(view.getByLabelText('Scan-Ergebnisdetails'));
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails schließen'));
   act(() => jest.advanceTimersByTime(4000));
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
   jest.useRealTimers();
@@ -140,6 +146,8 @@ test.each(['unverified', 'errors', 'incomplete', 'partial'])(
     const retry = jest.fn();
     const view = render(<LibraryPreparationStatus visible={false} onRetryScan={retry} />);
     act(() => jest.advanceTimersByTime(10000));
+    expect(view.getByTestId('library-processing-control')).toBeTruthy();
+    fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
     expect(view.getByTestId('library-scan-summary')).toBeTruthy();
     fireEvent.press(view.getByLabelText('Scan erneut versuchen'));
     expect(retry).toHaveBeenCalledTimes(1);
@@ -155,6 +163,8 @@ test('an unconfirmed library save remains visible with its retry even after scan
   const retry = jest.fn();
   const view = render(<LibraryPreparationStatus visible={false} persistenceWarning="Speicherung noch offen" onRetryPersistence={retry} />);
   act(() => jest.advanceTimersByTime(10000));
+  expect(view.getByTestId('library-processing-control')).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByTestId('library-import-persistence-warning')).toBeTruthy();
   expect(view.getByTestId('library-scan-summary')).toBeTruthy();
   fireEvent.press(view.getByLabelText('Bibliothek erneut speichern'));
@@ -168,6 +178,7 @@ test('unknown folder contents are never advertised as zero unchecked files', () 
     diagnostics: { directoryErrorCount: 1, fileErrorCount: 0, importedCount: 0 } });
   completeLibraryScan(id);
   const screen = render(<LibraryPreparationStatus visible={false} />);
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(screen.getByText(/Inhalt nicht vollständig erfasst/)).toBeTruthy();
   expect(screen.queryByText('0 ungeprüft · 1 Leseprobleme')).toBeNull();
 });

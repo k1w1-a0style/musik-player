@@ -1,8 +1,7 @@
-import React, { useCallback, useContext } from 'react';
+import React, { useCallback } from 'react';
 import { FlatList, Platform, StyleSheet, Text, View, useWindowDimensions,
   type ListRenderItem, type ListRenderItemInfo } from 'react-native';
-import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
-import { MINI_PLAYER_LIST_GAP, useMiniPlayerViewport } from '../contexts/MiniPlayerViewportContext';
+import { useLibraryListContentStyle } from '../hooks/useLibraryListContentStyle';
 import LibraryAlbumViewToggle from './LibraryAlbumViewToggle';
 import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import LibraryEmptyState from './LibraryEmptyState';
@@ -46,6 +45,7 @@ const ResponsiveAlbumGrid = ({ albumGroups, emptyState, renderAlbumTile }: {
   renderAlbumTile: ListRenderItem<LibraryGroupItem>;
 }) => {
   const { width } = useWindowDimensions();
+  const listContent = useLibraryListContentStyle();
   const { columns, tileWidth } = getResponsiveAlbumGridMetrics(width);
   const renderGridItem = useCallback((info: ListRenderItemInfo<LibraryGroupItem>) => (
     <View style={{ width: tileWidth }} testID={`library-album-cell-${info.item.id}`}>
@@ -53,7 +53,7 @@ const ResponsiveAlbumGrid = ({ albumGroups, emptyState, renderAlbumTile }: {
     </View>
   ), [renderAlbumTile, tileWidth]);
   return <FlatList key={`library-albums-grid-${columns}`} data={albumGroups}
-    keyExtractor={groupKeyExtractor} contentContainerStyle={{ paddingBottom: 0 }}
+    keyExtractor={groupKeyExtractor} contentContainerStyle={listContent}
     renderItem={renderGridItem} numColumns={columns} columnWrapperStyle={styles.albumColumn}
     initialNumToRender={8} windowSize={GROUP_WINDOW_SIZE}
     removeClippedSubviews={shouldRemoveClippedSubviews} ListEmptyComponent={emptyState} />;
@@ -130,11 +130,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   const { theme } = useAppTheme();
   const { fontScale } = useWindowDimensions();
   const { presentation } = usePlayerPresentation();
-  const { bottomInset } = useMiniPlayerViewport();
-  const safeAreaBottom = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
-  // Reserve the floating player's touch area in scrollable content, not in
-  // the panel viewport. This removes the unscrollable dark strip above it.
-  const listContent = { paddingBottom: Math.max(MINI_PLAYER_LIST_GAP, bottomInset - safeAreaBottom) };
+  const listContent = useLibraryListContentStyle();
+  const songColumns = getLibrarySongViewColumns(songViewMode);
   const groupHeight = getLibraryGroupRowHeight(fontScale, presentation.density);
   const getGroupItemLayout = useCallback((_: ArrayLike<LibraryGroupItem | LibraryPlaylistItem> | null | undefined,
     index: number) => ({ length: groupHeight, offset: groupHeight * index, index }), [groupHeight]);
@@ -258,8 +255,8 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         key={`library-${activeTab}-songs-${songViewMode}`}
         data={songsForActiveList}
         keyExtractor={songKeyExtractor}
-        numColumns={getLibrarySongViewColumns(songViewMode)}
-        columnWrapperStyle={getLibrarySongViewColumns(songViewMode) > 1 ? styles.songGridColumn : undefined}
+        numColumns={songColumns}
+        columnWrapperStyle={songColumns > 1 ? styles.songGridColumn : undefined}
         contentContainerStyle={listContent}
         renderItem={renderSongItem}
         removeClippedSubviews={shouldRemoveClippedSubviews}

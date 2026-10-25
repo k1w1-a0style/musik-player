@@ -148,6 +148,7 @@ test.each([false, true])('retains a concrete library write error after the alert
   showAlert.mockClear();
   expect(getLibraryScanOperation()).toMatchObject({ status: 'failed', fullScan,
     errorMessage: 'Speicher voll: Bibliothek nicht bestätigt' });
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(screen.getByTestId('library-scan-summary-error').props.children).toBe('Speicher voll: Bibliothek nicht bestätigt');
   jest.useFakeTimers(); act(() => jest.advanceTimersByTime(10000)); jest.useRealTimers();
   expect(screen.getByText('Speicher voll: Bibliothek nicht bestätigt')).toBeTruthy();
@@ -311,6 +312,7 @@ test('partially completed folder scans show persistent diagnostics without an in
   fireEvent.press(screen.getByText('import'));
   await waitFor(() => expect(getLibraryScanOperation().status).toBe('partial'));
   expect(showAlert).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(screen.getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
   expect(screen.getByText('3 Datei(en) noch nicht geprüft')).toBeTruthy();
 });

@@ -48,7 +48,7 @@ const renderMenu = (patch: Partial<typeof defaultProps> = {}) => render(<Library
 test('renders menu actions', () => {
   const { getByText, queryByText } = renderMenu();
 
-  expect(getByText('Schnellscan / Import')).toBeTruthy();
+  expect(getByText('Musikbibliothek aktualisieren')).toBeTruthy();
   expect(queryByText('Metadaten aktualisieren')).toBeNull();
   expect(getByText('Ordner hinzufügen')).toBeTruthy();
   expect(getByText('Aktive Scan-Ordner: 2')).toBeTruthy();
@@ -65,7 +65,7 @@ test('calls menu action callbacks', () => {
   const onOpenEqualizer = jest.fn();
   const { getByText } = renderMenu({ onImport, onRefreshMetadata, onAddFolder, onShowFolders, onOpenSettings, onOpenEqualizer });
 
-  fireEvent.press(getByText('Schnellscan / Import'));
+  fireEvent.press(getByText('Musikbibliothek aktualisieren'));
   expect(onImport).not.toHaveBeenCalled();
   fireEvent.press(getByText('Android-Musikbibliothek'));
   expect(onImport).toHaveBeenCalledWith({ source: 'media-library' });
@@ -85,18 +85,18 @@ test('calls menu action callbacks', () => {
 test('disables import and adding folders while loading', () => {
   const { getByTestId, getByLabelText } = renderMenu({ loading: true });
 
-  expect(getByTestId('library-menu-item-schnellscan-import').props.accessibilityState.disabled).toBe(true);
+  expect(getByTestId('library-menu-item-musikbibliothek-aktualisieren').props.accessibilityState.disabled).toBe(true);
   expect(getByLabelText('Ordner hinzufügen').props.accessibilityState.disabled).toBe(true);
 });
 
 test('allows the combined scan in an empty library', () => {
   const { getByTestId } = renderMenu({ hasSongs: false });
-  expect(getByTestId('library-menu-item-schnellscan-import').props.accessibilityState.disabled).toBe(false);
+  expect(getByTestId('library-menu-item-musikbibliothek-aktualisieren').props.accessibilityState.disabled).toBe(false);
 });
 
 test('keeps one scan action even after a legacy metadata refresh was resumable', () => {
   const { getByText, queryByText } = renderMenu({ canResumeRefresh: true });
-  expect(getByText('Schnellscan / Import')).toBeTruthy();
+  expect(getByText('Musikbibliothek aktualisieren')).toBeTruthy();
   expect(queryByText('Metadaten-Update fortsetzen')).toBeNull();
   expect(queryByText('Metadaten aktualisieren')).toBeNull();
 });
@@ -113,15 +113,17 @@ test('calls onClose when backdrop is pressed', () => {
 test('offers and disables the explicit full scan alongside the normal import', () => {
   const onDeepScan = jest.fn();
   const screen = render(<LibraryMenuModal {...defaultProps} onDeepScan={onDeepScan} />);
-  expect(screen.getByText('Quelle wählen, neue oder geänderte Dateien einlesen.')).toBeTruthy();
-  expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityHint).toBe('Quelle wählen, Dateien und Inhalt erneut prüfen.');
-  fireEvent.press(screen.getByText('Vollständiger Scan'));
+  expect(screen.getByText('Quelle wählen und neue oder geänderte Titel einlesen.')).toBeTruthy();
+  expect(screen.queryByText('Vollständige Prüfung')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Weitere Scanoptionen'));
+  expect(screen.getByLabelText('Vollständige Prüfung').props.accessibilityHint).toBe('Nur bei Problemen: bereits bekannte Dateien und Inhalte erneut überprüfen.');
+  fireEvent.press(screen.getByText('Vollständige Prüfung'));
   expect(onDeepScan).not.toHaveBeenCalled();
   fireEvent.press(screen.getByText('Beide Quellen'));
   expect(onDeepScan).toHaveBeenCalledWith({ source: 'both' });
   expect(onDeepScan).toHaveBeenCalledTimes(1);
   screen.rerender(<LibraryMenuModal {...defaultProps} loading onDeepScan={onDeepScan} />);
-  expect(screen.getByLabelText('Vollständiger Scan').props.accessibilityState.disabled).toBe(true);
+  expect(screen.getByLabelText('Weitere Scanoptionen').props.accessibilityState.disabled).toBe(true);
 });
 
 
@@ -136,7 +138,7 @@ test('uses app theme chrome for the menu card', () => {
 test('renders menu icon slots and section divider', () => {
   const { getByTestId } = renderMenu();
 
-  expect(getByTestId('library-menu-item-icon-schnellscan-import')).toBeTruthy();
+  expect(getByTestId('library-menu-item-icon-musikbibliothek-aktualisieren')).toBeTruthy();
   expect(getByTestId('library-menu-item-icon-equalizer')).toBeTruthy();
   expect(JSON.stringify(getByTestId('library-menu-section-divider').props.style)).toContain(mockAppTheme.palette.border);
 });
