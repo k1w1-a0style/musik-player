@@ -19,7 +19,6 @@ import {
   getMediaLibraryImportProgressCopy,
 } from '../utils/libraryImportFlow';
 import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
-import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
 import { createImportProgressCallbacks } from '../utils/libraryImportProgressCallbacks';
 import { recordLibraryScanResult } from '../utils/libraryScanOperation';
 import { createLibraryScanProgressCallbacks } from '../utils/libraryScanProgress';
@@ -114,8 +113,6 @@ export const useLibraryMediaLibraryImportFlow = ({
     setImportStatus(mediaProgress.savingStatus);
     const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? baselineSongs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs], baselineSongs);
     const acceptedSongs = await applyImportedSongsUpdate(result.update, generation);
-    const verificationAlert = getImportVerificationAlert(mediaResult, refreshExisting);
-    if (verificationAlert && !generation.automatic) showAlert(verificationAlert);
     return getImportedPreparationSongs(mediaResult.songs, acceptedSongs);
   }, [applyImportedSongsUpdate, publishImportedSongs, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, getMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
   return { importFromMediaLibrary };

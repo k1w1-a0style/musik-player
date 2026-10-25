@@ -13,19 +13,11 @@ import { isTimeoutError } from '../utils/withTimeout';
 import { persistLibraryScanFolders } from '../utils/libraryScanFolderSave';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import { withImportInactivityTimeout } from '../utils/libraryImportBudget';
-import { getImportVerificationAlert } from '../utils/libraryImportOutcome';
 import { createImportProgressCallbacks } from '../utils/libraryImportProgressCallbacks';
 import { recordLibraryScanResult } from '../utils/libraryScanOperation';
 import { createLibraryScanProgressCallbacks } from '../utils/libraryScanProgress';
 
 const SAF_PROGRESS_STATUS_THROTTLE_MS = 400;
-
-const showCompletedScanAlert = (completed: boolean | undefined, verification: LibraryAlertCopy | undefined,
-  fallback: LibraryAlertCopy | undefined, showAlert: (alert: LibraryAlertCopy) => void): void => {
-  if (completed === false) return;
-  const alert = verification ?? fallback;
-  if (alert) showAlert(alert);
-};
 
 const buildSafScanProgressStatus = (progress: SafDirectoryScanProgress): string => {
   if (progress.filesFound === 0) return 'Ordner wird auf neue oder geänderte Titel geprüft…';
@@ -122,19 +114,18 @@ export const useLibraryScanFolderImportFlow = ({
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
     const scanResult = buildScanImportResult(callbacks?.getSongs() ?? baselineSongs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors, baselineSongs);
-    const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
       // Partial outcomes remain actionable in the persistent scan summary.
       // An additional blocking native alert hides the library for no benefit.
-      showCompletedScanAlert(generation.automatic ? false : result.completed, verificationAlert,
-        !result.reusedCount || result.errors?.length ? scanResult.alert : undefined, showAlert);
+      if (!generation.automatic && result.completed !== false && !result.reusedCount && !result.errors?.length) {
+        showAlert(scanResult.alert);
+      }
       await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,
         { scanId: generation.scanOperationId, signal: generation.controller.signal, timeoutMs: importTimeoutMs, showAlert });
       ensureCurrentImport(generation);
       return [];
     }
-    showCompletedScanAlert(generation.automatic ? false : result.completed, verificationAlert, scanResult.partialAlert, showAlert);
     const acceptedSongs = await applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
     await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,

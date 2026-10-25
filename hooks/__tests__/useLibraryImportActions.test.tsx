@@ -9,7 +9,6 @@ import {
   getEmptyScanImportAlert,
   getEmptyMediaLibraryImportAlert,
   getMediaLibraryPermissionDeniedAlert,
-  getPartialScanImportAlert,
 } from '../../utils/libraryImportFlow';
 import { TimeoutError, withTimeout } from '../../utils/withTimeout';
 import { prepareLibraryWaveforms, hasPendingWaveformPreparation } from '../../utils/libraryWaveformPreparation';
@@ -319,11 +318,12 @@ test('partially completed folder scans show persistent diagnostics without an in
   expect(screen.getByText('3 Datei(en) noch nicht geprüft')).toBeTruthy();
 });
 
-test('shows partial scan alert and still applies imported songs', async () => {
-  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: ['content://missing'], folderUpdates: undefined });
+test('retains partial scan diagnostics and applies imported songs without a native dialog', async () => {
+  const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: ['content://missing'], completed: false, remainingCount: 1,
+    statistics: { newCount: 1, changedCount: 0, unchangedCount: 0, unverifiedCount: 0, duplicateCount: 0, errorCount: 1 }, folderUpdates: undefined });
   const screen = render(
     <HookHarness
-      scanFolders={[folder('music')]}
+      showScanSummary scanFolders={[folder('music')]}
       songs={[song('existing')]}
       importSongsFromSourcesImpl={importSongsFromSourcesImpl}
     />,
@@ -331,7 +331,11 @@ test('shows partial scan alert and still applies imported songs', async () => {
 
   fireEvent.press(screen.getByText('import'));
 
-  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getPartialScanImportAlert()));
+  await waitFor(() => expect(getLibraryScanOperation().status).toBe('partial'));
+  expect(showAlert).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
+  expect(screen.getByText('0 ungeprüft · 1 Leseprobleme')).toBeTruthy();
+  expect(screen.getByText('1 Datei(en) noch nicht geprüft')).toBeTruthy();
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('scan-song')]);
   expect(setActiveTab).toHaveBeenCalledWith('tracks');
 });
@@ -825,4 +829,19 @@ test('an unchanged update resumes retained waveform work without reimporting kno
   expect(scan).toHaveBeenCalledTimes(1);
   expect(prepareLibraryWaveforms).toHaveBeenCalledWith([]);
   expect(showAlert).not.toHaveBeenCalled();
+});
+
+test.each(['saf', 'media'] as const)('an unverified %s result keeps a visible warning without a native completion dialog', async source => {
+  const result = { songs: [], errors: [], reusedCount: 1, unverifiedCount: 1, completed: true,
+    statistics: { newCount: 0, changedCount: 0, unchangedCount: 0, unverifiedCount: 1, duplicateCount: 0, errorCount: 0 } };
+  const screen = render(<HookHarness showScanSummary songs={[song('existing')]}
+    scanFolders={source === 'saf' ? [folder('music')] : []}
+    importSongsFromSourcesImpl={jest.fn().mockResolvedValue(result)}
+    enrichMediaLibraryAssetsImpl={jest.fn().mockResolvedValue(result)} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(getLibraryScanOperation().status).toBe('completed'));
+  expect(showAlert).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
+  expect(screen.getByText('1 ungeprüft · 0 Leseprobleme')).toBeTruthy();
+  expect(screen.getByLabelText('Scan erneut versuchen')).toBeTruthy();
 });
