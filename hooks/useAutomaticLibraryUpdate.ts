@@ -30,18 +30,23 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       if (!alive || AppState.currentState !== 'active' || latest.current.busy || inFlight.current
         || getLibraryScanOperation().status === 'running') return;
       inFlight.current = true;
+      let started = false;
       try {
         const source = latest.current.hasFolders ? 'folders' : 'media-library';
         if (source === 'media-library' && (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted') return;
         if (!alive || latest.current.busy || AppState.currentState !== 'active') return;
         pending.current = false;
+        started = true;
         lastStarted.current = Date.now();
         await latest.current.update({ source, automatic: true });
-      } finally { inFlight.current = false; }
+      } finally {
+        inFlight.current = false;
+        if (alive && started && pending.current) schedule();
+      }
     };
     const schedule = () => {
       pending.current = true;
-      if (timer || inFlight.current) return;
+      if (timer) return;
       const wait = Math.max(1000, MIN_UPDATE_INTERVAL_MS - (Date.now() - lastStarted.current));
       timer = setTimeout(() => { void run().catch(() => undefined); }, wait);
     };

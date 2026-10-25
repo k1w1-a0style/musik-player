@@ -86,3 +86,42 @@ test('coalesces a change during a manual scan and updates after it becomes idle'
   await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
   expect(props.update).toHaveBeenCalledTimes(1);
 });
+
+test('retains a media change arriving during an automatic update, including the busy-to-idle transition', async () => {
+  let finish!: () => void;
+  const update = jest.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  const props = { ...options(), hasFolders: true, update };
+  const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); onMedia(); await jest.advanceTimersByTimeAsync(1000); });
+  expect(update).toHaveBeenCalledTimes(1);
+  hook.rerender({ ...props, busy: true });
+  await act(async () => { await Promise.resolve(); onMedia(); });
+  hook.rerender(props);
+  await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(30_000); });
+  expect(update).toHaveBeenCalledTimes(2);
+  await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(300_000); });
+  expect(update).toHaveBeenCalledTimes(2);
+});
+
+test('a change during a long automatic update waits for real completion and never overlaps', async () => {
+  let finish!: () => void;
+  const update = jest.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  renderHook(useAutomaticLibraryUpdate, { initialProps: { ...options(), hasFolders: true, update } });
+  await act(async () => { await Promise.resolve(); onMedia(); await jest.advanceTimersByTimeAsync(1000); });
+  await act(async () => { onMedia(); await jest.advanceTimersByTimeAsync(40_000); });
+  expect(update).toHaveBeenCalledTimes(1);
+  await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(1000); });
+  expect(update).toHaveBeenCalledTimes(2);
+  await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(300_000); });
+  expect(update).toHaveBeenCalledTimes(2);
+});
+
+test('a denied automatic permission check does not schedule repeated permission polling', async () => {
+  const props = options(); renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); });
+  permission.mockResolvedValue({ status: 'denied' });
+  await act(async () => { onMedia(); await jest.advanceTimersByTimeAsync(300_000); });
+  expect(props.update).not.toHaveBeenCalled();
+  expect(permission).toHaveBeenCalledTimes(2); // Listener eligibility, then one event-triggered check.
+  expect(MediaLibrary.requestPermissionsAsync).not.toHaveBeenCalled();
+});
