@@ -1,3 +1,4 @@
+import SystemAudio from 'expo-system-audio';
 import type { Song, SongFileInfo } from '../types/Song';
 import { compareImportFileRevision, type ImportFileRevision } from './importFileRevision';
 import { getSongSourceKey } from './songSourceIdentity';
@@ -28,7 +29,7 @@ const recordRevisionMigration = (previous: Song, revision: ImportFileRevision, u
  * inspection. An unchanged revision must not freeze that placeholder forever. */
 const needsImportMetadataRepair = (song: Song | undefined): boolean => {
   const duration = song?.duration ?? song?.audioInfo?.durationMs;
-  return song?.coverInfo?.embeddedArtworkChecked === false
+  return SystemAudio.isAvailable && song?.coverInfo?.embeddedArtworkChecked === false
     && !(typeof duration === 'number' && Number.isFinite(duration) && duration > 0);
 };
 

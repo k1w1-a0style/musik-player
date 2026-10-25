@@ -1,3 +1,4 @@
+import SystemAudio from 'expo-system-audio';
 import { createImportSourceSelection, getImportSourceKey, preserveImportedSource, rebindVerifiedImportSource } from '../libraryImportSources';
 import { getWaveformSourceIdentity } from '../waveformGenerator';
 
@@ -81,4 +82,16 @@ test('verified SAF reauthorization rebinds the accessible URI while preserving i
     title: 'User title', comment: 'Keep me', fileInfo: { uri: newUri, importedAt: 10 } });
   expect(rebindVerifiedImportSource(previous, newUri, {})).toBe(previous);
   expect(rebindVerifiedImportSource(previous, 'content://other/document/different', { size: 1000 })).toBe(previous);
+});
+
+
+test.each([false, true])('repairs an unchecked placeholder only when native analysis is available: %s', available => {
+  const previousAvailability = SystemAudio.isAvailable;
+  SystemAudio.isAvailable = available;
+  try {
+    const pending = { ...old, fileInfo: { ...old.fileInfo, modificationTime: 100 },
+      coverInfo: { status: 'none' as const, embeddedArtworkChecked: false } };
+    const selection = createImportSourceSelection({ existingSongs: [pending] });
+    expect(selection.include(oldUri, { size: 1000, modificationTime: 100 })).toBe(available);
+  } finally { SystemAudio.isAvailable = previousAvailability; }
 });
