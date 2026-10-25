@@ -252,6 +252,25 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             self.assertEqual(tap.call_count,2)
             self.assertTrue(all(call.args[0].get('package')=='com.google.android.documentsui' for call in tap.call_args_list))
 
+    def test_android10_hidden_internal_storage_is_revealed_via_real_overflow(self):
+        pkg='com.android.documentsui'
+        initial=ET.fromstring(f'<hierarchy><node package="{pkg}" content-desc="Show roots" enabled="true" bounds="[12,48][96,120]"/></hierarchy>')
+        drawer=ET.fromstring(f'<hierarchy><node package="{pkg}" text="Open from" bounds="[24,47][194,96]"/></hierarchy>')
+        storage=ET.fromstring(f'<hierarchy><node package="{pkg}" text="Internal storage" bounds="[20,200][300,272]"/></hierarchy>')
+        with patch.object(smoke,'tree',side_effect=[initial,drawer,initial,initial,storage]), patch.object(smoke.time,'sleep'), \
+             patch.object(smoke,'tap_node') as tap, patch.object(smoke,'back') as back, patch.object(smoke,'reveal_internal_storage') as reveal:
+            smoke.select_picker_storage()
+            back.assert_called_once()
+            reveal.assert_called_once_with(initial)
+            self.assertEqual(tap.call_args.args[0].get('text'),'Internal storage')
+
+    def test_android10_folder_access_requires_exact_requested_folder_and_system_owner(self):
+        root=ET.fromstring('<hierarchy><node package="com.android.documentsui" text="ALLOW ACCESS TO &quot;K1W1SCANFIX&quot;" enabled="true" bounds="[21,816][459,888]"/></hierarchy>')
+        self.assertIsNotNone(smoke.folder_access_button(root,'K1W1ScanFix'))
+        self.assertIsNone(smoke.folder_access_button(root,'Other'))
+        root[0].set('package',smoke.PACKAGE)
+        self.assertIsNone(smoke.folder_access_button(root,'K1W1ScanFix'))
+
     def picker_trail_frame(self, current_root=False):
         pkg='com.google.android.documentsui'
         root=ET.Element('hierarchy')

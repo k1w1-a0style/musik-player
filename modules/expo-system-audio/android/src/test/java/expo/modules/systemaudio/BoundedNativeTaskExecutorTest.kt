@@ -91,4 +91,51 @@ class BoundedNativeTaskExecutorTest {
       assertEquals(listOf(42), values.toList())
     } finally { worker.close() }
   }
+  @Test fun completedStatCallbacksCanHandOffBeforeTheirNativeWorkersReturn() {
+    val worker = createImportStatExecutor()
+    val callbacks = CountDownLatch(2)
+    val releaseCallbacks = CountDownLatch(1)
+    val handoffs = CountDownLatch(2)
+    val completed = CountDownLatch(4)
+    val failures = CopyOnWriteArrayList<NativeTaskFailure>()
+    try {
+      repeat(2) {
+        worker.submit({ 1 }, {
+          callbacks.countDown()
+          await(callbacks)
+          worker.submit({ 2 }, { completed.countDown() }, { reason, _ -> failures.add(reason); completed.countDown() })
+          handoffs.countDown()
+          releaseCallbacks.await()
+          completed.countDown()
+        }, { reason, _ -> failures.add(reason); completed.countDown() })
+      }
+      await(handoffs)
+      releaseCallbacks.countDown()
+      await(completed)
+      assertEquals(emptyList<NativeTaskFailure>(), failures.toList())
+    } finally { releaseCallbacks.countDown(); worker.close() }
+  }
+
+  @Test fun statHandoffQueueNeverStartsMoreThanTwoBlockedNativeOperations() {
+    val worker = createImportStatExecutor()
+    val entered = CountDownLatch(2)
+    val release = CountDownLatch(1)
+    val completed = CountDownLatch(4)
+    val starts = AtomicInteger()
+    val failures = CopyOnWriteArrayList<NativeTaskFailure>()
+    try {
+      repeat(2) { worker.submit({ starts.incrementAndGet(); entered.countDown(); release.await() },
+        { completed.countDown() }, { _, _ -> completed.countDown() }) }
+      await(entered)
+      repeat(2) { worker.submit({ starts.incrementAndGet() }, { completed.countDown() }, { _, _ -> completed.countDown() }) }
+      repeat(8) { worker.submit({ starts.incrementAndGet() }, {}, { reason, _ -> failures.add(reason) }) }
+      assertEquals(2, starts.get())
+      assertEquals(List(8) { NativeTaskFailure.CAPACITY }, failures.toList())
+      worker.close()
+      assertEquals(2, starts.get())
+      release.countDown(); await(completed)
+      assertEquals(2, starts.get())
+    } finally { release.countDown(); worker.close() }
+  }
+
 }

@@ -747,6 +747,17 @@ def navigate_picker_root(root, timeout=25):
     raise AssertionError('System picker did not acknowledge internal-root breadcrumb navigation')
 
 
+def reveal_internal_storage(root):
+    """Android 10 initially hides device storage; use its real DocumentsUI menu."""
+    opener = next((node for node in document_nodes(root) if node.get('content-desc') == 'More options'
+                   and node.get('enabled') == 'true'), None)
+    assert opener is not None, 'System picker overflow action missing'
+    tap_node(opener)
+    option = scroll_to('Show internal storage')
+    assert option.get('package') in DOCUMENTS_PACKAGES, 'Storage visibility action is not DocumentsUI-owned'
+    tap_node(option)
+
+
 def select_picker_storage(timeout=25):
     root = wait_document_picker(timeout)
     if picker_at_internal_root(root):
@@ -754,21 +765,37 @@ def select_picker_storage(timeout=25):
     if picker_breadcrumbs(root):
         navigate_picker_root(root, timeout)
         return
-    nodes = document_nodes(root)
-    opener = next((node for node in nodes if node.get('content-desc') in ('Show roots','Navigate up')
-                   and node.get('enabled') == 'true'), None)
-    assert opener is not None, 'System storage navigation action absent'
-    tap_node(opener)
+    revealed = False
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        root = tree(compressed=False)
-        storage = [node for node in document_nodes(root) if storage_label(node)]
+        nodes = document_nodes(root)
+        storage = [node for node in nodes if storage_label(node)]
         if storage:
             assert len(storage) == 1, 'System internal-storage action ambiguous'
             tap_node(storage[0])
             return
+        # AOSP Android 10 can expose only Downloads in the roots drawer.
+        # Close that drawer and enable storage through the actual overflow menu.
+        drawer = any(node.get('text') == 'Open from' for node in nodes)
+        if drawer and not revealed:
+            back()
+            reveal_internal_storage(tree(compressed=False))
+            revealed = True
+            root = tree(compressed=False)
+            continue
+        opener = next((node for node in nodes if node.get('content-desc') in ('Show roots', 'Navigate up')
+                       and node.get('enabled') == 'true'), None)
+        if opener is not None and not drawer:
+            tap_node(opener)
         time.sleep(.3)
+        root = tree(compressed=False)
     raise AssertionError('Internal storage did not arrive in the actual system picker')
+
+
+def folder_access_button(root, folder):
+    expected = ('USE THIS FOLDER', f'ALLOW ACCESS TO "{folder.upper()}"')
+    return next((node for node in document_nodes(root) if node.get('text', '').upper() in expected
+                 and node.get('enabled') == 'true'), None)
 
 
 def choose_folder(parts):
@@ -776,12 +803,10 @@ def choose_folder(parts):
     for part in parts:
         tap_node(scroll_to(part))
         time.sleep(.4)
-    root = tree()
-    use = next((node for node in root.iter('node') if node.get('text', '').lower() == 'use this folder'), None)
+    use = folder_access_button(tree(), parts[-1])
     assert use is not None, 'System folder permission button missing'
     tap_node(use)
-    # The actual failure captured only SystemUI during the transition, then
-    # the exact ALLOW dialog in the final diagnostic frame. Never assume .4s.
+    # Wait for the exact real grant dialog on both Android 10 and Android 15.
     tap_node(wait_tree_grant(parts[-1]))
     time.sleep(.8)
 

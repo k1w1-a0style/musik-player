@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { type LibraryScanRequest } from '../utils/libraryScanSources';
-import { clearWaveformPreparation, prepareLibraryWaveforms } from '../utils/libraryWaveformPreparation';
+import { clearWaveformPreparation, prepareLibraryWaveforms, hasPendingWaveformPreparation } from '../utils/libraryWaveformPreparation';
 import { clearImportFileProgress } from '../utils/libraryImportProgress';
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from '../utils/metadataRefreshActivity';
 import { Platform } from 'react-native';
@@ -37,7 +37,7 @@ type ImportAlert = UseLibraryImportActionsOptions['showAlert'];
 type IsCurrentImport = (generation: ImportGeneration) => boolean;
 
 const startOptionalWaveformPreparation = (songs: Song[]): void => {
-  if (!songs.length) return;
+  if (!songs.length && !hasPendingWaveformPreparation()) return;
   void prepareLibraryWaveforms(songs).catch(error => {
     console.warn('[Preparation] Optional waveform preparation failed after the saved scan.', error);
   });

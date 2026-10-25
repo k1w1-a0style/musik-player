@@ -112,3 +112,7 @@ internal class BoundedNativeTaskExecutor(
     }
   }
 }
+
+/** Absorb promise-callback handoff while both completed stat workers return to
+ * their queue. Two active operations and two waiting requests remain bounded. */
+internal fun createImportStatExecutor() = BoundedNativeTaskExecutor("import-file-stat", 2, 2)

@@ -44,7 +44,7 @@ class SystemAudioModule : Module() {
   private val mediaReadExecutor = BoundedNativeTaskExecutor("media-read", 2)
   private val paletteExecutor = BoundedNativeTaskExecutor("artwork-palette", 2)
   private val thumbnailExecutor = BoundedNativeTaskExecutor("artwork-thumbnail", 2)
-  private val importStatExecutor = BoundedNativeTaskExecutor("import-file-stat", 2)
+  private val importStatExecutor = createImportStatExecutor()
   // Two accepted writes in total, matching the JS module's write capacity.
   // Status/recovery/ack use this same lane so durable projections stay ordered.
   private val tagExecutor = BoundedNativeTaskExecutor("audio-tag-transaction", 1, 1)

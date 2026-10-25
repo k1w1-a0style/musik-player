@@ -35,6 +35,7 @@ const publish = (next: WaveformPreparationState): void => {
   listeners.forEach(listener => listener());
 };
 export const getWaveformPreparationState = (): WaveformPreparationState => state;
+export const hasPendingWaveformPreparation = (): boolean => deferredSongs.length > 0;
 const subscribe = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => { listeners.delete(listener); };

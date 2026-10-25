@@ -9,7 +9,7 @@ import type { Song } from '../../types/Song';
 import { getCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform } from '../waveformCache';
 import { buildNativeWaveform, getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
-import { cancelWaveformPreparation, clearWaveformPreparation, getWaveformPreparationState, prepareLibraryWaveforms,
+import { cancelWaveformPreparation, clearWaveformPreparation, getWaveformPreparationState, hasPendingWaveformPreparation, prepareLibraryWaveforms,
   resetWaveformPreparationForTests, resumeWaveformPreparation, retrySongPreparation } from '../libraryWaveformPreparation';
 import { getWaveformStatus } from '../waveformStatus';
 import { markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
@@ -126,4 +126,22 @@ test('a new import retains the unfinished prior preparation queue and deduplicat
   for (const item of [first, second, fresh]) {
     await expect(getCachedWaveform(getWaveformSourceIdentity(item))).resolves.toMatchObject({ source: 'native' });
   }
+});
+
+test('an empty incremental result resumes only the previously unfinished waveform sources', async () => {
+  const cached = song('already-confirmed'); const pending = song('still-pending');
+  let finishPending!: (value: typeof decoded) => void;
+  audio.extractWaveformPeaks.mockResolvedValueOnce(decoded)
+    .mockImplementationOnce(() => new Promise(resolve => { finishPending = resolve; }));
+  const old = prepareLibraryWaveforms([cached, pending]);
+  await jest.advanceTimersByTimeAsync(240);
+  expect(getWaveformPreparationState().processed).toBe(1);
+  clearWaveformPreparation(); await old;
+  expect(hasPendingWaveformPreparation()).toBe(true);
+  const resumed = prepareLibraryWaveforms([]);
+  finishPending(decoded); await jest.advanceTimersByTimeAsync(2000); await resumed;
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 1, processed: 1, ready: 1 });
+  expect(hasPendingWaveformPreparation()).toBe(false);
+  expect(audio.extractWaveformPeaks.mock.calls.filter(call => call[0] === cached.uri)).toHaveLength(1);
+  await expect(getCachedWaveform(getWaveformSourceIdentity(pending))).resolves.toMatchObject({ source: 'native' });
 });

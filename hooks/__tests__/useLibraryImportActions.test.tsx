@@ -12,13 +12,14 @@ import {
   getPartialScanImportAlert,
 } from '../../utils/libraryImportFlow';
 import { TimeoutError, withTimeout } from '../../utils/withTimeout';
-import { prepareLibraryWaveforms } from '../../utils/libraryWaveformPreparation';
+import { prepareLibraryWaveforms, hasPendingWaveformPreparation } from '../../utils/libraryWaveformPreparation';
 import { isMetadataRefreshActive, resetMetadataRefreshActivityForTests } from '../../utils/metadataRefreshActivity';
 import { getLibraryScanOperation } from '../../utils/libraryScanOperation';
 import LibraryPreparationStatus from '../../components/LibraryPreparationStatus';
 
 jest.mock('../../utils/libraryWaveformPreparation', () => ({
   clearWaveformPreparation: jest.fn(), prepareLibraryWaveforms: jest.fn().mockResolvedValue(undefined),
+  hasPendingWaveformPreparation: jest.fn(() => false),
   useWaveformPreparation: () => ({ status: 'idle', failed: 0 }),
 }));
 jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => ({ theme: { palette: {
@@ -126,6 +127,7 @@ const HookHarness = ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(hasPendingWaveformPreparation).mockReturnValue(false);
   resetMetadataRefreshActivityForTests();
   persistChangedFolderUpdates.mockResolvedValue(undefined);
 });
@@ -810,4 +812,17 @@ test('cancelling media confirmation in both-source mode cancels the scan before 
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
   expect(folderImport).not.toHaveBeenCalled();
   expect(getLibraryScanOperation().status).toBe('cancelled');
+});
+
+test('an unchanged update resumes retained waveform work without reimporting known tracks', async () => {
+  jest.mocked(hasPendingWaveformPreparation).mockReturnValue(true);
+  const scan = jest.fn().mockResolvedValue({ songs: [], errors: [], reusedCount: 1, statistics: {
+    newCount: 0, changedCount: 0, unchangedCount: 1, unverifiedCount: 0, duplicateCount: 0, errorCount: 0 } });
+  const screen = render(<HookHarness scanFolders={[folder('music')]} songs={[song('existing')]}
+    importSongsFromSourcesImpl={scan} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(scan).toHaveBeenCalledTimes(1);
+  expect(prepareLibraryWaveforms).toHaveBeenCalledWith([]);
+  expect(showAlert).not.toHaveBeenCalled();
 });
