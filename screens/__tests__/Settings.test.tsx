@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { fireEvent, render } from '@testing-library/react-native';
 import Settings from '../Settings';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -60,6 +61,22 @@ jest.mock('../../hooks/useNowPlayingControlsMode', () => ({
 }));
 
 describe('Settings', () => {
+  test.each([
+    { bottom: 48, left: 0, right: 0 },
+    { bottom: 24, left: 12, right: 10 },
+    { bottom: 0, left: 0, right: 0 },
+  ])('keeps the final settings action inside system insets $bottom/$left/$right', (insets) => {
+    const screen = render(<SafeAreaInsetsContext.Provider value={{ top: 24, ...insets }}>
+      <Settings />
+    </SafeAreaInsetsContext.Provider>);
+    const viewport = StyleSheet.flatten(screen.getByTestId('settings-screen').props.style);
+    // Android 10 reports the screen behind its 48dp navigation bar. The
+    // scroll viewport must end before that bar, including at 200% text size.
+    expect(viewport.paddingBottom).toBe(insets.bottom);
+    expect(viewport.paddingLeft).toBe(insets.left);
+    expect(viewport.paddingRight).toBe(insets.right);
+    expect(viewport.flex).toBe(1);
+  });
   test('opens the separate collection cleaner from its settings entry', () => {
     const navigate = jest.fn();
     const navigation = { navigate } as unknown as NativeStackNavigationProp<AppStackParamList, 'Settings'>;

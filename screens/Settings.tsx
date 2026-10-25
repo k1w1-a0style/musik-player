@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SettingsGroup } from '../components/SettingsGroup';
 import { Palette, Play, Sparkles, Music2, Database } from 'lucide-react-native';
@@ -32,11 +33,14 @@ import {
 type SettingsNavigation = NativeStackNavigationProp<AppStackParamList, 'Settings'>;
 const getOpenCleanerAction = (navigation?: SettingsNavigation): (() => void) | undefined =>
   navigation ? () => navigation.navigate(APP_STACK_ROUTES.TAG_CLEANER) : undefined;
+const useSettingsContentInsets = () => useContext(SafeAreaInsetsContext)
+  ?? { bottom: 0, left: 0, right: 0 };
 
 const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation }) => {
   const { appearance, skin, theme, setAppearance, setSkin } = useAppTheme();
   const { mode: nowPlayingPlayerLayout, setMode: setNowPlayingPlayerLayout } = useNowPlayingControlsMode();
   const { fonts, radii, spacing } = theme.tokens;
+  const insets = useSettingsContentInsets();
   const optionTokenStyle = {
     borderRadius: radii.card,
     gap: spacing.xs,
@@ -127,7 +131,8 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
   };
 
   return (
-    <AppBackground><View style={styles.root} testID="settings-screen">
+    <AppBackground><View style={[styles.root, { paddingBottom: insets.bottom,
+      paddingLeft: insets.left, paddingRight: insets.right }]} testID="settings-screen">
       <ScrollView
         testID="settings-scroll"
         contentContainerStyle={[styles.content, { gap: spacing.md, padding: spacing.md }]}
