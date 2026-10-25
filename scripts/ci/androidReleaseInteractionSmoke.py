@@ -245,6 +245,15 @@ def scroll_bounds(root, key):
         mx1, my1, mx2, _ = rect(mini)
         if mx1 < x2 and mx2 > x1 and y1 < my1 < y2:
             y2 = my1
+    for node in root.iter('node'):
+        if node.get('package') != 'com.android.systemui':
+            continue
+        resource = node.get('resource-id', '').split(':id/')[-1]
+        if resource not in ('home_button', 'back', 'recent_apps', 'navigation_bar_frame') or not visible(node):
+            continue
+        nx1, ny1, nx2, _ = rect(node)
+        if nx1 < x2 and nx2 > x1 and y1 < ny1 < y2:
+            y2 = ny1
     return x1, y1, x2, y2
 
 
@@ -263,7 +272,7 @@ def scroll_candidate(key, root):
             cleaner_action = key.startswith('tag-cleaner-') and node.get('clickable') == 'true'
             # Full-width buttons are legitimate. At a vertical clip edge,
             # however, even >=48dp of a tall font2 button can hide its label.
-            if cleaner_action and (y1 <= sy1 or y2 >= sy2):
+            if (cleaner_action or key.startswith('library-menu-item-')) and (y1 <= sy1 or y2 >= sy2):
                 return None
             if (key.startswith(('song-card-info-', 'library-menu-item-')) or cleaner_action) and (x2-x1 < 72 or y2-y1 < 72):
                 # Android can report already-clipped child bounds exactly at the

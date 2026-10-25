@@ -314,6 +314,14 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         title.set('package',smoke.PACKAGE)
         self.assertIsNone(smoke.tree_grant_button(root,'K1W1ScanFix'))
 
+    def test_menu_target_behind_android10_navigation_is_not_a_usable_touch_area(self):
+        frame=ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" class="android.widget.ScrollView" scrollable="true" bounds="[25,97][443,937]">'
+            f'<node package="{smoke.PACKAGE}" resource-id="library-menu-item-einstellungen" enabled="true" clickable="true" bounds="[25,845][443,937]"/></node>'
+            '<node package="com.android.systemui" resource-id="com.android.systemui:id/home_button" bounds="[187,888][292,960]"/></hierarchy>')
+        self.assertIsNone(smoke.scroll_candidate('library-menu-item-einstellungen',frame))
+        frame[0][0].set('bounds','[25,760][443,852]')
+        self.assertIsNotNone(smoke.scroll_candidate('library-menu-item-einstellungen',frame))
+
     def picker_trail_frame(self, current_root=False):
         pkg='com.google.android.documentsui'
         root=ET.Element('hierarchy')

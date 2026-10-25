@@ -142,3 +142,26 @@ test('renders menu icon slots and section divider', () => {
   expect(getByTestId('library-menu-item-icon-equalizer')).toBeTruthy();
   expect(JSON.stringify(getByTestId('library-menu-section-divider').props.style)).toContain(mockAppTheme.palette.border);
 });
+
+test.each([
+  { height: 640, top: 24, bottom: 48 },
+  { height: 480, top: 40, bottom: 24 },
+  { height: 800, top: 0, bottom: 0 },
+])('keeps the scrollable menu above system navigation at height $height', ({ height, top, bottom }) => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- Isolate the platform viewport boundary.
+  const native = require('react-native') as typeof import('react-native');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { SafeAreaInsetsContext } = require('react-native-safe-area-context') as typeof import('react-native-safe-area-context');
+  const dimensions = jest.spyOn(native, 'useWindowDimensions').mockReturnValue({ width: 320, height, scale: 1.5, fontScale: 2 });
+  try {
+    const view = render(<SafeAreaInsetsContext.Provider value={{ top, bottom, left: 0, right: 0 }}>
+      <LibraryMenuModal {...defaultProps} />
+    </SafeAreaInsetsContext.Provider>);
+    const backdrop = native.StyleSheet.flatten(view.getByTestId('library-menu-backdrop').props.style);
+    const card = native.StyleSheet.flatten(view.getByTestId('library-menu-card').props.style);
+    const scroll = native.StyleSheet.flatten(view.UNSAFE_getByType(native.ScrollView).props.style);
+    const menuBottom = Number(backdrop.paddingTop) + 2 * Number(card.paddingVertical) + 2 * Number(card.borderWidth) + Number(scroll.maxHeight);
+    expect(menuBottom).toBeLessThanOrEqual(height - bottom - 12);
+    expect(Number(scroll.maxHeight)).toBeGreaterThanOrEqual(48);
+  } finally { dimensions.mockRestore(); }
+});

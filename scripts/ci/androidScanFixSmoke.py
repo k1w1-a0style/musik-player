@@ -64,6 +64,7 @@ def verify_rows():
 def open_settings():
     ui.wait_uncovered_library_header()
     ui.tap('library-open-menu')
+    ui.find('library-menu-card')
     ui.tap_node(ui.scroll_to('library-menu-item-einstellungen'))
     ui.find('settings-screen')
 
