@@ -1,14 +1,42 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ChevronDown } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-export const SettingsGroup=({id,title,summary,children}:{id:string;title:string;summary:string;children:React.ReactNode})=>{
-  const {theme}=useAppTheme();
-  const [open,setOpen]=useState(false);
-  return <View style={{gap:12,borderWidth:1,borderRadius:14,borderColor:theme.palette.border,padding:12}}>
-    <Pressable testID={`settings-group-${id}`} accessibilityRole="button" accessibilityState={{expanded:open}} onPress={()=>setOpen(!open)} style={{minHeight:48,justifyContent:'center',gap:5}}>
-      <Text style={{fontSize:18,color:theme.palette.text.primary}}>{title} {open?'−':'+'}</Text>
-      <Text style={{color:theme.palette.text.secondary}}>{summary}</Text>
+
+interface SettingsGroupProps {
+  id: string;
+  title: string;
+  summary: string;
+  children: React.ReactNode;
+}
+
+/** Compact, one-tap setting categories that retain native accessibility. */
+export const SettingsGroup = ({ id, title, summary, children }: SettingsGroupProps) => {
+  const { theme } = useAppTheme();
+  const [open, setOpen] = useState(false);
+  return <View style={[styles.group, { borderColor: theme.palette.border, backgroundColor: theme.palette.surface }]}>
+    <Pressable testID={`settings-group-${id}`} accessibilityRole="button"
+      accessibilityLabel={title} accessibilityState={{ expanded: open }}
+      onPress={() => setOpen(previous => !previous)}
+      style={styles.header}>
+      <View style={styles.copy}>
+        <Text style={[styles.title, { color: theme.palette.text.primary }]}>{title}</Text>
+        <Text style={[styles.summary, { color: theme.palette.text.secondary }]} numberOfLines={open ? 2 : 1}>
+          {summary}
+        </Text>
+      </View>
+      <ChevronDown size={20} color={open ? theme.palette.primary : theme.palette.text.muted}
+        style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
     </Pressable>
-    {open&&children}
+    {open ? <View style={[styles.content, { borderTopColor: theme.palette.border }]}>{children}</View> : null}
   </View>;
 };
+
+const styles = StyleSheet.create({
+  group: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, overflow: 'hidden' },
+  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 9 },
+  copy: { flex: 1, minWidth: 0, gap: 3 },
+  title: { fontSize: 16, fontWeight: '600' },
+  summary: { fontSize: 12, lineHeight: 17 },
+  content: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 12 },
+});

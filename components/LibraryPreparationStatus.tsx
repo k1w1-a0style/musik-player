@@ -19,13 +19,15 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
   const [details, setDetails] = useState(false);
   const running = preparation.status === 'running';
   const resumable = preparation.status === 'cancelled' || preparation.status === 'failed' || preparation.failed > 0;
-  const label = running ? 'Scan fertig – Waveforms werden vorbereitet' : preparation.status === 'cancelled'
+  const label = running ? 'Wellenformen werden im Hintergrund vorbereitet' : preparation.status === 'cancelled'
     ? 'Waveformanalyse angehalten' : preparation.status === 'failed'
       ? preparation.failure === 'storage' ? 'Vorbereitung angehalten – Speicherzugriff fehlgeschlagen'
         : 'Vorbereitung angehalten – Analyse fehlgeschlagen' : 'Waveformanalyse teilweise fehlgeschlagen';
   const action = running ? cancelWaveformPreparation : () => { void resumeWaveformPreparation(); };
-  return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass,
-    borderColor: theme.palette.border }]} testID="library-waveform-preparation">
+  return <View style={[styles.box, {
+    backgroundColor: running ? 'transparent' : theme.palette.surfaceGlass,
+    borderColor: running ? 'transparent' : theme.palette.border,
+  }]} testID="library-waveform-preparation">
     <View style={styles.row}>
       {running ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
       <Text style={[styles.title, { color: theme.palette.text.primary }]}>{label}</Text>
@@ -43,7 +45,7 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
   </View>;
 };
 const styles = StyleSheet.create({
-  box: { marginHorizontal: 20, marginBottom: 8, paddingVertical: 4, paddingHorizontal: 12, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 6 },
+  box: { marginHorizontal: 12, marginBottom: 2, paddingVertical: 0, paddingHorizontal: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, gap: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 }, title: { flex: 1, fontSize: 12 },
   action: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 6 },
 });

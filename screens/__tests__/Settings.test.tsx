@@ -194,3 +194,15 @@ test('starts with four compact groups and expands only the requested controls',(
  expect(view.getByTestId('settings-cover-bass-pulse')).toBeTruthy();
  expect(view.queryByTestId('settings-appAccent-red')).toBeNull();
 });
+
+test('settings overview uses compact expandable category rows instead of oversized text cards', () => {
+  const view = render(<Settings />);
+  const row = view.getByTestId('settings-group-motion');
+  const style = StyleSheet.flatten(row.props.style);
+  expect(style.minHeight).toBe(60);
+  expect(view.getByText('Animationen & Anzeige')).toBeTruthy();
+  expect(view.queryByTestId('settings-cover-bass-pulse')).toBeNull();
+  fireEvent.press(row);
+  expect(row.props.accessibilityState.expanded).toBe(true);
+  expect(view.getByTestId('settings-cover-bass-pulse')).toBeTruthy();
+});
