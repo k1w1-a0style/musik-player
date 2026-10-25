@@ -16,6 +16,14 @@ test('round trips Unicode, current custom EQ and playlist order without audio da
   expect(backup.songs[0]).not.toHaveProperty('audioInfo');
 });
 
+test('round trips automatic update opt-outs while keeping older backups valid', () => {
+  const backup = fixture();
+  expect(parseMusicBackup(serializeMusicBackup(backup))).toEqual(backup);
+  backup.settings.libraryUpdateV1 = { onOpen: true, whileOpen: false };
+  expect(parseMusicBackup(serializeMusicBackup(backup)).settings.libraryUpdateV1).toEqual({ onOpen: true, whileOpen: false });
+  expect(() => parseMusicBackup(JSON.stringify({ ...backup, settings: { libraryUpdateV1: { onOpen: true } } }))).toThrow();
+});
+
 test.each(['cover', 'green', 'cyan', 'turquoise', 'blue', 'violet', 'purple', 'pink', 'red', 'orange', 'yellow', 'neutral'] as const)(
   'backup preserves the three separate %s accent selections and transition preference', accent => {
     const backup = fixture();

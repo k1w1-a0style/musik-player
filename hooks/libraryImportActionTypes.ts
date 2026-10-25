@@ -15,6 +15,7 @@ import type { AudioPermissionQuery } from '../utils/mediaLibraryReadAccess';
 export type ImportedSongsStateUpdate = ImportedSongsDelta;
 
 export interface ImportGeneration {
+  automatic?: boolean;
   scanOperationId?: number;
   controller: AbortController;
   id: number;

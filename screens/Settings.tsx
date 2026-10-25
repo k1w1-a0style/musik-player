@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SettingsGroup } from '../components/SettingsGroup';
+import { Palette, Play, Sparkles, Music2, Database } from 'lucide-react-native';
+import LibraryUpdateSettings from '../components/LibraryUpdateSettings';
 import AppBackground from '../components/AppBackground';
 import PresentationSettings from '../components/PresentationSettings';
 import AccentSettings from '../components/AccentSettings';
@@ -38,7 +40,7 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
   const optionTokenStyle = {
     borderRadius: radii.card,
     gap: spacing.xs,
-    padding: spacing.md,
+    padding: spacing.sm,
   };
   const optionTitleTokenStyle = { fontFamily: fonts.heading };
   const optionSubtitleTokenStyle = { fontFamily: fonts.body };
@@ -64,9 +66,6 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
         ]}
       >
         <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>{APP_APPEARANCE_LABELS[option]}</Text>
-        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
-          {option === 'dark' ? 'Dunkle Oberfläche für Musikbetrieb.' : 'Helle Oberfläche für Tageslicht.'}
-        </Text>
       </Pressable>
     );
   };
@@ -91,12 +90,12 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
         ]}
       >
         <Text style={[styles.optionTitle, optionTitleTokenStyle, { color: theme.palette.text.primary }]}>{APP_THEME_SKIN_LABELS[option]}</Text>
-        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}> 
+        <Text style={[styles.optionSubtitle, optionSubtitleTokenStyle, { color: theme.palette.text.secondary }]}>
           {option === 'graphite'
-            ? 'Neutraler Schwarz/Grau-Standard.'
+            ? 'Neutrale Farben'
             : option === 'minimal'
-              ? 'Schlichter, ruhiger Look mit weniger Glow.'
-              : 'Dunkler Look mit stärkeren Cover-Akzenten.'}
+              ? 'Reduzierte Oberfläche'
+              : 'Leuchtende Cover-Akzente'}
         </Text>
       </Pressable>
     );
@@ -133,8 +132,8 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
         testID="settings-scroll"
         contentContainerStyle={[styles.content, { gap: spacing.md, padding: spacing.md }]}
       >
-        <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Passe Farben, Player und Bibliothek an.</Text>
-        <SettingsGroup id="appearance" title="Darstellung & Farben" summary={`${APP_APPEARANCE_LABELS[appearance]} · ${APP_THEME_SKIN_LABELS[skin]} · App, Player, Waveform`}>
+
+        <SettingsGroup id="appearance" icon={Palette} title="Darstellung" summary={`${APP_APPEARANCE_LABELS[appearance]} · ${APP_THEME_SKIN_LABELS[skin]} · App, Player, Waveform`}>
         <AccentSettings />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Hell / Dunkel</Text>
@@ -148,18 +147,22 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
 
         <ThemePreview />
         </SettingsGroup>
-        <SettingsGroup id="player" title="Player & Wiedergabe" summary={`${NOW_PLAYING_PLAYER_LAYOUT_LABELS[nowPlayingPlayerLayout]} · Wiedergabe fortsetzen`}>
+        <SettingsGroup id="player" icon={Play} title="Player" summary={`${NOW_PLAYING_PLAYER_LAYOUT_LABELS[nowPlayingPlayerLayout]} · Wiedergabe fortsetzen`}>
         <ResumeSettings />
         <View style={[styles.section, sectionTokenStyle]}>
           <Text style={[styles.sectionTitle, sectionTitleTokenStyle, { color: theme.palette.text.primary }]}>Player-Ansicht</Text>
           {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
         </SettingsGroup>
-        <SettingsGroup id="motion" title="Animationen & Anzeige" summary="Bewegung reduzieren, Cover-Puls, kompakte Titelansicht">
-          <CoverBassPulseSetting /><PresentationSettings />
+        <SettingsGroup id="motion" icon={Sparkles} title="Animationen" summary="Bewegung reduzieren · Cover-Puls">
+          <CoverBassPulseSetting /><PresentationSettings section="motion" />
         </SettingsGroup>
-        <SettingsGroup id="library" title="Bibliothek & Daten" summary="Aufräumen, Backup und Wiederherstellung">
-          <TagCleanerSettings onOpen={getOpenCleanerAction(navigation)} /><BackupSettings />
+        <SettingsGroup id="library" icon={Music2} title="Musikbibliothek" summary="Aktualisierung · Listendichte · Aufräumen">
+          <LibraryUpdateSettings /><PresentationSettings section="library" />
+          <TagCleanerSettings onOpen={getOpenCleanerAction(navigation)} />
+        </SettingsGroup>
+        <SettingsGroup id="data" icon={Database} title="Daten" summary="Backup · Wiederherstellung">
+          <BackupSettings />
         </SettingsGroup>
       </ScrollView>
     </View>
@@ -180,7 +183,7 @@ const ThemePreview = () => {
               borderColor: theme.palette.borderStrong,
               borderRadius: radii.elevatedCard,
               gap: spacing.md,
-              padding: spacing.md,
+              padding: spacing.sm,
             },
           ]}
         >
@@ -204,7 +207,7 @@ const CoverBassPulseSetting = () => {
   }]}>
     <View style={styles.bassCopy}>
       <Text style={[styles.optionTitle, { color: theme.palette.text.primary, fontFamily: fonts.heading }]}>Cover-Puls zum Bass</Text>
-      <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>An: Das Cover bewegt sich zu Bass und Kickdrum. Aus: Das Cover bleibt ruhig. Gilt nur für die normale Player-Ansicht.</Text>
+      <Text style={[styles.optionSubtitle, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Bewegt das Cover zu Bass und Kickdrum in der klassischen Ansicht.</Text>
     </View>
     <Switch testID="settings-cover-bass-pulse" accessibilityLabel="Cover-Puls zum Bass"
       value={bassPulseEnabled ?? false} onValueChange={setBassPulseEnabled}
@@ -215,16 +218,12 @@ const CoverBassPulseSetting = () => {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: {},
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
   section: {},
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 15, fontWeight: '600',
   },
   option: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth, minHeight: 48,
   },
   optionTitle: {
     fontSize: 16,

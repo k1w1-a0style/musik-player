@@ -24,12 +24,13 @@ export const ensureAudioReadAccess = async (
   request: AudioPermissionQuery,
   get: AudioPermissionQuery,
   signal: AbortSignal,
+  allowRequest = true,
 ): Promise<void> => {
   throwIfAborted(signal);
   const current = await get(false, ['audio']);
   throwIfAborted(signal);
   if (current.status === 'granted') return;
-  if (current.canAskAgain === false) throw new MediaLibraryReadAccessError();
+  if (!allowRequest || current.canAskAgain === false) throw new MediaLibraryReadAccessError();
   const requested = await request(false, ['audio']);
   throwIfAborted(signal);
   if (requested.status !== 'granted') throw new MediaLibraryReadAccessError();

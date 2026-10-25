@@ -19,7 +19,7 @@ import {
 
 const renderSettings = (navigation?: NativeStackNavigationProp<AppStackParamList,'Settings'>) => {
  const view=render(<Settings navigation={navigation}/>);
- for(const group of ['appearance','player','motion','library']) fireEvent.press(view.getByTestId(`settings-group-${group}`));
+ for(const group of ['appearance','player','motion','library','data']) fireEvent.press(view.getByTestId(`settings-group-${group}`));
  return view;
 };
 
@@ -123,7 +123,8 @@ describe('Settings', () => {
     expect(selectedAppearanceStyle.backgroundColor).toBe(activeTheme.palette.surfaceElevated);
     expect(selectedAppearanceStyle.borderColor).toBe(activeTheme.palette.primary);
     expect(selectedAppearanceStyle.borderRadius).toBe(activeTheme.tokens.radii.card);
-    expect(selectedAppearanceStyle.padding).toBe(activeTheme.tokens.spacing.md);
+    expect(selectedAppearanceStyle.padding).toBe(activeTheme.tokens.spacing.sm);
+    expect(selectedAppearanceStyle.minHeight).toBe(48);
     expect(selectedAppearanceStyle.gap).toBe(activeTheme.tokens.spacing.xs);
     expect(unselectedAppearanceStyle.backgroundColor).toBe(activeTheme.palette.surface);
     expect(unselectedAppearanceStyle.borderColor).toBe(activeTheme.palette.border);
@@ -173,7 +174,7 @@ describe('Settings', () => {
     expect(previewStyle.backgroundColor).toBe(activeTheme.palette.surfaceGlass);
     expect(previewStyle.borderColor).toBe(activeTheme.palette.borderStrong);
     expect(previewStyle.borderRadius).toBe(activeTheme.tokens.radii.elevatedCard);
-    expect(previewStyle.padding).toBe(activeTheme.tokens.spacing.md);
+    expect(previewStyle.padding).toBe(activeTheme.tokens.spacing.sm);
     expect(previewStyle.gap).toBe(activeTheme.tokens.spacing.md);
   });
 });
@@ -186,10 +187,10 @@ test('bass pulse can be switched off from Settings', () => {
   expect(mockSetBassPulse).toHaveBeenCalledWith(false);
 });
 
-test('starts with four compact groups and expands only the requested controls',()=>{
+test('starts with five compact groups and expands only the requested controls',()=>{
  const view=render(<Settings/>);
  expect(view.queryByTestId('settings-appAccent-red')).toBeNull();
- for(const group of ['appearance','player','motion','library'])expect(view.getByTestId(`settings-group-${group}`).props.accessibilityState.expanded).toBe(false);
+ for(const group of ['appearance','player','motion','library','data'])expect(view.getByTestId(`settings-group-${group}`).props.accessibilityState.expanded).toBe(false);
  fireEvent.press(view.getByTestId('settings-group-motion'));
  expect(view.getByTestId('settings-cover-bass-pulse')).toBeTruthy();
  expect(view.queryByTestId('settings-appAccent-red')).toBeNull();
@@ -200,7 +201,7 @@ test('settings overview uses compact expandable category rows instead of oversiz
   const row = view.getByTestId('settings-group-motion');
   const style = StyleSheet.flatten(row.props.style);
   expect(style.minHeight).toBe(60);
-  expect(view.getByText('Animationen & Anzeige')).toBeTruthy();
+  expect(view.getByText('Animationen')).toBeTruthy();
   expect(view.queryByTestId('settings-cover-bass-pulse')).toBeNull();
   fireEvent.press(row);
   expect(row.props.accessibilityState.expanded).toBe(true);

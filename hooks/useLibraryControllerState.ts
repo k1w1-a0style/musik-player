@@ -31,6 +31,7 @@ export interface LibraryControllerMusicState {
 }
 
 export interface LibraryControllerStoredState {
+  foldersHydrated: boolean;
   favoriteIds: string[];
   scanFolders: ScanFolder[];
   setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
@@ -61,7 +62,7 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
     applySongMetadataPatches,
   } = useLibraryMusicContext();
   const screen = useLibraryScreenState();
-  const { favoriteIds, scanFolders, setScanFolders } = useLibraryStoredState(screen.activeTab);
+  const { favoriteIds, scanFolders, setScanFolders, foldersHydrated } = useLibraryStoredState(screen.activeTab);
 
   return {
     music: {
@@ -84,6 +85,7 @@ export const useLibraryControllerState = (): UseLibraryControllerStateResult => 
     },
     screen,
     stored: {
+      foldersHydrated,
       favoriteIds,
       scanFolders,
       setScanFolders,

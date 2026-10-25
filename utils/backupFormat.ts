@@ -24,6 +24,7 @@ export const backupSettingsSchema = z.object({
   accentPreferencesV4: z.object({ appAccent: z.enum(ACCENT_IDS), playerAccent: z.enum(ACCENT_IDS),
     instantColors: z.boolean() }).strict().optional(),
   playbackResumeEnabled: z.boolean().optional(),
+  libraryUpdateV1: z.object({ onOpen: z.boolean(), whileOpen: z.boolean() }).strict().optional(),
 }).strict();
 export type BackupSettings = z.infer<typeof backupSettingsSchema>;
 export const BACKUP_SETTING_KEYS = Object.keys(backupSettingsSchema.shape) as (keyof BackupSettings)[];

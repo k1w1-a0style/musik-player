@@ -10,6 +10,7 @@ import {
 } from '../utils/favoriteSongState';
 
 export interface UseLibraryStoredStateResult {
+  foldersHydrated: boolean;
   scanFolders: ScanFolder[];
   setScanFolders: Dispatch<SetStateAction<ScanFolder[]>>;
   favoriteIds: string[];
@@ -18,6 +19,7 @@ export interface UseLibraryStoredStateResult {
 
 export const useLibraryStoredState = (activeTab: LibraryTab): UseLibraryStoredStateResult => {
   const [scanFolders, setScanFolders] = useState<ScanFolder[]>([]);
+  const [foldersHydrated, setFoldersHydrated] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<string[]>(
     () => [...(getPublishedFavoriteSongIds() ?? [])],
   );
@@ -29,6 +31,7 @@ export const useLibraryStoredState = (activeTab: LibraryTab): UseLibraryStoredSt
     loadLibraryStartupState().then(state => {
       if (!mounted) return;
       setScanFolders(state.scanFolders);
+      setFoldersHydrated(true);
       if (getFavoriteSongIdsRevision() === favoriteRevision) setFavoriteIds(state.favoriteIds);
     });
 
@@ -54,6 +57,7 @@ export const useLibraryStoredState = (activeTab: LibraryTab): UseLibraryStoredSt
   }, [activeTab]);
 
   return {
+    foldersHydrated,
     scanFolders,
     setScanFolders,
     favoriteIds,

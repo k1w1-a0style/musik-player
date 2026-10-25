@@ -7,6 +7,7 @@ import { AppThemeProvider } from '../../contexts/AppThemeContext';
 import { MusicProvider } from '../../contexts/MusicContext';
 import { PlaybackProgressProvider } from '../../contexts/PlaybackProgressContext';
 import { PlayerPresentationProvider } from '../../contexts/PlayerPresentationContext';
+import { LibraryUpdateProvider } from '../../contexts/LibraryUpdateContext';
 import { PlaybackResumeProvider } from '../../contexts/PlaybackResumeContext';
 import { AccentPreferencesProvider } from '../../contexts/AccentPreferencesContext';
 import { PaletteRuntimeBridge } from '../../contexts/PaletteRuntimeBridge';
@@ -21,7 +22,8 @@ describe('AppProviders', () => {
     const accentPreferencesProvider = onlyChild(safeArea);
     const appThemeProvider = onlyChild(accentPreferencesProvider);
     const presentationProvider = onlyChild(appThemeProvider);
-    const resumeProvider = onlyChild(presentationProvider);
+    const updateProvider = onlyChild(presentationProvider);
+    const resumeProvider = onlyChild(updateProvider);
     const musicProvider = onlyChild(resumeProvider);
     const musicChildren = React.Children.toArray(musicProvider.props.children) as React.ReactElement[];
     const playbackProvider = musicChildren[1];
@@ -32,6 +34,7 @@ describe('AppProviders', () => {
     expect(accentPreferencesProvider.type).toBe(AccentPreferencesProvider);
     expect(appThemeProvider.type).toBe(AppThemeProvider);
     expect(presentationProvider.type).toBe(PlayerPresentationProvider);
+    expect(updateProvider.type).toBe(LibraryUpdateProvider);
     expect(resumeProvider.type).toBe(PlaybackResumeProvider);
     expect(musicProvider.type).toBe(MusicProvider);
     expect(musicChildren[0].type).toBe(PaletteRuntimeBridge);

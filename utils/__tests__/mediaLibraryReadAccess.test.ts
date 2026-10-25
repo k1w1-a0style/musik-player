@@ -35,6 +35,13 @@ test('permanent denial never prompts again or loops', async () => {
   expect(get).toHaveBeenCalledTimes(1);
 });
 
+test('an automatic update never asks for permissions even when Android permits another prompt', async () => {
+  const get = jest.fn().mockResolvedValue(denied);
+  const request = jest.fn();
+  await expect(ensureAudioReadAccess(request, get, signal(), false)).rejects.toBeInstanceOf(MediaLibraryReadAccessError);
+  expect(request).not.toHaveBeenCalled(); expect(get).toHaveBeenCalledTimes(1);
+});
+
 test('rejects an optimistic request result when the actual read grant is absent', async () => {
   const get = jest.fn().mockResolvedValue(denied);
   const request = jest.fn().mockResolvedValue(granted);

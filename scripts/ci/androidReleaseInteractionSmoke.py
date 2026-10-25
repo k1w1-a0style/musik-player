@@ -577,7 +577,7 @@ def prepare_settings_groups():
     COMPACT_SETTINGS = False
     SETTINGS_COLOR_TARGET = 'appAccent'
     screenshot('compact-settings-home')
-    for group in ('appearance', 'player', 'motion', 'library'):
+    for group in ('appearance', 'player', 'motion', 'library', 'data'):
         select('settings-group-' + group, top=True)
     COMPACT_SETTINGS = True
 

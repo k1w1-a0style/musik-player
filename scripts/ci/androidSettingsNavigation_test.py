@@ -9,7 +9,9 @@ class SettingsNavigationTest(unittest.TestCase):
         self.assertIsNone(settings_group_for('tag-cleaner-apply'))
     def test_order_tracks_compact_group_contents(self):
         self.assertLess(settings_control_order('settings-skin-minimal'),settings_control_order('settings-quiet-profile'))
-        self.assertEqual(settings_group_for('backup-create'),'library')
+        self.assertEqual(settings_group_for('backup-create'),'data')
+        self.assertEqual(settings_group_for('settings-density-compact'),'library')
+        self.assertEqual(settings_group_for('settings-library-update-onOpen'),'library')
 
 class CleanerPreviewNavigationTest(unittest.TestCase):
     def test_hidden_safe_action_is_queried_only_after_tools_open(self):

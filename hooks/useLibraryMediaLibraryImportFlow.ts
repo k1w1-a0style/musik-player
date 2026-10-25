@@ -60,7 +60,7 @@ export const useLibraryMediaLibraryImportFlow = ({
     ensureCurrentImport(generation);
     setImportStatus('Musikzugriff wird geprüft… Für den Scan wird nur Lesezugriff auf Musik benötigt.');
     await withTimeoutImpl(signal => ensureAudioReadAccess(requestMediaLibraryPermissionsAsync,
-      getMediaLibraryPermissionsAsync, signal), importTimeoutMs,
+      getMediaLibraryPermissionsAsync, signal, !generation.automatic), importTimeoutMs,
     'Musikzugriff konnte nicht rechtzeitig bestätigt werden. Bitte den Scan erneut starten oder einen Musikordner auswählen.',
     { signal: generation.controller.signal });
     ensureCurrentImport(generation);
@@ -83,10 +83,10 @@ export const useLibraryMediaLibraryImportFlow = ({
     setImportStatus(candidateProgress.candidatesFoundStatus);
     const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
     if (candidateResult.kind === 'empty') {
-      showAlert(candidateResult.alert);
+      if (!generation.automatic) showAlert(candidateResult.alert);
       return [];
     }
-    const shouldImport = await confirmLibraryImportImpl(candidates.assets.length, candidates.skipped.length);
+    const shouldImport = generation.automatic || await confirmLibraryImportImpl(candidates.assets.length, candidates.skipped.length);
     ensureCurrentImport(generation);
     if (!shouldImport) throw new OperationAbortError('Musikimport abgebrochen.');
     setImportStatus(importCopy.importingMetadataAndCoversStatus);
@@ -115,7 +115,7 @@ export const useLibraryMediaLibraryImportFlow = ({
     const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? baselineSongs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs], baselineSongs);
     const acceptedSongs = await applyImportedSongsUpdate(result.update, generation);
     const verificationAlert = getImportVerificationAlert(mediaResult, refreshExisting);
-    if (verificationAlert) showAlert(verificationAlert);
+    if (verificationAlert && !generation.automatic) showAlert(verificationAlert);
     return getImportedPreparationSongs(mediaResult.songs, acceptedSongs);
   }, [applyImportedSongsUpdate, publishImportedSongs, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, getMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
   return { importFromMediaLibrary };

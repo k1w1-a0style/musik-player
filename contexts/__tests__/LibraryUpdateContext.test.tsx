@@ -1,0 +1,32 @@
+import React from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { LibraryUpdateProvider, useLibraryUpdatePreferences } from '../LibraryUpdateContext';
+import { storage } from '../../utils/storage';
+import { LIBRARY_UPDATE_KEY } from '../../utils/libraryUpdatePreferences';
+jest.mock('../../utils/storage', () => ({ storage: { get: jest.fn(), set: jest.fn() } }));
+const wrapper = ({ children }: { children: React.ReactNode }) => <LibraryUpdateProvider>{children}</LibraryUpdateProvider>;
+beforeEach(() => { jest.clearAllMocks(); (storage.get as jest.Mock).mockResolvedValue(null); (storage.set as jest.Mock).mockResolvedValue(true); });
+test('hydrates old installs without writing, and persisted opt-out survives restart', async () => {
+  const hook = renderHook(useLibraryUpdatePreferences, { wrapper });
+  await waitFor(() => expect(hook.result.current.isHydrated).toBe(true));
+  expect(hook.result.current.preferences).toEqual({ onOpen: false, whileOpen: true });
+  expect(storage.set).not.toHaveBeenCalled();
+  act(() => hook.result.current.setPreferences?.(() => ({ onOpen: true, whileOpen: false })));
+  await waitFor(() => expect(storage.set).toHaveBeenLastCalledWith(LIBRARY_UPDATE_KEY, { onOpen: true, whileOpen: false }));
+  (storage.get as jest.Mock).mockResolvedValue((storage.set as jest.Mock).mock.calls.at(-1)[1]);
+  hook.unmount();
+  const next = renderHook(useLibraryUpdatePreferences, { wrapper });
+  await waitFor(() => expect(next.result.current.isHydrated).toBe(true));
+  expect(next.result.current.preferences).toEqual({ onOpen: true, whileOpen: false });
+});
+test('a failed write restores the confirmed automatic-update preference', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  (storage.get as jest.Mock).mockResolvedValue({ onOpen: true, whileOpen: false });
+  (storage.set as jest.Mock).mockResolvedValueOnce(false);
+  const hook = renderHook(useLibraryUpdatePreferences, { wrapper });
+  await waitFor(() => expect(hook.result.current.isHydrated).toBe(true));
+  act(() => hook.result.current.setPreferences?.(previous => ({ ...previous, whileOpen: true })));
+  await waitFor(() => expect(warn).toHaveBeenCalled());
+  expect(hook.result.current.preferences).toEqual({ onOpen: true, whileOpen: false });
+  warn.mockRestore();
+});

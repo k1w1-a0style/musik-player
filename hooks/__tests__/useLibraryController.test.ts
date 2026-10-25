@@ -208,6 +208,7 @@ const mockScreenState: UseLibraryScreenStateResult = {
 };
 
 const mockStoredState: UseLibraryStoredStateResult = {
+  foldersHydrated: true,
   scanFolders: [],
   setScanFolders: fn,
   favoriteIds: [],
@@ -455,6 +456,7 @@ test.each([false, true])('public retry button restarts the same scan mode (full:
   const { result, rerender } = renderHook(() => useLibraryController());
   const id = beginLibraryScan(fullScan); stopLibraryScan(id, 'failed');
   const screen = render(React.createElement(LibraryPreparationStatus, { visible: false, ...result.current.importStatusProps }));
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   fireEvent.press(screen.getByLabelText('Scan erneut versuchen'));
   expect(mockImportActions.importFromDevice).toHaveBeenLastCalledWith({ refreshExisting: fullScan });
   const firstRetry = result.current.importStatusProps.onRetryScan;

@@ -53,9 +53,9 @@ const BackupSettings = () => {
     style={[styles.action, { borderColor: theme.palette.border, backgroundColor: theme.palette.surface }]}>
     <Text style={text}>{label}</Text></Pressable>;
   return <View testID="settings-backup" style={styles.section}>
-    <Text style={[styles.heading, { color: theme.palette.text.primary, fontFamily: theme.tokens.fonts.heading }]}>Sammlung & Daten</Text>
+    <Text style={[styles.heading, { color: theme.palette.text.primary, fontFamily: theme.tokens.fonts.heading }]}>Datensicherung</Text>
     <Text style={[styles.title, text]}>Backup & Wiederherstellung</Text>
-    <Text style={text}>Sichere Playlists, Favoriten, Einstellungen und dein eigenes EQ-Profil. Wähle einen Backup-Ordner; Musikdateien werden nicht kopiert.</Text>
+    <Text style={text}>Playlists, Favoriten, Einstellungen und EQ sichern. Musikdateien bleiben im Musikordner.</Text>
     {action('backup-create', 'Backup erstellen', exportBackup)}
     {action('backup-inspect', 'Backup-Inhalt prüfen', () => selectBackup('inspect'))}
     {action('backup-select-restore', 'Backup wiederherstellen', () => selectBackup('restore'))}

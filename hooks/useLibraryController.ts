@@ -67,7 +67,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
       setSearchOpen,
     },
     stored: {
-      favoriteIds,
+      favoriteIds, foldersHydrated,
       scanFolders,
       setScanFolders,
     },
@@ -171,7 +171,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     }
   }, [addSongToPlaylist, playlistPickerSong, removeSongFromPlaylist]);
 
-  useLibraryBackgroundAnalysis({ songs, applySongMetadataPatches, isReady, isPlaying, loading });
+  useLibraryBackgroundAnalysis({ songs, applySongMetadataPatches, isReady, isPlaying, loading, scanFolders, foldersHydrated, update: importFromDevice });
 
   const refreshOperation = useMetadataRefreshOperation();
   const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);

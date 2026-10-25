@@ -26,7 +26,7 @@ import { useLibraryImportStateUpdate } from './useLibraryImportStateUpdate';
 import { useLibraryScanFolderImportFlow } from './useLibraryScanFolderImportFlow';
 import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImportFlow';
 import { createCoverCacheProtection } from '../utils/coverCacheCleanup';
-import { beginLibraryScan, completeLibraryScan, stopLibraryScan } from '../utils/libraryScanOperation';
+import { beginLibraryScan, completeLibraryScan, stopLibraryScan, getLibraryScanOperation } from '../utils/libraryScanOperation';
 import type { Song } from '../types/Song';
 import { isMediaLibraryReadAccessError } from '../utils/mediaLibraryReadAccess';
 import { musicAccessButtons } from './useLibraryAlerts';
@@ -75,6 +75,7 @@ const reportLibraryImportFailure = (
     console.warn('[Import] Import failed.', error);
   }
   const alert = getImportStoppedAlert(error);
+  if (generation.automatic) return;
   showAlert(isMediaLibraryReadAccessError(error)
     ? { ...alert, buttons: musicAccessButtons(onSelectMusicFolder) } : alert);
 };
@@ -127,7 +128,9 @@ export const useLibraryImportActions = ({
   const runSourceFlow = useLibrarySelectedSourceFlow({ songs, songImport, scanFolders, importFromMediaLibrary, importFromScanFolders });
 
   const importFromDevice = useCallback(async (options?: LibraryScanRequest & { folders?: typeof scanFolders }): Promise<void> => {
+    if (options?.automatic && getLibraryScanOperation().status === 'running') return;
     const generation = startImport();
+    generation.automatic = options?.automatic;
     const selectedSource = options?.source ?? (options?.folders ? 'folders' : lastSource.current)
       ?? (shouldImportFromScanFolders(getEnabledScanFolders(scanFolders), platformOs) ? 'folders' : 'media-library');
     beginImportActivities(generation, options?.refreshExisting ?? false, selectedSource);

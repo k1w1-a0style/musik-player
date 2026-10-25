@@ -31,7 +31,7 @@ const AccentSettings=()=>{
   const color=preview(selected);
   return <View style={styles.section} testID="settings-accents">
     <Text style={[styles.heading,{color:theme.palette.text.primary}]}>Farben</Text>
-    <Text style={{color:theme.palette.text.secondary}}>Drei getrennte Einstellungen. Wähle zuerst den Bereich.</Text>
+    <Text style={{color:theme.palette.text.secondary}}>Bereich wählen, dann Farbe auswählen.</Text>
     <View style={styles.choices} accessibilityRole="tablist">{(Object.keys(targetLabels) as Target[]).map(value=><Pressable key={value} testID={`settings-color-target-${value}`} accessibilityRole="tab" accessibilityState={{selected:target===value}} onPress={()=>setTarget(value)} style={[styles.choice,{borderColor:theme.palette.border,backgroundColor:target===value?theme.palette.surfaceElevated:theme.palette.surface}]}><Text style={{color:theme.palette.text.primary}}>{targetLabels[value]}</Text></Pressable>)}</View>
     <View testID="settings-color-preview" style={[styles.preview,{borderColor:color,backgroundColor:theme.palette.surface}]}>
       <Text style={{color:theme.palette.text.primary}}>{targetLabels[target]} · {label(selected)}</Text>

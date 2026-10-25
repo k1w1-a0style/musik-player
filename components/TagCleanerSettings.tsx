@@ -13,6 +13,6 @@ const TagCleanerSettings = ({ onOpen }: { onOpen?: () => void }) => {
     </Pressable>
   </View>;
 };
-const styles = StyleSheet.create({ card: { padding: 16, gap: 10, borderWidth: 1, borderRadius: 16 },
-  title: { fontSize: 18 }, action: { minHeight: 48, justifyContent: 'center', paddingVertical: 10 } });
+const styles = StyleSheet.create({ card: { paddingVertical: 10, gap: 6, borderTopWidth: StyleSheet.hairlineWidth },
+  title: { fontSize: 15, fontWeight: '600' }, action: { minHeight: 48, justifyContent: 'center', paddingVertical: 10 } });
 export default TagCleanerSettings;

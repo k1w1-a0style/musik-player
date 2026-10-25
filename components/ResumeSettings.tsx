@@ -18,12 +18,12 @@ const ResumeSettings = () => {
     <View style={styles.row}>
       <View style={styles.copy}>
         <Text style={[styles.title, text]}>Wiedergabe fortsetzen</Text>
-        <Text style={text}>Merkt sich die Position bei Titeln ab 20 Minuten. Beim erneuten Auswählen kannst du „Fortsetzen“ oder „Von vorn“ wählen.</Text>
+        <Text style={text}>Merkt sich die Position ab 20 Minuten Titellänge.</Text>
       </View>
       <Switch testID="settings-resume-enabled" accessibilityLabel="Wiedergabe fortsetzen" disabled={!isHydrated}
         value={enabled} onValueChange={setEnabled} />
     </View>
-    <Text style={[styles.hint, { color: theme.palette.text.secondary }]}>Aus: keine neue Positionsaufzeichnung und keine automatische Fortsetzung. Geänderte oder nicht eindeutig erkannte Dateien und Titel kurz vor dem Ende starten regulär.</Text>
+    <Text style={[styles.hint, { color: theme.palette.text.secondary }]}>Beim nächsten Auswählen: fortsetzen oder von vorn starten. Geänderte Dateien starten regulär.</Text>
     <Pressable testID="settings-resume-clear" accessibilityRole="button" accessibilityState={{ disabled: !isHydrated }}
       disabled={!isHydrated} onPress={erase} style={[styles.action, { borderColor: theme.palette.border }]}>
       <Text style={text}>Gespeicherte Positionen löschen</Text></Pressable>
