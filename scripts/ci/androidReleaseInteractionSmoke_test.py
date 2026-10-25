@@ -299,6 +299,21 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         node.set('text','Unrelated Android SDK storage')
         self.assertFalse(smoke.storage_label(node))
 
+    def test_android10_grant_requires_recorded_folder_app_and_system_provider(self):
+        pkg='com.android.documentsui'
+        root=ET.Element('hierarchy')
+        title=ET.SubElement(root,'node',{'package':pkg,'resource-id':pkg+':id/alertTitle',
+            'text':'Allow access to "K1W1ScanFix" in "Android SDK built for x86_64"?'})
+        message=ET.SubElement(root,'node',{'package':pkg,'resource-id':'android:id/message',
+            'text':'It will allow "k1w1-Musik" to have full access to all files currently stored under this location, and any future content stored here.'})
+        action=ET.SubElement(root,'node',{'package':pkg,'resource-id':'android:id/button1','text':'ALLOW','enabled':'true','bounds':'[330,530][432,602]'})
+        self.assertIs(smoke.tree_grant_button(root,'K1W1ScanFix'),action)
+        self.assertIsNone(smoke.tree_grant_button(root,'OtherFolder'))
+        message.set('text',message.get('text').replace('k1w1-Musik','Other app'))
+        self.assertIsNone(smoke.tree_grant_button(root,'K1W1ScanFix'))
+        title.set('package',smoke.PACKAGE)
+        self.assertIsNone(smoke.tree_grant_button(root,'K1W1ScanFix'))
+
     def picker_trail_frame(self, current_root=False):
         pkg='com.google.android.documentsui'
         root=ET.Element('hierarchy')

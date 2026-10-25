@@ -636,11 +636,25 @@ def library_tab(name):
 
 def tree_grant_button(root, folder):
     expected = f'Allow k1w1-Musik to access files in {folder}?'
-    if not any(node.get('text') == expected for node in root.iter('node')):
+    modern = any(node.get('text') == expected for node in root.iter('node'))
+    legacy_title = False
+    legacy_app = False
+    for node in root.iter('node'):
+        if node.get('package') not in DOCUMENTS_PACKAGES:
+            continue
+        title = re.fullmatch(r'Allow access to "' + re.escape(folder) + r'" in "([^"\n]+)"\?', node.get('text', ''))
+        if node.get('resource-id', '').endswith(':id/alertTitle') and title:
+            legacy_title = storage_label(ET.Element('node', {'text': title[1]}))
+        if node.get('resource-id') == 'android:id/message' and node.get('text') == (
+                'It will allow "k1w1-Musik" to have full access to all files currently stored under this location, '
+                'and any future content stored here.'):
+            legacy_app = True
+    if not modern and not (legacy_title and legacy_app):
         return None
     return next((node for node in root.iter('node') if matches(node, 'android:id/button1')
                  and node.get('text', '').lower() == 'allow'
-                 and node.get('enabled') == 'true' and visible(node)), None)
+                 and node.get('enabled') == 'true' and visible(node)
+                 and (modern or node.get('package') in DOCUMENTS_PACKAGES)), None)
 
 
 def wait_tree_grant(folder, timeout=25):
