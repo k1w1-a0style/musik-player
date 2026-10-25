@@ -322,6 +322,13 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         frame[0][0].set('bounds','[25,760][443,852]')
         self.assertIsNotNone(smoke.scroll_candidate('library-menu-item-einstellungen',frame))
 
+    def test_settings_category_already_clipped_to_seven_pixels_is_not_visible(self):
+        frame=ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" resource-id="settings-scroll" class="android.widget.ScrollView" scrollable="true" bounds="[0,120][480,888]">'
+            f'<node package="{smoke.PACKAGE}" resource-id="settings-group-data" enabled="true" clickable="true" bounds="[22,881][458,888]"/></node></hierarchy>')
+        self.assertIsNone(smoke.scroll_candidate('settings-group-data',frame))
+        frame[0][0].set('bounds','[22,718][458,866]')
+        self.assertIsNotNone(smoke.scroll_candidate('settings-group-data',frame))
+
     def picker_trail_frame(self, current_root=False):
         pkg='com.google.android.documentsui'
         root=ET.Element('hierarchy')

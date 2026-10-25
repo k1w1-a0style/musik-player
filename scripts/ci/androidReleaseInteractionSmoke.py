@@ -272,7 +272,7 @@ def scroll_candidate(key, root):
             cleaner_action = key.startswith('tag-cleaner-') and node.get('clickable') == 'true'
             # Full-width buttons are legitimate. At a vertical clip edge,
             # however, even >=48dp of a tall font2 button can hide its label.
-            if (cleaner_action or key.startswith('library-menu-item-')) and (y1 <= sy1 or y2 >= sy2):
+            if (cleaner_action or key.startswith(('library-menu-item-', 'settings-group-'))) and (y1 <= sy1 or y2 >= sy2):
                 return None
             if (key.startswith(('song-card-info-', 'library-menu-item-')) or cleaner_action) and (x2-x1 < 72 or y2-y1 < 72):
                 # Android can report already-clipped child bounds exactly at the
