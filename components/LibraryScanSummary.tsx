@@ -4,10 +4,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { dismissLibraryScan, useLibraryScanOperation, type LibraryScanStatus } from '../utils/libraryScanOperation';
 import type { LibraryScanOperation } from '../utils/libraryScanOperation';
 import { useMetadataRefreshOperation } from '../utils/metadataRefreshOperation';
-import type { ImportErrorPhase } from '../utils/mediaLibraryImport';
-
-const phaseLabels: Record<ImportErrorPhase, string> = { directory: 'Ordner lesen', revision: 'Datei prüfen',
-  tags: 'Tags lesen', audioInfo: 'Audio analysieren', cover: 'Cover lesen', songBuild: 'Titel erfassen' };
+import { IMPORT_PHASE_LABELS } from '../utils/libraryImportProgress';
 
 const labels: Record<LibraryScanStatus, string> = { idle: '', running: 'läuft', completed: 'abgeschlossen',
   partial: 'teilweise abgeschlossen', cancelled: 'abgebrochen', failed: 'fehlgeschlagen' };
@@ -37,7 +34,7 @@ const ScanDetails = ({ scan, color }: { scan: LibraryScanOperation; color: strin
         : 'Ungeprüft: bekannte Dateien ohne verlässliche Änderungsdaten. Der vollständige Scan prüft den Inhalt.'}
     </Text> : null}
     {scan.errorDetails?.map((detail, index) => <Text key={`${detail.uri}-${index}`} style={[styles.counts, { color }]}>
-      {`${phaseLabels[detail.phase]} · ${detail.code}: ${detail.message}`}
+      {`${IMPORT_PHASE_LABELS[detail.phase]} · ${detail.code}: ${detail.message}`}
     </Text>)}
   </View>;
 };

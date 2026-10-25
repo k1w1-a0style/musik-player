@@ -24,3 +24,13 @@ test('late reader completions cannot publish after cancellation or supersession'
   reporter.finish('file:///First.mp3');
   expect(publish).not.toHaveBeenCalled();
 });
+
+test('completed phase activity keeps counters honest and never marks a file as processed', () => {
+  const publish = jest.fn();
+  const reporter = createImportFileProgressReporter(publish);
+  reporter.addFiles(2); reporter.start('file:///First.mp3');
+  reporter.phase('file:///First.mp3', 'audioInfo'); reporter.activity();
+  expect(publish).toHaveBeenLastCalledWith({ total: 2, processed: 0, currentTitle: 'First.mp3', phase: 'audioInfo' });
+  reporter.finish('file:///First.mp3'); reporter.phase('file:///First.mp3', 'cover');
+  expect(publish).toHaveBeenLastCalledWith({ total: 2, processed: 1, currentTitle: '' });
+});

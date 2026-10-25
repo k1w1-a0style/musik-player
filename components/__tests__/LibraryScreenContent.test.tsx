@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import LibraryScreenContent, { type LibraryScreenContentProps } from '../LibraryScreenContent';
 
 const mockRenderText = (children: string) => <Text>{children}</Text>;
@@ -78,7 +78,11 @@ test('renders library screen sections', () => {
   expect(screen.getByText('Top Bar')).toBeTruthy();
   expect(screen.getByText('Tabs')).toBeTruthy();
   expect(screen.getByText('Search: abc')).toBeTruthy();
+  expect(screen.getByTestId('library-processing-control')).toBeTruthy();
+  expect(screen.queryByText('Status: Import läuft')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(screen.getByText('Status: Import läuft')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails schließen'));
   expect(screen.getByText('Tab Content')).toBeTruthy();
   expect(screen.getByText('Menu Modal')).toBeTruthy();
 });

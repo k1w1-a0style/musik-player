@@ -1,11 +1,16 @@
 import { useSyncExternalStore } from 'react';
 import { countImportSourceOutcome, emptyImportScanStatistics, type ImportScanStatistics, type ImportSourceDecision } from './libraryImportStatistics';
+import type { ImportErrorPhase } from './mediaLibraryImport';
+
+export const IMPORT_PHASE_LABELS: Record<ImportErrorPhase, string> = { directory: 'Ordner lesen', revision: 'Datei prüfen',
+  tags: 'Tags lesen', audioInfo: 'Audio analysieren', cover: 'Cover lesen', songBuild: 'Titel erfassen' };
 
 export interface ImportFileProgress {
   processed: number;
   total: number;
   currentTitle: string;
   statistics?: ImportScanStatistics;
+  phase?: ImportErrorPhase;
 }
 
 const idle: ImportFileProgress = { processed: 0, total: 0, currentTitle: '' };
@@ -36,16 +41,19 @@ export const createImportFileProgressReporter = (
 ) => {
   let total = 0;
   let processed = 0;
-  const active = new Set<string>();
+  const active = new Map<string, ImportErrorPhase | undefined>();
   const statistics = emptyImportScanStatistics();
   const publish = (): void => {
+    const current = active.entries().next().value;
     if (!signal?.aborted) onProgress?.({ total, processed,
-      currentTitle: titleFromUri(active.values().next().value ?? ''),
+      currentTitle: titleFromUri(current?.[0] ?? ''), ...(current?.[1] ? { phase: current[1] } : {}),
       ...(trackStatistics ? { statistics: { ...statistics } } : {}) });
   };
   return {
     addFiles: (count: number): void => { total += count; publish(); },
-    start: (uri: string): void => { active.add(uri); publish(); },
+    start: (uri: string): void => { active.set(uri, undefined); publish(); },
+    activity: (): void => publish(),
+    phase: (uri: string, phase: ImportErrorPhase): void => { if (active.has(uri)) active.set(uri, phase); publish(); },
     finish: (uri: string, decision?: ImportSourceDecision): void => {
       active.delete(uri);
       if (decision) countImportSourceOutcome(statistics, decision);
@@ -55,3 +63,4 @@ export const createImportFileProgressReporter = (
     getStatistics: (): ImportScanStatistics => ({ ...statistics }),
   };
 };
+

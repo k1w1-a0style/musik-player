@@ -904,7 +904,8 @@ def timeline_values(root):
 
 def import_public_collection():
     tap('library-open-menu')
-    tap('library-menu-item-schnellscan-import')
+    tap('library-menu-item-musikbibliothek-aktualisieren')
+    tap('Android-Musikbibliothek')
     find('Musik importieren', timeout=60)
     screenshot('00-public-import-confirmation')
     tap_node(import_confirmation_button(tree()))
@@ -2078,7 +2079,14 @@ def ui_matrix(font2_only=False, selected_cases=None):
 def quiesce_optional_preparation(timeout=60):
     frame = tree(compressed=False)
     panel = candidate('library-waveform-preparation', frame)
+    opened = False
+    if panel is None and candidate('library-processing-control', frame) is not None:
+        tap('Verarbeitungsdetails öffnen')
+        opened = True
+        frame = tree(compressed=False)
+        panel = candidate('library-waveform-preparation', frame)
     if panel is None:
+        if opened: tap('Verarbeitungsdetails schließen')
         return
     cancel = candidate('Waveformanalyse abbrechen', frame)
     assert cancel is not None and cancel.get('package') == PACKAGE and cancel.get('enabled') == 'true', 'Optional preparation has no valid public cancellation action'
@@ -2110,10 +2118,20 @@ def quiesce_optional_preparation(timeout=60):
 def wait_collection_idle(timeout=150):
     started = time.monotonic()
     deadline = started + timeout
-    stable, details = 0, False
+    stable, details, compact_ack = 0, False, False
     while time.monotonic() < deadline:
         frame = tree(compressed=False)
+        compact = candidate('library-processing-control', frame)
+        if compact is not None and not details and not compact_ack:
+            tap('Verarbeitungsdetails öffnen')
+            details = True
+            continue
         busy = candidate('library-import-status', frame)
+        if details and busy is None and candidate('Verarbeitungsdetails schließen', frame) is not None:
+            tap('Verarbeitungsdetails schließen')
+            details, compact_ack = False, True
+            stable = 0
+            continue
         header = candidate('library-open-menu', frame)
         idle = (busy is None and header is not None and header.get('package') == PACKAGE
                 and header.get('enabled') == 'true')

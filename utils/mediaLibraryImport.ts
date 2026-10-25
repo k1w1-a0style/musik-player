@@ -859,7 +859,8 @@ export const enrichMediaLibraryAssets = async (
     read: async (asset, childSignal, activity) => {
       progress.start(asset.uri);
       const result = await readMediaLibraryImportSource(asset, { ...options, signal: childSignal,
-        onReadActivity: activity, onReadPhase: phase => { phases.set(asset.uri, phase); } }, selection, yieldKnownSource);
+        onReadActivity: () => { activity(); progress.activity(); },
+        onReadPhase: phase => { phases.set(asset.uri, phase); progress.phase(asset.uri, phase); } }, selection, yieldKnownSource);
       if (result.song && result.decision.include) songs.push(result.song);
       return result;
     },
@@ -1025,7 +1026,8 @@ export const scanFromSafFolders = async (
       read: async (uri, childSignal, activity) => {
         progress.start(uri);
         const result = await readSafImportSource(uri, { ...options, signal: childSignal,
-          onReadActivity: activity, onReadPhase: phase => { phases.set(uri, phase); } }, selection,
+          onReadActivity: () => { activity(); progress.activity(); },
+          onReadPhase: phase => { phases.set(uri, phase); progress.phase(uri, phase); } }, selection,
           (error, recoverable) => recordSafSongBuildError(uri, error, recoverable, recordImportError, errorDetails, seenErrorDetails), yieldKnownSource);
         throwIfAborted(childSignal);
         processed += 1;

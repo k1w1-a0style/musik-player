@@ -4,6 +4,8 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { cancelWaveformPreparation, resumeWaveformPreparation,
   type WaveformPreparationState } from '../utils/libraryWaveformPreparation';
 import { useLibraryProcessingStatus } from '../hooks/useLibraryProcessingStatus';
+import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
+import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
 import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImportStatus';
 import LibraryScanSummary from './LibraryScanSummary';
 
@@ -30,7 +32,7 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
 };
 
 const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProps & { visible: boolean }) => {
-  const { theme } = useAppTheme();
+  const { theme, appearance } = useAppTheme();
   const { height } = useWindowDimensions();
   const { preparation, details, setDetails, showWaveforms, running, needsAttention, show, label } = useLibraryProcessingStatus(visible, props);
   if (!show) return null;
@@ -44,7 +46,7 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
       <Text style={{ color: theme.palette.primary }}>›</Text>
     </Pressable>
     {details ? <Modal transparent animationType="fade" visible onRequestClose={() => setDetails(false)}>
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, { backgroundColor: getLibraryMenuBackdropColor(appearance ?? DEFAULT_APP_APPEARANCE) }]}>
         <Pressable testID="library-processing-backdrop" accessible={false} style={StyleSheet.absoluteFill}
           onPress={() => setDetails(false)} />
         <View accessibilityViewIsModal style={[styles.sheet, { maxHeight: Math.max(160, height - 80),
@@ -67,7 +69,7 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
 const styles = StyleSheet.create({
   control: { minHeight: 48, marginHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 10 },
   label: { flex: 1, fontSize: 12 },
-  backdrop: { flex: 1, justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.55)' },
+  backdrop: { flex: 1, justifyContent: 'center', padding: 16 },
   sheet: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, overflow: 'hidden' },
   heading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingHorizontal: 16, gap: 8 },
   title: { flex: 1, fontSize: 16, fontWeight: '600' },

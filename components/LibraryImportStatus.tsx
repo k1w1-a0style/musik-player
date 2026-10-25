@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { APP_THEME_TOKENS } from '../utils/appTheme';
 import { libraryImportMessages } from '../utils/libraryImportMessages';
-import { useImportFileProgress } from '../utils/libraryImportProgress';
+import { useImportFileProgress, IMPORT_PHASE_LABELS } from '../utils/libraryImportProgress';
 import {
   useMetadataRefreshOperation,
   canResumeMetadataRefresh,
@@ -158,6 +158,7 @@ const ScanFileProgress = ({ color }: { color: string }) => {
   const progress = useImportFileProgress();
   if (!progress.total) return null;
   return <View>
+    {progress.phase ? <Text style={[styles.progressText, { color }]}>{IMPORT_PHASE_LABELS[progress.phase]}</Text> : null}
     <Text style={[styles.progressText, { color }]}>{`Metadaten: ${progress.processed}/${progress.total}`}</Text>
     {progress.currentTitle ? <Text style={[styles.progressText, { color }]} numberOfLines={1}>{progress.currentTitle}</Text> : null}
   </View>;

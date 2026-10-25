@@ -1,0 +1,209 @@
+name: Exact APK scan diagnostics (Android 10 and 15)
+on:
+  push:
+    branches: [codex]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  locate:
+    if: ${{ contains(github.event.head_commit.message, '[scan device]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      run_id: ${{ steps.ci.outputs.run_id }}
+      source_sha: ${{ steps.ci.outputs.source_sha }}
+    steps:
+      - name: Checkout diagnostic source and immutable provenance
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require quality and native gates for this exact source
+        id: ci
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'CHECK'
+          import json,os,re,subprocess,time,urllib.request
+          from pathlib import Path
+          base='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/'
+          def api(path):
+              request=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
+          request=Path('docs/review/scan-device-request.json')
+          source=json.loads(request.read_text())['sourceCommit'] if request.exists() else os.environ['GITHUB_SHA']
+          assert re.fullmatch(r'[0-9a-f]{40}',source),'Unpinned diagnostic APK source'
+          subprocess.run(['git','merge-base','--is-ancestor',source,os.environ['GITHUB_SHA']],check=True)
+          changed=subprocess.check_output(['git','diff','--name-only',source,os.environ['GITHUB_SHA']],text=True).splitlines()
+          allowed={'.github/workflows/scan-device-diagnostics.yml','scripts/ci/androidScanFixSmoke.py','scripts/ci/androidScanFixSmoke_test.py',
+              'scripts/ci/androidReleaseInteractionSmoke.py','scripts/ci/androidReleaseInteractionSmoke_test.py','docs/review/scan-device-request.json'}
+          assert set(changed)<=allowed,'Product or build source changed: a fresh exact APK is required'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write('source_sha='+source+'\n')
+          deadline=time.monotonic()+2400
+          while time.monotonic()<deadline:
+              runs=api('actions/workflows/ci.yml/runs?branch=codex&event=push&per_page=10')['workflow_runs']
+              exact=[run for run in runs if run['head_sha']==source]
+              if exact:
+                  assert len(exact)==1,'Ambiguous exact-source CI'
+                  run=exact[0];jobs=api('actions/runs/'+str(run['id'])+'/jobs?per_page=100')['jobs']
+                  needed=['Typecheck, tests, coverage, lint, config gates','Android native build and tests']
+                  selected=[job for job in jobs if job['name'] in needed]
+                  if len(selected)==2 and all(job['status']=='completed' for job in selected):
+                      assert all(job['head_sha']==source and job['conclusion']=='success' for job in selected),'Quality/native source gates did not pass'
+                      security=[job.get('conclusion') for job in jobs if job['name']=='Dependency security audit']
+                      print(json.dumps({'source':source,'harness':os.environ['GITHUB_SHA'],'run':run['id'],'sourceGates':'passed','security':security,'releaseAccepted':False}),flush=True)
+                      with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write('run_id='+str(run['id'])+'\n')
+                      break
+              time.sleep(15)
+          else:raise AssertionError('Exact-source CI did not finish within the diagnostic wait budget')
+          CHECK
+  device:
+    needs: locate
+    strategy:
+      fail-fast: false
+      matrix:
+        api: ['29', '35']
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      PACKAGE_NAME: com.k1w1a0style.musikplayer
+      ANDROID_API: ${{ matrix.api }}
+      AVD_NAME: musik-scan-api-${{ matrix.api }}
+      REVIEWED_APK_SOURCE_COMMIT: ${{ needs.locate.outputs.source_sha }}
+    steps:
+      - name: Checkout exact APK source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download the inspected APK from the exact-source native gate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: musik-player-preview-${{ needs.locate.outputs.source_sha }}
+          run-id: ${{ needs.locate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: preview-input
+      - name: Verify APK provenance and capture current upstream package versions
+        run: |
+          python3 - <<'VERIFY'
+          import hashlib,os
+          from pathlib import Path
+          root=Path('preview-input')
+          assert (root/'source-commit.txt').read_text().strip()==os.environ['REVIEWED_APK_SOURCE_COMMIT']
+          assert hashlib.sha256((root/'musik-player-preview.apk').read_bytes()).hexdigest()==(root/'apk-sha256.txt').read_text().split()[0]
+          VERIFY
+          mkdir -p ci-logs
+          npm view node-forge version > ci-logs/node-forge-latest.txt
+          npm view @expo/code-signing-certificates version > ci-logs/expo-certificates-latest.txt
+      - name: Prepare isolated Android emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_AVD_HOME="$RUNNER_TEMP/preview-avd"
+          export ANDROID_AVD_HOME
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null
+          sdk_status=${PIPESTATUS[1]}
+          set -o pipefail
+          test "$sdk_status" -eq 0
+          # The SDK downloader returned a non-ZIP before any app launch.
+          # Download the official stable emulator archive independently, require
+          # its declared size/checksum and every ZIP CRC before installation.
+          python3 - <<'SDK'
+          import hashlib,json,os,stat,urllib.request,zipfile
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          base='https://dl.google.com/android/repository/'
+          request=urllib.request.Request(base+'repository2-3.xml',headers={'Cache-Control':'no-cache'})
+          with urllib.request.urlopen(request,timeout=60) as response:
+              metadata=ET.fromstring(response.read())
+          local=lambda tag:tag.rsplit('}',1)[-1]
+          child=lambda node,name:next(x for x in node if local(x.tag)==name)
+          packages=[p for p in metadata.iter() if local(p.tag)=='remotePackage' and p.get('path')=='emulator' and child(p,'channelRef').get('ref')=='channel-0']
+          assert len(packages)==1,'Missing/ambiguous official stable emulator metadata'
+          archives=[a for a in child(packages[0],'archives') if child(a,'host-os').text=='linux']
+          assert len(archives)==1,'Missing/ambiguous Linux archive'
+          archive=child(archives[0],'complete');size=int(child(archive,'size').text)
+          checksum=child(archive,'checksum');algorithm=checksum.get('type','sha1').lower().replace('-','')
+          assert algorithm in ('sha1','sha256')
+          expected=checksum.text.strip().lower();url=base+child(archive,'url').text
+          print('EMULATOR_DECLARED_ARCHIVE '+json.dumps({'url':url,'size':size,'algorithm':algorithm,'checksum':expected}),flush=True)
+          target=Path(os.environ['RUNNER_TEMP'])/'verified-emulator.zip'
+          for attempt in (1,2):
+              digest=hashlib.new(algorithm);actual=0
+              request=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(request,timeout=120) as response,target.open('wb') as output:
+                  print('EMULATOR_DOWNLOAD_HEADERS '+json.dumps({'attempt':attempt,'type':response.headers.get('Content-Type'),'length':response.headers.get('Content-Length')}),flush=True)
+                  while True:
+                      chunk=response.read(1024*1024)
+                      if not chunk:break
+                      actual+=len(chunk);assert actual<=size,'Archive exceeds declared size'
+                      digest.update(chunk);output.write(chunk)
+              with target.open('rb') as prefix:magic=prefix.read(16).hex()
+              print('EMULATOR_DOWNLOAD_RESULT '+json.dumps({'attempt':attempt,'bytes':actual,'digest':digest.hexdigest(),'magic':magic}),flush=True)
+              if actual==size and digest.hexdigest()==expected:
+                  with zipfile.ZipFile(target) as bundle:assert bundle.testzip() is None,'ZIP CRC mismatch'
+                  break
+              if attempt==2:raise AssertionError('Official emulator archive size/checksum mismatch after two bounded downloads')
+          root=Path(os.environ['ANDROID_HOME']).resolve()
+          with zipfile.ZipFile(target) as bundle:
+              for item in bundle.infolist():
+                  path=(root/item.filename).resolve()
+                  assert path.is_relative_to(root),'Unsafe ZIP path'
+                  assert not stat.S_ISLNK(item.external_attr>>16),'Unexpected archive symlink'
+                  bundle.extract(item,root)
+                  mode=(item.external_attr>>16)&0o777
+                  if mode and not item.is_dir():path.chmod(mode)
+          print('Official emulator archive verified and installed.',flush=True)
+          SDK
+          test -x "$ANDROID_HOME/emulator/emulator"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpulse0
+          python3 scripts/ci/verifyEmulatorLibraries.py "$ANDROID_HOME/emulator" "$RUNNER_TEMP/emulator-verified-libraries.txt"
+          "$ANDROID_HOME/emulator/emulator" -version
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "system-images;android-${ANDROID_API};google_apis;x86_64"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
+          mkdir -p ci-logs
+          nohup "$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader -no-metrics -camera-back none -camera-front none > ci-logs/emulator.log 2>&1 &
+          echo $! > ci-logs/emulator.pid
+          timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout 420 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell wm size 480x960
+          adb shell wm density 240
+          adb shell input keyevent 82
+          adb logcat -c
+
+      - name: Prepare public UI test tools
+        run: |
+          command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
+          python3 -m venv "$RUNNER_TEMP/scan-ui-venv"
+          "$RUNNER_TEMP/scan-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
+      - name: Diagnose the same exact APK with twelve synthetic audio files and public UI
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/scan-ui-venv/bin/python" scripts/ci/androidScanFixSmoke.py 2>&1 | tee ci-logs/scan-device.log
+      - name: Capture independent diagnostics
+        if: always()
+        run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
+      - name: Upload diagnostic evidence (not a release approval)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: scan-diagnostics-api-${{ matrix.api }}-${{ github.sha }}
+          path: ci-logs/
+          retention-days: 14
+          if-no-files-found: error
