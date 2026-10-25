@@ -300,6 +300,21 @@ test('scan folder import publishes throttled SAF scan progress statuses', async 
   dateNowSpy.mockRestore();
 });
 
+test('partially completed folder scans show persistent diagnostics without an interrupting alert', async () => {
+  const incomplete = jest.fn().mockResolvedValue({
+    songs: [song('scan-song')], errors: ['content://timeout'], completed: false, remainingCount: 3,
+    folderUpdates: [], statistics: { newCount: 1, changedCount: 0, unchangedCount: 0,
+      unverifiedCount: 0, errorCount: 1 },
+  });
+  const screen = render(<HookHarness showScanSummary scanFolders={[folder('music')]}
+    importSongsFromSourcesImpl={incomplete} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(getLibraryScanOperation().status).toBe('partial'));
+  expect(showAlert).not.toHaveBeenCalled();
+  expect(screen.getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
+  expect(screen.getByText('3 Datei(en) noch nicht geprüft')).toBeTruthy();
+});
+
 test('shows partial scan alert and still applies imported songs', async () => {
   const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [song('scan-song')], errors: ['content://missing'], folderUpdates: undefined });
   const screen = render(

@@ -21,10 +21,10 @@ const PresentationSettings = () => {
     <Text style={[styles.heading, titleStyle]}>Bewegung & Bibliothek</Text>
     <View style={[styles.quiet, { borderColor: theme.palette.border, backgroundColor: theme.palette.surface }]}>
       <View style={styles.copy}>
-        <Text style={[styles.label, titleStyle]}>Ruhiges Profil</Text>
-        <Text style={[styles.description, copyStyle]}>Das Cover bleibt ruhig, Farben wechseln direkt, Glow entfällt und die Fortschrittsanzeige aktualisiert seltener.</Text>
+        <Text style={[styles.label, titleStyle]}>Animationen reduzieren</Text>
+        <Text style={[styles.description, copyStyle]}>Weniger Bewegungen und Leuchteffekte im Player. Deine Musik und Einstellungen bleiben unverändert.</Text>
       </View>
-      <Switch testID="settings-quiet-profile" accessibilityLabel="Ruhiges Profil"
+      <Switch testID="settings-quiet-profile" accessibilityLabel="Animationen reduzieren"
         disabled={!isHydrated} value={presentation.quiet}
         onValueChange={quiet => setPresentation?.(previous => ({ ...previous, quiet }))} />
     </View>

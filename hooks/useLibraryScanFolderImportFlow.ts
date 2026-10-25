@@ -118,15 +118,17 @@ export const useLibraryScanFolderImportFlow = ({
     const verificationAlert = getImportVerificationAlert(result, refreshExisting);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
-      if (verificationAlert) showAlert(verificationAlert);
-      else if (!result.reusedCount || result.errors?.length) showAlert(scanResult.alert);
+      // Partial outcomes remain actionable in the persistent scan summary.
+      // An additional blocking native alert hides the library for no benefit.
+      if (result.completed !== false && verificationAlert) showAlert(verificationAlert);
+      else if (result.completed !== false && (!result.reusedCount || result.errors?.length)) showAlert(scanResult.alert);
       await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,
         { scanId: generation.scanOperationId, signal: generation.controller.signal, timeoutMs: importTimeoutMs, showAlert });
       ensureCurrentImport(generation);
       return [];
     }
-    if (verificationAlert) showAlert(verificationAlert);
-    else if (scanResult.partialAlert) showAlert(scanResult.partialAlert);
+    if (result.completed !== false && verificationAlert) showAlert(verificationAlert);
+    else if (result.completed !== false && scanResult.partialAlert) showAlert(scanResult.partialAlert);
     const acceptedSongs = await applyImportedSongsUpdate(scanResult.update, generation);
     ensureCurrentImport(generation);
     await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,

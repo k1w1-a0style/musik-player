@@ -159,7 +159,7 @@ test.each(['folders', 'albums', 'artists', 'genres', 'playlists', 'tracks', 'fav
     fireEvent.press(screen.getByTestId('measure-overlay'));
     const shell = screen.getByTestId(`library-${activeTab}-shell`);
     expect(StyleSheet.flatten(shell.props.style).marginBottom ?? 0).toBe(0);
-    expect(StyleSheet.flatten(shell.props.style).paddingBottom).toBe(78 + 24 + 12 + 20);
+    expect(StyleSheet.flatten(shell.props.style).paddingBottom ?? 0).toBe(0);
     const list = screen.UNSAFE_getByType(FlatList);
-    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(0);
+    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(78 + 24 + 12 + 20);
   });

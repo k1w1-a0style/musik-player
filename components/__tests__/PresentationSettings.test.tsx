@@ -18,6 +18,7 @@ beforeEach(() => { jest.clearAllMocks(); (storage.get as jest.Mock).mockResolved
 
 test('settings apply density, accent and quiet together without overwriting each other', async () => {
   const screen = render(<PlayerPresentationProvider><PresentationSettings /></PlayerPresentationProvider>);
+  expect(screen.getByText('Animationen reduzieren')).toBeTruthy();
   await waitFor(() => expect(screen.getByTestId('settings-density-compact').props.accessibilityState.disabled).toBe(false));
   fireEvent.press(screen.getByTestId('settings-density-compact'));
 

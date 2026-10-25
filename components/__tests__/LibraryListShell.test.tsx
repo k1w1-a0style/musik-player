@@ -33,10 +33,8 @@ const MeasureOverlay = ({ height }: { height: number }) => {
 
 test.each([
   { safeBottom: 0, height: 64 },
-  { safeBottom: 24, height: 64 },
   { safeBottom: 24, height: 78 },
-  { safeBottom: 34, height: 110 },
-])('paints the entire lower panel and leaves exactly 20 dp above an overlay ($height dp, safe area $safeBottom)', ({ safeBottom, height }) => {
+])('keeps the panel scroll viewport full height with an overlay of $height dp', ({ safeBottom, height }) => {
   const screen = render(<SafeAreaInsetsContext.Provider value={{ top: 0, left: 0, right: 0, bottom: safeBottom }}>
     <MiniPlayerViewportProvider safeAreaBottom={safeBottom}>
       <MeasureOverlay height={height} />
@@ -45,18 +43,12 @@ test.each([
   </SafeAreaInsetsContext.Provider>);
   fireEvent.press(screen.getByTestId('measure-overlay'));
   const style = StyleSheet.flatten(screen.getByTestId('library-list-shell').props.style);
-  // The reserved area must be painted by the same panel, rather than expose
-  // the darker screen through an external margin at the old list clip edge.
   expect(style.backgroundColor).toBeTruthy();
   expect(style.marginBottom ?? 0).toBe(0);
-  expect(style.paddingBottom).toBeGreaterThanOrEqual(height);
-  const windowHeight = 640;
-  const listBottom = windowHeight - safeBottom - Number(style.paddingBottom);
-  const miniTop = windowHeight - safeBottom - 12 - height;
-  expect(miniTop - listBottom).toBe(20);
+  expect(style.paddingBottom ?? 0).toBe(0);
 });
 
-test('keeps the empty-player bottom breathing room inside the painted panel', () => {
+test('keeps the empty-player scroll viewport unreserved', () => {
   const screen = render(<SafeAreaInsetsContext.Provider value={{ top: 0, left: 0, right: 0, bottom: 24 }}>
     <MiniPlayerViewportProvider safeAreaBottom={24}>
       <LibraryListShell><Text>No active song</Text></LibraryListShell>
@@ -64,5 +56,5 @@ test('keeps the empty-player bottom breathing room inside the painted panel', ()
   </SafeAreaInsetsContext.Provider>);
   const style = StyleSheet.flatten(screen.getByTestId('library-list-shell').props.style);
   expect(style.marginBottom ?? 0).toBe(0);
-  expect(style.paddingBottom).toBe(20);
+  expect(style.paddingBottom ?? 0).toBe(0);
 });

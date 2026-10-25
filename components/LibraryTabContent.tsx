@@ -1,6 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useContext } from 'react';
 import { FlatList, Platform, StyleSheet, Text, View, useWindowDimensions,
   type ListRenderItem, type ListRenderItemInfo } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
+import { MINI_PLAYER_LIST_GAP, useMiniPlayerViewport } from '../contexts/MiniPlayerViewportContext';
 import LibraryAlbumViewToggle from './LibraryAlbumViewToggle';
 import type { LibraryAlbumViewMode } from '../types/LibraryView';
 import LibraryEmptyState from './LibraryEmptyState';
@@ -128,7 +130,11 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
   const { theme } = useAppTheme();
   const { fontScale } = useWindowDimensions();
   const { presentation } = usePlayerPresentation();
-  const listContent = { paddingBottom: 0 };
+  const { bottomInset } = useMiniPlayerViewport();
+  const safeAreaBottom = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
+  // Reserve the floating player's touch area in scrollable content, not in
+  // the panel viewport. This removes the unscrollable dark strip above it.
+  const listContent = { paddingBottom: Math.max(MINI_PLAYER_LIST_GAP, bottomInset - safeAreaBottom) };
   const groupHeight = getLibraryGroupRowHeight(fontScale, presentation.density);
   const getGroupItemLayout = useCallback((_: ArrayLike<LibraryGroupItem | LibraryPlaylistItem> | null | undefined,
     index: number) => ({ length: groupHeight, offset: groupHeight * index, index }), [groupHeight]);

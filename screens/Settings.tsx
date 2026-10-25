@@ -133,7 +133,7 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
         testID="settings-scroll"
         contentContainerStyle={[styles.content, { gap: spacing.md, padding: spacing.md }]}
       >
-        <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Wähle Darstellung, Bibliotheksdichte und Player-Ansicht. Du bestimmst die Bewegung und den Waveform-Akzent.</Text>
+        <Text style={[styles.description, { color: theme.palette.text.secondary, fontFamily: fonts.body }]}>Passe Farben, Player und Bibliothek an.</Text>
         <SettingsGroup id="appearance" title="Darstellung & Farben" summary={`${APP_APPEARANCE_LABELS[appearance]} · ${APP_THEME_SKIN_LABELS[skin]} · App, Player, Waveform`}>
         <AccentSettings />
         <View style={[styles.section, sectionTokenStyle]}>
@@ -155,7 +155,7 @@ const Settings: React.FC<{ navigation?: SettingsNavigation }> = ({ navigation })
           {NOW_PLAYING_PLAYER_LAYOUTS.map(renderNowPlayingPlayerLayoutOption)}
         </View>
         </SettingsGroup>
-        <SettingsGroup id="motion" title="Bewegung & Fortschritt" summary="Ruhiges Profil, Cover-Puls und Bibliotheksdichte">
+        <SettingsGroup id="motion" title="Animationen & Anzeige" summary="Bewegung reduzieren, Cover-Puls, kompakte Titelansicht">
           <CoverBassPulseSetting /><PresentationSettings />
         </SettingsGroup>
         <SettingsGroup id="library" title="Bibliothek & Daten" summary="Aufräumen, Backup und Wiederherstellung">
