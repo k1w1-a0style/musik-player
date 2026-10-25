@@ -293,6 +293,12 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             tap.assert_called_once()
             adb.assert_called_once_with('shell','am','start','-W','-n',smoke.PACKAGE+'/.MainActivity')
 
+    def test_android10_recorded_emulator_storage_name_is_recognized_exactly(self):
+        node=ET.fromstring('<node package="com.android.documentsui" resource-id="android:id/title" text="Android SDK built for x86_64" bounds="[84,266][384,295]"/>')
+        self.assertTrue(smoke.storage_label(node))
+        node.set('text','Unrelated Android SDK storage')
+        self.assertFalse(smoke.storage_label(node))
+
     def picker_trail_frame(self, current_root=False):
         pkg='com.google.android.documentsui'
         root=ET.Element('hierarchy')

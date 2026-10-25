@@ -676,7 +676,7 @@ def wait_document_picker(timeout=25):
 
 def storage_label(node):
     text = node.get('text', '')
-    return text in ('Internal storage', 'Pixel 6') or text.startswith('sdk_gphone')
+    return text in ('Internal storage', 'Pixel 6', 'Android SDK built for x86_64') or text.startswith('sdk_gphone')
 
 
 def picker_breadcrumbs(root):
