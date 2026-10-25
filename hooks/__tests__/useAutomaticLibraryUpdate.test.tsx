@@ -125,3 +125,27 @@ test('a denied automatic permission check does not schedule repeated permission 
   expect(permission).toHaveBeenCalledTimes(2); // Listener eligibility, then one event-triggered check.
   expect(MediaLibrary.requestPermissionsAsync).not.toHaveBeenCalled();
 });
+
+test('disabling foreground updates cancels their queued event while startup updates remain enabled', async () => {
+  mockPreferences = { onOpen: true, whileOpen: true };
+  const props = options(); const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+  await act(async () => { onMedia(); });
+  mockPreferences = { onOpen: true, whileOpen: false };
+  hook.rerender(props);
+  await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+});
+
+test('disabling startup updates cancels the queued startup without disabling media changes', async () => {
+  mockPreferences = { onOpen: true, whileOpen: true };
+  const props = options(); const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); });
+  mockPreferences = { onOpen: false, whileOpen: true };
+  hook.rerender(props);
+  await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+  expect(props.update).not.toHaveBeenCalled();
+  await act(async () => { onMedia(); await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+});

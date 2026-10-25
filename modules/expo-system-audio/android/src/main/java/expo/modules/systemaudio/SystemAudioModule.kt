@@ -41,10 +41,10 @@ class SystemAudioModule : Module() {
   // MAIN is ingress only: every AsyncFunction body immediately hands work off.
   // Legacy Expo filesystem provider calls can block its shared default queue;
   // they must neither delay this dispatch nor run any provider work on MAIN.
-  private val mediaReadExecutor = BoundedNativeTaskExecutor("media-read", 2)
+  private val mediaReadExecutor = createImportReadExecutor("media-read")
   private val paletteExecutor = BoundedNativeTaskExecutor("artwork-palette", 2)
   private val thumbnailExecutor = BoundedNativeTaskExecutor("artwork-thumbnail", 2)
-  private val importStatExecutor = createImportStatExecutor()
+  private val importStatExecutor = createImportReadExecutor("import-file-stat")
   // Two accepted writes in total, matching the JS module's write capacity.
   // Status/recovery/ack use this same lane so durable projections stay ordered.
   private val tagExecutor = BoundedNativeTaskExecutor("audio-tag-transaction", 1, 1)

@@ -100,7 +100,7 @@ export const retrySongPreparation = (song: Song): Promise<boolean> =>
 export const prepareLibraryWaveforms = async (
   songs: Song[], { signal }: { signal?: AbortSignal } = {},
 ): Promise<void> => {
-  const unfinished = state.status === 'running' || state.status === 'cancelled' ? lastSongs.slice(state.processed) : [];
+  const unfinished = state.status === 'running' || state.status === 'cancelled' || state.status === 'failed' ? lastSongs.slice(state.processed) : [];
   const queue = [...new Map([...deferredSongs, ...unfinished, ...songs]
     .map(song => [getWaveformSourceIdentity(song).sourceFingerprint, song])).values()];
   deferredSongs = [];
@@ -144,7 +144,7 @@ export const prepareLibraryWaveforms = async (
 export const cancelWaveformPreparation = (): void => active?.abort(new OperationAbortError('Preparation cancelled'));
 export const resumeWaveformPreparation = (): Promise<void> => prepareLibraryWaveforms(lastSongs);
 export const clearWaveformPreparation = (): void => {
-  if (state.status === 'running' || state.status === 'cancelled') deferredSongs = lastSongs.slice(state.processed);
+  if (state.status === 'running' || state.status === 'cancelled' || state.status === 'failed') deferredSongs = lastSongs.slice(state.processed);
   active?.abort(new OperationAbortError('New library operation'));
   active = null;
   publish(idle);

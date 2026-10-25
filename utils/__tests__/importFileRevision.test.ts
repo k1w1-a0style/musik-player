@@ -77,3 +77,12 @@ test('only an exact plausible old seconds stat is a migration, not a changed fil
   expect(compareImportFileRevision({ modificationTime: 100 }, { modificationTime: 100_000 })).toBe('changed');
   expect(compareImportFileRevision({ modificationTime: 1_700_000_000 }, { modificationTime: 1_700_000_001_000 })).toBe('changed');
 });
+
+
+test('native capacity failures stay retryable instead of becoming unknown successful revisions', async () => {
+  const error = Object.assign(new Error('native capacity is occupied'), { code: 'NativeReadCapacity' });
+  stat.mockRejectedValue(error);
+  await expect(readImportFileRevision('content://provider/occupied', {}, new AbortController().signal))
+    .rejects.toBe(error);
+  expect(info).not.toHaveBeenCalled();
+});

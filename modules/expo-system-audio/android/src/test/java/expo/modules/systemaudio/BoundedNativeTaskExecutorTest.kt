@@ -91,8 +91,13 @@ class BoundedNativeTaskExecutorTest {
       assertEquals(listOf(42), values.toList())
     } finally { worker.close() }
   }
-  @Test fun completedStatCallbacksCanHandOffBeforeTheirNativeWorkersReturn() {
-    val worker = createImportStatExecutor()
+  @Test fun completedStatCallbacksCanHandOffBeforeTheirNativeWorkersReturn() =
+    completedReadCallbacksCanHandOff(createImportReadExecutor("import-file-stat"))
+
+  @Test fun completedMediaCallbacksCanHandOffBeforeTheirNativeWorkersReturn() =
+    completedReadCallbacksCanHandOff(createImportReadExecutor("media-read"))
+
+  private fun completedReadCallbacksCanHandOff(worker: BoundedNativeTaskExecutor) {
     val callbacks = CountDownLatch(2)
     val releaseCallbacks = CountDownLatch(1)
     val handoffs = CountDownLatch(2)
@@ -116,8 +121,13 @@ class BoundedNativeTaskExecutorTest {
     } finally { releaseCallbacks.countDown(); worker.close() }
   }
 
-  @Test fun statHandoffQueueNeverStartsMoreThanTwoBlockedNativeOperations() {
-    val worker = createImportStatExecutor()
+  @Test fun statHandoffQueueNeverStartsMoreThanTwoBlockedNativeOperations() =
+    blockedReadQueueStaysBounded(createImportReadExecutor("import-file-stat"))
+
+  @Test fun mediaHandoffQueueNeverStartsMoreThanTwoBlockedNativeOperations() =
+    blockedReadQueueStaysBounded(createImportReadExecutor("media-read"))
+
+  private fun blockedReadQueueStaysBounded(worker: BoundedNativeTaskExecutor) {
     val entered = CountDownLatch(2)
     val release = CountDownLatch(1)
     val completed = CountDownLatch(4)

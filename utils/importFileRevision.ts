@@ -2,23 +2,27 @@ import { getInfoAsync } from 'expo-file-system/legacy';
 import { SystemAudio } from 'expo-system-audio';
 import type { SongFileInfo } from '../types/Song';
 import { throwIfAborted } from './withTimeout';
+import { isNativeReadCapacityError } from './nativeReadTimeout';
 
 export type ImportFileRevision = Pick<SongFileInfo, 'size' | 'modificationTime' | 'contentHash'>;
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
 interface RevisionReadOptions { previous?: SongFileInfo; verifyContent?: boolean }
 
-const readProviderStat = async (uri: string, hints: ImportFileRevision): Promise<ImportFileRevision> => {
+const readProviderStat = async (uri: string, hints: ImportFileRevision, signal?: AbortSignal): Promise<ImportFileRevision> => {
   if (positive(hints.size) && positive(hints.modificationTime)) return hints;
   try {
     // Query provider columns off the JS/Expo module queues. File.info() is
     // synchronous; a stalled SAF query prevents JS deadlines and cancellation.
-    const stat = await SystemAudio.readImportFileStat(uri);
+    const stat = await (signal ? SystemAudio.readImportFileStat(uri, signal) : SystemAudio.readImportFileStat(uri));
     if (!stat) return hints;
     return { size: positive(stat.size) ? stat.size : hints.size,
       modificationTime: positive(hints.modificationTime) ? hints.modificationTime
         : positive(stat.modificationTime) ? stat.modificationTime : undefined };
-  } catch { return hints; }
+  } catch (error) {
+    if (isNativeReadCapacityError(error)) throw error;
+    return hints;
+  }
 };
 
 /** Quick scans never open the complete audio stream. Missing provider dates are
@@ -27,7 +31,7 @@ const readProviderStat = async (uri: string, hints: ImportFileRevision): Promise
 export const readImportFileRevision = async (uri: string, hints: ImportFileRevision = {},
   signal?: AbortSignal, options: RevisionReadOptions = {}): Promise<ImportFileRevision> => {
   throwIfAborted(signal);
-  const stat = await readProviderStat(uri, hints);
+  const stat = await readProviderStat(uri, hints, signal);
   throwIfAborted(signal);
   const previous = options.previous;
   if (!options.verifyContent) {

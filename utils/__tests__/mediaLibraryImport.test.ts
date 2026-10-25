@@ -1090,7 +1090,7 @@ describe('mediaLibraryImport', () => {
       { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
     ] as any, { loadNativeCover: false });
 
-    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledWith('content://dir/song.mp3');
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledWith('content://dir/song.mp3', expect.any(AbortSignal));
     expect(result.songs[0]).toMatchObject({
       duration: 245000,
       fileInfo: { filename: 'Native Song.mp3', size: 9_800_000, mimeType: 'audio/mpeg' },

@@ -24,6 +24,14 @@ const recordRevisionMigration = (previous: Song, revision: ImportFileRevision, u
   }
 };
 
+/** Older interrupted imports can have confirmed tags but no completed native
+ * inspection. An unchanged revision must not freeze that placeholder forever. */
+const needsImportMetadataRepair = (song: Song | undefined): boolean => {
+  const duration = song?.duration ?? song?.audioInfo?.durationMs;
+  return song?.coverInfo?.embeddedArtworkChecked === false
+    && !(typeof duration === 'number' && Number.isFinite(duration) && duration > 0);
+};
+
 export const createImportSourceSelection = (options: { existingSongs?: Song[]; refreshExisting?: boolean }) => {
   const previousSources = indexImportedSources(options.existingSongs ?? []);
   const seen = new Set<string>();
@@ -38,7 +46,7 @@ export const createImportSourceSelection = (options: { existingSongs?: Song[]; r
     seen.add(key);
     const previous = previousSources.get(key);
     const outcome = classifyImportSource(previous, revision, fullScan);
-    const decision = { include: fullScan || outcome === 'new' || outcome === 'changed', outcome,
+    const decision = { include: fullScan || outcome === 'new' || outcome === 'changed' || needsImportMetadataRepair(previous), outcome,
       unverified: outcome === 'unverified' || Boolean(fullScan && !revision?.contentHash) };
     if (fullScan) {
       if (!revision?.contentHash) unverified += 1;

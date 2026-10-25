@@ -274,10 +274,37 @@ const tagWriteCapacityConflict = (
 // actually settle, so detached work can never grow with the library size.
 const NATIVE_READ_SAFETY_TIMEOUT_MS = 20_000;
 const MAX_NATIVE_READS_IN_FLIGHT = 2;
-const mediaReadPool = { inFlight: 0 };
-const thumbnailReadPool = { inFlight: 0 };
-const paletteReadPool = { inFlight: 0 };
-const importStatReadPool = { inFlight: 0 };
+interface NativeReadPool { inFlight: number; waiting: Set<() => void> }
+const createNativeReadPool = (): NativeReadPool => ({ inFlight: 0, waiting: new Set() });
+const mediaReadPool = createNativeReadPool();
+const thumbnailReadPool = createNativeReadPool();
+const paletteReadPool = createNativeReadPool();
+const importStatReadPool = createNativeReadPool();
+const releaseNativeRead = (pool: NativeReadPool): void => {
+  pool.inFlight = Math.max(0, pool.inFlight - 1);
+  const waiting = [...pool.waiting];
+  pool.waiting.clear();
+  waiting.forEach(resume => resume());
+};
+
+/** The importer owns its observer deadline and retains this promise until real
+ * native settlement. A safety-timeout replacement must never confirm a file. */
+const runImportNativeRead = async <T>(operation: () => Promise<T>, signal: AbortSignal,
+  pool = mediaReadPool): Promise<T> => {
+  while (pool.inFlight >= MAX_NATIVE_READS_IN_FLIGHT) {
+    if (signal.aborted) throw Object.assign(new Error('Import read cancelled'), { name: 'AbortError' });
+    if (pool.waiting.size >= MAX_NATIVE_READS_IN_FLIGHT) {
+      throw Object.assign(new Error('Native read capacity is busy; retry after actual settlement.'), { code: 'NativeReadCapacity' });
+    }
+    // Keep a cancelled wait attached to the real capacity owner; on release it
+    // checks cancellation before dispatch, without creating detached native IO.
+    await new Promise<void>(resolve => { pool.waiting.add(resolve); });
+  }
+  if (signal.aborted) throw Object.assign(new Error('Import read cancelled'), { name: 'AbortError' });
+  pool.inFlight += 1;
+  try { return await operation(); }
+  finally { releaseNativeRead(pool); }
+};
 
 type NativeReadSettlement<T> =
   | { kind: 'value'; value: T }
@@ -313,13 +340,13 @@ const runBoundedNativeRead = async <T>(
   const first = await Promise.race([settled, timeout]);
   if (first.kind === 'timeout') {
     void settled.then(outcome => {
-      pool.inFlight = Math.max(0, pool.inFlight - 1);
+      releaseNativeRead(pool);
       if (outcome.kind === 'value') onDiscard?.(outcome.value);
     });
     return null;
   }
   if (timer) clearTimeout(timer);
-  pool.inFlight = Math.max(0, pool.inFlight - 1);
+  releaseNativeRead(pool);
   if (first.kind === 'error') throw first.error;
   return first.value;
 };
@@ -395,14 +422,17 @@ export const SystemAudio = {
     return releaseNativeArtworkLease(leaseId);
   },
 
-  async extractAudioInfo(uri: string): Promise<AudioInfoResult | null> {
-    return native ? runBoundedNativeRead(() => native.extractAudioInfo(uri)) : null;
+  async extractAudioInfo(uri: string, importSignal?: AbortSignal): Promise<AudioInfoResult | null> {
+    if (!native) return null;
+    return importSignal ? runImportNativeRead(() => native.extractAudioInfo(uri), importSignal)
+      : runBoundedNativeRead(() => native.extractAudioInfo(uri));
   },
 
   /** Null means an older APK; failed or skipped work remains explicitly unchecked. */
-  async extractImportSnapshot(uri: string, includeArtwork: boolean): Promise<ImportSnapshot | null> {
+  async extractImportSnapshot(uri: string, includeArtwork: boolean, importSignal?: AbortSignal): Promise<ImportSnapshot | null> {
     const read = native?.extractImportSnapshot?.bind(native);
     if (!read) return null;
+    if (importSignal) return runImportNativeRead(() => read(uri, includeArtwork), importSignal);
     try {
       return await runBoundedNativeRead(() => read(uri, includeArtwork),
         value => { void releaseNativeArtworkLease(value.artwork?.artwork?.leaseId); })
@@ -412,9 +442,10 @@ export const SystemAudio = {
     }
   },
 
-  async readImportFileStat(uri: string): Promise<ImportFileStat | null> {
+  async readImportFileStat(uri: string, importSignal?: AbortSignal): Promise<ImportFileStat | null> {
     const read = native?.readImportFileStat?.bind(native);
     if (!read) return null;
+    if (importSignal) return runImportNativeRead(() => read(uri), importSignal, importStatReadPool);
     try { return await runBoundedNativeRead(() => read(uri), undefined, importStatReadPool); }
     catch { return null; }
   },

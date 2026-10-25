@@ -352,13 +352,14 @@ describe('Library', () => {
     view.unmount();
   });
 
-  test('on android SAF errors with songs imports and shows one partial warning', async () => {
+  test('on android SAF errors with songs imports and retains an accessible partial warning without a native dialog', async () => {
     Platform.OS = 'android';
     mockGetScanFolders.mockResolvedValueOnce([{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true }]);
     mockImportSongs.mockResolvedValueOnce({
       songs: [{ id: 'x', title: 'X', artist: 'Y', uri: 'content://x' }],
       skipped: [],
-      errors: ['content://bad'],
+      errors: ['content://bad'], completed: false, remainingCount: 1,
+      statistics: { newCount: 1, changedCount: 0, unchangedCount: 0, unverifiedCount: 0, duplicateCount: 0, errorCount: 1 },
       sourceSummary: [],
       folderUpdates: [{ id: 'f1', name: 'Music', uri: 'content://music', addedAt: 1, enabled: true, lastError: 'Teilweise nicht lesbar' }],
     });
@@ -372,7 +373,11 @@ describe('Library', () => {
     pressImportMenuItem(getByText, 'Nur Scan-Ordner');
 
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
-    expect(Alert.alert).toHaveBeenCalledWith('Teilweise importiert', expect.any(String));
+    expect(Alert.alert).not.toHaveBeenCalled();
+    fireEvent.press(getByLabelText('Verarbeitungsdetails öffnen'));
+    expect(getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
+    expect(getByText('1 Datei(en) noch nicht geprüft')).toBeTruthy();
+    expect(getByLabelText('Scan erneut versuchen')).toBeTruthy();
     view.unmount();
   });
 

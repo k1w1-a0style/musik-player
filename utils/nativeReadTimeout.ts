@@ -50,3 +50,10 @@ export const runNativeReadWithTimeout = async <T>(
     return isTimeoutError(error) ? { kind: 'timeout' } : { kind: 'failure' };
   }
 };
+
+
+/** Capacity is a retryable scheduling failure, never evidence of absent metadata. */
+export const isNativeReadCapacityError = (error: unknown): boolean => {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === 'NativeReadCapacity' || code === 'NativeReadClosed';
+};

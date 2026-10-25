@@ -9,7 +9,7 @@ import { getWaveformStatus } from '../waveformStatus';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
 import { resetSongPreparationForTests } from '../songPreparationStore';
 import { isMetadataRefreshActive, resetMetadataRefreshActivityForTests } from '../metadataRefreshActivity';
-import { cancelWaveformPreparation, getWaveformPreparationState, prepareLibraryWaveforms,
+import { cancelWaveformPreparation, clearWaveformPreparation, hasPendingWaveformPreparation, getWaveformPreparationState, prepareLibraryWaveforms,
   resetWaveformPreparationForTests } from '../libraryWaveformPreparation';
 
 const song = { id: 'storage', title: 'Storage', artist: 'Artist', uri: 'file:///storage.mp3', duration: 60_000 };
@@ -82,4 +82,19 @@ test('a failed persistent waveform write stops the batch while keeping decoded d
   expect(getWaveformStatus(identity.sourceFingerprint)).toBe('ready');
   await expect(getCachedWaveform(identity)).resolves.toMatchObject({ source: 'native' });
   expect(isMetadataRefreshActive()).toBe(false);
+});
+
+
+test('a new unchanged scan resumes the untouched tail after a persistent cache failure', async () => {
+  writeAsStringAsync.mockRejectedValueOnce(new Error('Disk full'));
+  const next = { ...song, id: 'untouched', uri: 'file:///untouched.mp3' };
+  const failed = prepareLibraryWaveforms([song, next]);
+  await jest.advanceTimersByTimeAsync(1000); await failed;
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'failed', processed: 0 });
+  clearWaveformPreparation();
+  expect(hasPendingWaveformPreparation()).toBe(true);
+  const resumed = prepareLibraryWaveforms([]);
+  await jest.advanceTimersByTimeAsync(2000); await resumed;
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 2, processed: 2, ready: 2 });
+  expect(native.extractWaveformPeaks.mock.calls.map(call => call[0])).toContain(next.uri);
 });

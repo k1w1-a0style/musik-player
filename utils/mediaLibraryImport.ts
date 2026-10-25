@@ -1,3 +1,4 @@
+import { isNativeReadCapacityError } from './nativeReadTimeout';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
 import SystemAudio, { type AudioInfoResult, type EmbeddedArtworkInspection } from 'expo-system-audio';
@@ -269,10 +270,11 @@ const durationSecondsToMs = (durationSeconds?: unknown): number | undefined =>
 
 const resolveAssetSize = async (_uri: string, existing?: number): Promise<number | undefined> => preferPositiveNumber(existing);
 
-const getNativeAudioInfo = async (uri: string): Promise<AudioInfoResult | null> => {
+const getNativeAudioInfo = async (uri: string, signal?: AbortSignal): Promise<AudioInfoResult | null> => {
   try {
-    return await SystemAudio.extractAudioInfo(uri);
-  } catch {
+    return await SystemAudio.extractAudioInfo(uri, signal);
+  } catch (error) {
+    if (isNativeReadCapacityError(error)) throw error;
     return null;
   }
 };
@@ -341,11 +343,11 @@ const buildSongWithNativeSnapshot = async (source: BuildSongSource, tags: Id3Tag
   options.onReadPhase?.('audioInfo');
   const includeArtwork = options.loadNativeCover !== false && !tags.cover;
   const snapshot = typeof SystemAudio.extractImportSnapshot === 'function'
-    ? await SystemAudio.extractImportSnapshot(source.uri, includeArtwork) : null;
+    ? await SystemAudio.extractImportSnapshot(source.uri, includeArtwork, options.signal) : null;
   try {
     throwIfAborted(options.signal);
     options.onReadActivity?.();
-    const audio = snapshot ? snapshot.audioInfo : await getNativeAudioInfo(source.uri);
+    const audio = snapshot ? snapshot.audioInfo : await getNativeAudioInfo(source.uri, options.signal);
     throwIfAborted(options.signal);
     options.onReadActivity?.();
     return await buildSongFromImportSource(mergeAudioInfoIntoSource(source, audio), tags,

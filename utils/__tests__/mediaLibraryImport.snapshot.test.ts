@@ -34,7 +34,7 @@ afterEach(() => {
 test('media import uses one combined request and copies before releasing the receipt', async () => {
   const result = await enrichMediaLibraryAssets([asset]);
   expect(read).toHaveBeenCalledTimes(1);
-  expect(read).toHaveBeenCalledWith(asset.uri, true);
+  expect(read).toHaveBeenCalledWith(asset.uri, true, expect.any(AbortSignal));
   expect(SystemAudio.extractAudioInfo).not.toHaveBeenCalled();
   expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
   expect(cacheLocalCoverFile).toHaveBeenCalledWith('one', artwork.uri, undefined);
@@ -58,7 +58,7 @@ test('SAF uses the same snapshot path', async () => {
 test('disabled covers request only audio and never prove absence', async () => {
   read.mockResolvedValue({ ...snapshot, artwork: { checked: false, artwork: null } });
   const result = await enrichMediaLibraryAssets([asset], 0, { loadNativeCover: false });
-  expect(read).toHaveBeenCalledWith(asset.uri, false);
+  expect(read).toHaveBeenCalledWith(asset.uri, false, expect.any(AbortSignal));
   expect(cacheLocalCoverFile).not.toHaveBeenCalled();
   expect(result.songs[0]).toMatchObject({ duration: 240_000, coverInfo: { embeddedArtworkChecked: false } });
 });
@@ -68,7 +68,7 @@ test('a parsed cover avoids native artwork work', async () => {
   (cacheBase64Cover as jest.Mock).mockResolvedValueOnce('file:///documents/parsed.jpg');
   read.mockResolvedValue({ ...snapshot, artwork: { checked: false, artwork: null } });
   const result = await enrichMediaLibraryAssets([asset]);
-  expect(read).toHaveBeenCalledWith(asset.uri, false);
+  expect(read).toHaveBeenCalledWith(asset.uri, false, expect.any(AbortSignal));
   expect(result.songs[0].cover).toBe('file:///documents/parsed.jpg');
   expect(cacheLocalCoverFile).not.toHaveBeenCalled();
 });
