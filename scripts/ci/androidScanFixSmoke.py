@@ -25,10 +25,50 @@ def scan_receipt(root, expected, partial=False):
     return counts
 
 
+def has_app_focus(raw):
+    return bool(re.search(r'mCurrentFocus=Window\{[^\n}]*\s' + re.escape(ui.PACKAGE) + r'/[^}]+\}', raw))
+
+
+def validate_details_ack(frame):
+    close = ui.candidate('Verarbeitungsdetails schließen', frame)
+    title = ui.candidate('Scan-Details', frame)
+    assert close is not None and title is not None, 'Scan details did not acknowledge the public tap'
+    assert close.get('package') == title.get('package') == ui.PACKAGE and close.get('enabled') == 'true', 'Scan details are not enabled app-owned UI'
+
+
+def open_scan_details(name):
+    # A source picker may expose the app hierarchy before input focus returns.
+    ui.wait_uncovered_library_header()
+    ui.find('Verarbeitungsdetails öffnen', timeout=25)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        focus = ui.adb('shell', 'dumpsys', 'window', 'windows').decode(errors='replace')
+        if has_app_focus(focus):
+            break
+        time.sleep(.25)
+    else:
+        raise AssertionError('Android did not return input focus to K1W1 after the source picker')
+    (OUT / (name + '-input-focus.txt')).write_text(focus)
+    before = ui.tree(compressed=False)
+    assert ui.candidate('Verarbeitungsdetails schließen', before) is None, 'Scan details opened without a user request'
+    target = ui.candidate('Verarbeitungsdetails öffnen', before)
+    assert target is not None and target.get('package') == ui.PACKAGE and target.get('enabled') == 'true', 'Scan detail action is unavailable'
+    (OUT / (name + '-before-tap.xml')).write_text(ET.tostring(before, encoding='unicode'))
+    ui.tap_node(target)
+    try:
+        ui.find('Verarbeitungsdetails schließen', timeout=15)
+        after = ui.tree(compressed=False)
+        validate_details_ack(after)
+        (OUT / (name + '-tap-ack.xml')).write_text(ET.tostring(after, encoding='unicode'))
+    except AssertionError:
+        ui.screenshot(name + '-tap-not-acknowledged')
+        raise
+
+
 def wait_scan(name, expected=12, partial=False, details_delay=0):
     if details_delay:
         time.sleep(details_delay)
-    ui.tap('Verarbeitungsdetails öffnen')
+    open_scan_details(name)
     deadline = time.monotonic() + 180
     while time.monotonic() < deadline:
         root = ui.tree(compressed=False)

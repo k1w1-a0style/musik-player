@@ -170,8 +170,16 @@ jobs:
           python3 scripts/ci/verifyEmulatorLibraries.py "$ANDROID_HOME/emulator" "$RUNNER_TEMP/emulator-verified-libraries.txt"
           "$ANDROID_HOME/emulator/emulator" -version
           test -x "$ANDROID_HOME/platform-tools/adb"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "system-images;android-${ANDROID_API};google_apis;x86_64"
+          # One truncated official image download must not consume a full new
+          # device run. sdkmanager retains its normal archive/integrity checks.
+          for attempt in 1 2; do
+            if "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+              "system-images;android-${ANDROID_API};google_apis;x86_64"; then
+              break
+            fi
+            test "$attempt" -lt 2 || exit 1
+            echo "Official system-image download failed; retrying once."
+          done
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
             --force --name "$AVD_NAME" --package "system-images;android-${ANDROID_API};google_apis;x86_64" --device pixel_6
