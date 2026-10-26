@@ -7,7 +7,10 @@ let mockPreferences = { onOpen: false, whileOpen: true };
 let mockHydrated = true;
 jest.mock('../../contexts/LibraryUpdateContext', () => ({ useLibraryUpdatePreferences: () => ({ preferences: mockPreferences, isHydrated: mockHydrated }) }));
 let mockScanStatus = 'idle';
-jest.mock('../../utils/libraryScanOperation', () => ({ getLibraryScanOperation: () => ({ status: mockScanStatus }) }));
+let mockScanId = 0;
+let mockScanListener: () => void = () => undefined;
+jest.mock('../../utils/libraryScanOperation', () => ({ getLibraryScanOperation: () => ({ id: mockScanId, status: mockScanStatus }),
+  subscribeLibraryScanOperation: (listener: () => void) => { mockScanListener = listener; return jest.fn(); } }));
 let onAppState: (state: AppStateStatus) => void;
 let onMedia: () => void;
 let removeApp: jest.Mock;
@@ -17,7 +20,7 @@ jest.mock('expo-media-library/legacy', () => ({ getPermissionsAsync: jest.fn(), 
 const options = () => ({ ready: true, busy: false, hasFolders: false, update: jest.fn(async () => undefined) });
 const changeAppState = (state: AppStateStatus) => { AppState.currentState = state; onAppState(state); };
 beforeEach(() => {
-  mockScanStatus = 'idle';
+  mockScanStatus = 'idle'; mockScanId = 0; mockScanListener = () => undefined;
   jest.clearAllMocks(); jest.useFakeTimers(); mockPreferences = { onOpen: false, whileOpen: true }; mockHydrated = true;
   AppState.currentState = 'active'; removeApp = jest.fn(); removeMedia = jest.fn();
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => { onAppState = listener; return { remove: removeApp }; });
@@ -159,12 +162,27 @@ test('a user folder scan consumes pending startup work and throttles the next li
   await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
   expect(props.update).not.toHaveBeenCalled();
   mockScanStatus = 'running'; hook.rerender({ ...props, busy: true, hasFolders: true });
-  mockScanStatus = 'idle'; hook.rerender({ ...props, busy: false, hasFolders: true });
+  mockScanStatus = 'idle'; mockScanId = 0; mockScanListener = () => undefined; hook.rerender({ ...props, busy: false, hasFolders: true });
   await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
   expect(props.update).not.toHaveBeenCalled();
   act(() => { changeAppState('background'); changeAppState('active'); });
   await act(async () => { await jest.advanceTimersByTimeAsync(28_999); });
   expect(props.update).not.toHaveBeenCalled();
   await act(async () => { await jest.advanceTimersByTimeAsync(1); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+});
+
+
+test('a sub-second user scan throttles an already scheduled lifecycle timer even when React batches busy away', async () => {
+  const props = { ...options(), hasFolders: true };
+  renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); onMedia(); await jest.advanceTimersByTimeAsync(500); });
+  await act(async () => {
+    mockScanStatus = 'running'; mockScanId++; mockScanListener();
+    mockScanStatus = 'completed'; mockScanListener();
+    await jest.advanceTimersByTimeAsync(500);
+  });
+  expect(props.update).not.toHaveBeenCalled();
+  await act(async () => { await jest.advanceTimersByTimeAsync(29_500); });
   expect(props.update).toHaveBeenCalledTimes(1);
 });

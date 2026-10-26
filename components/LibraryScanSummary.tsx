@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { dismissLibraryScan, useLibraryScanOperation, type LibraryScanStatus } from '../utils/libraryScanOperation';
@@ -39,7 +39,7 @@ const ScanDetails = ({ scan, color }: { scan: LibraryScanOperation; color: strin
   </View>;
 };
 
-const canAutoDismiss = (scan: LibraryScanOperation): boolean => {
+const isCleanScan = (scan: LibraryScanOperation): boolean => {
   const progress = scan.progress;
   const statistics = progress?.statistics;
   return scan.status === 'completed' && Boolean(progress && statistics)
@@ -57,8 +57,8 @@ const scanIssues = (scan: LibraryScanOperation): string => {
   return statistics ? `${statistics.unverifiedCount} ungeprüft · ${statistics.errorCount} Leseprobleme` : '';
 };
 
-const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = false }: {
-  onRetry?: () => void; persistenceWarning?: string | null; expandedByDefault?: boolean;
+const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = false, onDismiss }: {
+  onRetry?: () => void; persistenceWarning?: string | null; expandedByDefault?: boolean; onDismiss?: () => void;
 }) => {
   const { theme } = useAppTheme();
   const scan = useLibraryScanOperation();
@@ -68,12 +68,7 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = f
   const details = expandedId === scan.id;
   const statistics = scan.progress?.statistics;
   const warning = scan.folderPersistenceWarning;
-  const cleanSuccess = canAutoDismiss(scan) && !persistenceWarning;
-  useEffect(() => {
-    if (!cleanSuccess || details) return;
-    const timer = setTimeout(dismissLibraryScan, 4000);
-    return () => clearTimeout(timer);
-  }, [cleanSuccess, details, scan.id]);
+  const cleanSuccess = isCleanScan(scan) && !persistenceWarning;
   if (!shouldShowSummary(scan, refresh.status)) return null;
   const title = `${scan.fullScan ? 'Vollständiger Scan' : 'Aktualisierung'} – ${labels[scan.status]}`;
   const issues = scanIssues(scan);
@@ -85,7 +80,7 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = f
         onPress={() => setExpandedId(details ? null : scan.id)} style={styles.dismiss}>
         <Text style={{ color: theme.palette.primary }}>Details</Text>
       </Pressable>
-      <Pressable onPress={dismissLibraryScan} accessibilityRole="button"
+      <Pressable onPress={() => { onDismiss?.(); dismissLibraryScan(); }} accessibilityRole="button"
         accessibilityLabel="Scan-Ergebnis ausblenden" style={styles.dismiss}>
         <Text style={{ color: theme.palette.primary }}>Schließen</Text>
       </Pressable>

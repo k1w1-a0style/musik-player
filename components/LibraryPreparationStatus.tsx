@@ -59,7 +59,7 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
           <ScrollView contentContainerStyle={styles.details}>
             {visible || props.persistenceWarning ? <LibraryImportStatus {...props} expandedByDefault /> : null}
             {showWaveforms ? <WaveformPreparationPanel preparation={preparation} /> : null}
-            <LibraryScanSummary onRetry={props.onRetryScan} persistenceWarning={props.persistenceWarning} expandedByDefault />
+            <LibraryScanSummary onDismiss={() => setDetails(false)} onRetry={props.onRetryScan} persistenceWarning={props.persistenceWarning} expandedByDefault />
           </ScrollView>
         </View>
       </View>

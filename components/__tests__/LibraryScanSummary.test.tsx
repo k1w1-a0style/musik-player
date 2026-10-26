@@ -117,7 +117,23 @@ test('keeps a folder-state warning visible without fabricated file counters and 
   expect(retry).toHaveBeenCalledTimes(1);
 });
 
-test('auto-hides a fully processed clean success after four seconds and pauses while details are open', () => {
+test('a completed scan remains reachable after a delayed Android tap without opening a popup', () => {
+  jest.useFakeTimers();
+  const id = beginLibraryScan(false);
+  const clean = { ...emptyImportScanStatistics(), unchangedCount: 12 };
+  updateLibraryScanProgress(id, { processed: 12, total: 12, currentTitle: '', statistics: clean });
+  recordLibraryScanResult(id, { statistics: clean }); completeLibraryScan(id);
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  act(() => jest.advanceTimersByTime(10000));
+  expect(view.queryByTestId('library-scan-summary')).toBeNull();
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
+  expect(view.getByText('12 von 12 gefundenen Dateien verarbeitet')).toBeTruthy();
+  act(() => jest.advanceTimersByTime(30000));
+  expect(view.getByTestId('library-scan-summary')).toBeTruthy();
+  jest.useRealTimers();
+});
+
+test('keeps completed details optional and the last-result control stable after closing', () => {
   jest.useFakeTimers();
   const id = beginLibraryScan(false);
   const clean = { ...emptyImportScanStatistics(), unchangedCount: 10 };
@@ -132,6 +148,7 @@ test('auto-hides a fully processed clean success after four seconds and pauses w
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails schließen'));
   act(() => jest.advanceTimersByTime(4000));
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
+  expect(view.getByTestId('library-processing-control')).toBeTruthy();
   jest.useRealTimers();
 });
 
@@ -181,4 +198,29 @@ test('unknown folder contents are never advertised as zero unchecked files', () 
   fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(screen.getByText(/Inhalt nicht vollständig erfasst/)).toBeTruthy();
   expect(screen.queryByText('0 ungeprüft · 1 Leseprobleme')).toBeNull();
+});
+
+test('a replacement scan cannot expire its receipt while the user is viewing scan details', () => {
+  jest.useFakeTimers();
+  const clean = { ...emptyImportScanStatistics(), unchangedCount: 12 };
+  const finish = (id: number) => { updateLibraryScanProgress(id, { processed: 12, total: 12, currentTitle: '', statistics: clean }); recordLibraryScanResult(id, { statistics: clean }); completeLibraryScan(id); };
+  const first = beginLibraryScan(false); finish(first);
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
+  act(() => { const next = beginLibraryScan(false); finish(next); });
+  act(() => jest.advanceTimersByTime(10000));
+  expect(view.getByText('Aktualisierung – abgeschlossen')).toBeTruthy();
+  expect(view.getByLabelText('Verarbeitungsdetails schließen')).toBeTruthy();
+  jest.useRealTimers();
+});
+
+test('hiding a receipt closes details and cannot reopen a popup on the next automatic scan', () => {
+  const clean = emptyImportScanStatistics();
+  const first = beginLibraryScan(false); recordLibraryScanResult(first, { statistics: clean }); completeLibraryScan(first);
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
+  fireEvent.press(view.getByLabelText('Scan-Ergebnis ausblenden'));
+  act(() => { beginLibraryScan(false); });
+  expect(view.queryByText('Scan-Details')).toBeNull();
+  expect(view.getByLabelText('Verarbeitungsdetails öffnen')).toBeTruthy();
 });

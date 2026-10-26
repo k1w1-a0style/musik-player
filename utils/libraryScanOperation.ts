@@ -29,9 +29,9 @@ let resultStatus: 'completed' | 'partial' | undefined;
 const listeners = new Set<() => void>();
 const publish = (next: LibraryScanOperation): void => { state = next; listeners.forEach(listener => listener()); };
 const current = (id: number | undefined): boolean => id === state.id && state.status === 'running';
-const subscribe = (listener: () => void): (() => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+export const subscribeLibraryScanOperation = (listener: () => void): (() => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 export const getLibraryScanOperation = (): LibraryScanOperation => state;
-export const useLibraryScanOperation = (): LibraryScanOperation => useSyncExternalStore(subscribe, getLibraryScanOperation, getLibraryScanOperation);
+export const useLibraryScanOperation = (): LibraryScanOperation => useSyncExternalStore(subscribeLibraryScanOperation, getLibraryScanOperation, getLibraryScanOperation);
 
 export const beginLibraryScan = (fullScan: boolean, source?: LibraryScanSource): number => {
   pending = undefined; sourceOffset = undefined; resultStatus = undefined;

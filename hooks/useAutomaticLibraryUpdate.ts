@@ -2,10 +2,23 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useLibraryUpdatePreferences } from '../contexts/LibraryUpdateContext';
-import { getLibraryScanOperation } from '../utils/libraryScanOperation';
+import { getLibraryScanOperation, subscribeLibraryScanOperation } from '../utils/libraryScanOperation';
 import type { LibraryScanRequest } from '../utils/libraryScanSources';
 
 const MIN_UPDATE_INTERVAL_MS = 30_000;
+const canBeginUpdate = (alive: boolean, pending: number, busy: boolean, inFlight: boolean): boolean =>
+  alive && pending > 0 && AppState.currentState === 'active' && !busy && !inFlight
+    && getLibraryScanOperation().status !== 'running';
+const subscribeToScanStarts = (onStart: () => void): (() => void) => {
+  let observed = -1;
+  const check = () => {
+    const operation = getLibraryScanOperation();
+    if (operation.status !== 'running' || operation.id === observed) return;
+    observed = operation.id; onStart();
+  };
+  check();
+  return subscribeLibraryScanOperation(check);
+};
 /** Foreground events only. No polling, OS background-service claim or permission prompts. */
 export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
   ready: boolean; busy: boolean; hasFolders: boolean;
@@ -32,8 +45,8 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
     let appState = AppState.currentState;
     const run = async () => {
       timer = undefined;
-      if (!alive || AppState.currentState !== 'active' || latest.current.busy || inFlight.current
-        || getLibraryScanOperation().status === 'running') return;
+      if (!canBeginUpdate(alive, pending.current.size, latest.current.busy, inFlight.current)) return;
+      if (Date.now() - lastStarted.current < MIN_UPDATE_INTERVAL_MS) { schedule(); return; }
       inFlight.current = true;
       let started = false;
       try {
@@ -60,6 +73,9 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       if (preferences.onOpen) schedule('startup');
     }
     if (pending.current.size > 0 && !busy) schedule();
+    const stopObservingScanStarts = subscribeToScanStarts(() => {
+      pending.current.delete('startup'); lastStarted.current = Date.now();
+    });
     const appSubscription = AppState.addEventListener('change', next => {
       const resumed = next === 'active' && appState !== 'active';
       appState = next;
@@ -70,6 +86,6 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
         if (alive && permission.status === 'granted') mediaSubscription = MediaLibrary.addListener(() => schedule('change'));
       }).catch(() => undefined);
     }
-    return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaSubscription?.remove(); };
+    return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaSubscription?.remove(); stopObservingScanStarts(); };
   }, [ready, busy, isHydrated, preferences.onOpen, preferences.whileOpen]);
 };

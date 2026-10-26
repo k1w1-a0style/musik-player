@@ -25,7 +25,9 @@ def scan_receipt(root, expected, partial=False):
     return counts
 
 
-def wait_scan(name, expected=12, partial=False):
+def wait_scan(name, expected=12, partial=False, details_delay=0):
+    if details_delay:
+        time.sleep(details_delay)
     ui.tap('Verarbeitungsdetails öffnen')
     deadline = time.monotonic() + 180
     while time.monotonic() < deadline:
@@ -215,7 +217,7 @@ def main():
     assert verify_rows() == baseline, 'Removing SAF hid tracks still authorized through MediaStore'
     update_library(); media_only = wait_scan('granted-mediastore-without-music-saf', 12)
     assert media_only.startswith('Neu: 0 · Geändert: 0 · Unverändert: 12')
-    add_named_folder('K1W1ScanFix'); wait_scan('restore-music-source')
+    add_named_folder('K1W1ScanFix'); wait_scan('restore-music-source', details_delay=6)
     add_named_folder(None); wait_scan('overlapping-parent-source')
     ui.adb('shell', 'pm', 'revoke', ui.PACKAGE, permission)
     ui.public_cold_start(); wait_scan('restart-with-only-overlapping-saf', 24)

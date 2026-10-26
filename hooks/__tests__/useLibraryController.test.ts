@@ -1,7 +1,8 @@
 import React from 'react';
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import LibraryPreparationStatus from '../../components/LibraryPreparationStatus';
-import { beginLibraryScan, stopLibraryScan, dismissLibraryScan } from '../../utils/libraryScanOperation';
+import { beginLibraryScan, stopLibraryScan, dismissLibraryScan, recordLibraryScanResult, completeLibraryScan } from '../../utils/libraryScanOperation';
+import { emptyImportScanStatistics } from '../../utils/libraryImportStatistics';
 import { useLibraryController } from '../useLibraryController';
 import { useLibraryMusicContext } from '../../contexts/MusicContext';
 import type { UseLibraryAlertsResult } from '../useLibraryAlerts';
@@ -530,4 +531,19 @@ test('does not create playlist from empty name', () => {
   });
 
   expect(createPlaylist).not.toHaveBeenCalled();
+});
+
+test('a user-selected folder waits for the active scan instead of losing its automatic import', async () => {
+  const folder = { id: 'new-root', name: 'New', uri: 'content://new/tree', addedAt: 2, enabled: true };
+  const running = beginLibraryScan(false);
+  const view = renderHook(useLibraryController);
+  const selected = jest.mocked(useLibraryScanFolderActions).mock.calls.at(-1)![0].onFolderAdded!;
+  asyncFn.mockClear();
+  let task!: Promise<void>;
+  try {
+    await act(async () => { task = selected(folder); await Promise.resolve(); });
+    expect(asyncFn).not.toHaveBeenCalled();
+    await act(async () => { recordLibraryScanResult(running, { statistics: emptyImportScanStatistics() }); completeLibraryScan(running); await task; });
+    expect(asyncFn).toHaveBeenCalledWith({ folders: [folder], refreshExisting: false, automatic: true });
+  } finally { stopLibraryScan(running, 'cancelled'); view.unmount(); }
 });

@@ -1,5 +1,0 @@
-{
-  "sourceCommit": "b4f4f1b6a340227585c167d242a78b88cb923ada",
-  "retryReason": "Android 15 tool provisioning stalled on the runner; exact APK and app checks unchanged. Android 10 already passed extended diagnostics in job 121635838731. GitHub rejected single-job retry while the earlier run remains active.",
-  "requestedAt": "2026-10-26T14:51:00Z"
-}
