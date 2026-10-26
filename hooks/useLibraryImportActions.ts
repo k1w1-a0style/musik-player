@@ -132,7 +132,7 @@ export const useLibraryImportActions = ({
     const selectedSource = options?.source ?? (options?.folders ? 'folders' : 'auto');
     generation.quiet = selectedSource === 'auto';
     beginImportActivities(generation, options?.refreshExisting ?? false, selectedSource);
-    setMenuOpen(false);
+    if (!generation.automatic) setMenuOpen(false);
     setLoading(true);
     const importCopy = getLibraryImportFlowCopy();
     let preparationSongs: Song[] = [];

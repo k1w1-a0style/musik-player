@@ -65,6 +65,28 @@ class ScanReceiptTest(unittest.TestCase):
             self.assertEqual((Path(directory) / 'not-ready-input-focus.txt').read_text(), raw)
             tap.assert_not_called()
 
+    def menu_frame(self, enabled):
+        root = ET.Element('hierarchy')
+        for key in ('library-menu-card', 'library-menu-item-musikbibliothek-aktualisieren'):
+            ET.SubElement(root, 'node', {'resource-id': smoke.ui.PACKAGE + ':id/' + key,
+                'package': smoke.ui.PACKAGE, 'enabled': str(enabled).lower(), 'bounds': '[30,100][450,172]'})
+        return root
+
+    def test_menu_action_waits_for_background_scan_to_release_disabled_action(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke.ui, 'tree', side_effect=[self.menu_frame(False), self.menu_frame(True)]), \
+             patch.object(smoke.time, 'sleep'):
+            target = smoke.wait_enabled_menu_action('library-menu-item-musikbibliothek-aktualisieren', 'update')
+            self.assertEqual(target.get('enabled'), 'true')
+
+    def test_menu_that_disappears_during_background_update_is_a_failure_without_retapping(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke.ui, 'tree', return_value=ET.Element('hierarchy')), \
+             patch.object(smoke.ui, 'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError, 'menu disappeared'):
+                smoke.wait_enabled_menu_action('library-menu-item-musikbibliothek-aktualisieren', 'update')
+            tap.assert_not_called()
+
     def test_foreground_focus_never_accepts_picker_other_app_or_similar_package_name(self):
         self.assertTrue(smoke.has_app_focus('mCurrentFocus=Window{abc u0 '+smoke.ui.PACKAGE+'/.MainActivity}'))
         for text in ['mCurrentFocus=null','mCurrentFocus=Window{abc u0 com.google.android.documentsui/.PickActivity}',

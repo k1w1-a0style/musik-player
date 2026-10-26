@@ -49,6 +49,7 @@ const persistChangedFolderUpdates = jest.fn();
 interface HookHarnessProps {
   source?: import('../../utils/libraryScanSources').LibraryScanSource;
   fullScan?: boolean;
+  automatic?: boolean;
   showScanSummary?: boolean;
   scanFolders?: ScanFolder[];
   songs?: Song[];
@@ -68,6 +69,7 @@ interface HookHarnessProps {
 const HookHarness = ({
   source,
   fullScan = false,
+  automatic = false,
   showScanSummary = false,
   scanFolders = [],
   songs = [],
@@ -114,7 +116,7 @@ const HookHarness = ({
   });
 
   return <>
-    <Button title="import" onPress={() => void actions.importFromDevice({ refreshExisting: fullScan, source: source ?? (scanFolders.some(folder => folder.enabled) ? 'folders' : 'media-library') })} />
+    <Button title="import" onPress={() => void actions.importFromDevice({ automatic, refreshExisting: fullScan, source: source ?? (scanFolders.some(folder => folder.enabled) ? 'folders' : 'media-library') })} />
     <Button title="cancel import" onPress={() => actions.cancelImport()} />
     {showScanSummary ? <LibraryPreparationStatus visible={false} onRetryScan={() => {
       void actions.importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan });
@@ -224,6 +226,16 @@ test('user cancellation retains the real storage barrier before a following scan
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
   expect(state.getCurrent().map(item => item.id).sort()).toEqual(['next-scan', 'stored-after-cancel']);
   expect(setSongs).toHaveBeenLastCalledWith([song('next-scan'), song('stored-after-cancel')]);
+  expect(showAlert).not.toHaveBeenCalled();
+});
+
+test('automatic import preserves an open user menu and navigation while publishing songs', async () => {
+  const screen = render(<HookHarness automatic scanFolders={[folder('music')]} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(setSongs).toHaveBeenCalledWith([song('scan-song')]);
+  expect(setMenuOpen).not.toHaveBeenCalled();
+  expect(setActiveTab).not.toHaveBeenCalled();
   expect(showAlert).not.toHaveBeenCalled();
 });
 

@@ -123,16 +123,45 @@ def open_settings():
     ui.find('settings-screen')
 
 
-def update_library():
+def wait_enabled_menu_action(key, name):
+    deadline = time.monotonic() + 25
+    while time.monotonic() < deadline:
+        frame = ui.tree(compressed=False)
+        (OUT / (name + '-menu-state.xml')).write_text(ET.tostring(frame, encoding='unicode'))
+        card = ui.candidate('library-menu-card', frame)
+        assert card is not None and card.get('package') == ui.PACKAGE, 'User menu disappeared during background processing'
+        target = ui.candidate(key, frame)
+        assert target is not None and target.get('package') == ui.PACKAGE, 'Requested app menu action is unavailable'
+        if target.get('enabled') == 'true':
+            return target
+        time.sleep(.25)
+    raise AssertionError('Menu action stayed disabled after the existing scan: ' + key)
+
+
+MENU_SEQUENCE = 0
+
+
+def open_library_action(key):
+    global MENU_SEQUENCE
+    MENU_SEQUENCE += 1
+    name = 'menu-action-' + str(MENU_SEQUENCE)
     ui.wait_uncovered_library_header()
+    wait_for_app_focus(name)
     ui.tap('library-open-menu')
-    ui.tap('library-menu-item-musikbibliothek-aktualisieren')
+    card = ui.find('library-menu-card', timeout=15)
+    assert card.get('package') == ui.PACKAGE, 'Menu opening was not acknowledged by K1W1'
+    # A background scan may temporarily disable source actions; never tap a
+    # disabled action or reopen a menu that the app unexpectedly dismissed.
+    ui.tap_node(wait_enabled_menu_action(key, name))
+    time.sleep(.35)
+
+
+def update_library():
+    open_library_action('library-menu-item-musikbibliothek-aktualisieren')
 
 
 def add_named_folder(name):
-    ui.wait_uncovered_library_header()
-    ui.tap('library-open-menu')
-    ui.tap('library-menu-item-ordner-hinzuf-gen')
+    open_library_action('library-menu-item-ordner-hinzuf-gen')
     ui.choose_folder(['Music', name] if name else ['Music'])
 
 
@@ -217,15 +246,13 @@ def main():
         ui.adb('shell', 'pm', 'grant', ui.PACKAGE, 'android.permission.POST_NOTIFICATIONS', check=False)
     ui.adb('logcat', '-c')
     ui.public_cold_start()
-    ui.tap('library-open-menu')
-    ui.tap('library-menu-item-ordner-hinzuf-gen')
+    open_library_action('library-menu-item-ordner-hinzuf-gen')
     ui.choose_folder(['Music', 'K1W1ScanFix'])
     first = wait_scan('first-single-saf-scan')
     assert first.startswith('Neu: 12 · Geändert: 0'), 'All twelve files must be new in the single initial scan'
     baseline = verify_rows()
     playlist_ids = create_source_playlist(baseline)
-    ui.tap('library-open-menu')
-    ui.tap('library-menu-item-musikbibliothek-aktualisieren')
+    update_library()
     repeated = wait_scan('repeated-incremental-scan')
     assert repeated.startswith('Neu: 0 · Geändert: 0 · Unverändert: 12'), 'Repeated update reimported existing audio'
     remove_named_folder('K1W1ScanFix')
