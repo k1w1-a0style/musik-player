@@ -70,6 +70,13 @@
           "react-native-track-player"
         ]
       }
+    },
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-media-library"
+        ]
+      }
     }
   },
   "overrides": {

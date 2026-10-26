@@ -21,6 +21,10 @@ const fixture = () => {
   return root;
 };
 const run = (root: string) => execFileSync(process.execPath, [script, root], { encoding: 'utf8', stdio: 'pipe' });
+test('builds patched MediaLibrary from source instead of the unpatched Maven publication', () => {
+  const config = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
+  expect(config.expo.autolinking?.android?.buildFromSource).toContain('expo-media-library');
+});
 afterEach(() => roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })));
 
 test('patches verified native read guard, installs the tested helper and is idempotent', () => {
