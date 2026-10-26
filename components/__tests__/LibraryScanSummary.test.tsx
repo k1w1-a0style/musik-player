@@ -4,7 +4,7 @@ import LibraryPreparationStatus from '../LibraryPreparationStatus';
 import { beginLibraryScan, completeLibraryScan, dismissLibraryScan, recordLibraryScanResult,
   stopLibraryScan, updateLibraryScanProgress, setLibraryScanFolderWarning } from '../../utils/libraryScanOperation';
 import { emptyImportScanStatistics } from '../../utils/libraryImportStatistics';
-import { beginMetadataRefreshOperation, resetMetadataRefreshOperationForTests } from '../../utils/metadataRefreshOperation';
+import { beginMetadataRefreshOperation, completeMetadataRefreshOperation, resetMetadataRefreshOperationForTests } from '../../utils/metadataRefreshOperation';
 
 jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => ({ theme: { palette: {
   primary: '#eee', surfaceGlass: '#222', border: '#333', text: { primary: '#fff', secondary: '#ccc' } } } }) }));
@@ -221,6 +221,19 @@ test('hiding a receipt closes details and cannot reopen a popup on the next auto
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   fireEvent.press(view.getByLabelText('Scan-Ergebnis ausblenden'));
   act(() => { beginLibraryScan(false); });
+  expect(view.queryByText('Scan-Details')).toBeNull();
+  expect(view.getByLabelText('Verarbeitungsdetails öffnen')).toBeTruthy();
+});
+
+
+test('a standalone activity that disappears cannot reopen details for a later activity', () => {
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  act(() => { beginMetadataRefreshOperation(1, 0); });
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
+  expect(view.getByText('Scan-Details')).toBeTruthy();
+  act(() => completeMetadataRefreshOperation('completed'));
+  expect(view.queryByTestId('library-processing-control')).toBeNull();
+  act(() => { beginMetadataRefreshOperation(1, 0); });
   expect(view.queryByText('Scan-Details')).toBeNull();
   expect(view.getByLabelText('Verarbeitungsdetails öffnen')).toBeTruthy();
 });

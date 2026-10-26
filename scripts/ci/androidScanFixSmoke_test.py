@@ -45,6 +45,26 @@ class ScanReceiptTest(unittest.TestCase):
             tap.assert_called_once()
 
 
+    def test_focus_query_includes_display_state_not_only_window_details(self):
+        raw = ('WINDOW MANAGER DISPLAY CONTENTS\n  mCurrentFocus=Window{abc u0 '
+               + smoke.ui.PACKAGE + '/.MainActivity}\n')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke.ui, 'adb', return_value=raw.encode()) as adb:
+            smoke.wait_for_app_focus('ready')
+            adb.assert_called_once_with('shell', 'dumpsys', 'window')
+            self.assertEqual((Path(directory) / 'ready-input-focus.txt').read_text(), raw)
+
+    def test_failed_focus_query_preserves_last_native_evidence_and_never_taps(self):
+        raw = 'mCurrentFocus=Window{abc u0 com.google.android.documentsui/.PickActivity}'
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke.ui, 'adb', return_value=raw.encode()), \
+             patch.object(smoke.time, 'monotonic', side_effect=[0, 0, 31]), \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke.ui, 'tap_node') as tap:
+            with self.assertRaisesRegex(AssertionError, 'input focus'):
+                smoke.wait_for_app_focus('not-ready')
+            self.assertEqual((Path(directory) / 'not-ready-input-focus.txt').read_text(), raw)
+            tap.assert_not_called()
+
     def test_foreground_focus_never_accepts_picker_other_app_or_similar_package_name(self):
         self.assertTrue(smoke.has_app_focus('mCurrentFocus=Window{abc u0 '+smoke.ui.PACKAGE+'/.MainActivity}'))
         for text in ['mCurrentFocus=null','mCurrentFocus=Window{abc u0 com.google.android.documentsui/.PickActivity}',

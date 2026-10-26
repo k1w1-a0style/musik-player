@@ -67,3 +67,26 @@ test('explicit cancellation also stops an already queued folder selection', asyn
   await act(async () => hook.result.current(folder));
   expect(action).toHaveBeenCalledTimes(1);
 });
+
+
+test('remove and readd while queued supersedes the removed selection without a duplicate scan', async () => {
+  const running = beginLibraryScan(false); const action = jest.fn(async () => undefined);
+  const hook = renderHook(({ folders }: { folders: ScanFolder[] }) => useLibraryAddedFolderScan({ current: action }, folders), { initialProps: { folders: [folder] } });
+  let oldTask!: Promise<void>; let newTask!: Promise<void>;
+  await act(async () => { oldTask = hook.result.current(folder); await Promise.resolve(); });
+  hook.rerender({ folders: [{ ...folder, removed: true }] });
+  const readded = { ...folder, addedAt: 3 };
+  hook.rerender({ folders: [readded] });
+  await act(async () => { newTask = hook.result.current(readded); finish(running); await Promise.all([oldTask, newTask]); });
+  expect(action).toHaveBeenCalledTimes(1);
+  expect(action).toHaveBeenCalledWith({ folders: [readded], refreshExisting: false, automatic: true });
+});
+
+test('cancellation is remembered even if another operation replaces the cancelled status immediately', async () => {
+  const running = beginLibraryScan(false); const action = jest.fn(async () => undefined);
+  const hook = renderHook(() => useLibraryAddedFolderScan({ current: action }, []));
+  let task!: Promise<void>;
+  await act(async () => { task = hook.result.current(folder); await Promise.resolve(); });
+  await act(async () => { stopLibraryScan(running, 'cancelled'); const later = beginLibraryScan(false); finish(later); await task; });
+  expect(action).not.toHaveBeenCalled();
+});

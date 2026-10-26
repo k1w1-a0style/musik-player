@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWaveformPreparation } from '../utils/libraryWaveformPreparation';
 import { useLibraryScanOperation, type LibraryScanOperation } from '../utils/libraryScanOperation';
 import { useMetadataRefreshOperation } from '../utils/metadataRefreshOperation';
@@ -24,6 +24,7 @@ export const useLibraryProcessingStatus = (visible: boolean, props: LibraryImpor
     ['cancelled', 'failed'].includes(preparation.status),
     ['failed', 'partial', 'resumable', 'cancelled'].includes(refresh.status)].some(Boolean);
   const show = [visible, showWaveforms, needsAttention, running, scan.status === 'completed'].some(Boolean);
+  useEffect(() => { if (!show) setDetails(false); }, [show]);
   // Keep the tiny last-result control stable; Android may deliver a tap after
   // a slow provider transition. No timer may remove its target or receipt.
   const label = needsAttention ? 'Aktualisierung prüfen' : running ? 'Bibliothek wird aktualisiert' : 'Bibliothek aktualisiert';

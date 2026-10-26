@@ -67,7 +67,7 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
   </>;
 };
 const styles = StyleSheet.create({
-  control: { position: 'absolute', left: -5, top: -5, width: 48, height: 48, minHeight: 48, justifyContent: 'flex-end', flexDirection: 'row', alignItems: 'flex-end', gap: 0 },
+  control: { position: 'absolute', zIndex: 1, left: -5, top: -5, width: 48, height: 48, minHeight: 48, justifyContent: 'flex-end', flexDirection: 'row', alignItems: 'flex-end', gap: 0 },
   label: { fontSize: 16 },
   backdrop: { flex: 1, justifyContent: 'center', padding: 16 },
   sheet: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, overflow: 'hidden' },

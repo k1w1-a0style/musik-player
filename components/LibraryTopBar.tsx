@@ -30,8 +30,8 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
     <View style={styles.topBar} testID="library-top-bar">
       <View style={styles.brandRow}>
         <View style={{ width: 38, height: 38 }}>
-        <Image source={KIWI_MUSIC_ARTWORK} style={[styles.brandLogo, { borderColor: theme.palette.borderStrong }]}
-          fadeDuration={0} accessible={false} />
+        <View pointerEvents="none"><Image source={KIWI_MUSIC_ARTWORK} style={[styles.brandLogo, { borderColor: theme.palette.borderStrong }]}
+          fadeDuration={0} accessible={false} /></View>
         {activity}
         </View>
         <View style={styles.brandText}>

@@ -186,3 +186,36 @@ test('a sub-second user scan throttles an already scheduled lifecycle timer even
   await act(async () => { await jest.advanceTimersByTimeAsync(29_500); });
   expect(props.update).toHaveBeenCalledTimes(1);
 });
+
+
+test('revalidates raw scan status and the debounce after an awaited permission query', async () => {
+  let grant!: (value: { status: string }) => void;
+  permission.mockResolvedValueOnce({ status: 'granted' })
+    .mockImplementationOnce(() => new Promise(resolve => { grant = resolve; }));
+  const props = options(); renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); onMedia(); await jest.advanceTimersByTimeAsync(1000); });
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(100);
+    mockScanStatus = 'running'; mockScanId++; mockScanListener();
+    mockScanStatus = 'completed'; mockScanListener();
+    await jest.advanceTimersByTimeAsync(100);
+    grant({ status: 'granted' }); await Promise.resolve();
+  });
+  expect(props.update).not.toHaveBeenCalled();
+  await act(async () => { await jest.advanceTimersByTimeAsync(29_900); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+});
+
+test('a deferred change wakes on raw scan completion even if no busy render was committed', async () => {
+  const props = { ...options(), hasFolders: true };
+  renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); onMedia(); await jest.advanceTimersByTimeAsync(900); });
+  await act(async () => {
+    mockScanStatus = 'running'; mockScanId++; mockScanListener();
+    await jest.advanceTimersByTimeAsync(200);
+    mockScanStatus = 'completed'; mockScanListener();
+  });
+  expect(props.update).not.toHaveBeenCalled();
+  await act(async () => { await jest.advanceTimersByTimeAsync(29_800); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+});

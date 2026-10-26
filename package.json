@@ -1,6 +1,6 @@
 {
   "name": "musik-player",
-  "version": "1.0.2-test.10",
+  "version": "1.0.2-test.11",
   "main": "index.js",
   "scripts": {
     "start": "expo start",

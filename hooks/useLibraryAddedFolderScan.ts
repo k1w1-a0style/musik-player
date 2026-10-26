@@ -21,23 +21,39 @@ export const useLibraryAddedFolderScan = (
   const lifetime = useRef(new AbortController());
   const queue = useRef(Promise.resolve());
   const latestFolders = useRef(folders);
+  const cancellation = useRef(0);
+  const selectionSequence = useRef(0);
+  const latestSelection = useRef(new Map<string, number>());
   latestFolders.current = folders;
   useEffect(() => {
     if (lifetime.current.signal.aborted) lifetime.current = new AbortController();
     const controller = lifetime.current;
-    return () => controller.abort();
+    const initial = getLibraryScanOperation();
+    let cancelledId = initial.status === 'cancelled' ? initial.id : -1;
+    const unsubscribe = subscribeLibraryScanOperation(() => {
+      const operation = getLibraryScanOperation();
+      if (operation.status === 'cancelled' && operation.id !== cancelledId) {
+        cancelledId = operation.id; cancellation.current++;
+      }
+    });
+    return () => { controller.abort(); unsubscribe(); };
   }, []);
   return useCallback((folder: ScanFolder): Promise<void> => {
     const signal = lifetime.current.signal;
-    const selectedDuringScan = getLibraryScanOperation().status === 'running';
+    const epoch = cancellation.current;
+    const ticket = ++selectionSequence.current;
+    latestSelection.current.set(folder.uri, ticket);
+    const isCurrent = () => !signal.aborted && cancellation.current === epoch
+      && latestSelection.current.get(folder.uri) === ticket;
     const task = queue.current.catch(() => undefined).then(async () => {
-      while (!signal.aborted && getLibraryScanOperation().status === 'running') await waitForScanIdle(signal);
-      if (signal.aborted || (selectedDuringScan && getLibraryScanOperation().status === 'cancelled')
-        || latestFolders.current.some(current => current.uri === folder.uri
+      while (isCurrent() && getLibraryScanOperation().status === 'running') await waitForScanIdle(signal);
+      if (!isCurrent() || latestFolders.current.some(current => current.uri === folder.uri
         && current.addedAt === folder.addedAt && current.removed)) return;
       await action.current?.({ folders: [folder], refreshExisting: false, automatic: true });
     });
     queue.current = task;
-    return task;
+    return task.finally(() => {
+      if (latestSelection.current.get(folder.uri) === ticket) latestSelection.current.delete(folder.uri);
+    });
   }, [action]);
 };

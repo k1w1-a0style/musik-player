@@ -9,12 +9,15 @@ const MIN_UPDATE_INTERVAL_MS = 30_000;
 const canBeginUpdate = (alive: boolean, pending: number, busy: boolean, inFlight: boolean): boolean =>
   alive && pending > 0 && AppState.currentState === 'active' && !busy && !inFlight
     && getLibraryScanOperation().status !== 'running';
-const subscribeToScanStarts = (onStart: () => void): (() => void) => {
+const subscribeToScanActivity = (onStart: () => void, onIdle: () => void): (() => void) => {
   let observed = -1;
+  let running = false;
   const check = () => {
     const operation = getLibraryScanOperation();
-    if (operation.status !== 'running' || operation.id === observed) return;
-    observed = operation.id; onStart();
+    if (operation.status === 'running') {
+      running = true;
+      if (operation.id !== observed) { observed = operation.id; onStart(); }
+    } else if (running) { running = false; onIdle(); }
   };
   check();
   return subscribeLibraryScanOperation(check);
@@ -52,7 +55,8 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       try {
         const source = 'auto' as const;
         if (!latest.current.hasFolders && (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted') return;
-        if (!alive || latest.current.busy || AppState.currentState !== 'active') return;
+        if (!canBeginUpdate(alive, pending.current.size, latest.current.busy, false)) return;
+        if (Date.now() - lastStarted.current < MIN_UPDATE_INTERVAL_MS) { schedule(); return; }
         pending.current.clear();
         started = true;
         lastStarted.current = Date.now();
@@ -73,8 +77,12 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       if (preferences.onOpen) schedule('startup');
     }
     if (pending.current.size > 0 && !busy) schedule();
-    const stopObservingScanStarts = subscribeToScanStarts(() => {
+    const stopObservingScanStarts = subscribeToScanActivity(() => {
       pending.current.delete('startup'); lastStarted.current = Date.now();
+    }, () => {
+      if (getLibraryScanOperation().status === 'cancelled') {
+        pending.current.clear(); if (timer) clearTimeout(timer); timer = undefined;
+      } else schedule();
     });
     const appSubscription = AppState.addEventListener('change', next => {
       const resumed = next === 'active' && appState !== 'active';

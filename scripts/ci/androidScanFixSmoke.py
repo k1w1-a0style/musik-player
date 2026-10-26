@@ -36,19 +36,24 @@ def validate_details_ack(frame):
     assert close.get('package') == title.get('package') == ui.PACKAGE and close.get('enabled') == 'true', 'Scan details are not enabled app-owned UI'
 
 
+def wait_for_app_focus(name):
+    # Android 10 prints mCurrentFocus in DisplayContent, excluded by the
+    # `windows` subcommand. The full dump includes display and window state.
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        focus = ui.adb('shell', 'dumpsys', 'window').decode(errors='replace')
+        (OUT / (name + '-input-focus.txt')).write_text(focus)
+        if has_app_focus(focus):
+            return
+        time.sleep(.25)
+    raise AssertionError('Android did not return input focus to K1W1 after the source picker')
+
+
 def open_scan_details(name):
     # A source picker may expose the app hierarchy before input focus returns.
     ui.wait_uncovered_library_header()
     ui.find('Verarbeitungsdetails öffnen', timeout=25)
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        focus = ui.adb('shell', 'dumpsys', 'window', 'windows').decode(errors='replace')
-        if has_app_focus(focus):
-            break
-        time.sleep(.25)
-    else:
-        raise AssertionError('Android did not return input focus to K1W1 after the source picker')
-    (OUT / (name + '-input-focus.txt')).write_text(focus)
+    wait_for_app_focus(name)
     before = ui.tree(compressed=False)
     assert ui.candidate('Verarbeitungsdetails schließen', before) is None, 'Scan details opened without a user request'
     target = ui.candidate('Verarbeitungsdetails öffnen', before)
