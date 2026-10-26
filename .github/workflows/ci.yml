@@ -308,6 +308,7 @@ jobs:
             --expected-label k1w1-Musik \
             --min-size-bytes 10000001 --require-badging --require-signature \
             --enforce-permission-policy | tee preview-apk-inspection.log
+          python3 scripts/ci/verifyAudioReadGuard.py "$APK" | tee -a preview-apk-inspection.log
           apksigner verify --verbose --print-certs-pem "$APK" | tee preview-apk-signature.log
           # Certificate from the successful preview APK in run 37595180459.
           node <<'NODE'

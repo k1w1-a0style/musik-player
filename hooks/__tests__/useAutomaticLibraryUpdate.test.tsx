@@ -6,7 +6,8 @@ import { useAutomaticLibraryUpdate } from '../useAutomaticLibraryUpdate';
 let mockPreferences = { onOpen: false, whileOpen: true };
 let mockHydrated = true;
 jest.mock('../../contexts/LibraryUpdateContext', () => ({ useLibraryUpdatePreferences: () => ({ preferences: mockPreferences, isHydrated: mockHydrated }) }));
-jest.mock('../../utils/libraryScanOperation', () => ({ getLibraryScanOperation: () => ({ status: 'idle' }) }));
+let mockScanStatus = 'idle';
+jest.mock('../../utils/libraryScanOperation', () => ({ getLibraryScanOperation: () => ({ status: mockScanStatus }) }));
 let onAppState: (state: AppStateStatus) => void;
 let onMedia: () => void;
 let removeApp: jest.Mock;
@@ -16,6 +17,7 @@ jest.mock('expo-media-library/legacy', () => ({ getPermissionsAsync: jest.fn(), 
 const options = () => ({ ready: true, busy: false, hasFolders: false, update: jest.fn(async () => undefined) });
 const changeAppState = (state: AppStateStatus) => { AppState.currentState = state; onAppState(state); };
 beforeEach(() => {
+  mockScanStatus = 'idle';
   jest.clearAllMocks(); jest.useFakeTimers(); mockPreferences = { onOpen: false, whileOpen: true }; mockHydrated = true;
   AppState.currentState = 'active'; removeApp = jest.fn(); removeMedia = jest.fn();
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => { onAppState = listener; return { remove: removeApp }; });
@@ -147,5 +149,22 @@ test('disabling startup updates cancels the queued startup without disabling med
   await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
   expect(props.update).not.toHaveBeenCalled();
   await act(async () => { onMedia(); await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+});
+
+test('a user folder scan consumes pending startup work and throttles the next lifecycle update', async () => {
+  mockPreferences = { onOpen: true, whileOpen: true };
+  permission.mockResolvedValue({ status: 'denied' });
+  const props = options(); const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).not.toHaveBeenCalled();
+  mockScanStatus = 'running'; hook.rerender({ ...props, busy: true, hasFolders: true });
+  mockScanStatus = 'idle'; hook.rerender({ ...props, busy: false, hasFolders: true });
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).not.toHaveBeenCalled();
+  act(() => { changeAppState('background'); changeAppState('active'); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(28_999); });
+  expect(props.update).not.toHaveBeenCalled();
+  await act(async () => { await jest.advanceTimersByTimeAsync(1); });
   expect(props.update).toHaveBeenCalledTimes(1);
 });

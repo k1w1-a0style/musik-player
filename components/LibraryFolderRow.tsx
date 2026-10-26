@@ -73,6 +73,7 @@ const styles = StyleSheet.create({
   repairFolderButton: { paddingHorizontal: 8, paddingVertical: 12, minHeight: 48, justifyContent: 'center' },
   repairFolderText: { fontFamily: staticTokens.fonts.body, fontSize: 12 },
   removeFolderButton: {
+    minHeight: 48,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 14,

@@ -23,7 +23,8 @@ export const useLibrarySelectedSourceFlow = ({ songs, songImport, scanFolders, i
   options?: LibraryScanRequest & { folders?: ScanFolder[] }): Promise<Song[]> => {
   const activeFolders = getEnabledScanFolders(options?.folders ?? scanFolders);
   const selected = source === 'auto' ? await resolveAutomaticLibrarySource(activeFolders.length > 0,
-    getPermissions, Boolean(generation.automatic)) : source;
+    getPermissions, Boolean(generation.automatic), { signal: generation.controller.signal,
+      onFailure: message => recordLibraryScanSourceFailure(generation.scanOperationId, message) }) : source;
   return runSelectedLibrarySources({ source: selected, signal: generation.controller.signal,
     beginSource: () => beginLibraryScanSource(generation.scanOperationId),
     onSourceFailure: error => recordLibraryScanSourceFailure(generation.scanOperationId, describeAudioReadFailure(error, generation.audioReadVerified, getImportStoppedAlert(error).message)),

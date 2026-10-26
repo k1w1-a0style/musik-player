@@ -22,6 +22,10 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
     if (!ready || !isHydrated) return;
     if (!preferences.onOpen) pending.current.delete('startup');
     if (!preferences.whileOpen) pending.current.delete('change');
+    if (busy && getLibraryScanOperation().status === 'running') {
+      pending.current.delete('startup');
+      lastStarted.current = Date.now();
+    }
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let mediaSubscription: ReturnType<typeof MediaLibrary.addListener> | undefined;

@@ -1540,6 +1540,14 @@ describe('storage', () => {
     ]);
   });
 
+  test('malformed optional source receipts cannot discard an existing track', async () => {
+    await storage.setSongs([{ id: 'known', title: 'Song', artist: 'Artist', favorite: true,
+      fileInfo: { filename: 'a.mp3', librarySources: { broken: true }, absentLibrarySources: null } }]);
+    const songs = await storage.getSongs();
+    expect(songs).toEqual([{ id: 'known', title: 'Song', artist: 'Artist',
+      fileInfo: { filename: 'a.mp3', librarySources: [], absentLibrarySources: [] } }]);
+  });
+
   test('setSongs round-trips albumArtist and keeps legacy songs without it valid', async () => {
     await storage.setSongs([
       { id: 's1', title: 'Song', artist: 'Artist', album: 'Album', albumArtist: 'Album Artist' },

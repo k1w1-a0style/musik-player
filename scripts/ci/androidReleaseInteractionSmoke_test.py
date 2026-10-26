@@ -905,6 +905,15 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.subTest(initial=initial, final=final, ui=ui), self.assertRaises(AssertionError):
                 smoke.validate_resume_clock(259, initial, final, ui, smoke.TITLES[3])
 
+    def test_public_update_uses_one_action_without_obsolete_source_or_confirmation_dialog(self):
+        with patch.object(smoke, 'tap') as tap, patch.object(smoke, 'find') as find, \
+             patch.object(smoke, 'screenshot'), patch.object(smoke, 'tap_node') as tap_node:
+            smoke.import_public_collection()
+        self.assertEqual([call.args[0] for call in tap.call_args_list],
+                         ['library-open-menu', 'library-menu-item-musikbibliothek-aktualisieren'])
+        find.assert_called_once_with(smoke.TITLES[0] + ' von V3 Proof', timeout=150)
+        tap_node.assert_not_called()
+
     def test_saf_import_below_viewport_must_scroll_and_prove_native_playback(self):
         row = ET.fromstring('<node bounds="[28,520][290,603]"/>')
         class ReachedSafProof(Exception):

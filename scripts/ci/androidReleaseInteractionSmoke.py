@@ -976,10 +976,6 @@ def timeline_values(root):
 def import_public_collection():
     tap('library-open-menu')
     tap('library-menu-item-musikbibliothek-aktualisieren')
-    tap('Android-Musikbibliothek')
-    find('Musik importieren', timeout=60)
-    screenshot('00-public-import-confirmation')
-    tap_node(import_confirmation_button(tree()))
     find(TITLES[0] + ' von V3 Proof', timeout=150)
     screenshot('01-mediastore-import')
     CHECKS.append('MediaStore-import-public-UI')
