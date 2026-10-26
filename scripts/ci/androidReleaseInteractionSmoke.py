@@ -182,8 +182,14 @@ def dismiss_recorded_launcher_dialog(frame):
     LAUNCHER_DIALOGS += 1
     print('Closing the recorded Pixel Launcher system ANR dialog only.', flush=True)
     tap_node(launcher)
-    time.sleep(.6)
-    return True
+    # Android may expose the just-closed window in stale accessibility frames.
+    # Acknowledge its disappearance before treating another dialog as a new ANR.
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if pixel_launcher_close_button(tree(compressed=False)) is None:
+            return True
+        time.sleep(.25)
+    raise AssertionError('Closed Pixel Launcher dialog did not disappear')
 
 
 def find(key, timeout=25):

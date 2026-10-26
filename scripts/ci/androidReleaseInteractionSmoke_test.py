@@ -287,11 +287,33 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         dialog=ET.fromstring('<hierarchy><node resource-id="android:id/alertTitle" text="Pixel Launcher isn&apos;t responding"/><node resource-id="android:id/aerr_close" text="Close app" bounds="[24,461][456,533]"/></hierarchy>')
         header=self.header_frame()
         with tempfile.TemporaryDirectory() as directory,patch.object(smoke,'OUT',Path(directory)),patch.object(smoke,'LAUNCHER_DIALOGS',0), \
-             patch.object(smoke,'tree',side_effect=[dialog,header,header,header]),patch.object(smoke,'screenshot'),patch.object(smoke,'tap_node') as tap, \
+             patch.object(smoke,'tree',side_effect=[dialog,header,header,header,header]),patch.object(smoke,'screenshot'),patch.object(smoke,'tap_node') as tap, \
              patch.object(smoke,'adb') as adb,patch.object(smoke.time,'sleep'):
             self.assertIsNotNone(smoke.wait_uncovered_library_header())
             tap.assert_called_once()
             adb.assert_called_once_with('shell','am','start','-W','-n',smoke.PACKAGE+'/.MainActivity')
+
+    def test_launcher_close_waits_for_the_same_stale_accessibility_dialog_to_disappear(self):
+        dialog=ET.fromstring('<hierarchy><node resource-id="android:id/alertTitle" text="Pixel Launcher isn&apos;t responding"/><node resource-id="android:id/aerr_close" text="Close app" bounds="[24,461][456,533]"/></hierarchy>')
+        header=self.header_frame()
+        with patch.object(smoke,'LAUNCHER_DIALOGS',0), patch.object(smoke,'tree',side_effect=[dialog,dialog,header]) as frames, \
+             patch.object(smoke,'screenshot'),patch.object(smoke,'tap_node') as tap,patch.object(smoke.time,'sleep'):
+            self.assertTrue(smoke.dismiss_recorded_launcher_dialog(dialog))
+            self.assertEqual(frames.call_count,3)
+            self.assertEqual(smoke.LAUNCHER_DIALOGS,1)
+            tap.assert_called_once()
+            with self.assertRaisesRegex(AssertionError,'repeatedly'):
+                smoke.dismiss_recorded_launcher_dialog(dialog)
+
+    def test_a_persistent_launcher_dialog_is_never_accepted_or_repeatedly_closed(self):
+        dialog=ET.fromstring('<hierarchy><node resource-id="android:id/alertTitle" text="Pixel Launcher isn&apos;t responding"/><node resource-id="android:id/aerr_close" text="Close app" bounds="[24,461][456,533]"/></hierarchy>')
+        clock=iter(range(30))
+        with patch.object(smoke,'LAUNCHER_DIALOGS',0),patch.object(smoke,'tree',return_value=dialog), \
+             patch.object(smoke,'screenshot'),patch.object(smoke,'tap_node') as tap,patch.object(smoke.time,'sleep'), \
+             patch.object(smoke.time,'monotonic',side_effect=lambda:next(clock)):
+            with self.assertRaisesRegex(AssertionError,'did not disappear'):
+                smoke.dismiss_recorded_launcher_dialog(dialog)
+            tap.assert_called_once()
 
     def test_android10_recorded_emulator_storage_name_is_recognized_exactly(self):
         node=ET.fromstring('<node package="com.android.documentsui" resource-id="android:id/title" text="Android SDK built for x86_64" bounds="[84,266][384,295]"/>')
