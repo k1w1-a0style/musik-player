@@ -33,8 +33,8 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       inFlight.current = true;
       let started = false;
       try {
-        const source = latest.current.hasFolders ? 'folders' : 'media-library';
-        if (source === 'media-library' && (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted') return;
+        const source = 'auto' as const;
+        if (!latest.current.hasFolders && (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted') return;
         if (!alive || latest.current.busy || AppState.currentState !== 'active') return;
         pending.current.clear();
         started = true;

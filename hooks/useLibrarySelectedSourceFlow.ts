@@ -1,4 +1,8 @@
+import { describeAudioReadFailure } from '../utils/mediaLibraryReadAccess';
 import { useCallback } from 'react';
+import * as MediaLibrary from 'expo-media-library/legacy';
+import type { AudioPermissionQuery } from '../utils/mediaLibraryReadAccess';
+import { resolveAutomaticLibrarySource } from '../utils/automaticLibrarySources';
 import type { Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
 import type { SongImportController } from '../contexts/songLibraryState';
@@ -10,20 +14,23 @@ import { getImportStoppedAlert } from '../utils/libraryImportFlow';
 import { runSelectedLibrarySources, type LibraryScanRequest, type LibraryScanSource } from '../utils/libraryScanSources';
 import { beginLibraryScanSource, recordLibraryScanSourceFailure } from '../utils/libraryScanOperation';
 
-export const useLibrarySelectedSourceFlow = ({ songs, songImport, scanFolders, importFromMediaLibrary, importFromScanFolders }: {
+export const useLibrarySelectedSourceFlow = ({ songs, songImport, scanFolders, importFromMediaLibrary, importFromScanFolders, getPermissions = MediaLibrary.getPermissionsAsync }: {
+  getPermissions?: AudioPermissionQuery;
   songs: Song[]; songImport?: SongImportController; scanFolders: ScanFolder[];
   importFromMediaLibrary: ReturnType<typeof useLibraryMediaLibraryImportFlow>['importFromMediaLibrary'];
   importFromScanFolders: ReturnType<typeof useLibraryScanFolderImportFlow>['importFromScanFolders'];
-}) => useCallback((generation: ImportGeneration, source: LibraryScanSource, copy: LibraryImportFlowCopy,
+}) => useCallback(async (generation: ImportGeneration, source: LibraryScanSource, copy: LibraryImportFlowCopy,
   options?: LibraryScanRequest & { folders?: ScanFolder[] }): Promise<Song[]> => {
   const activeFolders = getEnabledScanFolders(options?.folders ?? scanFolders);
-  return runSelectedLibrarySources({ source, signal: generation.controller.signal,
+  const selected = source === 'auto' ? await resolveAutomaticLibrarySource(activeFolders.length > 0,
+    getPermissions, Boolean(generation.automatic)) : source;
+  return runSelectedLibrarySources({ source: selected, signal: generation.controller.signal,
     beginSource: () => beginLibraryScanSource(generation.scanOperationId),
-    onSourceFailure: error => recordLibraryScanSourceFailure(generation.scanOperationId, getImportStoppedAlert(error).message),
+    onSourceFailure: error => recordLibraryScanSourceFailure(generation.scanOperationId, describeAudioReadFailure(error, generation.audioReadVerified, getImportStoppedAlert(error).message)),
     media: () => importFromMediaLibrary(copy, generation, options?.refreshExisting ?? false, songImport?.getCurrent() ?? songs),
     folders: () => {
       if (!activeFolders.length) throw new Error('Keine aktiven Scan-Ordner. Bitte zuerst einen Musikordner hinzufügen.');
       return importFromScanFolders(activeFolders, generation, options?.refreshExisting ?? false, songImport?.getCurrent() ?? songs);
     },
   });
-}, [importFromMediaLibrary, importFromScanFolders, scanFolders, songImport, songs]);
+}, [getPermissions, importFromMediaLibrary, importFromScanFolders, scanFolders, songImport, songs]);

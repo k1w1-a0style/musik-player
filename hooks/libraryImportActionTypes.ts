@@ -16,6 +16,8 @@ export type ImportedSongsStateUpdate = ImportedSongsDelta;
 
 export interface ImportGeneration {
   automatic?: boolean;
+  audioReadVerified?: boolean;
+  quiet?: boolean;
   scanOperationId?: number;
   controller: AbortController;
   id: number;

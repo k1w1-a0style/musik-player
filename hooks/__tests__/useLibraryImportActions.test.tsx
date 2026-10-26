@@ -6,9 +6,7 @@ import { useLibraryImportActions } from '../useLibraryImportActions';
 import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
 import {
-  getEmptyScanImportAlert,
-  getEmptyMediaLibraryImportAlert,
-  getMediaLibraryPermissionDeniedAlert,
+      getMediaLibraryPermissionDeniedAlert,
 } from '../../utils/libraryImportFlow';
 import { TimeoutError, withTimeout } from '../../utils/withTimeout';
 import { prepareLibraryWaveforms, hasPendingWaveformPreparation } from '../../utils/libraryWaveformPreparation';
@@ -116,7 +114,7 @@ const HookHarness = ({
   });
 
   return <>
-    <Button title="import" onPress={() => void actions.importFromDevice({ refreshExisting: fullScan, source })} />
+    <Button title="import" onPress={() => void actions.importFromDevice({ refreshExisting: fullScan, source: source ?? (scanFolders.some(folder => folder.enabled) ? 'folders' : 'media-library') })} />
     <Button title="cancel import" onPress={() => actions.cancelImport()} />
     {showScanSummary ? <LibraryPreparationStatus visible={false} onRetryScan={() => {
       void actions.importFromDevice({ refreshExisting: getLibraryScanOperation().fullScan });
@@ -314,7 +312,7 @@ test('partially completed folder scans show persistent diagnostics without an in
   await waitFor(() => expect(getLibraryScanOperation().status).toBe('partial'));
   expect(showAlert).not.toHaveBeenCalled();
   fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(screen.getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
+  expect(screen.getByText('Aktualisierung – teilweise abgeschlossen')).toBeTruthy();
   expect(screen.getByText('3 Datei(en) noch nicht geprüft')).toBeTruthy();
 });
 
@@ -578,7 +576,7 @@ test('keeps an accepted batch when a scan stalls and rejects its late checkpoint
   expect(setLoading).toHaveBeenLastCalledWith(false);
 });
 
-test('shows empty scan alert without applying song update', async () => {
+test('keeps an empty source nonblocking without applying a song update', async () => {
   const importSongsFromSourcesImpl = jest.fn().mockResolvedValue({ songs: [], errors: [], folderUpdates: undefined });
   const screen = render(
     <HookHarness
@@ -589,7 +587,8 @@ test('shows empty scan alert without applying song update', async () => {
 
   fireEvent.press(screen.getByText('import'));
 
-  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getEmptyScanImportAlert([])));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(showAlert).not.toHaveBeenCalled();
   expect(setSongs).not.toHaveBeenCalled();
   expect(setActiveTab).not.toHaveBeenCalled();
   expect(setLoading).toHaveBeenLastCalledWith(false);
@@ -619,7 +618,7 @@ test('uses media library import when no active scan folders exist', async () => 
   await waitFor(() => expect(requestMediaLibraryPermissionsAsync).toHaveBeenCalledTimes(1));
   expect(importSongsFromSourcesImpl).not.toHaveBeenCalled();
   expect(scanMediaLibraryCandidatesImpl).toHaveBeenCalledWith({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) });
-  expect(confirmLibraryImportImpl).toHaveBeenCalledWith(1, 0);
+  expect(confirmLibraryImportImpl).not.toHaveBeenCalled();
   expect(enrichMediaLibraryAssetsImpl).toHaveBeenCalledWith([{ id: 'asset-1' }], 0,
     { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: false,
       onFileProgress: expect.any(Function), onCheckpoint: expect.any(Function), coverCacheProtection: expect.any(Object) });
@@ -639,9 +638,8 @@ test.each([false, true])('explains a native MEDIA_LIBRARY rejection and retains 
     scanMediaLibraryCandidatesImpl={scan} />);
   fireEvent.press(screen.getByText('import'));
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
-  expect(showAlert).toHaveBeenCalledWith(expect.objectContaining({
-    title: 'Musikzugriff erforderlich', message: expect.stringContaining('Musikordner'),
-  }));
+  expect(showAlert).not.toHaveBeenCalled();
+  expect(getLibraryScanOperation().errorMessage).toContain('Musik');
   expect(JSON.stringify(showAlert.mock.calls)).not.toContain('ExpoMediaLibrary');
   expect(state.getCurrent()).toEqual([existing]);
   expect(persist).not.toHaveBeenCalled();
@@ -725,30 +723,21 @@ test('shows empty media library alert without confirmation or enrichment', async
 
   fireEvent.press(screen.getByText('import'));
 
-  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getEmptyMediaLibraryImportAlert()));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(showAlert).not.toHaveBeenCalled();
   expect(confirmLibraryImportImpl).not.toHaveBeenCalled();
   expect(enrichMediaLibraryAssetsImpl).not.toHaveBeenCalled();
   expect(setSongs).not.toHaveBeenCalled();
 });
 
-test('skips media import when confirmation is declined', async () => {
-  const confirmLibraryImportImpl = jest.fn().mockResolvedValue(false);
-  const enrichMediaLibraryAssetsImpl = jest.fn();
-  const screen = render(
-    <HookHarness
-      scanFolders={[]}
-      confirmLibraryImportImpl={confirmLibraryImportImpl}
-      enrichMediaLibraryAssetsImpl={enrichMediaLibraryAssetsImpl}
-    />,
-  );
-
+test('imports authorized media without an additional confirmation dialog', async () => {
+  const confirm = jest.fn().mockResolvedValue(false);
+  const enrich = jest.fn().mockResolvedValue({ songs: [song('media-song')] });
+  const screen = render(<HookHarness confirmLibraryImportImpl={confirm} enrichMediaLibraryAssetsImpl={enrich} />);
   fireEvent.press(screen.getByText('import'));
-
-  await waitFor(() => expect(confirmLibraryImportImpl).toHaveBeenCalledWith(1, 0));
-  expect(enrichMediaLibraryAssetsImpl).not.toHaveBeenCalled();
-  expect(setSongs).not.toHaveBeenCalled();
+  await waitFor(() => expect(enrich).toHaveBeenCalledTimes(1));
+  expect(confirm).not.toHaveBeenCalled();
 });
-
 test('shows stopped alert and clears loading when import throws', async () => {
   const importSongsFromSourcesImpl = jest.fn().mockRejectedValue(new Error('kaputt'));
   const screen = render(
@@ -808,16 +797,14 @@ test('reports a folder-state write failure as visible partial success', async ()
 });
 
 
-test('cancelling media confirmation in both-source mode cancels the scan before any folder import', async () => {
-  const folderImport = jest.fn();
-  const screen = render(<HookHarness source="both" scanFolders={[folder('music')]}
-    confirmLibraryImportImpl={jest.fn().mockResolvedValue(false)} importSongsFromSourcesImpl={folderImport} />);
+test('both sources are processed without a second import confirmation', async () => {
+  const folders = jest.fn().mockResolvedValue({ songs: [song('saf-song')], errors: [] });
+  const confirm = jest.fn().mockResolvedValue(false);
+  const screen = render(<HookHarness source="both" scanFolders={[folder('music')]} confirmLibraryImportImpl={confirm} importSongsFromSourcesImpl={folders} />);
   fireEvent.press(screen.getByText('import'));
-  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
-  expect(folderImport).not.toHaveBeenCalled();
-  expect(getLibraryScanOperation().status).toBe('cancelled');
+  await waitFor(() => expect(folders).toHaveBeenCalledTimes(1));
+  expect(confirm).not.toHaveBeenCalled();
 });
-
 test('an unchanged update resumes retained waveform work without reimporting known tracks', async () => {
   jest.mocked(hasPendingWaveformPreparation).mockReturnValue(true);
   const scan = jest.fn().mockResolvedValue({ songs: [], errors: [], reusedCount: 1, statistics: {
@@ -844,4 +831,23 @@ test.each(['saf', 'media'] as const)('an unverified %s result keeps a visible wa
   fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(screen.getByText('1 ungeprüft · 0 Leseprobleme')).toBeTruthy();
   expect(screen.getByLabelText('Scan erneut versuchen')).toBeTruthy();
+});
+
+
+test.each(['denied', 'granted'] as const)('automatic source selection preserves SAF when MediaStore is %s or rejects its query', async status => {
+  const existing = song('keep-existing');
+  const state = createSongLibraryState([existing]);
+  state.configurePersistence(async read => read());
+  const request = jest.fn();
+  const media = jest.fn().mockRejectedValue(new Error('Missing MEDIA_LIBRARY permissions.'));
+  const folders = jest.fn().mockResolvedValue({ songs: [song('healthy-folder')], errors: [] });
+  const screen = render(<HookHarness source="auto" scanFolders={[folder('music')]} songs={[existing]} songImport={state}
+    getMediaLibraryPermissionsAsync={jest.fn().mockResolvedValue({ status })} requestMediaLibraryPermissionsAsync={request}
+    scanMediaLibraryCandidatesImpl={media} importSongsFromSourcesImpl={folders} />);
+  fireEvent.press(screen.getByText('import'));
+  await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
+  expect(folders).toHaveBeenCalledTimes(1);
+  expect(media).toHaveBeenCalledTimes(status === 'granted' ? 1 : 0);
+  expect(request).not.toHaveBeenCalled(); expect(showAlert).not.toHaveBeenCalled();
+  expect(state.getCurrent().map(song => song.id).sort()).toEqual(['healthy-folder', 'keep-existing']);
 });

@@ -1,4 +1,6 @@
 export interface SongFileInfo {
+  librarySources?: string[];
+  absentLibrarySources?: string[];
   filename?: string;
   uri?: string;
   extension?: string;

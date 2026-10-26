@@ -58,7 +58,7 @@ const randomSuffix = (random: () => number): string =>
   random().toString(36).slice(2, 8);
 
 export const getEnabledScanFolders = (folders: ScanFolder[]): ScanFolder[] =>
-  folders.filter(folder => folder.enabled);
+  folders.filter(folder => folder.enabled && !folder.removed);
 
 export const canUseScanFolderPicker = (platformOs: string): boolean =>
   platformOs === 'android';
@@ -79,7 +79,7 @@ export const buildDirectoryPermissionSelectionResult = (permission: DirectoryPer
 };
 
 export const wasScanFolderAdded = (previousFolders: ScanFolder[], nextFolders: ScanFolder[]): boolean =>
-  nextFolders.length > previousFolders.length;
+  nextFolders.some(next => !next.removed && !previousFolders.some(previous => previous.uri === next.uri && !previous.removed));
 
 export const buildScanFolderStateUpdate = (scanFolders: ScanFolder[]): ScanFolderStateUpdate => ({
   scanFolders,

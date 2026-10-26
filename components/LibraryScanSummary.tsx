@@ -75,7 +75,7 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = f
     return () => clearTimeout(timer);
   }, [cleanSuccess, details, scan.id]);
   if (!shouldShowSummary(scan, refresh.status)) return null;
-  const title = `${scan.fullScan ? 'Vollständiger Scan' : 'Schnellscan'} – ${labels[scan.status]}`;
+  const title = `${scan.fullScan ? 'Vollständiger Scan' : 'Aktualisierung'} – ${labels[scan.status]}`;
   const issues = scanIssues(scan);
   return <View style={[styles.box, { backgroundColor: theme.palette.surfaceGlass, borderColor: theme.palette.border }]}
     testID="library-scan-summary">

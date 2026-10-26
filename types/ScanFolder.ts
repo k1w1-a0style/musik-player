@@ -5,4 +5,5 @@ export interface ScanFolder {
   addedAt: number;
   enabled: boolean;
   lastError?: string;
+  removed?: boolean;
 }

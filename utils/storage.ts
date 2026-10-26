@@ -222,6 +222,7 @@ const scanFolderSchema = z.object({
   addedAt: z.number(),
   enabled: z.boolean().default(true),
   lastError: z.string().optional(),
+  removed: z.boolean().optional(),
 }).passthrough();
 
 type NormalizedStoredScanFolder = ScanFolder & Record<string, unknown>;
@@ -716,7 +717,13 @@ export const getScanFolders = async (): Promise<ScanFolder[]> => storage.getScan
 export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> =>
   withScanFoldersMutationLock(async () => {
     const folders = await getScanFolders();
-    if (folders.some(existing => existing.uri === folder.uri)) return folders;
+    const previous = folders.find(existing => existing.uri === folder.uri);
+    if (previous && !previous.removed) return folders;
+    if (previous) {
+      const restored = folders.map(existing => existing === previous ? { ...folder, id: previous.id, removed: false } : existing);
+      await storage.setScanFolders(restored);
+      return restored;
+    }
     const next = [...folders, folder];
     await storage.setScanFolders(next);
     return next;
@@ -725,8 +732,8 @@ export const addScanFolder = async (folder: ScanFolder): Promise<ScanFolder[]> =
 export const removeScanFolder = async (id: string): Promise<ScanFolder[]> =>
   withScanFoldersMutationLock(async () => {
     const folders = await getScanFolders();
-    const next = folders.filter(folder => folder.id !== id);
-    if (next.length === folders.length) return folders;
+    if (!folders.some(folder => folder.id === id && !folder.removed)) return folders;
+    const next = folders.map(folder => folder.id === id ? { ...folder, enabled: false, removed: true } : folder);
     await storage.setScanFolders(next);
     return next;
   });

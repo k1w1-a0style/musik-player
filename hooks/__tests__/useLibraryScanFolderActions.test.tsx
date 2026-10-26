@@ -113,14 +113,15 @@ test('onAddScanFolder shows unsupported alert on non-android platforms', async (
   expect(requestDirectoryPermissionsAsync).not.toHaveBeenCalled();
 });
 
-test('onAddScanFolder shows cancelled alert when picker has no granted uri', async () => {
+test('onAddScanFolder cancellation is quiet and does not change storage', async () => {
   const showAlert = jest.fn();
   const requestDirectoryPermissionsAsync = jest.fn().mockResolvedValue({ granted: false });
   const screen = render(<HookHarness showAlert={showAlert} requestDirectoryPermissionsAsync={requestDirectoryPermissionsAsync} />);
 
   fireEvent.press(screen.getByText('add'));
 
-  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getScanFolderCancelledAlert()));
+  await waitFor(() => expect(requestDirectoryPermissionsAsync).toHaveBeenCalled());
+  expect(showAlert).not.toHaveBeenCalled();
   expect(mockedPersistAddedScanFolder).not.toHaveBeenCalled();
 });
 
@@ -159,7 +160,8 @@ test('onAddScanFolder shows duplicate alert when persistence reports duplicate',
 
   fireEvent.press(screen.getByText('add'));
 
-  await waitFor(() => expect(showAlert).toHaveBeenCalledWith(getDuplicateScanFolderAlert()));
+  await waitFor(() => expect(mockedPersistAddedScanFolder).toHaveBeenCalled());
+  expect(showAlert).not.toHaveBeenCalled();
   expect(setScanFolders).not.toHaveBeenCalled();
   expect(setActiveTab).not.toHaveBeenCalled();
 });

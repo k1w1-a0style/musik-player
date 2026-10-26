@@ -31,7 +31,7 @@ export const useLibraryImportStateUpdate = ({
     // from a user editing a playlist while this same import is still running.
     if (!publishedGenerations.current.has(generation)) {
       publishedGenerations.current.add(generation);
-      setActiveTab('tracks');
+      if (!generation.automatic) setActiveTab('tracks');
     }
     return visible;
   }, [ensureCurrentImport, setActiveTab, songImport]);

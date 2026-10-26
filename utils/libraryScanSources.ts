@@ -1,7 +1,7 @@
 import type { Song } from '../types/Song';
 import { isAbortError, throwIfAborted } from './withTimeout';
 
-export type LibraryScanSource = 'media-library' | 'folders' | 'both';
+export type LibraryScanSource = 'media-library' | 'folders' | 'both' | 'auto';
 export interface LibraryScanRequest { source?: LibraryScanSource; refreshExisting?: boolean; automatic?: boolean }
 
 /** Only explicit "both" runs a second source; an unreadable source never causes a hidden fallback. */

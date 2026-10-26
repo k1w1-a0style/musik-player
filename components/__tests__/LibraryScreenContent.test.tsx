@@ -7,7 +7,7 @@ const mockRenderText = (children: string) => <Text>{children}</Text>;
 jest.mock('../../contexts/AppThemeContext', () => ({ useAppTheme: () => ({ theme: { palette: {
   primary: '#eee', surfaceGlass: '#222', border: '#333', text: { primary: '#fff', secondary: '#ccc' } } } }) }));
 
-jest.mock('../LibraryTopBar', () => () => mockRenderText('Top Bar'));
+jest.mock('../LibraryTopBar', () => ({ activity }: { activity?: React.ReactNode }) => <>{mockRenderText('Top Bar')}{activity}</>);
 jest.mock('../LibraryTabs', () => () => mockRenderText('Tabs'));
 jest.mock('../LibrarySearchBar', () => ({ value }: { value: string }) => mockRenderText(`Search: ${value}`));
 jest.mock('../LibraryImportStatus', () => ({ status }: { status: string | null }) => mockRenderText(`Status: ${status}`));

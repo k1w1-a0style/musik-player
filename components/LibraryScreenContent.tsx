@@ -42,7 +42,7 @@ const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
   songPlaylistPickerProps,
 }) => (
   <>
-    <LibraryTopBar {...topBarProps}
+    <LibraryTopBar {...topBarProps} activity={<LibraryPreparationStatus visible={showImportStatus} {...importStatusProps} />}
       onOpenCleaner={selectionScope ? () => selectionScope.onOpenCleaner([]) : undefined}
       cleanerDisabled={menuModalProps.loading || !menuModalProps.isReady} />
 
@@ -50,7 +50,6 @@ const LibraryScreenSections: React.FC<LibraryScreenContentProps> = ({
     <LibrarySelectionActions />
 
     {showSearchBar && <LibrarySearchBar {...searchBarProps} />}
-    <LibraryPreparationStatus visible={showImportStatus} {...importStatusProps} />
 
     <LibraryTabContent {...tabContentProps} />
 

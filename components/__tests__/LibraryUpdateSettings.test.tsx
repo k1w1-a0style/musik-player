@@ -10,9 +10,9 @@ test('hydration protects both switches and each choice preserves the other persi
   const view = render(<LibraryUpdateProvider><LibraryUpdateSettings /></LibraryUpdateProvider>);
   expect(view.getByTestId('settings-library-update-onOpen').props.disabled).toBe(true);
   await waitFor(() => expect(view.getByTestId('settings-library-update-onOpen').props.disabled).toBe(false));
-  await act(async () => { fireEvent(view.getByTestId('settings-library-update-onOpen'), 'valueChange', true); });
-  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: true, whileOpen: false });
-  await act(async () => { fireEvent(view.getByTestId('settings-library-update-whileOpen'), 'valueChange', true); });
-  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: true, whileOpen: true });
+  await act(async () => { fireEvent(view.getByTestId('settings-library-update-onOpen'), 'valueChange', false); });
+  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: true });
+  await act(async () => { fireEvent(view.getByTestId('settings-library-update-whileOpen'), 'valueChange', false); });
+  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: false });
   expect(view.getByText(/nur bei geöffneter App/)).toBeTruthy();
 });

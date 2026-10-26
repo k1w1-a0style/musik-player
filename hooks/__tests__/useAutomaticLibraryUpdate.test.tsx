@@ -30,7 +30,7 @@ test('starts an incremental update once after hydrated startup, using the grante
   const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
   await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
   expect(props.update).toHaveBeenCalledTimes(1);
-  expect(props.update).toHaveBeenCalledWith({ source: 'folders', automatic: true });
+  expect(props.update).toHaveBeenCalledWith({ source: 'auto', automatic: true });
   hook.rerender({ ...props });
   await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
   expect(props.update).toHaveBeenCalledTimes(1);

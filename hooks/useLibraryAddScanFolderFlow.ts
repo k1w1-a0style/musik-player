@@ -7,8 +7,6 @@ import {
   buildScanFolderPickerAvailabilityResult,
 } from '../utils/libraryScanFolders';
 import {
-  getDuplicateScanFolderAlert,
-  getScanFolderCancelledAlert,
   getScanFolderUnavailableAlert,
   getScanFolderUnsupportedAlert,
 } from '../utils/libraryFolderMessages';
@@ -48,19 +46,19 @@ export const useLibraryAddScanFolderFlow = ({
       const permission = await requestDirectoryPermissionsAsync();
       const permissionResult = buildDirectoryPermissionSelectionResult(permission);
       if (permissionResult.kind === 'cancelled') {
-        showAlert(getScanFolderCancelledAlert());
         return;
       }
 
       const folder = buildScanFolderFromDirectoryUri(permissionResult.directoryUri);
       const addResult = await persistAddedScanFolder(scanFolders, folder);
       if (addResult.kind === 'duplicate') {
-        showAlert(getDuplicateScanFolderAlert());
+        const existing = scanFolders.find(item => item.uri === folder.uri && !item.removed);
+        if (existing) await onFolderAdded?.(existing);
         return;
       }
 
       applyScanFolderStateUpdate(addResult.update);
-      await onFolderAdded?.(folder);
+      await onFolderAdded?.(addResult.update.scanFolders.find(item => item.uri === folder.uri) ?? folder);
     } catch {
       showAlert(getScanFolderUnavailableAlert());
     }

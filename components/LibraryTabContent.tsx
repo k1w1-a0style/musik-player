@@ -143,7 +143,7 @@ const LibraryTabContent: React.FC<LibraryTabContentProps> = ({
         <LibrarySectionHeader title="Scan-Ordner" count={`${activeFolders} aktiv`} />
         <FlatList
           key="library-folders-list"
-          data={scanFolders}
+          data={scanFolders.filter(folder => !folder.removed)}
           keyExtractor={folderKeyExtractor}
           contentContainerStyle={listContent}
           renderItem={renderFolderItem}

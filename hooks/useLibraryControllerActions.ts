@@ -54,8 +54,9 @@ export const useLibraryControllerActions = ({
 }: UseLibraryControllerActionsOptions): UseLibraryControllerActionsResult => {
   const importActionRef = useRef<ReturnType<typeof useLibraryImportActions>['importFromDevice'] | null>(null);
   const scanAddedFolder = useCallback(async (folder: ScanFolder): Promise<void> => {
-    await importActionRef.current?.({ folders: [folder], refreshExisting: false });
-  }, []);
+    setActiveTab('tracks');
+    await importActionRef.current?.({ folders: [folder], refreshExisting: false, automatic: true });
+  }, [setActiveTab]);
   const { openTagCleaner, openPlaylistDetail, openTrackInfo, openEqualizer: navigateToEqualizer, openSettings: navigateToSettings } =
     useLibraryNavigationActions();
   const { showAlert } = useLibraryAlerts();

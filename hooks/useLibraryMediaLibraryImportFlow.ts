@@ -1,5 +1,7 @@
+import { publishMediaLibraryAuthorization } from '../utils/mediaLibraryAuthorizationState';
+import { observedLibraryUpdates } from '../utils/librarySourceOwnership';
+import { mergeSongs } from '../utils/libraryPresentation';
 import { useCallback } from 'react';
-import { OperationAbortError } from '../utils/withTimeout';
 import { getImportedPreparationSongs } from '../utils/libraryImportSources';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
@@ -43,13 +45,11 @@ interface UseLibraryMediaLibraryImportFlowOptions {
 export const useLibraryMediaLibraryImportFlow = ({
   songs,
   setImportStatus,
-  showAlert,
   importTimeoutMs,
   requestMediaLibraryPermissionsAsync,
   getMediaLibraryPermissionsAsync,
   scanMediaLibraryCandidatesImpl,
   enrichMediaLibraryAssetsImpl,
-  confirmLibraryImportImpl,
   withTimeoutImpl,
   ensureCurrentImport,
   applyImportedSongsUpdate, publishImportedSongs,
@@ -63,6 +63,8 @@ export const useLibraryMediaLibraryImportFlow = ({
     'Musikzugriff konnte nicht rechtzeitig bestätigt werden. Bitte den Scan erneut starten oder einen Musikordner auswählen.',
     { signal: generation.controller.signal });
     ensureCurrentImport(generation);
+    generation.audioReadVerified = true;
+    publishMediaLibraryAuthorization(true);
     setImportStatus(importCopy.scanningMediaLibraryStatus);
     const candidates = await withImportInactivityTimeout(
       (signal, activity) => scanMediaLibraryCandidatesImpl({ signal,
@@ -82,12 +84,13 @@ export const useLibraryMediaLibraryImportFlow = ({
     setImportStatus(candidateProgress.candidatesFoundStatus);
     const candidateResult = buildMediaLibraryCandidatesResult(candidates.assets.length);
     if (candidateResult.kind === 'empty') {
-      if (!generation.automatic) showAlert(candidateResult.alert);
+      const observed = observedLibraryUpdates(baselineSongs, [{ source: 'media-library', uris: [], complete: true }]);
+      if (observed.some((song, index) => song !== baselineSongs[index])) {
+        await applyImportedSongsUpdate({ importedSongs: observed, baselineSongs, activeTab: 'tracks' }, generation);
+      }
       return [];
     }
-    const shouldImport = generation.automatic || await confirmLibraryImportImpl(candidates.assets.length, candidates.skipped.length);
     ensureCurrentImport(generation);
-    if (!shouldImport) throw new OperationAbortError('Musikimport abgebrochen.');
     setImportStatus(importCopy.importingMetadataAndCoversStatus);
     let callbacks: ReturnType<typeof createImportProgressCallbacks> | undefined;
     let mediaResult: Awaited<ReturnType<typeof enrichMediaLibraryAssetsImpl>>;
@@ -111,9 +114,9 @@ export const useLibraryMediaLibraryImportFlow = ({
     recordLibraryScanResult(generation.scanOperationId, mediaResult);
     const mediaProgress = getMediaLibraryImportProgressCopy(candidates.assets.length, mediaResult.songs.length);
     setImportStatus(mediaProgress.savingStatus);
-    const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? baselineSongs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs], baselineSongs);
+    const result = buildMediaLibraryImportResult(callbacks?.getSongs() ?? baselineSongs, observedLibraryUpdates(mergeSongs(callbacks?.getSongs() ?? baselineSongs, [...(mediaResult.revisionUpdates ?? []), ...mediaResult.songs]), mediaResult.sourceObservations), baselineSongs);
     const acceptedSongs = await applyImportedSongsUpdate(result.update, generation);
     return getImportedPreparationSongs(mediaResult.songs, acceptedSongs);
-  }, [applyImportedSongsUpdate, publishImportedSongs, confirmLibraryImportImpl, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, getMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, showAlert, songs, withTimeoutImpl]);
+  }, [applyImportedSongsUpdate, publishImportedSongs, ensureCurrentImport, enrichMediaLibraryAssetsImpl, importTimeoutMs, requestMediaLibraryPermissionsAsync, getMediaLibraryPermissionsAsync, scanMediaLibraryCandidatesImpl, setImportStatus, songs, withTimeoutImpl]);
   return { importFromMediaLibrary };
 };

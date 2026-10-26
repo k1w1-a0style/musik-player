@@ -1,3 +1,4 @@
+import type { LibrarySourceObservation } from './librarySourceOwnership';
 import { isNativeReadCapacityError } from './nativeReadTimeout';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { StorageAccessFramework } from 'expo-file-system/legacy';
@@ -59,6 +60,7 @@ export interface ImportErrorDetail {
 }
 
 export interface ImportScanResult {
+  sourceObservations?: LibrarySourceObservation[];
   songs: Song[];
   skipped: string[];
   errors: string[];
@@ -805,6 +807,7 @@ const readMediaLibraryImportSource = async (asset: MediaAsset, options: ImportEn
   const revisionCount = selection.getRevisionUpdates().length;
   const decision = selection.select(asset.uri, revision);
   if (!decision.include) {
+    selection.recordVerifiedAccess(asset.uri, revision);
     const update = selection.getRevisionUpdates()[revisionCount];
     await yieldKnownSource(childSignal);
     return { song: update, decision };
@@ -885,6 +888,7 @@ export const enrichMediaLibraryAssets = async (
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
   return { songs: dedupedSongs, skipped, errors, errorDetails, diagnostics: getImportDiagnostics(errorDetails, dedupedSongs.length), statistics: progress.getStatistics(),
     ...importReuseSummary(selection),
+    sourceObservations: [{ source: 'media-library', uris: assets.map(asset => asset.uri), complete: !workerResult.interrupted && !errors.length }],
     ...(workerResult.interrupted || errors.length ? { completed: false, remainingCount: workerResult.remaining } : {}),
     sourceSummary: [{ source: 'media-library', imported: dedupedSongs.length, skipped: skippedCount + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }] };
 };
@@ -992,6 +996,7 @@ export const scanFromSafFolders = async (
   const timedOutDirectoryUris = new Set<string>();
   const skipped: string[] = [];
   const folderUpdates: ScanFolder[] = [];
+  const sourceObservations: LibrarySourceObservation[] = [];
   const selection = createImportSourceSelection(options);
   const progress = createImportFileProgressReporter(options.onFileProgress, signal, true);
   const checkpoint = createImportCheckpointReporter(options.onCheckpoint, signal);
@@ -999,7 +1004,6 @@ export const scanFromSafFolders = async (
   let total = 0;
   let remainingCount = 0;
   let interrupted = false;
-
   const recordImportError = (uri: string): void => {
     addNormalizedSafError(uri, errors, seenErrors);
     progress.errors(errors.length);
@@ -1053,6 +1057,7 @@ export const scanFromSafFolders = async (
     interrupted ||= workerResult.interrupted;
     await checkpoint.flush(processed, total, folder.uri);
     const fileErrors = files.some(uri => seenErrors.has(normalizeImportUriForDedupe(uri) ?? uri));
+    sourceObservations.push({ source: folder.uri, uris: files, complete: !folderErrors.length && !fileErrors && !workerResult.interrupted });
     folderUpdates.push(getScannedFolderUpdate(folder, files, folderErrors, fileErrors, workerResult.interrupted));
   }
 
@@ -1061,7 +1066,7 @@ export const scanFromSafFolders = async (
   dedupedSongs.sort((a, b) => a.title.localeCompare(b.title));
   return { songs: dedupedSongs, skipped, errors, errorDetails, diagnostics: getImportDiagnostics(errorDetails, dedupedSongs.length), ...importReuseSummary(selection), statistics: progress.getStatistics(),
     ...(interrupted || errors.length ? { completed: false, remainingCount } : {}),
-    sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates };
+    sourceSummary: [{ source: 'saf', imported: dedupedSongs.length, skipped: skipped.length + selection.getSkippedCount() + (songs.length - dedupedSongs.length), errors: errors.length }], folderUpdates, sourceObservations };
 };
 
 export const importSongsFromSources = async (options: ImportSongsOptions = {}): Promise<ImportScanResult> => {

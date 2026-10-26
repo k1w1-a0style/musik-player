@@ -27,7 +27,7 @@ test('retains an honest completed scan summary after the import and preparation 
   expect(view.getByTestId('library-processing-control')).toBeTruthy();
   expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(view.getByText('Schnellscan – abgeschlossen')).toBeTruthy();
+  expect(view.getByText('Aktualisierung – abgeschlossen')).toBeTruthy();
   expect(view.getByTestId('library-scan-summary-counts').props.children).toBe('Neu: 1 · Geändert: 2 · Unverändert: 3 · Ungeprüft: 4 · Leseprobleme: 1');
   expect(view.getByText(/bekannte Dateien ohne verlässliche Änderungsdaten/)).toBeTruthy();
   expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
@@ -44,7 +44,7 @@ test('cancellation flushes the newest internal counters and rejects old-generati
   expect(view.queryByText(/12 von/)).toBeNull();
   act(() => stopLibraryScan(first, 'cancelled'));
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(view.getByText('Schnellscan – abgebrochen')).toBeTruthy();
+  expect(view.getByText('Aktualisierung – abgebrochen')).toBeTruthy();
   expect(view.getByText('12 von 20 gefundenen Dateien verarbeitet')).toBeTruthy();
   let second = 0;
   act(() => { second = beginLibraryScan(true); });
@@ -71,7 +71,7 @@ test('retains a failure before file enumeration without inventing counters', () 
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => jest.advanceTimersByTime(10000));
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(view.getByText('Schnellscan – fehlgeschlagen')).toBeTruthy();
+  expect(view.getByText('Aktualisierung – fehlgeschlagen')).toBeTruthy();
   expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
   jest.useRealTimers();
 });
@@ -81,7 +81,7 @@ test('shows failed scan counters, but keeps them separate from an active metadat
   const view = render(<LibraryPreparationStatus visible={false} />);
   act(() => { updateLibraryScanProgress(id, progress); stopLibraryScan(id, 'failed'); });
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(view.getByText('Schnellscan – fehlgeschlagen')).toBeTruthy();
+  expect(view.getByText('Aktualisierung – fehlgeschlagen')).toBeTruthy();
   act(() => { beginMetadataRefreshOperation(2, 0); });
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
 });
@@ -107,7 +107,7 @@ test('keeps a folder-state warning visible without fabricated file counters and 
   completeLibraryScan(id);
   const view = render(<LibraryPreparationStatus visible={false} />);
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(view.getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
+  expect(view.getByText('Aktualisierung – teilweise abgeschlossen')).toBeTruthy();
   expect(view.getByText('Ordnerstatus fehlt, Titel bleiben gespeichert.')).toBeTruthy();
   expect(view.queryByTestId('library-scan-summary-counts')).toBeNull();
   fireEvent.press(view.getByLabelText('Ordnerdaten erneut speichern'));

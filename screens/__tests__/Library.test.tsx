@@ -155,14 +155,17 @@ const openOverflowMenu = (getByLabelText: ReturnType<typeof render>['getByLabelT
 
 const pressImportMenuItem = (getByText: ReturnType<typeof render>['getByText'], source = 'Android-Musikbibliothek') => {
   fireEvent.press(getByText('Musikbibliothek aktualisieren'));
-  fireEvent.press(getByText(source));
+  void source; // Normal updates choose authorized sources automatically.
 };
 
 describe('Library', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetMediaPermission.mockReset().mockResolvedValueOnce({ status: 'undetermined', canAskAgain: true })
-      .mockResolvedValue({ status: 'granted', canAskAgain: true });
+    mockGetMediaPermission.mockReset().mockResolvedValue({ status: 'undetermined', canAskAgain: true });
+    mockMediaPermission.mockImplementation(async () => {
+      mockGetMediaPermission.mockResolvedValue({ status: 'granted', canAskAgain: true });
+      return { status: 'granted' };
+    });
     mockPlaylists = [];
     mockLibraryControllerCrash = false;
     mockSongLibrary = createSongLibraryState([{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }]);
@@ -299,7 +302,7 @@ describe('Library', () => {
     fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
     fireEvent.press(view.getByLabelText('Scan abbrechen'));
     expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
-    expect(view.getByText('Schnellscan – abgebrochen')).toBeTruthy();
+    expect(view.getByText('Aktualisierung – abgebrochen')).toBeTruthy();
     expect(view.getByText('1 von 2 gefundenen Dateien verarbeitet')).toBeTruthy();
     await waitFor(() => expect(scanOptions.signal.aborted).toBe(true));
     const publications = mockSetSongs.mock.calls.length;
@@ -334,7 +337,7 @@ describe('Library', () => {
     view.unmount();
   });
 
-  test('does not enrich media when import confirmation is cancelled', async () => {
+  test('authorized media imports without an extra confirmation popup', async () => {
     mockMediaCandidates.mockResolvedValueOnce({ assets: [{ id: 'a1', uri: 'file:///a.mp3' }], skipped: [] });
     jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
       buttons?.[0]?.onPress?.();
@@ -348,7 +351,7 @@ describe('Library', () => {
     pressImportMenuItem(getByText);
 
     await waitFor(() => expect(mockMediaCandidates).toHaveBeenCalled());
-    expect(mockMediaEnrich).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockMediaEnrich).toHaveBeenCalled());
     view.unmount();
   });
 
@@ -375,7 +378,7 @@ describe('Library', () => {
     await waitFor(() => expect(mockSetSongs).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'x' })])));
     expect(Alert.alert).not.toHaveBeenCalled();
     fireEvent.press(getByLabelText('Verarbeitungsdetails öffnen'));
-    expect(getByText('Schnellscan – teilweise abgeschlossen')).toBeTruthy();
+    expect(getByText('Aktualisierung – teilweise abgeschlossen')).toBeTruthy();
     expect(getByText('1 Datei(en) noch nicht geprüft')).toBeTruthy();
     expect(getByLabelText('Scan erneut versuchen')).toBeTruthy();
     view.unmount();

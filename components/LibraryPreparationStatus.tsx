@@ -41,9 +41,9 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
       accessibilityHint={label} accessibilityState={{ expanded: details }} onPress={() => setDetails(true)} style={styles.control}>
       {running ? <ActivityIndicator testID="library-import-scan-animation" size="small" color={theme.palette.primary} /> : null}
       <Text testID="library-processing-label" style={[styles.label, { color: needsAttention ? theme.palette.warning : theme.palette.text.secondary }]}>
-        {needsAttention ? 'ⓘ ' : ''}{label}
+        {needsAttention ? '!' : running ? '' : '✓'}
       </Text>
-      <Text style={{ color: theme.palette.primary }}>›</Text>
+
     </Pressable>
     {details ? <Modal transparent animationType="fade" visible onRequestClose={() => setDetails(false)}>
       <View style={[styles.backdrop, { backgroundColor: getLibraryMenuBackdropColor(appearance ?? DEFAULT_APP_APPEARANCE) }]}>
@@ -52,7 +52,7 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
         <View accessibilityViewIsModal style={[styles.sheet, { maxHeight: Math.max(160, height - 80),
           backgroundColor: theme.palette.surfaceElevated ?? theme.palette.surfaceGlass, borderColor: theme.palette.border }]}>
           <View style={styles.heading}>
-            <Text accessibilityRole="header" style={[styles.title, { color: theme.palette.text.primary }]}>Bibliotheksaktivität</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: theme.palette.text.primary }]}>Scan-Details</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Verarbeitungsdetails schließen"
               onPress={() => setDetails(false)} style={styles.action}><Text style={{ color: theme.palette.primary }}>Schließen</Text></Pressable>
           </View>
@@ -67,8 +67,8 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
   </>;
 };
 const styles = StyleSheet.create({
-  control: { minHeight: 48, marginHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  label: { flex: 1, fontSize: 12 },
+  control: { position: 'absolute', left: -5, top: -5, width: 48, height: 48, minHeight: 48, justifyContent: 'flex-end', flexDirection: 'row', alignItems: 'flex-end', gap: 0 },
+  label: { fontSize: 16 },
   backdrop: { flex: 1, justifyContent: 'center', padding: 16 },
   sheet: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, overflow: 'hidden' },
   heading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingHorizontal: 16, gap: 8 },

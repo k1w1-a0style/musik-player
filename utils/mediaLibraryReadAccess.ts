@@ -20,6 +20,11 @@ export const isMediaLibraryReadAccessError = (error: unknown): boolean =>
     || (/ExpoMediaLibrary\.getAssetsAsync/.test(error.message)
       && /Permission Denial|SecurityException|EACCES|READ_MEDIA_AUDIO|READ_EXTERNAL_STORAGE/i.test(error.message))));
 
+export const describeAudioReadFailure = (error: unknown, verified: boolean | undefined, fallback: string): string =>
+  verified && isMediaLibraryReadAccessError(error)
+    ? 'Musikzugriff bestätigt; die Android-Medienabfrage ist fehlgeschlagen. Freigegebene Ordner bleiben unabhängig verfügbar.'
+    : fallback;
+
 export const ensureAudioReadAccess = async (
   request: AudioPermissionQuery,
   get: AudioPermissionQuery,

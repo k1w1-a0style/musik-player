@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { type LibraryScanRequest } from '../utils/libraryScanSources';
 import { clearWaveformPreparation, prepareLibraryWaveforms, hasPendingWaveformPreparation } from '../utils/libraryWaveformPreparation';
 import { clearImportFileProgress } from '../utils/libraryImportProgress';
@@ -8,12 +8,10 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import { importSongsFromSources, scanMediaLibraryCandidates, enrichMediaLibraryAssets } from '../utils/mediaLibraryImport';
 import { DEFAULT_LIBRARY_OPERATION_TIMEOUT_MS } from '../utils/libraryOperationTimeouts';
 import { confirmLibraryImport } from '../utils/libraryImportConfirmation';
-import { getEnabledScanFolders } from '../utils/libraryScanFolders';
 import { isAbortError, isTimeoutError, withTimeout } from '../utils/withTimeout';
 import {
   getImportStoppedAlert,
   getLibraryImportFlowCopy,
-  shouldImportFromScanFolders,
 } from '../utils/libraryImportFlow';
 import type {
   ImportGeneration,
@@ -28,7 +26,7 @@ import { useLibraryMediaLibraryImportFlow } from './useLibraryMediaLibraryImport
 import { createCoverCacheProtection } from '../utils/coverCacheCleanup';
 import { beginLibraryScan, completeLibraryScan, stopLibraryScan, getLibraryScanOperation } from '../utils/libraryScanOperation';
 import type { Song } from '../types/Song';
-import { isMediaLibraryReadAccessError } from '../utils/mediaLibraryReadAccess';
+import { describeAudioReadFailure, isMediaLibraryReadAccessError } from '../utils/mediaLibraryReadAccess';
 import { musicAccessButtons } from './useLibraryAlerts';
 
 export type { UseLibraryImportActionsOptions, UseLibraryImportActionsResult } from './libraryImportActionTypes';
@@ -75,7 +73,8 @@ const reportLibraryImportFailure = (
     console.warn('[Import] Import failed.', error);
   }
   const alert = getImportStoppedAlert(error);
-  if (generation.automatic) return;
+  if (generation.automatic || (generation.audioReadVerified && isMediaLibraryReadAccessError(error))
+    || (generation.quiet && !isMediaLibraryReadAccessError(error))) return;
   showAlert(isMediaLibraryReadAccessError(error)
     ? { ...alert, buttons: musicAccessButtons(onSelectMusicFolder) } : alert);
 };
@@ -84,7 +83,7 @@ const recordScanFailure = (error: unknown, generation: ImportGeneration): void =
   const cancelled = isAbortError(error);
   // Keep the existing translated Error/fallback message after the alert closes.
   stopLibraryScan(generation.scanOperationId, cancelled ? 'cancelled' : 'failed',
-    cancelled ? undefined : getImportStoppedAlert(error).message);
+    cancelled ? undefined : describeAudioReadFailure(error, generation.audioReadVerified, getImportStoppedAlert(error).message));
 };
 
 export const useLibraryImportActions = ({
@@ -102,7 +101,6 @@ export const useLibraryImportActions = ({
   confirmLibraryImportImpl = confirmLibraryImport,
   withTimeoutImpl = withTimeout,
 }: UseLibraryImportActionsOptions): UseLibraryImportActionsResult => {
-  const lastSource = useRef<LibraryScanRequest['source']>(undefined);
   const { startImport, isCurrentImport, ensureCurrentImport, finishImport, cancelImport } =
     useLibraryImportLifecycle({ setLoading, setImportStatus });
   const { applyImportedSongsUpdate, publishImportedSongs } = useLibraryImportStateUpdate({ songs, setSongs, setActiveTab, ensureCurrentImport, songImport, timeoutMs: importTimeoutMs });
@@ -125,14 +123,14 @@ export const useLibraryImportActions = ({
     confirmLibraryImportImpl,
   });
 
-  const runSourceFlow = useLibrarySelectedSourceFlow({ songs, songImport, scanFolders, importFromMediaLibrary, importFromScanFolders });
+  const runSourceFlow = useLibrarySelectedSourceFlow({ songs, songImport, scanFolders, importFromMediaLibrary, importFromScanFolders, getPermissions: getMediaLibraryPermissionsAsync });
 
   const importFromDevice = useCallback(async (options?: LibraryScanRequest & { folders?: typeof scanFolders }): Promise<void> => {
     if (options?.automatic && getLibraryScanOperation().status === 'running') return;
     const generation = startImport();
     generation.automatic = options?.automatic;
-    const selectedSource = options?.source ?? (options?.folders ? 'folders' : lastSource.current)
-      ?? (shouldImportFromScanFolders(getEnabledScanFolders(scanFolders), platformOs) ? 'folders' : 'media-library');
+    const selectedSource = options?.source ?? (options?.folders ? 'folders' : 'auto');
+    generation.quiet = selectedSource === 'auto';
     beginImportActivities(generation, options?.refreshExisting ?? false, selectedSource);
     setMenuOpen(false);
     setLoading(true);
@@ -143,7 +141,6 @@ export const useLibraryImportActions = ({
       setImportStatus(importCopy.preparingStatus);
       await waitForImportPersistence(songImport, generation, importTimeoutMs);
       ensureCurrentImport(generation);
-      lastSource.current = selectedSource;
       preparationSongs = await runSourceFlow(generation, selectedSource, importCopy, options);
       ensureCurrentImport(generation);
       completeLibraryScan(generation.scanOperationId);
@@ -160,7 +157,7 @@ export const useLibraryImportActions = ({
     // The durable scan has finished. Optional analysis owns its own cancellation
     // and status; navigation or a scan observer must not turn it into a hung scan.
     if (scanCompleted) startOptionalWaveformPreparation(preparationSongs);
-  }, [ensureCurrentImport, finishImport, runSourceFlow, importTimeoutMs, isCurrentImport, platformOs, scanFolders, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, startImport, onSelectMusicFolder]);
+  }, [ensureCurrentImport, finishImport, runSourceFlow, importTimeoutMs, isCurrentImport, setImportStatus, setLoading, setMenuOpen, showAlert, songImport, startImport, onSelectMusicFolder]);
 
   return { importFromDevice, cancelImport };
 };

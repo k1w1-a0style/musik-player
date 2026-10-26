@@ -9,7 +9,7 @@ beforeEach(() => { jest.clearAllMocks(); (storage.get as jest.Mock).mockResolved
 test('hydrates old installs without writing, and persisted opt-out survives restart', async () => {
   const hook = renderHook(useLibraryUpdatePreferences, { wrapper });
   await waitFor(() => expect(hook.result.current.isHydrated).toBe(true));
-  expect(hook.result.current.preferences).toEqual({ onOpen: false, whileOpen: false });
+  expect(hook.result.current.preferences).toEqual({ onOpen: true, whileOpen: true });
   expect(storage.set).not.toHaveBeenCalled();
   act(() => hook.result.current.setPreferences?.(() => ({ onOpen: true, whileOpen: false })));
   await waitFor(() => expect(storage.set).toHaveBeenLastCalledWith(LIBRARY_UPDATE_KEY, { onOpen: true, whileOpen: false }));

@@ -455,7 +455,9 @@ describe('storage', () => {
     await updateScanFolder('1', { enabled: false });
     expect((await getScanFolders())[0]?.enabled).toBe(false);
     await removeScanFolder('1');
-    expect(await getScanFolders()).toEqual([]);
+    expect(await getScanFolders()).toEqual([{ id: '1', name: 'x', uri: 'u', addedAt: 0, enabled: false, removed: true }]);
+    await addScanFolder({ id: 'new', name: 'x', uri: 'u', addedAt: 1, enabled: true });
+    expect(await getScanFolders()).toEqual([{ id: '1', name: 'x', uri: 'u', addedAt: 1, enabled: true, removed: false }]);
   });
 
   test('updateScanFolder preserves folder id even if patch contains id', async () => {
@@ -518,6 +520,7 @@ describe('storage', () => {
 
     await expect(getScanFolders()).resolves.toEqual([
       keep,
+      { ...remove, enabled: false, removed: true },
       { ...update, name: 'Updated', enabled: false },
     ]);
   });

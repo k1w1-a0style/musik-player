@@ -1,3 +1,5 @@
+import { observedLibraryUpdates } from '../utils/librarySourceOwnership';
+import { mergeSongs } from '../utils/libraryPresentation';
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Song } from '../types/Song';
@@ -113,14 +115,15 @@ export const useLibraryScanFolderImportFlow = ({
     recordLibraryScanResult(generation.scanOperationId, result);
     const resultProgress = getScanImportProgressCopy(activeFolders.length, result.songs.length);
     setImportStatus(resultProgress.foundStatus);
-    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? baselineSongs, [...(result.revisionUpdates ?? []), ...result.songs], result.errors, baselineSongs);
+    const scanResult = buildScanImportResult(callbacks?.getSongs() ?? baselineSongs, observedLibraryUpdates(mergeSongs(callbacks?.getSongs() ?? baselineSongs, [...(result.revisionUpdates ?? []), ...result.songs]), result.sourceObservations), result.errors, baselineSongs);
     if (scanResult.kind === 'empty') {
       ensureCurrentImport(generation);
+      const observed = observedLibraryUpdates(baselineSongs, result.sourceObservations);
+      if (observed.some((song, index) => song !== baselineSongs[index])) {
+        await applyImportedSongsUpdate({ importedSongs: observed, baselineSongs, activeTab: 'tracks' }, generation);
+      }
       // Partial outcomes remain actionable in the persistent scan summary.
       // An additional blocking native alert hides the library for no benefit.
-      if (!generation.automatic && result.completed !== false && !result.reusedCount && !result.errors?.length) {
-        showAlert(scanResult.alert);
-      }
       await persistLibraryScanFolders(persistChangedFolderUpdates, result.folderUpdates,
         { scanId: generation.scanOperationId, signal: generation.controller.signal, timeoutMs: importTimeoutMs, showAlert });
       ensureCurrentImport(generation);

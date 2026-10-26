@@ -6,6 +6,7 @@ import { KIWI_MUSIC_ARTWORK } from '../utils/songArtwork';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 export interface LibraryTopBarProps {
+  activity?: React.ReactNode;
   title?: string;
   searchOpen?: boolean;
   onToggleSearch: () => void;
@@ -15,6 +16,7 @@ export interface LibraryTopBarProps {
 }
 
 const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
+  activity,
   title = 'K1W1 Music',
   searchOpen = false,
   onToggleSearch,
@@ -27,8 +29,11 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
   return (
     <View style={styles.topBar} testID="library-top-bar">
       <View style={styles.brandRow}>
+        <View style={{ width: 38, height: 38 }}>
         <Image source={KIWI_MUSIC_ARTWORK} style={[styles.brandLogo, { borderColor: theme.palette.borderStrong }]}
           fadeDuration={0} accessible={false} />
+        {activity}
+        </View>
         <View style={styles.brandText}>
           <Text numberOfLines={1} style={[styles.brand, { color: theme.palette.text.primary }]}>{title}</Text>
           <Text numberOfLines={1} style={[styles.brandCaption, { color: theme.palette.text.muted }]}>MUSIKBIBLIOTHEK</Text>
