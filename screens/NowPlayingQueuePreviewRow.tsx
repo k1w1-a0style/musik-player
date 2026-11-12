@@ -45,11 +45,15 @@ const getZeroScrollOffset = (): number => 0;
 const QueueArtwork = ({ id, artworkUri }: { id: string; artworkUri?: string }) => {
   const thumbnailUri = useArtworkThumbnail(artworkUri, 128);
   const [failedUri, setFailedUri] = React.useState<string>();
+  const [failedOriginal, setFailedOriginal] = React.useState<string>();
   const displayUri = failedUri === thumbnailUri ? artworkUri : thumbnailUri;
-  const artworkSource = React.useMemo(() => getArtworkSource(displayUri), [displayUri]);
+  const artworkSource = React.useMemo(() => getArtworkSource(displayUri && failedOriginal === displayUri ? undefined : displayUri), [displayUri, failedOriginal]);
   return <Image source={artworkSource} style={styles.queueArtwork} resizeMode="cover"
     resizeMethod="resize" fadeDuration={0} accessible={false}
-    onError={displayUri && displayUri !== artworkUri ? () => setFailedUri(displayUri) : undefined}
+    onError={displayUri && failedOriginal !== displayUri ? () => {
+      if (displayUri !== artworkUri) setFailedUri(displayUri);
+      else setFailedOriginal(displayUri);
+    } : undefined}
     testID={artworkUri ? `queue-artwork-${id}` : `queue-artwork-fallback-${id}`} />;
 };
 

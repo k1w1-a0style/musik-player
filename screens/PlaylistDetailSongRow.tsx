@@ -41,9 +41,11 @@ interface PlaylistDetailSongRowProps {
 
 const SongArtwork = React.memo(({ song }: { song: Song }) => {
   const uri = getSongArtworkUri(song);
-  const source = React.useMemo(() => getArtworkSource(uri), [uri]);
+  const [failedUri, setFailedUri] = React.useState<string>();
+  const source = React.useMemo(() => getArtworkSource(uri && failedUri === uri ? undefined : uri), [failedUri, uri]);
   return <Image source={source} resizeMode="cover" resizeMethod="resize" fadeDuration={0}
-    style={styles.artwork} accessible={false} testID={`playlist-detail-artwork-${song.id}`} />;
+    style={styles.artwork} accessible={false} onError={uri && failedUri !== uri ? () => setFailedUri(uri) : undefined}
+    testID={`playlist-detail-artwork-${song.id}`} />;
 });
 
 const usePlaylistRowAccessibilityAction = (index: number, songCount: number,

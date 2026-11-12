@@ -1,4 +1,4 @@
-import { getSongArtworkUri } from '../songArtwork';
+import { DEFAULT_COVER_ARTWORK, getArtworkSource, getSongArtworkUri } from '../songArtwork';
 
 describe('songArtwork', () => {
   test('returns coverInfo uri before cover when present', () => {
@@ -25,4 +25,11 @@ describe('songArtwork', () => {
     expect(getSongArtworkUri(null)).toBeUndefined();
     expect(getSongArtworkUri({ cover: '   ', coverInfo: { uri: '' } })).toBeUndefined();
   });
+});
+
+test('a missing or blank cover uses the bundled vinyl while a real URI stays intact', () => {
+  expect(DEFAULT_COVER_ARTWORK).toBeDefined();
+  expect(getArtworkSource()).toBe(DEFAULT_COVER_ARTWORK);
+  expect(getArtworkSource(' ')).toBe(DEFAULT_COVER_ARTWORK);
+  expect(getArtworkSource(' file:///real.jpg ')).toEqual({ uri: 'file:///real.jpg' });
 });

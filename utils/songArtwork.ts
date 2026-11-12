@@ -6,6 +6,8 @@ export const getSongArtworkRevision = (song?: Song | null): string =>
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro registers bundled images through a static require.
 export const KIWI_MUSIC_ARTWORK = require('../assets/icon.png') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro requires a static asset reference.
+export const DEFAULT_COVER_ARTWORK = require('../assets/default-vinyl.png') as number;
 
 const normalizeArtworkUri = (value?: string): string | undefined => {
   const trimmed = value?.trim();
@@ -15,7 +17,7 @@ const normalizeArtworkUri = (value?: string): string | undefined => {
 /** Display fallback only: keep embedded artwork metadata and cover backfill unchanged. */
 export const getArtworkSource = (artworkUri?: string): ImageSourcePropType => {
   const uri = normalizeArtworkUri(artworkUri);
-  return uri ? { uri } : KIWI_MUSIC_ARTWORK;
+  return uri ? { uri } : DEFAULT_COVER_ARTWORK;
 };
 
 export const getSongArtworkUri = (song?: Pick<Song, 'cover' | 'coverInfo'> | null): string | undefined => {

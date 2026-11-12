@@ -3,7 +3,7 @@ import * as ReactNative from 'react-native';
 import { Image, StyleSheet } from 'react-native';
 import { beginPlaybackSelection, resetPlaybackSelectionForTests } from '../../utils/playbackSelectionStatus';
 import { getAppTheme } from '../../utils/appTheme';
-import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
+import { DEFAULT_COVER_ARTWORK } from '../../utils/songArtwork';
 import { act, fireEvent, render } from '@testing-library/react-native';
 import MiniPlayer, { getMiniPlayerMinimumHeight, shouldShowMiniPlayerSecondaryControls } from '../MiniPlayer';
 import { MiniPlayerViewportProvider, useMiniPlayerViewport } from '../../contexts/MiniPlayerViewportContext';
@@ -161,7 +161,7 @@ describe('MiniPlayer', () => {
     const { UNSAFE_getByType } = render(<MiniPlayer onOpen={jest.fn()} />);
     const img = UNSAFE_getByType(Image);
     fireEvent(img, 'error');
-    expect(UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
+    expect(UNSAFE_getByType(Image).props.source).toBe(DEFAULT_COVER_ARTWORK);
   });
 
   test('disabled next tap does not open mini player and does not skip', () => {

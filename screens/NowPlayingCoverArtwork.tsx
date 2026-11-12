@@ -3,7 +3,7 @@ import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { Song } from '../types/Song';
-import { KIWI_MUSIC_ARTWORK, getSongArtworkUri } from '../utils/songArtwork';
+import { DEFAULT_COVER_ARTWORK, getSongArtworkUri } from '../utils/songArtwork';
 import NativeTrackPager from '../components/NativeTrackPager';
 import CoverBassPulse from '../components/CoverBassPulse';
 
@@ -68,7 +68,7 @@ const CoverCard = React.memo(({ role, song, artworkUri, isPlaying, coverSize,
         // native-stack retains the outgoing screen for its removal animation.
         <View collapsable={false} style={[styles.discFallback, isPlaying && styles.discFallbackPlaying]}
           testID={getFallbackTestId(role)}>
-          <Image source={KIWI_MUSIC_ARTWORK} style={styles.coverImage} resizeMode="cover"
+          <Image source={DEFAULT_COVER_ARTWORK} style={styles.coverImage} resizeMode="cover"
             resizeMethod="resize" fadeDuration={0} accessible={false} />
         </View>
       )}

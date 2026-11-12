@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
-import LibraryAlbumTile, { getAlbumTileFallbackLetter } from '../LibraryAlbumTile';
+import LibraryAlbumTile from '../LibraryAlbumTile';
+import { DEFAULT_COVER_ARTWORK } from '../../utils/songArtwork';
 import { getResponsiveAlbumGridMetrics } from '../LibraryTabContent';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 
@@ -42,17 +43,16 @@ test('renders album title and subtitle', () => {
   expect(getByText('DJ Kiwi • 12 Titel')).toBeTruthy();
 });
 
-test('renders first letter when no cover exists', () => {
-  const { getByText } = render(<LibraryAlbumTile album={album({ title: 'techno tools' })} onPress={jest.fn()} />);
+test('renders default artwork when no cover exists', () => {
+  const { getByTestId } = render(<LibraryAlbumTile album={album({ title: 'techno tools' })} onPress={jest.fn()} />);
 
-  expect(getByText('T')).toBeTruthy();
+  expect(getByTestId('library-album-cover-a1').props.source).toBe(DEFAULT_COVER_ARTWORK);
 });
 
-test('renders fallback question mark for blank album titles', () => {
-  const { getByText } = render(<LibraryAlbumTile album={album({ title: '   ' })} onPress={jest.fn()} />);
+test('renders default artwork for blank album titles', () => {
+  const { getByTestId } = render(<LibraryAlbumTile album={album({ title: '   ' })} onPress={jest.fn()} />);
 
-  expect(getByText('?')).toBeTruthy();
-  expect(getAlbumTileFallbackLetter('')).toBe('?');
+  expect(getByTestId('library-album-cover-a1').props.source).toBe(DEFAULT_COVER_ARTWORK);
 });
 
 test('renders cover when available', () => {
@@ -77,7 +77,6 @@ test('uses app theme album chrome and text colors', () => {
 
   expect(JSON.stringify(getByTestId('library-album-art-a1').props.style)).toContain(mockAppTheme.palette.surfaceGlass);
   expect(JSON.stringify(getByTestId('library-album-art-a1').props.style)).toContain(mockAppTheme.palette.border);
-  expect(JSON.stringify(getByText('W').props.style)).toContain(mockAppTheme.palette.primary);
   expect(JSON.stringify(getByText('Warehouse Dreams').props.style)).toContain(mockAppTheme.palette.text.primary);
   expect(JSON.stringify(getByText('DJ Kiwi • 12 Titel').props.style)).toContain(mockAppTheme.palette.text.secondary);
 });

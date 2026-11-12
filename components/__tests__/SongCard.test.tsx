@@ -6,7 +6,7 @@ import SystemAudio from 'expo-system-audio';
 import SongCard from '../SongCard';
 import { useArtworkThumbnail } from '../../hooks/useArtworkThumbnail';
 import { getLibrarySongItemLayout } from '../../utils/libraryRendererHelpers';
-import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
+import { DEFAULT_COVER_ARTWORK } from '../../utils/songArtwork';
 
 jest.mock('../../hooks/useArtworkThumbnail', () => ({ useArtworkThumbnail: jest.fn((uri: string | undefined) => uri) }));
 
@@ -53,7 +53,7 @@ describe('SongCard', () => {
 
     fireEvent(UNSAFE_getByType(Image), 'error');
 
-    expect(UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
+    expect(UNSAFE_getByType(Image).props.source).toBe(DEFAULT_COVER_ARTWORK);
   });
 
   test('calls stable song press handler with the row song', () => {
@@ -221,6 +221,6 @@ test('retries the original cover after a derived thumbnail fails', () => {
   fireEvent(view.UNSAFE_getByType(Image), 'error');
   expect(view.UNSAFE_getByType(Image).props.source.uri).toBe('file:///original.jpg');
   fireEvent(view.UNSAFE_getByType(Image), 'error');
-  expect(view.UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
+  expect(view.UNSAFE_getByType(Image).props.source).toBe(DEFAULT_COVER_ARTWORK);
   jest.mocked(useArtworkThumbnail).mockImplementation(uri => uri);
 });

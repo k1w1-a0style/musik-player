@@ -8,6 +8,7 @@ import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 import { usePlayerPresentation } from '../contexts/PlayerPresentationContext';
 import { getLibraryGroupRowHeight } from '../utils/libraryRendererHelpers';
+import { getArtworkSource } from '../utils/songArtwork';
 
 interface LibraryGroupRowProps {
   group: LibraryGroupItem;
@@ -23,7 +24,7 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const thumbnailUri = useArtworkThumbnail(group.cover, 128);
   const displayUri = thumbnailFailed ? group.cover : thumbnailUri;
-  const coverSource = useMemo(() => displayUri ? { uri: displayUri } : null, [displayUri]);
+  const coverSource = useMemo(() => getArtworkSource(coverFailed ? undefined : displayUri), [coverFailed, displayUri]);
 
   useEffect(() => {
     setCoverFailed(false);
@@ -38,8 +39,6 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
     if (displayUri !== group.cover) setThumbnailFailed(true);
     else setCoverFailed(true);
   }, [displayUri, group.cover]);
-
-  const showCover = coverSource !== null && !coverFailed;
 
   return (
     <Pressable
@@ -56,15 +55,9 @@ const LibraryGroupRowComponent: React.FC<LibraryGroupRowProps> = ({ group, onPre
       testID={`library-group-row-${group.id}`}
     >
       <View style={[styles.groupIcon, { backgroundColor: theme.palette.surfaceGlass }]}>
-        {showCover ? (
-          <Image source={coverSource!} style={styles.groupCover} accessible={false}
+          <Image source={coverSource} style={styles.groupCover} accessible={false}
             resizeMethod="resize" fadeDuration={0} testID={`library-group-cover-${group.id}`}
-            onError={handleCoverError} />
-        ) : (
-          <Text style={[styles.groupIconText, { color: theme.palette.primary }]}>
-            {group.title.slice(0, 1).toUpperCase() || '?'}
-          </Text>
-        )}
+            onError={displayUri && !coverFailed ? handleCoverError : undefined} />
       </View>
       <View style={styles.groupTextWrap}>
         <Text style={[styles.groupTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>

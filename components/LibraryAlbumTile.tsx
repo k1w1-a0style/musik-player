@@ -5,6 +5,7 @@ import { useLibraryCleanerMenu } from '../hooks/useLibraryCleanerMenu';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import type { LibraryGroupItem } from '../utils/libraryPresentation';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
+import { getArtworkSource } from '../utils/songArtwork';
 
 interface LibraryAlbumTileProps {
   album: LibraryGroupItem;
@@ -21,7 +22,7 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const thumbnailUri = useArtworkThumbnail(album.cover, 256);
   const displayUri = thumbnailFailed ? album.cover : thumbnailUri;
-  const coverSource = useMemo(() => displayUri ? { uri: displayUri } : null, [displayUri]);
+  const coverSource = useMemo(() => getArtworkSource(coverFailed ? undefined : displayUri), [coverFailed, displayUri]);
 
   useEffect(() => {
     setCoverFailed(false);
@@ -36,8 +37,6 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
     if (displayUri !== album.cover) setThumbnailFailed(true);
     else setCoverFailed(true);
   }, [album.cover, displayUri]);
-
-  const showCover = coverSource !== null && !coverFailed;
 
   return (
     <Pressable
@@ -59,13 +58,9 @@ const LibraryAlbumTileComponent: React.FC<LibraryAlbumTileProps> = ({ album, onP
         ]}
         testID={`library-album-art-${album.id}`}
       >
-        {showCover ? (
-          <Image source={coverSource!} style={styles.albumImage} accessible={false}
+          <Image source={coverSource} style={styles.albumImage} accessible={false}
             resizeMethod="resize" fadeDuration={0} testID={`library-album-cover-${album.id}`}
-            onError={handleCoverError} />
-        ) : (
-          <Text style={[styles.albumLetter, { color: theme.palette.primary }]}>{getAlbumTileFallbackLetter(album.title)}</Text>
-        )}
+            onError={displayUri && !coverFailed ? handleCoverError : undefined} />
       </View>
       <Text style={[styles.albumTitle, { color: theme.palette.text.primary }]} numberOfLines={2}>
         {album.title}

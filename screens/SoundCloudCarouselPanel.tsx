@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import type { Song } from '../types/Song';
 import { SOUNDCLOUD_PLAYER_COLORS } from '../utils/appThemeOverlays';
@@ -18,10 +18,12 @@ interface SoundCloudCarouselPanelProps {
 const SoundCloudCarouselPanel = ({ song, role, artworkUri, paused = false,
   topInset = 0, bottomInset = 0 }: SoundCloudCarouselPanelProps) => {
   const resolvedArtworkUri = artworkUri ?? getSongArtworkUri(song);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [resolvedArtworkUri, song?.id]);
   const hasSong = song !== null;
   const artworkSource = useMemo(
-    () => hasSong || resolvedArtworkUri ? getArtworkSource(resolvedArtworkUri) : null,
-    [hasSong, resolvedArtworkUri],
+    () => hasSong || resolvedArtworkUri ? getArtworkSource(failed ? undefined : resolvedArtworkUri) : null,
+    [failed, hasSong, resolvedArtworkUri],
   );
 
   return (
@@ -35,6 +37,7 @@ const SoundCloudCarouselPanel = ({ song, role, artworkUri, paused = false,
         {artworkSource ? (
           <Image source={artworkSource} resizeMode={resolvedArtworkUri ? 'cover' : 'contain'} resizeMethod="resize"
             fadeDuration={0} accessible={false} style={styles.panelArtwork} blurRadius={0}
+            onError={resolvedArtworkUri && !failed ? () => setFailed(true) : undefined}
             testID={`soundcloud-carousel-${role}-artwork`} />
         ) : <View style={[StyleSheet.absoluteFill, styles.emptyArtwork]} />}
         <View pointerEvents="none" style={[styles.artworkShade, paused && styles.pausedShade]} />

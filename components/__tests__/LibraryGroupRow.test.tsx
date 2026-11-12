@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import LibraryGroupRow from '../LibraryGroupRow';
+import { DEFAULT_COVER_ARTWORK } from '../../utils/songArtwork';
 import type { LibraryGroupItem } from '../../utils/libraryPresentation';
 import { useArtworkThumbnail } from '../../hooks/useArtworkThumbnail';
 jest.mock('../../hooks/useArtworkThumbnail', () => ({ useArtworkThumbnail: jest.fn((uri?: string) => uri) }));
@@ -46,10 +47,10 @@ test('renders group title and subtitle', () => {
   expect(getByText('2 Titel')).toBeTruthy();
 });
 
-test('renders first letter when no cover exists', () => {
-  const { getByText } = render(<LibraryGroupRow group={group({ title: 'albums' })} onPress={jest.fn()} />);
+test('renders default artwork when no cover exists', () => {
+  const { getByTestId } = render(<LibraryGroupRow group={group({ title: 'albums' })} onPress={jest.fn()} />);
 
-  expect(getByText('A')).toBeTruthy();
+  expect(getByTestId('library-group-cover-g1').props.source).toBe(DEFAULT_COVER_ARTWORK);
 });
 
 test('renders cover when available', () => {
@@ -69,7 +70,7 @@ test('calls onPress with group', () => {
   expect(onPress).toHaveBeenCalledWith(item);
 });
 
-test('a broken thumbnail falls back to the original, then a letter; changing cover resets errors', () => {
+test('a broken thumbnail falls back to the original, then the default; changing cover resets errors', () => {
   (useArtworkThumbnail as jest.Mock).mockReturnValue('file:///cache/thumb.png');
   const first = group({ id: 'covered', cover: 'file:///original.jpg' });
   const screen = render(<LibraryGroupRow group={first} onPress={jest.fn()} />);
@@ -78,8 +79,7 @@ test('a broken thumbnail falls back to the original, then a letter; changing cov
   fireEvent(screen.getByTestId('library-group-cover-covered'), 'error');
   expect(screen.getByTestId('library-group-cover-covered').props.source.uri).toBe(first.cover);
   fireEvent(screen.getByTestId('library-group-cover-covered'), 'error');
-  expect(screen.queryByTestId('library-group-cover-covered')).toBeNull();
-  expect(screen.getByText('T')).toBeTruthy();
+  expect(screen.getByTestId('library-group-cover-covered').props.source).toBe(DEFAULT_COVER_ARTWORK);
   screen.rerender(<LibraryGroupRow group={group({ id: 'covered', cover: 'file:///new.jpg' })} onPress={jest.fn()} />);
   expect(screen.getByTestId('library-group-cover-covered').props.source.uri).toBe('file:///cache/thumb.png');
 });

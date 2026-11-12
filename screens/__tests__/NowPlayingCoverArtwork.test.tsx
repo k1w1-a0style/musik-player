@@ -2,7 +2,7 @@ import React from 'react';
 import { Dimensions, Image, StyleSheet } from 'react-native';
 import { fireEvent, render } from '@testing-library/react-native';
 import NowPlayingCoverArtwork from '../NowPlayingCoverArtwork';
-import { KIWI_MUSIC_ARTWORK } from '../../utils/songArtwork';
+import { DEFAULT_COVER_ARTWORK } from '../../utils/songArtwork';
 
 const mockTheme = { theme: { palette: { surface: '#101218' } }, bassPulseEnabled: false, isBassPulseHydrated: true };
 let mockReducedMotion = false;
@@ -52,10 +52,10 @@ test('incoming image view survives playback acknowledgement', () => {
   expect(view.getByTestId('now-playing-cover-image').props.source).toEqual({ uri: 'file:///2.jpg' });
 });
 
-test('failed and missing artwork uses the Kiwi logo', () => {
+test('failed and missing artwork uses the vinyl fallback', () => {
   const view = render(<NowPlayingCoverArtwork song={songs[1]} isPlaying={false} accent="#123456" coverSize={160} />);
   fireEvent(view.getByTestId('now-playing-cover-image'), 'error');
-  expect(view.UNSAFE_getByType(Image).props.source).toBe(KIWI_MUSIC_ARTWORK);
+  expect(view.UNSAFE_getByType(Image).props.source).toBe(DEFAULT_COVER_ARTWORK);
 });
 
 test.each(['missing', 'failed'])('keeps the %s artwork fallback attached through pause', kind => {
@@ -69,7 +69,7 @@ test.each(['missing', 'failed'])('keeps the %s artwork fallback attached through
   view.rerender(<NowPlayingCoverArtwork {...props} isPlaying={false} />);
   expect(view.getByTestId('now-playing-cover-fallback')).toBe(parent);
   expect(view.UNSAFE_getByType(Image)).toBe(image);
-  expect(image.props.source).toBe(KIWI_MUSIC_ARTWORK);
+  expect(image.props.source).toBe(DEFAULT_COVER_ARTWORK);
   expect(StyleSheet.flatten(parent.props.style).opacity).toBeUndefined();
   // The pause style becomes layout-only; Fabric must retain its native parent.
   expect(parent.props.collapsable).toBe(false);
