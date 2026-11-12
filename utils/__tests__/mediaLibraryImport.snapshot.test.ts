@@ -55,12 +55,11 @@ test('SAF uses the same snapshot path', async () => {
   expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledTimes(1);
 });
 
-test('disabled covers request only audio and never prove absence', async () => {
-  read.mockResolvedValue({ ...snapshot, artwork: { checked: false, artwork: null } });
-  const result = await enrichMediaLibraryAssets([asset], 0, { loadNativeCover: false });
-  expect(read).toHaveBeenCalledWith(asset.uri, false, expect.any(AbortSignal));
+test('basic import uses known duration and defers native audio and artwork inspection', async () => {
+  const result = await enrichMediaLibraryAssets([{ ...asset, duration: 120 }], 0, { loadNativeCover: false });
+  expect(read).not.toHaveBeenCalled();
   expect(cacheLocalCoverFile).not.toHaveBeenCalled();
-  expect(result.songs[0]).toMatchObject({ duration: 240_000, coverInfo: { embeddedArtworkChecked: false } });
+  expect(result.songs[0]).toMatchObject({ duration: 120_000, coverInfo: { embeddedArtworkChecked: false } });
 });
 
 test('a parsed cover avoids native artwork work', async () => {

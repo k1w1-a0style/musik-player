@@ -71,6 +71,13 @@ describe('useLibraryCoverBackfill', () => {
     await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1));
   });
 
+  test('uses the file revision to invalidate a pending artwork result', () => {
+    const original = song('a', { fileInfo: { size: 100, modificationTime: 10, contentHash: 'old' } });
+    expect(buildCoverBackfillAttemptKey(original)).not.toBe(buildCoverBackfillAttemptKey({
+      ...original, fileInfo: { ...original.fileInfo, modificationTime: 11, contentHash: 'new' },
+    }));
+  });
+
   test('requeues coverless songs after an aborted stale backfill round', async () => {
     const deferred: Array<{ resolve: (value: { uri: string }) => void }> = [];
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(
@@ -267,7 +274,7 @@ describe('useLibraryCoverBackfill', () => {
     const legacyReplacement = song('a', { coverInfo: { status: 'embedded', uri: undefined, embeddedArtworkChecked: false } });
 
     expect(buildCoverBackfillAttemptKey(firstReplacement)).not.toBe(buildCoverBackfillAttemptKey(secondReplacement));
-    expect(buildCoverBackfillAttemptKey(legacyReplacement)).toBe('a|file:///a.mp3||embedded|unchecked|');
+    expect(buildCoverBackfillAttemptKey(legacyReplacement)).toBe(buildCoverBackfillAttemptKey({ ...legacyReplacement }));
   });
 
   test('retries backfill for repeated tag cover replacement revisions without looping after completion', async () => {
