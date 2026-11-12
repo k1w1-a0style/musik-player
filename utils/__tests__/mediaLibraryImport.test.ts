@@ -406,7 +406,7 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.enrichMediaLibraryAssets([
       mediaAsset('native-duration-zero', 'native-zero.mp3', 0, 'file:///music/native-zero.mp3', 'audio/mpeg') as any,
-    ], 0, { loadNativeCover: false, readId3Tags: false });
+    ], 0, { loadNativeCover: true, readId3Tags: false });
 
     expect(result.songs[0].duration).toBe(245000);
     expect(result.songs[0].fileInfo?.size).toBe(9_800_000);
@@ -418,7 +418,7 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.enrichMediaLibraryAssets([
       mediaAsset('native-duration-missing', 'native-missing.mp3', undefined, 'file:///music/native-missing.mp3', 'audio/mpeg') as any,
-    ], 0, { loadNativeCover: false, readId3Tags: false });
+    ], 0, { loadNativeCover: true, readId3Tags: false });
 
     expect(result.songs[0].duration).toBe(245000);
   });
@@ -428,9 +428,10 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.enrichMediaLibraryAssets([
       mediaAsset('media-duration', 'media-duration.mp3', 120, 'file:///music/media-duration.mp3', 'audio/mpeg') as any,
-    ], 0, { loadNativeCover: false, readId3Tags: false });
+    ], 0, { loadNativeCover: true, readId3Tags: false });
 
     expect(result.songs[0].duration).toBe(120000);
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(1);
   });
 
   test('extractAudioInfo failures do not abort MediaLibrary import', async () => {
@@ -438,10 +439,11 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.enrichMediaLibraryAssets([
       mediaAsset('native-error', 'native-error.mp3', 120, 'file:///music/native-error.mp3', 'audio/mpeg') as any,
-    ], 0, { loadNativeCover: false, readId3Tags: false });
+    ], 0, { loadNativeCover: true, readId3Tags: false });
 
     expect(result.songs).toHaveLength(1);
     expect(result.errors).toHaveLength(0);
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(1);
   });
 
   test('scanAudioAssetsFromMediaLibrary uses the default 45-second filter and stable skipped reasons', async () => {
@@ -1088,7 +1090,7 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.scanFromSafFolders([
       { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
-    ] as any, { loadNativeCover: false });
+    ] as any, { loadNativeCover: true });
 
     expect(SystemAudio.extractAudioInfo).toHaveBeenCalledWith('content://dir/song.mp3', expect.any(AbortSignal));
     expect(result.songs[0]).toMatchObject({
@@ -1129,10 +1131,11 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.scanFromSafFolders([
       { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
-    ] as any, { loadNativeCover: false });
+    ] as any, { loadNativeCover: true });
 
     expect(result.songs).toHaveLength(1);
     expect(result.errors).toHaveLength(0);
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(1);
   });
 
 

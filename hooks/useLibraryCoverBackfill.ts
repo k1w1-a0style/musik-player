@@ -46,6 +46,10 @@ export const buildCoverBackfillAttemptKey = (song: Song): string =>
     song.coverInfo?.embeddedArtworkRevision ?? '',
   ].join('|');
 
+const recordFailedAttempt = (song: Song, attempted: Set<string>, active: boolean): void => {
+  if (active) attempted.add(buildCoverBackfillAttemptKey(song));
+};
+
 const songSnapshotContainsUri = (songs: Song[], uri: string): boolean =>
   songs.some(song => song.cover === uri || song.coverInfo?.uri === uri);
 
@@ -108,6 +112,19 @@ const buildSafeBackfillPatches = ({
   return patchesBySongId;
 };
 
+const usePendingProtectionCleanup = (songs: Song[], pending: { current: PendingCoverProtection[] },
+  mounted: { current: boolean }): void => {
+  useEffect(() => {
+    if (pending.current.length === 0) return;
+    pending.current = releaseOwnedPendingProtections(pending.current, songs);
+  }, [pending, songs]);
+  useEffect(() => () => {
+    mounted.current = false;
+    pending.current.forEach(item => item.release());
+    pending.current = [];
+  }, [mounted, pending]);
+};
+
 export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabled = true }: UseLibraryCoverBackfillOptions): void => {
   const generationRef = useRef(0);
   const attemptedRef = useRef(new Set<string>());
@@ -119,17 +136,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
   const backfillSongs = selectBackfillSongs(songs, enabled, afterInitialInteractions);
 
   latestSongsRef.current = songs;
-
-  useEffect(() => {
-    if (pendingProtectionsRef.current.length === 0) return;
-    pendingProtectionsRef.current = releaseOwnedPendingProtections(pendingProtectionsRef.current, songs);
-  }, [songs]);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
-    pendingProtectionsRef.current.forEach(pending => pending.release());
-    pendingProtectionsRef.current = [];
-  }, []);
+  usePendingProtectionCleanup(songs, pendingProtectionsRef, mountedRef);
 
   useEffect(() => {
     // Pause while a user-triggered manual metadata refresh runs exclusively.
@@ -148,7 +155,6 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
     let lastFlushAt = Date.now();
     let protectionHandedToPending = false;
     let runPendingProtection: PendingCoverProtection | undefined;
-
     const ensureRunPendingProtection = (): PendingCoverProtection => {
       if (runPendingProtection) return runPendingProtection;
       protectionHandedToPending = true;
@@ -207,11 +213,8 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
       coverCacheProtection: protection,
       shouldProcessSong: song => candidateKeys.has(buildCoverBackfillAttemptKey(song)),
       onSongProcessed: queueProgressivePatch,
-      onSongReadFailed: song => {
-        if (mountedRef.current && generationRef.current === generation && !controller.signal.aborted) {
-          attemptedRef.current.add(buildCoverBackfillAttemptKey(song));
-        }
-      },
+      onSongReadFailed: song => recordFailedAttempt(song, attemptedRef.current,
+        mountedRef.current && generationRef.current === generation && !controller.signal.aborted),
     }).then(result => {
       if (
         !mountedRef.current
