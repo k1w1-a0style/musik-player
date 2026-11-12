@@ -93,7 +93,7 @@ export const useLibraryScanFolderImportFlow = ({
             ...createLibraryScanProgressCallbacks(generation.scanOperationId),
             onApply: update => applyImportedSongsUpdate(update, generation, false),
             onPublish: () => publishImportedSongs(generation) });
-          return importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal,
+          return importSongsFromSourcesImpl({ scanFolders: activeFolders, platformOs, signal, loadNativeCovers: false,
             onSafProgress: progressPublisher.onProgress,
             onFileProgress: callbacks.onFileProgress, onCheckpoint: callbacks.onCheckpoint,
             existingSongs: baselineSongs, refreshExisting, coverCacheProtection: generation.coverCacheProtection });

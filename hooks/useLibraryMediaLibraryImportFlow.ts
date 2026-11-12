@@ -101,7 +101,7 @@ export const useLibraryMediaLibraryImportFlow = ({
           onPublish: () => publishImportedSongs(generation),
           ...createLibraryScanProgressCallbacks(generation.scanOperationId) });
         return enrichMediaLibraryAssetsImpl(candidates.assets, candidates.skipped.length, {
-          signal, existingSongs: baselineSongs, refreshExisting,
+          signal, existingSongs: baselineSongs, refreshExisting, loadNativeCover: false,
           coverCacheProtection: generation.coverCacheProtection,
           onFileProgress: callbacks.onFileProgress, onCheckpoint: callbacks.onCheckpoint,
         });

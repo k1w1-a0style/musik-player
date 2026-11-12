@@ -277,6 +277,8 @@ const MAX_NATIVE_READS_IN_FLIGHT = 2;
 interface NativeReadPool { inFlight: number; waiting: Set<() => void> }
 const createNativeReadPool = (): NativeReadPool => ({ inFlight: 0, waiting: new Set() });
 const mediaReadPool = createNativeReadPool();
+// Artwork may hang in a provider; preserve independent bounded capacity for import.
+const artworkReadPool = createNativeReadPool();
 const thumbnailReadPool = createNativeReadPool();
 const paletteReadPool = createNativeReadPool();
 const importStatReadPool = createNativeReadPool();
@@ -396,7 +398,7 @@ export const SystemAudio = {
   async extractEmbeddedArtwork(uri: string): Promise<EmbeddedArtworkResult | null> {
     return native ? runBoundedNativeRead(
       () => native.extractEmbeddedArtwork(uri),
-      artwork => { void releaseNativeArtworkLease(artwork?.leaseId); },
+      artwork => { void releaseNativeArtworkLease(artwork?.leaseId); }, artworkReadPool,
     ) : null;
   },
 
@@ -408,7 +410,7 @@ export const SystemAudio = {
       // for capacity/timeouts. Late staging receipts retain their cleanup path.
       const inspected = await runBoundedNativeRead(
         async () => ({ artwork: await extract(uri) }),
-        value => { void releaseNativeArtworkLease(value.artwork?.leaseId); },
+        value => { void releaseNativeArtworkLease(value.artwork?.leaseId); }, artworkReadPool,
       );
       return inspected && inspected.artwork !== undefined
         ? { checked: true, artwork: inspected.artwork }

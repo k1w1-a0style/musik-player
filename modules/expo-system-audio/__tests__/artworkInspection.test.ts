@@ -36,13 +36,13 @@ test('a provider failure leaves artwork eligible for a future inspection', async
 
 test('pool contention never claims that native inspected the skipped document', async () => {
   let complete!: (value: null) => void;
-  const native = jest.fn().mockResolvedValue(null);
   const held = new Promise<null>(resolve => { complete = resolve; });
-  const module = load({ extractAudioInfo: jest.fn(() => held), extractEmbeddedArtwork: native });
-  const first = module.extractAudioInfo('content://first');
-  const second = module.extractAudioInfo('content://second');
+  const native = jest.fn().mockReturnValueOnce(held).mockReturnValueOnce(held).mockResolvedValue(null);
+  const module = load({ extractEmbeddedArtwork: native });
+  const first = module.extractEmbeddedArtwork('content://first');
+  const second = module.extractEmbeddedArtwork('content://second');
   await expect(module.inspectEmbeddedArtwork('content://skipped')).resolves.toEqual({ checked: false, artwork: null });
-  expect(native).not.toHaveBeenCalled();
+  expect(native).toHaveBeenCalledTimes(2);
   complete(null);
   await Promise.all([first, second]);
   await expect(module.inspectEmbeddedArtwork('content://skipped')).resolves.toEqual({ checked: true, artwork: null });

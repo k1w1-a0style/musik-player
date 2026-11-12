@@ -254,7 +254,7 @@ test('uses scan folder import on android when active scan folders exist', async 
   fireEvent.press(screen.getByText('import'));
 
   await waitFor(() => expect(importSongsFromSourcesImpl).toHaveBeenCalledWith({ scanFolders: [folder('music')],
-    platformOs: 'android', signal: expect.any(AbortSignal), onSafProgress: expect.any(Function),
+    platformOs: 'android', signal: expect.any(AbortSignal), loadNativeCovers: false, onSafProgress: expect.any(Function),
     existingSongs: [song('existing')], refreshExisting: false, onFileProgress: expect.any(Function), onCheckpoint: expect.any(Function),
     coverCacheProtection: expect.any(Object) }));
   expect(requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
@@ -632,7 +632,7 @@ test('uses media library import when no active scan folders exist', async () => 
   expect(scanMediaLibraryCandidatesImpl).toHaveBeenCalledWith({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) });
   expect(confirmLibraryImportImpl).not.toHaveBeenCalled();
   expect(enrichMediaLibraryAssetsImpl).toHaveBeenCalledWith([{ id: 'asset-1' }], 0,
-    { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: false,
+    { signal: expect.any(AbortSignal), existingSongs: [song('existing')], refreshExisting: false, loadNativeCover: false,
       onFileProgress: expect.any(Function), onCheckpoint: expect.any(Function), coverCacheProtection: expect.any(Object) });
   expect(setSongs).toHaveBeenCalledWith([song('existing'), song('media-song')]);
   expect(setActiveTab).toHaveBeenCalledWith('tracks');

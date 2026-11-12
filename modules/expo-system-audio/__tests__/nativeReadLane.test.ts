@@ -5,14 +5,13 @@ describe('independent bounded native read lanes', () => {
     jest.dontMock('expo');
   });
 
-  test('keeps fast metadata behind the same detached-read capacity as audio info and artwork', async () => {
+  test('keeps fast metadata behind the same detached-read capacity as audio info', async () => {
     jest.useFakeTimers();
     jest.resetModules();
 
-    let finishAudioInfo!: (value: null) => void;
-    let finishArtwork!: (value: null) => void;
-    const extractAudioInfo = jest.fn(() => new Promise<null>(resolve => { finishAudioInfo = resolve; }));
-    const extractEmbeddedArtwork = jest.fn(() => new Promise<null>(resolve => { finishArtwork = resolve; }));
+    const finishAudioInfo: Array<(value: null) => void> = [];
+    const extractAudioInfo = jest.fn(() => new Promise<null>(resolve => { finishAudioInfo.push(resolve); }));
+    const extractEmbeddedArtwork = jest.fn().mockResolvedValue(null);
     const extractMetadataFast = jest.fn().mockResolvedValue({ title: 'bounded' });
     const readImportFileStat = jest.fn().mockResolvedValue({ size: 100, modificationTime: 200 });
 
@@ -38,7 +37,7 @@ describe('independent bounded native read lanes', () => {
     const { SystemAudio } = require('../index') as typeof import('../index');
 
     const audioInfo = SystemAudio.extractAudioInfo('content://song-1');
-    const artwork = SystemAudio.extractEmbeddedArtwork('content://song-2');
+    const artwork = SystemAudio.extractAudioInfo('content://song-2');
     await Promise.resolve();
     await jest.advanceTimersByTimeAsync(20_000);
     await expect(audioInfo).resolves.toBeNull();
@@ -49,13 +48,13 @@ describe('independent bounded native read lanes', () => {
     await expect(SystemAudio.readImportFileStat('content://song-3')).resolves.toEqual({ size: 100, modificationTime: 200 });
     expect(readImportFileStat).toHaveBeenCalledTimes(1);
 
-    finishAudioInfo(null);
+    finishAudioInfo[0](null);
     await jest.advanceTimersByTimeAsync(0);
     await expect(SystemAudio.extractMetadataFast('content://song-4')).resolves.toEqual({ title: 'bounded' });
     expect(extractMetadataFast).toHaveBeenCalledTimes(1);
     await expect(SystemAudio.readImportFileStat('content://song-4')).resolves.toEqual({ size: 100, modificationTime: 200 });
 
-    finishArtwork(null);
+    finishAudioInfo[1](null);
     await jest.advanceTimersByTimeAsync(0);
   });
 

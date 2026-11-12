@@ -42,6 +42,8 @@ class SystemAudioModule : Module() {
   // Legacy Expo filesystem provider calls can block its shared default queue;
   // they must neither delay this dispatch nor run any provider work on MAIN.
   private val mediaReadExecutor = createImportReadExecutor("media-read")
+  // A blocked provider artwork read must not starve the import lane.
+  private val artworkReadExecutor = createImportReadExecutor("artwork-read")
   private val paletteExecutor = BoundedNativeTaskExecutor("artwork-palette", 2)
   private val thumbnailExecutor = BoundedNativeTaskExecutor("artwork-thumbnail", 2)
   private val importStatExecutor = createImportReadExecutor("import-file-stat")
@@ -204,7 +206,7 @@ class SystemAudioModule : Module() {
     }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("extractEmbeddedArtwork") { uri: String, promise: Promise ->
-      submitNativeRead(mediaReadExecutor, promise) {
+      submitNativeRead(artworkReadExecutor, promise) {
         val bytes = readEmbeddedArtwork(uri) ?: return@submitNativeRead null
         if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
           Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogReference()}")
@@ -231,6 +233,7 @@ class SystemAudioModule : Module() {
 
     OnDestroy {
       mediaReadExecutor.close()
+      artworkReadExecutor.close()
       paletteExecutor.close()
       thumbnailExecutor.close()
       importStatExecutor.close()

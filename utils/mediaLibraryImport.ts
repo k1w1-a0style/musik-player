@@ -293,10 +293,10 @@ const mergeAudioInfoIntoSource = (source: BuildSongSource, audioInfo: AudioInfoR
   channels: preferPositiveNumber(source.channels, audioInfo?.channels),
 });
 
-const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal, hints: Pick<ParseId3Options, 'filename' | 'mimeType' | 'extension'> = {}): Promise<Id3Tags> => {
+const readId3TagsIfEnabled = async (uri: string, enabled: boolean, signal?: AbortSignal, hints: Pick<ParseId3Options, 'filename' | 'mimeType' | 'extension'> = {}, includeCover = true): Promise<Id3Tags> => {
   if (!enabled) return {};
   try {
-    return await parseId3FromUri(uri, { signal, inspectMissingFields: true, ...hints });
+    return await parseId3FromUri(uri, { signal, inspectMissingFields: true, includeCover, ...hints });
   } catch {
     throwIfAborted(signal);
     return {};
@@ -342,8 +342,11 @@ const readImportArtwork = async (source: BuildSongSource, cover: string | undefi
 
 const buildSongWithNativeSnapshot = async (source: BuildSongSource, tags: Id3Tags,
   options: BuildSongOptions): Promise<Song> => {
+  // During the library's basic import, defer native audio and artwork analysis.
+  // Both can block inside a provider even when the audio file is playable.
+  if (options.loadNativeCover === false) return buildSongFromImportSource(source, tags, options);
   options.onReadPhase?.('audioInfo');
-  const includeArtwork = options.loadNativeCover !== false && !tags.cover;
+  const includeArtwork = !tags.cover;
   const snapshot = typeof SystemAudio.extractImportSnapshot === 'function'
     ? await SystemAudio.extractImportSnapshot(source.uri, includeArtwork, options.signal) : null;
   try {
@@ -821,7 +824,7 @@ const readMediaLibraryImportSource = async (asset: MediaAsset, options: ImportEn
     filename: asset.filename,
     mimeType: assetMimeType,
     extension: assetExtension,
-  });
+  }, loadNativeCover);
   throwIfAborted(childSignal);
   options.onReadActivity?.();
   const imported = await buildSongWithNativeSnapshot({
@@ -912,7 +915,7 @@ const importSafFile = async (uri: string, options: SafImportOptions,
   try {
     options.onReadPhase?.('tags');
     const tags = await readId3TagsIfEnabled(uri, options.readId3Tags ?? true, options.signal,
-      { extension: deriveExtension(uri) });
+      { extension: deriveExtension(uri) }, options.loadNativeCover !== false);
     throwIfAborted(options.signal);
     options.onReadActivity?.();
     return await buildSafSong(uri, tags, options);
