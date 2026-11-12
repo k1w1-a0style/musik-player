@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   inspect:
-    if: ${{ contains(github.event.head_commit.message, '[dependency probe]') }}
+    if: ${{ contains(github.event.head_commit.message, '[dependency probe]') || contains(github.event.head_commit.message, '[dependency resolve]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -19,6 +19,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Collect exact public npm packages
+        if: ${{ contains(github.event.head_commit.message, '[dependency probe]') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -27,6 +28,16 @@ jobs:
           npm pack node-forge@latest --ignore-scripts --pack-destination dependency-probe
           npm pack expo@57.0.33 expo-dev-client@57.0.21 expo-image-picker@57.0.21 expo-media-library@57.0.6 --ignore-scripts --pack-destination dependency-probe
           sha256sum dependency-probe/* > dependency-probe/SHA256SUMS
+      - name: Resolve candidate dependency lock without scripts
+        if: ${{ contains(github.event.head_commit.message, '[dependency resolve]') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dependency-probe
+          npm pkg set 'dependencies.expo=57.0.33' 'dependencies.expo-dev-client=~57.0.21' 'dependencies.expo-image-picker=~57.0.21' 'dependencies.expo-media-library=~57.0.6' 'overrides.node-forge=1.4.3'
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          cp package.json package-lock.json dependency-probe/
+          npm audit --omit=dev --json > dependency-probe/npm-audit.json || test "$?" = 1
       - name: Upload package evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
