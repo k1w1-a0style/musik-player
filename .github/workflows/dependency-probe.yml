@@ -1,0 +1,36 @@
+name: Inspect dependency updates
+on:
+  push:
+    branches: [codex]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: ${{ contains(github.event.head_commit.message, '[dependency probe]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version-file: .nvmrc
+      - name: Collect exact public npm packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dependency-probe
+          npm view node-forge@latest --json > dependency-probe/node-forge-metadata.json
+          npm pack node-forge@latest --ignore-scripts --pack-destination dependency-probe
+          npm pack expo@57.0.33 expo-dev-client@57.0.21 expo-image-picker@57.0.21 expo-media-library@57.0.6 --ignore-scripts --pack-destination dependency-probe
+          sha256sum dependency-probe/* > dependency-probe/SHA256SUMS
+      - name: Upload package evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dependency-probe
+          path: dependency-probe/
+          if-no-files-found: error
+          retention-days: 3
