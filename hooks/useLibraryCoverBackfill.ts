@@ -207,6 +207,11 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
       coverCacheProtection: protection,
       shouldProcessSong: song => candidateKeys.has(buildCoverBackfillAttemptKey(song)),
       onSongProcessed: queueProgressivePatch,
+      onSongReadFailed: song => {
+        if (mountedRef.current && generationRef.current === generation && !controller.signal.aborted) {
+          attemptedRef.current.add(buildCoverBackfillAttemptKey(song));
+        }
+      },
     }).then(result => {
       if (
         !mountedRef.current

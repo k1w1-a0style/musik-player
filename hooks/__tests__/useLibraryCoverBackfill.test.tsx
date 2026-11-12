@@ -78,6 +78,22 @@ describe('useLibraryCoverBackfill', () => {
     }));
   });
 
+  test('does not retry a failed cover on unrelated library changes, but retries a changed file', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockRejectedValue(new Error('broken artwork'));
+    const applySongMetadataPatches = jest.fn();
+    const original = song('a', { fileInfo: { size: 100, modificationTime: 10 } });
+    const { rerender } = renderHook(
+      ({ value }: { value: Song[] }) => useLibraryCoverBackfill({ songs: value, applySongMetadataPatches }),
+      { initialProps: { value: [original] } },
+    );
+    await waitFor(() => expect(mockRelease).toHaveBeenCalledTimes(1));
+    rerender({ value: [{ ...original, title: 'Renamed in library' }] });
+    await flush();
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+    rerender({ value: [{ ...original, fileInfo: { ...original.fileInfo, modificationTime: 11 } }] });
+    await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
+  });
+
   test('requeues coverless songs after an aborted stale backfill round', async () => {
     const deferred: Array<{ resolve: (value: { uri: string }) => void }> = [];
     (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(

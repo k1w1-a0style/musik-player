@@ -23,6 +23,7 @@ export interface SongCoverBackfillOptions {
   yieldToUi?: () => Promise<void>;
   coverCacheProtection?: CoverCacheProtection;
   onSongProcessed?: (song: Song, index: number) => void;
+  onSongReadFailed?: (song: Song) => void;
 }
 
 const DEFAULT_CONCURRENCY = 2;
@@ -152,6 +153,7 @@ export const backfillEmbeddedSongCovers = async (
         coverCacheProtection,
       });
       if (coverRead.kind !== 'success') {
+        options.onSongReadFailed?.(candidate.song);
         attempted += 1;
         await maybeYield();
         // The timed-out native call may still be running. Retire this worker so
