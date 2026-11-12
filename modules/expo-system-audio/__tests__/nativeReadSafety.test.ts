@@ -28,15 +28,16 @@ describe('native read safety boundary', () => {
     expect(extractAudioInfo).toHaveBeenCalledTimes(1);
   });
 
-  test('caps detached native reads and skips further work while both slots are occupied', async () => {
+  test('caps detached audio reads while keeping artwork capacity independent', async () => {
     jest.useFakeTimers();
     const extractAudioInfo = jest.fn(() => new Promise(() => undefined));
+    const extractEmbeddedArtwork = jest.fn().mockResolvedValue(null);
     jest.doMock('expo', () => ({
       NativeModule: class {},
       requireNativeModule: jest.fn((name: string) => {
         if (name === 'ExpoSystemAudio') return {
           extractAudioInfo,
-          extractEmbeddedArtwork: jest.fn(),
+          extractEmbeddedArtwork,
         };
         throw new Error('waveform unavailable');
       }),
@@ -52,6 +53,7 @@ describe('native read safety boundary', () => {
     await expect(SystemAudio.extractAudioInfo('content://c.mp3')).resolves.toBeNull();
     await expect(SystemAudio.extractEmbeddedArtwork('content://c.mp3')).resolves.toBeNull();
     expect(extractAudioInfo).toHaveBeenCalledTimes(2);
+    expect(extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
   });
 
   test('preserves native failures that settle before the deadline', async () => {

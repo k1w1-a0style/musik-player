@@ -22,6 +22,23 @@ const subscribeToScanActivity = (onStart: () => void, onIdle: () => void): (() =
   check();
   return subscribeLibraryScanOperation(check);
 };
+
+const createMediaObserver = (onChange: () => void) => {
+  let alive = true;
+  let request = 0;
+  let subscription: ReturnType<typeof MediaLibrary.addListener> | undefined;
+  return {
+    refresh: () => {
+      const current = ++request;
+      void MediaLibrary.getPermissionsAsync(false, ['audio']).then(permission => {
+        if (!alive || request !== current) return;
+        if (permission.status === 'granted' && !subscription) subscription = MediaLibrary.addListener(onChange);
+        else if (permission.status !== 'granted' && subscription) { subscription.remove(); subscription = undefined; }
+      }).catch(() => undefined);
+    },
+    remove: () => { alive = false; subscription?.remove(); },
+  };
+};
 /** Foreground events only. No polling, OS background-service claim or permission prompts. */
 export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
   ready: boolean; busy: boolean; hasFolders: boolean;
@@ -44,7 +61,6 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
     }
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let mediaSubscription: ReturnType<typeof MediaLibrary.addListener> | undefined;
     let appState = AppState.currentState;
     const run = async () => {
       timer = undefined;
@@ -84,16 +100,13 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
         pending.current.clear(); if (timer) clearTimeout(timer); timer = undefined;
       } else schedule();
     });
+    const mediaObserver = preferences.whileOpen ? createMediaObserver(() => schedule('change')) : undefined;
     const appSubscription = AppState.addEventListener('change', next => {
       const resumed = next === 'active' && appState !== 'active';
       appState = next;
-      if (resumed && preferences.whileOpen) schedule('change');
+      if (resumed && preferences.whileOpen) { mediaObserver?.refresh(); schedule('change'); }
     });
-    if (preferences.whileOpen) {
-      void MediaLibrary.getPermissionsAsync(false, ['audio']).then(permission => {
-        if (alive && permission.status === 'granted') mediaSubscription = MediaLibrary.addListener(() => schedule('change'));
-      }).catch(() => undefined);
-    }
-    return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaSubscription?.remove(); stopObservingScanStarts(); };
+    mediaObserver?.refresh();
+    return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaObserver?.remove(); stopObservingScanStarts(); };
   }, [ready, busy, isHydrated, preferences.onOpen, preferences.whileOpen]);
 };

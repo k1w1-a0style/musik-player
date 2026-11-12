@@ -82,6 +82,41 @@ test('never asks for new permissions and waits for folder hydration', async () =
   expect(props.update).not.toHaveBeenCalled(); expect(request).not.toHaveBeenCalled();
 });
 
+test('starts observing media changes after permission is granted in system settings', async () => {
+  permission.mockResolvedValue({ status: 'denied' });
+  const props = { ...options(), hasFolders: true };
+  renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await Promise.resolve(); });
+  expect(MediaLibrary.addListener).not.toHaveBeenCalled();
+  permission.mockResolvedValue({ status: 'granted' });
+  await act(async () => { changeAppState('background'); changeAppState('active'); await Promise.resolve(); });
+  expect(MediaLibrary.addListener).toHaveBeenCalledTimes(1);
+  await act(async () => { onMedia(); await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+  expect(MediaLibrary.requestPermissionsAsync).not.toHaveBeenCalled();
+});
+
+test('removes the media observer after permission is revoked without duplicating it on resume', async () => {
+  const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: options() });
+  await act(async () => { await Promise.resolve(); changeAppState('background'); changeAppState('active'); await Promise.resolve(); });
+  expect(MediaLibrary.addListener).toHaveBeenCalledTimes(1);
+  permission.mockResolvedValue({ status: 'denied' });
+  await act(async () => { changeAppState('background'); changeAppState('active'); await Promise.resolve(); });
+  expect(removeMedia).toHaveBeenCalledTimes(1);
+  hook.unmount();
+  expect(removeMedia).toHaveBeenCalledTimes(1);
+});
+
+test('ignores an older permission response after a newer resume check', async () => {
+  let resolveOld!: (value: { status: string }) => void;
+  permission.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+    .mockResolvedValue({ status: 'denied' });
+  renderHook(useAutomaticLibraryUpdate, { initialProps: options() });
+  await act(async () => { changeAppState('background'); changeAppState('active'); await Promise.resolve();
+    resolveOld({ status: 'granted' }); await Promise.resolve(); });
+  expect(MediaLibrary.addListener).not.toHaveBeenCalled();
+});
+
 test('coalesces a change during a manual scan and updates after it becomes idle', async () => {
   const props = { ...options(), hasFolders: true, busy: true };
   const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
