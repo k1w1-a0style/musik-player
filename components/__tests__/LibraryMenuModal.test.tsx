@@ -56,6 +56,15 @@ test('renders menu actions', () => {
   expect(getByText('Einstellungen')).toBeTruthy();
 });
 
+test('keeps the cleaner accessible through the menu and disables it during imports', () => {
+  const onOpenCleaner = jest.fn();
+  const screen = render(<LibraryMenuModal {...defaultProps} onOpenCleaner={onOpenCleaner} />);
+  fireEvent.press(screen.getByLabelText('Sammlung aufräumen'));
+  expect(onOpenCleaner).toHaveBeenCalledTimes(1);
+  screen.rerender(<LibraryMenuModal {...defaultProps} loading onOpenCleaner={onOpenCleaner} />);
+  expect(screen.getByLabelText('Sammlung aufräumen').props.accessibilityState.disabled).toBe(true);
+});
+
 test('calls menu action callbacks', () => {
   const onImport = jest.fn();
   const onRefreshMetadata = jest.fn();
