@@ -24,7 +24,7 @@ jest.mock('../../contexts/AppThemeContext', () => ({
   }),
 }));
 
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, within } from '@testing-library/react-native';
 import LibraryMenuModal from '../LibraryMenuModal';
 
 const defaultProps = {
@@ -117,6 +117,14 @@ test('calls onClose when backdrop is pressed', () => {
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+test('keeps the scrollable menu outside the backdrop press target', () => {
+  const onClose = jest.fn();
+  const view = renderMenu({ onClose });
+  expect(within(view.getByTestId('library-menu-backdrop')).queryByTestId('library-menu-card')).toBeNull();
+  expect(view.getByTestId('library-menu-card')).toBeTruthy();
+  expect(onClose).not.toHaveBeenCalled();
+});
+
 test('offers and disables the explicit full scan alongside the normal import', () => {
   const onDeepScan = jest.fn();
   const screen = render(<LibraryMenuModal {...defaultProps} onDeepScan={onDeepScan} />);
@@ -162,7 +170,7 @@ test.each([
     const view = render(<SafeAreaInsetsContext.Provider value={{ top, bottom, left: 0, right: 0 }}>
       <LibraryMenuModal {...defaultProps} />
     </SafeAreaInsetsContext.Provider>);
-    const backdrop = native.StyleSheet.flatten(view.getByTestId('library-menu-backdrop').props.style);
+    const backdrop = native.StyleSheet.flatten(view.getByTestId('library-menu-layout').props.style);
     const card = native.StyleSheet.flatten(view.getByTestId('library-menu-card').props.style);
     const scroll = native.StyleSheet.flatten(view.UNSAFE_getByType(native.ScrollView).props.style);
     const menuBottom = Number(backdrop.paddingTop) + 2 * Number(card.paddingVertical) + 2 * Number(card.borderWidth) + Number(scroll.maxHeight);

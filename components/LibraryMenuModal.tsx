@@ -56,15 +56,19 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <Pressable
-        style={[styles.menuBackdrop, { backgroundColor: getLibraryMenuBackdropColor(appearance),
-          paddingTop: menuTop, paddingBottom: menuBottom,
+      <View
+        style={[styles.menuBackdrop, { paddingTop: menuTop, paddingBottom: menuBottom,
           paddingLeft: insets.left + MENU_SAFE_GAP,
           paddingRight: Math.max(24, insets.right + MENU_SAFE_GAP) }]}
-        onPress={onClose}
-        accessible={false}
-        testID="library-menu-backdrop"
+        pointerEvents="box-none"
+        testID="library-menu-layout"
       >
+        <Pressable
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: getLibraryMenuBackdropColor(appearance) }]}
+          onPress={onClose}
+          accessible={false}
+          testID="library-menu-backdrop"
+        />
         <View
           style={[
             styles.menuCard,
@@ -88,7 +92,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
           <LibraryMenuItem icon={Settings} label="Einstellungen" onPress={onOpenSettings} />
           </ScrollView>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 };
