@@ -138,6 +138,16 @@ def verify_rows():
     return identifiers
 
 
+def verify_playback():
+    for title in TITLES:
+        ui.play_title(title)
+        ui.tap('mini-player-open')
+        ui.assert_duration(65)
+        ui.assert_native_playback(title, 65)
+        ui.tap('controls-play-pause')
+        ui.back()
+
+
 def open_settings():
     ui.wait_uncovered_library_header()
     ui.tap('library-open-menu')
@@ -322,18 +332,7 @@ def main():
     assert_empty_active_library(); verify_source_playlist(playlist_ids)
     add_named_folder('K1W1ScanFix'); wait_scan('restore-after-overlap-removal')
     assert verify_rows() == baseline
-    ui.play_title(TITLES[0])
-    ui.tap('mini-player-open')
-    ui.assert_duration(65)
-    ui.assert_native_playback(TITLES[0], 65)
-    ui.tap('controls-play-pause')
-    ui.back()
-    ui.play_title(TITLES[3])
-    ui.tap('mini-player-open')
-    ui.assert_duration(65)
-    ui.assert_native_playback(TITLES[3], 65)
-    ui.tap('controls-play-pause')
-    ui.back()
+    verify_playback()
     ui.adb('shell', 'settings', 'put', 'system', 'font_scale', '2.0')
     ui.wait_uncovered_library_header()
     frame = ui.tree(compressed=False)

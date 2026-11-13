@@ -56,6 +56,15 @@ class ScanReceiptTest(unittest.TestCase):
             self.assertIn(b'not-a-valid-image', changed[:10 + tag_size])
             self.assertEqual(changed[10 + tag_size:], b'audio-bytes')
 
+    def test_playback_proof_covers_every_synthetic_title(self):
+        with patch.object(smoke.ui, 'play_title') as play, patch.object(smoke.ui, 'tap'), \
+             patch.object(smoke.ui, 'assert_duration') as duration, \
+             patch.object(smoke.ui, 'assert_native_playback') as native, patch.object(smoke.ui, 'back'):
+            smoke.verify_playback()
+        self.assertEqual([call.args[0] for call in play.call_args_list], smoke.TITLES)
+        self.assertEqual([call.args[0] for call in native.call_args_list], smoke.TITLES)
+        self.assertEqual(duration.call_count, 16)
+
 
     def test_focus_query_includes_display_state_not_only_window_details(self):
         raw = ('WINDOW MANAGER DISPLAY CONTENTS\n  mCurrentFocus=Window{abc u0 '
