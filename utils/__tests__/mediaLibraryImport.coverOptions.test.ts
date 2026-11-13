@@ -1,6 +1,7 @@
 import SystemAudio from 'expo-system-audio';
 import { buildSongFromImportSource, enrichMediaLibraryAssets } from '../mediaLibraryImport';
 import { cacheLocalCoverFile } from '../coverCache';
+import { mergeSongs } from '../libraryPresentation';
 
 jest.mock('../coverCache', () => ({
   cacheBase64Cover: jest.fn(async () => undefined),
@@ -36,6 +37,15 @@ test('buildSongFromImportSource can skip native cover loading', async () => {
   expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
   expect(song.cover).toBeUndefined();
   expect(song.coverInfo).toEqual({ status: 'none', uri: undefined, embeddedArtworkChecked: false });
+});
+
+test('a later failed tag read retains previously imported title and artist', async () => {
+  const source = { id: 's1', uri: 'content://tree/ScanFix-04.mp3', filename: 'ScanFix-04.mp3', source: 'saf' as const };
+  const previous = await buildSongFromImportSource(source, { title: 'K1W1 Scan 04', artist: 'V3 Proof' }, { loadNativeCover: false });
+  const incomplete = await buildSongFromImportSource(source, {}, { loadNativeCover: false });
+  expect(incomplete.metadataInspection?.fallbackFields).toEqual(['title', 'artist']);
+  expect(mergeSongs([previous], [incomplete])).toHaveLength(1);
+  expect(mergeSongs([previous], [incomplete])[0]).toMatchObject({ title: 'K1W1 Scan 04', artist: 'V3 Proof' });
 });
 
 test('enrichMediaLibraryAssets loads native covers by default', async () => {

@@ -107,6 +107,8 @@ const hasUsableNumber = (value?: number | null): value is number => typeof value
 const hasUsableArtwork = (song?: Pick<Song, 'cover' | 'coverInfo'> | null): boolean => Boolean(getSongArtworkUri(song));
 const preferText = (incoming?: string, previous?: string): string | undefined => hasNonEmptyText(incoming) ? incoming : previous;
 const preferNumber = (incoming?: number, previous?: number): number | undefined => hasUsableNumber(incoming) ? incoming : previous;
+const preferImportedIdentity = (incoming: string, previous: string, fallback: boolean, unknown: string): string =>
+  fallback && normalizeMetadataText(previous) && previous !== unknown ? previous : incoming;
 
 const applyMetadataInspection = (previousSong: Song, incomingSong: Song, merged: Song): void => {
   for (const field of incomingSong.metadataInspection?.absentFields ?? []) {
@@ -128,9 +130,14 @@ const applyMetadataInspection = (previousSong: Song, incomingSong: Song, merged:
 
 export const mergeSongPreservingRichMetadata = (previousSong: Song | undefined, incomingSong: Song): Song => {
   if (!previousSong) return incomingSong;
+  const sameFilename = Boolean(previousSong.fileInfo?.filename && incomingSong.fileInfo?.filename
+    && previousSong.fileInfo.filename === incomingSong.fileInfo.filename);
+  const fallbackFields = sameFilename ? incomingSong.metadataInspection?.fallbackFields ?? [] : [];
   const merged: Song = {
     ...previousSong,
     ...incomingSong,
+    title: preferImportedIdentity(incomingSong.title, previousSong.title, fallbackFields.includes('title'), 'Unbekannter Titel'),
+    artist: preferImportedIdentity(incomingSong.artist, previousSong.artist, fallbackFields.includes('artist'), UNKNOWN_ARTIST_LABEL),
     album: preferText(incomingSong.album, previousSong.album),
     albumArtist: preferText(incomingSong.albumArtist, previousSong.albumArtist),
     genre: preferText(incomingSong.genre, previousSong.genre),

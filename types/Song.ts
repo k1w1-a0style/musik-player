@@ -48,6 +48,8 @@ export type SongMetadataField = 'album' | 'albumArtist' | 'year' | 'genre' | 'tr
 /** Ephemeral read receipt; unknown/unreadable fields must never be listed here. */
 export interface MetadataInspection {
   absentFields: readonly SongMetadataField[];
+  /** The import used a filename/unknown value because these tags were unreadable. */
+  fallbackFields?: readonly ('title' | 'artist')[];
 }
 
 export interface Song {

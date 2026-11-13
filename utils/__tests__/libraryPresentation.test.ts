@@ -22,6 +22,7 @@ const song = (patch: Partial<Song>): Song => ({
   fileInfo: patch.fileInfo,
   audioInfo: patch.audioInfo,
   coverInfo: patch.coverInfo,
+  metadataInspection: patch.metadataInspection,
   year: patch.year,
   trackNumber: patch.trackNumber,
   discNumber: patch.discNumber,
@@ -160,6 +161,23 @@ test('mergeSongs preserves rich metadata when SAF re-import provides placeholder
     fileInfo: { uri: 'content://tree/music/track.mp3', filename: 'track-renamed.mp3', size: 456, source: 'saf', importedAt: 10 },
     audioInfo: { bitrate: 320000, sampleRate: 44100, channels: 2 },
   });
+});
+
+test('an incomplete import cannot replace known title and artist with filename fallbacks', () => {
+  const uri = 'content://tree/music/ScanFix-04.mp3';
+  const previous = song({ id: 'old', uri, title: 'K1W1 Scan 04', artist: 'V3 Proof',
+    fileInfo: { uri, filename: 'ScanFix-04.mp3' } });
+  const incomplete = song({ id: 'new', uri, title: 'ScanFix-04', artist: 'Unbekannt',
+    fileInfo: { uri, filename: 'ScanFix-04.mp3' },
+    metadataInspection: { absentFields: [], fallbackFields: ['title', 'artist'] } });
+  expect(mergeSongs([previous], [incomplete])[0]).toMatchObject({ title: 'K1W1 Scan 04', artist: 'V3 Proof' });
+  const realTags = { ...incomplete, metadataInspection: { absentFields: [], fallbackFields: [] } };
+  expect(mergeSongs([previous], [realTags])[0]).toMatchObject({ title: 'ScanFix-04', artist: 'Unbekannt' });
+  const renamed = { ...incomplete, fileInfo: { uri, filename: 'Neuer Name.mp3' }, title: 'Neuer Name' };
+  expect(mergeSongs([previous], [renamed])[0].title).toBe('Neuer Name');
+  const unknown = { ...previous, title: 'Unbekannter Titel', artist: 'Unbekannt' };
+  expect(mergeSongs([unknown], [{ ...incomplete, artist: 'Filename artist' }])[0])
+    .toMatchObject({ title: 'ScanFix-04', artist: 'Filename artist' });
 });
 
 test('mergeSongs dedupes by id when uri is missing', () => {

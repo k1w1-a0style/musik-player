@@ -389,7 +389,8 @@ export const buildSongFromImportSource = async (
     trackNumber: normalizeMetadataText(tags.trackNumber),
     discNumber: normalizeMetadataText(tags.discNumber),
     comment: normalizeMetadataText(tags.comment),
-    metadataInspection: tags.metadataInspection,
+    metadataInspection: { ...tags.metadataInspection, absentFields: tags.metadataInspection?.absentFields ?? [],
+      fallbackFields: [...(!tagTitle ? ['title' as const] : []), ...(!tagArtist ? ['artist' as const] : [])] },
     uri: source.uri,
     cover,
     fileInfo: {
