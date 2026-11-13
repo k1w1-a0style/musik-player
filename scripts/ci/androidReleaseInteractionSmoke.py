@@ -281,7 +281,8 @@ def scroll_candidate(key, root):
             # however, even >=48dp of a tall font2 button can hide its label.
             if (cleaner_action or key.startswith(('library-menu-item-', 'settings-group-'))) and (y1 <= sy1 or y2 >= sy2):
                 return None
-            if (key.startswith(('song-card-info-', 'library-menu-item-')) or cleaner_action) and (x2-x1 < 72 or y2-y1 < 72):
+            if (key.startswith(('song-card-info-', 'library-menu-item-', 'playlist-detail-remove-song-',
+                                'playlist-detail-drag-handle-')) or cleaner_action) and (x2-x1 < 72 or y2-y1 < 72):
                 # Android can report already-clipped child bounds exactly at the
                 # parent edge; inside-parent geometry alone is not whole visibility.
                 if x1 <= sx1 or x2 >= sx2 or y1 <= sy1 or y2 >= sy2:
@@ -394,7 +395,8 @@ def scroll_to_visible(key, top=False, limit=24):
         # alternate between opposite clipped edges. Approach it with the same
         # overlapping slow drag used for precise settings controls; retain all
         # whole-viewport and minimum-touch-area checks above.
-        precise = (key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-'))
+        precise = (key.startswith(('settings-', 'tag-cleaner-', 'library-menu-item-', 'playlist-detail-remove-song-',
+                                   'playlist-detail-drag-handle-'))
                    or (key.startswith('song-card-') and clipped is not None)
                    or key in ('Regeln ändern', 'V5 Acceptance · bereits sauber', 'Vorher: ' + CLEANER_TITLE))
         coordinates = vertical_swipe_coordinates(frame, key, down=down, precise=precise)

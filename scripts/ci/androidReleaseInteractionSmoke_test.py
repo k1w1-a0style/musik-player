@@ -1718,6 +1718,40 @@ Audio playback (lastly played comes first)
 
 
 
+class PlaylistDetailScrollRegressionTest(unittest.TestCase):
+    # Exact final.xml: run 43364602779, artifact 14012875976.
+    key = 'playlist-detail-remove-song-1000000017'
+    handle = 'playlist-detail-drag-handle-1000000017'
+
+    def recorded(self):
+        return ET.parse(Path(__file__).parent / 'fixtures/playlist-font2-clipped-e2cca00b.xml').getroot()
+
+    def test_clipped_playlist_controls_are_revealed_before_touch_geometry_check(self):
+        clipped = self.recorded()
+        self.assertEqual(rect(smoke.candidate(self.key, clipped)), [297, 911, 369, 960])
+        self.assertIsNone(smoke.scroll_candidate(self.key, clipped))
+        whole = self.recorded()
+        target = smoke.candidate(self.key, whole)
+        target.set('bounds', '[297,760][369,832]')
+        smoke.candidate(self.handle, whole).set('bounds', '[381,760][453,832]')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'scroll_query_frame', side_effect=[clipped, whole]), \
+             patch.object(smoke, 'adb') as adb, patch.object(smoke.time, 'sleep'):
+            self.assertIs(smoke.scroll_to(self.key, top=True), target)
+            self.assertEqual(adb.call_args.args[-1], '800')
+        from androidCleanerGeometry import validate_targets, validate_disjoint
+        geometry = validate_targets(whole, [self.key, self.handle], smoke.PACKAGE)
+        validate_disjoint(geometry[self.key], geometry[self.handle])
+
+    def test_undersized_unclipped_control_is_still_rejected_by_geometry_gate(self):
+        frame = self.recorded()
+        smoke.candidate(self.key, frame).set('bounds', '[297,700][369,750]')
+        self.assertIsNotNone(smoke.scroll_candidate(self.key, frame))
+        from androidCleanerGeometry import validate_targets
+        with self.assertRaisesRegex(AssertionError, 'smaller than 48dp'):
+            validate_targets(frame, [self.key], smoke.PACKAGE)
+
+
 class CleanerResultScrollRegressionTest(unittest.TestCase):
     # Exact final.xml from run39688915146/artifact12389495057, archive SHA256
     # f1477c60434a68e09135722ddbc52ba15eb9f2cc7012529faab1e4bf11287dbe.
