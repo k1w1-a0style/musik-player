@@ -25,15 +25,15 @@
     "@react-navigation/native": "7.5.0",
     "@react-navigation/native-stack": "7.14.11",
     "@rntp/player": "5.12.1",
-    "expo": "57.0.31",
+    "expo": "57.0.33",
     "expo-blur": "~57.0.3",
-    "expo-dev-client": "~57.0.20",
+    "expo-dev-client": "~57.0.21",
     "expo-document-picker": "57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
-    "expo-image-picker": "~57.0.20",
+    "expo-image-picker": "~57.0.21",
     "expo-linear-gradient": "~57.0.2",
-    "expo-media-library": "~57.0.5",
+    "expo-media-library": "~57.0.6",
     "expo-system-audio": "file:./modules/expo-system-audio",
     "lucide-react-native": "1.8.0",
     "react": "19.2.3",
@@ -103,6 +103,7 @@
     "source-map-js": "1.2.2",
     "@expo/cli": {
       "zod": "$zod"
-    }
+    },
+    "node-forge": "1.4.3"
   }
 }

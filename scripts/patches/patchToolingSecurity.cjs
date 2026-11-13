@@ -34,7 +34,7 @@ module.exports = { patchTooling, verifyTooling, plan };
 if (require.main === module) {
   try {
     const nodeModulesDir = process.argv[2] || path.join(__dirname, '..', '..', 'node_modules');
-    console.log(`[patch-tooling-security] Verified bounded braces AST and canonical Forge DigestInfo; ${patchTooling(nodeModulesDir)} files patched.`);
+    console.log(`[patch-tooling-security] Verified Forge 1.4.3 and bounded braces AST; ${patchTooling(nodeModulesDir)} files patched.`);
   } catch (error) {
     console.error(`[patch-tooling-security] ${error.message}`);
     process.exitCode = 1;

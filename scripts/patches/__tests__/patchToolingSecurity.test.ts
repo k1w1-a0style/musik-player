@@ -27,7 +27,7 @@ describe('exact installed tooling patches', () => {
 
   it('is idempotent for the verified installed payload', () => {
     expect(patchTooling(nodes)).toBe(0);
-    expect(verifyTooling(nodes)).toEqual(['node-forge@1.4.0', 'braces@3.0.3']);
+    expect(verifyTooling(nodes)).toEqual(['node-forge@1.4.3', 'braces@3.0.3']);
   });
 
   it.each(['braces/lib/compile', 'braces/lib/assert-depth', 'node-forge/lib/rsa'])('rejects extensionless require shadowing: %s', filename => {

@@ -42,7 +42,7 @@ test('patches verified native read guard, installs the tested helper and is idem
 
 test.each(['version', 'source', 'installed-helper'])('rejects %s drift before changing the module', drift => {
   const root = fixture();
-  if (drift === 'version') fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'expo-media-library', version: '57.0.6' }));
+  if (drift === 'version') fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'expo-media-library', version: '999.0.0' }));
   if (drift === 'source') fs.appendFileSync(path.join(root, plan.path), '\n// unknown drift\n');
   if (drift === 'installed-helper') fs.writeFileSync(path.join(root, helper), '// unverified helper\n');
   const before = fs.readFileSync(path.join(root, plan.path), 'utf8');

@@ -1,5 +1,5 @@
 {
-  "version": "57.0.5",
+  "version": "57.0.6",
   "path": "android/src/main/java/expo/modules/medialibrary/MediaLibraryModule.kt",
   "upstreamSha256": "e4363128600a8a0a2e0d545b619e1d39b486222e284bd6f9c8e145b0754d3212",
   "patchedSha256": "17985466b4fcd5f69244f54aa3f23acac58e414903d4421d0a1edb17ddf10ec4",
