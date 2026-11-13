@@ -341,7 +341,9 @@ def main():
     assert heading is not None and search is not None, 'Library title or search control is missing at 200% font scale'
     assert ui.rect(heading)[2] <= ui.rect(search)[0], 'Library title overlaps search at 200% font scale'
     ui.screenshot('library-header-font2')
-    last = ui.scroll_to(TITLES[-1] + ' von V3 Proof')
+    # At 200% font scale only one tall row fits above the floating player.
+    # Sixteen rows need more than the normal short-list gesture budget.
+    last = ui.scroll_to(TITLES[-1] + ' von V3 Proof', limit=48)
     mini = ui.find('mini-player-open')
     assert ui.rect(last)[3] <= ui.rect(mini)[1], 'Mini-player permanently hides the last track at 200% font scale'
     ui.screenshot('last-track-font2-above-mini-player')
