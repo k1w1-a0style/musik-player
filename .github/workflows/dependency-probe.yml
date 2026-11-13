@@ -26,7 +26,7 @@ jobs:
           mkdir -p dependency-probe
           npm view node-forge@latest --json > dependency-probe/node-forge-metadata.json
           npm pack node-forge@latest --ignore-scripts --pack-destination dependency-probe
-          npm pack expo@57.0.33 expo-dev-client@57.0.21 expo-image-picker@57.0.21 expo-media-library@57.0.6 --ignore-scripts --pack-destination dependency-probe
+          npm pack expo@57.0.33 expo-dev-client@57.0.21 expo-image-picker@57.0.21 expo-media-library@57.0.6 @expo/cli@57.0.34 --ignore-scripts --pack-destination dependency-probe
           sha256sum dependency-probe/* > dependency-probe/SHA256SUMS
       - name: Resolve candidate dependency lock without scripts
         if: ${{ contains(github.event.head_commit.message, '[dependency resolve]') }}
