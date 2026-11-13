@@ -64,7 +64,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
         testID="library-menu-layout"
       >
         <Pressable
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: getLibraryMenuBackdropColor(appearance) }]}
+          style={[styles.menuDimmer, { backgroundColor: getLibraryMenuBackdropColor(appearance) }]}
           onPress={onClose}
           accessible={false}
           testID="library-menu-backdrop"
@@ -99,6 +99,7 @@ const LibraryMenuModal: React.FC<LibraryMenuModalProps> = ({
 
 const styles = StyleSheet.create({
   menuBackdrop: { flex: 1, alignItems: 'flex-end' },
+  menuDimmer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   menuCard: {
     width: 280,
     maxWidth: '100%',
