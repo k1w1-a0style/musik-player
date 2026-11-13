@@ -1,6 +1,7 @@
 import SystemAudio from 'expo-system-audio';
 import { backfillEmbeddedSongCovers, needsEmbeddedCoverBackfill } from '../songCoverBackfill';
 import { cacheLocalCoverFile } from '../coverCache';
+import { coverRetryIsDeferred, recordCoverReadFailure } from '../songCoverRetry';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-system-audio', () => ({
@@ -24,6 +25,49 @@ const song = (id: string, patch: Partial<Song> = {}): Song => ({
 beforeEach(() => {
   (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockReset();
   (SystemAudio.releaseEmbeddedArtworkLease as jest.Mock).mockClear();
+});
+
+test('persists a failed cover attempt across restart and retries a changed file', async () => {
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockRejectedValue(new Error('broken artwork'));
+  const original = song('failure', { fileInfo: { size: 100, modificationTime: 10 } });
+  const first = await backfillEmbeddedSongCovers([original]);
+  const restored = JSON.parse(JSON.stringify(first.songs[0])) as Song;
+  expect(restored.coverInfo?.embeddedArtworkChecked).not.toBe(true);
+  expect(needsEmbeddedCoverBackfill(restored)).toBe(false);
+  await backfillEmbeddedSongCovers([restored]);
+  expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  const changed = { ...restored, fileInfo: { ...restored.fileInfo, modificationTime: 11 } };
+  expect(needsEmbeddedCoverBackfill(changed)).toBe(true);
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///new-cover.jpg' });
+  const retried = await backfillEmbeddedSongCovers([changed]);
+  expect(retried.songs[0].cover).toBe('file:///new-cover.jpg');
+  expect(retried.songs[0].coverInfo?.embeddedArtworkChecked).toBe(true);
+});
+
+test('uses bounded delays and stops automatic retries after three failures', () => {
+  const original = song('failure');
+  const first = recordCoverReadFailure(original, 1000);
+  expect(coverRetryIsDeferred(first, 1001)).toBe(true);
+  expect(coverRetryIsDeferred(first, 1000 + 60 * 60_000)).toBe(false);
+  const second = recordCoverReadFailure(first, 1000 + 60 * 60_000);
+  expect(coverRetryIsDeferred(second, 1000 + 2 * 60 * 60_000)).toBe(true);
+  const third = recordCoverReadFailure(second, 1000 + 25 * 60 * 60_000);
+  expect(third.coverInfo?.embeddedArtworkRetry?.failures).toBe(3);
+  expect(coverRetryIsDeferred(third, 1000 + 365 * 24 * 60 * 60_000)).toBe(true);
+});
+
+test('keeps all sixteen tracks when two artwork reads fail', async () => {
+  const songs = Array.from({ length: 16 }, (_, index) => song(String(index)));
+  (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockImplementation(async (uri: string) => {
+    if (uri === 'file:///0.mp3' || uri === 'file:///1.mp3') throw new Error('bad artwork');
+    return { uri: `file:///covers/${uri.split('/').pop()}.jpg` };
+  });
+  const result = await backfillEmbeddedSongCovers(songs, { concurrency: 2 });
+  expect(result.songs).toHaveLength(16);
+  expect(new Set(result.songs.map(item => item.id)).size).toBe(16);
+  expect(result.songs.every(item => item.uri === `file:///${item.id}.mp3`)).toBe(true);
+  expect(result.songs.filter(item => item.coverInfo?.embeddedArtworkRetry?.failures === 1)).toHaveLength(2);
+  expect(result.songs.filter(item => item.coverInfo?.embeddedArtworkChecked === true)).toHaveLength(14);
 });
 
 describe('needsEmbeddedCoverBackfill', () => {
@@ -103,7 +147,8 @@ test('releases the native receipt when a permanent backfill copy fails', async (
   (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue({ uri: 'file:///cache/native-cover.jpg', leaseId: 'failed-backfill' });
   (cacheLocalCoverFile as jest.Mock).mockResolvedValueOnce(undefined);
   const result = await backfillEmbeddedSongCovers([song('a')]);
-  expect(result.songs[0].coverInfo).toBeUndefined();
+  expect(result.songs[0].coverInfo).toMatchObject({ status: 'none', embeddedArtworkRetry: { failures: 1 } });
+  expect(result.songs[0].coverInfo?.embeddedArtworkChecked).not.toBe(true);
   expect(SystemAudio.releaseEmbeddedArtworkLease).toHaveBeenCalledWith('failed-backfill');
 });
 
@@ -202,7 +247,7 @@ test('per-song extraction failures do not abort the whole backfill', async () =>
 
   const result = await backfillEmbeddedSongCovers([song('a'), song('b')], { concurrency: 1 });
 
-  expect(result.songs[0].coverInfo).toBeUndefined();
+  expect(result.songs[0].coverInfo).toMatchObject({ status: 'none', embeddedArtworkRetry: { failures: 1 } });
   expect(result.songs[1].cover).toBe('file:///cover-b.jpg');
 });
 

@@ -208,20 +208,7 @@ class SystemAudioModule : Module() {
     AsyncFunction("extractEmbeddedArtwork") { uri: String, promise: Promise ->
       submitNativeRead(artworkReadExecutor, promise) {
         val bytes = readEmbeddedArtwork(uri) ?: return@submitNativeRead null
-        if (bytes.size.toLong() > MAX_EMBEDDED_ARTWORK_BYTES) {
-          Log.d(TAG, "embedded artwork too large bytes=${bytes.size} uri=${uri.safeLogReference()}")
-          return@submitNativeRead null
-        }
-        val mimeType = detectImageMime(bytes) ?: return@submitNativeRead null
-        val artwork = checkNotNull(cacheArtworkBytes(bytes, extensionForMime(mimeType))) {
-          "Embedded artwork could not be cached"
-        }
-        mapOf(
-          "uri" to Uri.fromFile(artwork.file).toString(),
-          "mimeType" to mimeType,
-          "byteLength" to bytes.size,
-          "leaseId" to artwork.leaseId,
-        )
+        stageImportArtwork(bytes)
       }
     }.runOnQueue(Queues.MAIN)
 

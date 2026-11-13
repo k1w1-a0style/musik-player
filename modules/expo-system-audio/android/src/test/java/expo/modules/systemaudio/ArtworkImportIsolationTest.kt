@@ -11,6 +11,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ArtworkImportIsolationTest {
+  @Test fun malformedOrOversizedArtworkFailsInsteadOfReportingNoCover() {
+    val module = SystemAudioModule()
+    val stage = SystemAudioModule::class.java.getDeclaredMethod("stageImportArtwork", ByteArray::class.java)
+    stage.isAccessible = true
+    for (bytes in listOf(byteArrayOf(1, 2, 3), ByteArray(2 * 1024 * 1024 + 1))) {
+      val failure = assertThrows(java.lang.reflect.InvocationTargetException::class.java) { stage.invoke(module, bytes) }
+      assertTrue(failure.cause is IllegalStateException)
+    }
+  }
+
   @Test fun twoBlockedArtworkReadsLeaveImportCapacityAvailable() {
     val module = SystemAudioModule()
     fun lane(name: String) = SystemAudioModule::class.java.getDeclaredField(name).let {

@@ -39,6 +39,8 @@ export interface SongCoverInfo {
   pendingEmbeddedArtworkRefresh?: boolean;
   /** True when embedded extraction found no stable artwork and the preview should be preserved. */
   embeddedArtworkRefreshFailed?: boolean;
+  /** Retry budget for a failed read, bound to the source revision. */
+  embeddedArtworkRetry?: { revision: string; failures: number; after: number };
 }
 
 export type SongMetadataField = 'album' | 'albumArtist' | 'year' | 'genre' | 'trackNumber' | 'discNumber' | 'comment' | 'cover';

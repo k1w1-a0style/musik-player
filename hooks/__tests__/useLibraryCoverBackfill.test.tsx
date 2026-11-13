@@ -1,7 +1,8 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import SystemAudio from 'expo-system-audio';
 import { buildCoverBackfillAttemptKey, useLibraryCoverBackfill } from '../useLibraryCoverBackfill';
 import { createCoverCacheProtection } from '../../utils/coverCacheCleanup';
+import { recordCoverReadFailure } from '../../utils/songCoverRetry';
 import type { Song } from '../../types/Song';
 
 jest.mock('expo-system-audio', () => ({
@@ -92,6 +93,37 @@ describe('useLibraryCoverBackfill', () => {
     expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
     rerender({ value: [{ ...original, fileInfo: { ...original.fileInfo, modificationTime: 11 } }] });
     await waitFor(() => expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(2));
+  });
+
+  test('publishes a retry receipt that survives remount and does not mark artwork absent', async () => {
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockRejectedValue(new Error('unreadable artwork'));
+    const applySongMetadataPatches = jest.fn();
+    const original = song('persistent', { fileInfo: { size: 100, modificationTime: 1 } });
+    const first = renderHook(() => useLibraryCoverBackfill({ songs: [original], applySongMetadataPatches }));
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalled());
+    const patch = applySongMetadataPatches.mock.calls[0][0].persistent;
+    expect(patch.coverInfo.embeddedArtworkRetry.failures).toBe(1);
+    expect(patch.coverInfo.embeddedArtworkChecked).not.toBe(true);
+    first.unmount();
+    const restored = JSON.parse(JSON.stringify({ ...original, ...patch })) as Song;
+    renderHook(() => useLibraryCoverBackfill({ songs: [restored], applySongMetadataPatches }));
+    await flush();
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+  });
+
+  test('wakes once when a persisted retry delay expires', async () => {
+    jest.useFakeTimers();
+    const applySongMetadataPatches = jest.fn();
+    const base = song('delayed', { fileInfo: { size: 100, modificationTime: 1 } });
+    const delayed = recordCoverReadFailure(base);
+    (SystemAudio.extractEmbeddedArtwork as jest.Mock).mockResolvedValue(null);
+    const hook = renderHook(() => useLibraryCoverBackfill({ songs: [delayed], applySongMetadataPatches }));
+    await act(async () => { await jest.advanceTimersByTimeAsync(60 * 60_000 - 1); });
+    expect(SystemAudio.extractEmbeddedArtwork).not.toHaveBeenCalled();
+    await act(async () => { await jest.advanceTimersByTimeAsync(1); });
+    expect(SystemAudio.extractEmbeddedArtwork).toHaveBeenCalledTimes(1);
+    hook.unmount();
+    jest.useRealTimers();
   });
 
   test('requeues coverless songs after an aborted stale backfill round', async () => {

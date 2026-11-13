@@ -86,7 +86,8 @@ test('cover timeout retires one worker without marking the unresolved song as co
   const result = await pending;
 
   expect(result).toMatchObject({ attempted: 3, updated: 2 });
-  expect(result.songs[0].coverInfo).toBeUndefined();
+  expect(result.songs[0].coverInfo).toMatchObject({ embeddedArtworkRetry: { failures: 1 } });
+  expect(result.songs[0].coverInfo?.embeddedArtworkChecked).not.toBe(true);
   expect(result.songs[1].cover).toBe('file:///b.mp3.jpg');
   expect(result.songs[2].cover).toBe('file:///c.mp3.jpg');
 });

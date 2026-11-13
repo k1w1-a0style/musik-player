@@ -6,6 +6,7 @@ import { getSongArtworkUri } from './songArtwork';
 import { runNativeReadWithTimeout } from './nativeReadTimeout';
 import { isAbortError, throwIfAborted } from './withTimeout';
 import { inspectEmbeddedArtwork } from './embeddedArtworkInspection';
+import { coverRetryIsDeferred, recordCoverReadFailure } from './songCoverRetry';
 
 export interface SongCoverBackfillResult {
   songs: Song[];
@@ -42,6 +43,7 @@ const isRemoteUri = (uri: string): boolean => /^https?:\/\//i.test(uri.trim());
 export const needsEmbeddedCoverBackfill = (song: Song): boolean => {
   const uri = song.uri?.trim() || song.fileInfo?.uri?.trim();
   if (!uri || isRemoteUri(uri)) return false;
+  if (coverRetryIsDeferred(song)) return false;
 
   if (song.coverInfo?.pendingEmbeddedArtworkRefresh === true) return true;
 
@@ -66,6 +68,7 @@ const applyCoverResult = (song: Song, uri?: string): Song => {
       status: uri ? 'cached' : pendingPreviewUri ? 'external' : 'none',
       uri: nextUri,
       embeddedArtworkChecked: true,
+      embeddedArtworkRetry: undefined,
       ...(song.coverInfo?.pendingEmbeddedArtworkRefresh === true ? {
         pendingEmbeddedArtworkRefresh: false,
         embeddedArtworkRefreshFailed: !uri && Boolean(pendingPreviewUri),
@@ -76,6 +79,7 @@ const applyCoverResult = (song: Song, uri?: string): Song => {
 
 type EmbeddedCoverReadResult =
   | { kind: 'success'; artworkUri?: string }
+  | { kind: 'unavailable' }
   | { kind: 'failure' }
   | { kind: 'timeout' };
 
@@ -94,7 +98,7 @@ const readAndCacheEmbeddedCover = async (
       onDiscard: inspection => releaseNativeArtwork(inspection.artwork) },
   );
   if (nativeRead.kind !== 'success') return nativeRead;
-  if (!nativeRead.value.checked) return { kind: 'failure' };
+  if (!nativeRead.value.checked) return { kind: nativeRead.value.reason === 'error' ? 'failure' : 'unavailable' };
   try {
     throwIfAborted(options.signal);
     const extractedUri = nativeRead.value.artwork?.uri;
@@ -152,7 +156,11 @@ export const backfillEmbeddedSongCovers = async (
         signal,
         coverCacheProtection,
       });
+      if (coverRead.kind === 'unavailable') { attempted += 1; return; }
       if (coverRead.kind !== 'success') {
+        const failed = recordCoverReadFailure(candidate.song);
+        nextSongs[candidate.index] = failed;
+        options.onSongProcessed?.(failed, candidate.index);
         options.onSongReadFailed?.(candidate.song);
         attempted += 1;
         await maybeYield();

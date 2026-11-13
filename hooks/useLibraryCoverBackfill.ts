@@ -6,6 +6,7 @@ import { createCoverCacheProtection, type CoverCacheProtection } from '../utils/
 import { getSongArtworkUri } from '../utils/songArtwork';
 import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
 import { useAfterInitialInteractions } from './useAfterInitialInteractions';
+import { useCoverRetryWake } from './useCoverRetryWake';
 
 interface UseLibraryCoverBackfillOptions {
   songs: Song[];
@@ -44,6 +45,8 @@ export const buildCoverBackfillAttemptKey = (song: Song): string =>
     song.coverInfo?.status ?? '',
     song.coverInfo?.embeddedArtworkChecked === true ? 'checked' : 'unchecked',
     song.coverInfo?.embeddedArtworkRevision ?? '',
+    song.coverInfo?.embeddedArtworkRetry?.failures ?? '',
+    song.coverInfo?.embeddedArtworkRetry?.after ?? '',
   ].join('|');
 
 const recordFailedAttempt = (song: Song, attempted: Set<string>, active: boolean): void => {
@@ -101,7 +104,7 @@ const buildSafeBackfillPatches = ({
     if (!needsEmbeddedCoverBackfill(currentSong)) return;
 
     const resultArtwork = getSongArtworkUri(resultSong);
-    if (!resultArtwork && resultSong.coverInfo?.status !== 'none') return;
+    if (!resultArtwork && resultSong.coverInfo?.status !== 'none' && !resultSong.coverInfo?.embeddedArtworkRetry) return;
 
     patchesBySongId[originalSong.id] = {
       cover: resultSong.cover,
@@ -134,6 +137,7 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
   const metadataRefreshActive = useMetadataRefreshActive();
   const afterInitialInteractions = useAfterInitialInteractions();
   const backfillSongs = selectBackfillSongs(songs, enabled, afterInitialInteractions);
+  const retryWake = useCoverRetryWake(backfillSongs);
 
   latestSongsRef.current = songs;
   usePendingProtectionCleanup(songs, pendingProtectionsRef, mountedRef);
@@ -257,5 +261,5 @@ export const useLibraryCoverBackfill = ({ songs, applySongMetadataPatches, enabl
     });
 
     return () => controller.abort();
-  }, [songs, backfillSongs, applySongMetadataPatches, metadataRefreshActive]);
+  }, [songs, backfillSongs, applySongMetadataPatches, metadataRefreshActive, retryWake]);
 };

@@ -31,6 +31,12 @@ test('distinguishes a completed empty inspection from unavailable native artwork
 
 test('a provider failure leaves artwork eligible for a future inspection', async () => {
   const module = load({ extractEmbeddedArtwork: jest.fn().mockRejectedValue(new Error('provider busy')) });
+  await expect(module.inspectEmbeddedArtwork('content://song')).resolves.toEqual({ checked: false, artwork: null, reason: 'error' });
+});
+
+test('native capacity errors remain retryable scheduling outcomes', async () => {
+  const error = Object.assign(new Error('busy'), { code: 'NativeReadCapacity' });
+  const module = load({ extractEmbeddedArtwork: jest.fn().mockRejectedValue(error) });
   await expect(module.inspectEmbeddedArtwork('content://song')).resolves.toEqual({ checked: false, artwork: null });
 });
 

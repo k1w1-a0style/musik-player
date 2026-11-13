@@ -36,7 +36,7 @@ export interface EmbeddedArtworkResult {
 /** A missing cover is final only after the native inspection actually ran. */
 export type EmbeddedArtworkInspection =
   | { checked: true; artwork: EmbeddedArtworkResult | null }
-  | { checked: false; artwork: null };
+  | { checked: false; artwork: null; reason?: 'error' };
 
 export interface ImportSnapshot {
   audioInfo: AudioInfoResult | null;
@@ -415,8 +415,10 @@ export const SystemAudio = {
       return inspected && inspected.artwork !== undefined
         ? { checked: true, artwork: inspected.artwork }
         : { checked: false, artwork: null };
-    } catch {
-      return { checked: false, artwork: null };
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      if (code === 'NativeReadCapacity' || code === 'NativeReadClosed') return { checked: false, artwork: null };
+      return { checked: false, artwork: null, reason: 'error' };
     }
   },
 
