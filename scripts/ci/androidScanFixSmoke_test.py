@@ -7,25 +7,25 @@ import xml.etree.ElementTree as ET
 from androidScanFixSmoke import scan_receipt
 
 class ScanReceiptTest(unittest.TestCase):
-    def frame(self, terminal='Aktualisierung – abgeschlossen', processed=12, total=12, errors=0):
+    def frame(self, terminal='Aktualisierung – abgeschlossen', processed=16, total=16, errors=0):
         root=ET.Element('hierarchy')
-        for text in (terminal,f'{processed} von {total} gefundenen Dateien verarbeitet',f'Neu: 12 · Geändert: 0 · Unverändert: 0 · Ungeprüft: 0 · Leseprobleme: {errors}'):
+        for text in (terminal,f'{processed} von {total} gefundenen Dateien verarbeitet',f'Neu: 16 · Geändert: 0 · Unverändert: 0 · Ungeprüft: 0 · Leseprobleme: {errors}'):
             ET.SubElement(root,'node',{'text':text,'package':'com.k1w1a0style.musikplayer'})
         return root
-    def test_complete_requires_real_terminal_ack_and_all_twelve_files(self):
-        self.assertIn('Neu: 12',scan_receipt(self.frame(),12))
+    def test_complete_requires_real_terminal_ack_and_all_sixteen_files(self):
+        self.assertIn('Neu: 16',scan_receipt(self.frame(),16))
         for root in (self.frame(processed=2), self.frame(terminal='Aktualisierung – teilweise abgeschlossen'), self.frame(errors=2)):
-            with self.assertRaises(AssertionError):scan_receipt(root,12)
+            with self.assertRaises(AssertionError):scan_receipt(root,16)
     def test_unrelated_app_text_never_proves_scan_completion(self):
         root=self.frame()
         for node in root:node.set('package','other.app')
-        with self.assertRaises(AssertionError):scan_receipt(root,12)
+        with self.assertRaises(AssertionError):scan_receipt(root,16)
     def test_partial_source_requires_an_actual_warning_and_all_known_readable_files(self):
         root = self.frame(terminal='Aktualisierung – teilweise abgeschlossen', errors=1)
-        self.assertIn('Leseprobleme: 1', scan_receipt(root, 12, partial=True))
-        with self.assertRaises(AssertionError): scan_receipt(root, 12)
-        with self.assertRaises(AssertionError): scan_receipt(self.frame(), 12, partial=True)
-        with self.assertRaises(AssertionError): scan_receipt(root, 24, partial=True)
+        self.assertIn('Leseprobleme: 1', scan_receipt(root, 16, partial=True))
+        with self.assertRaises(AssertionError): scan_receipt(root, 16)
+        with self.assertRaises(AssertionError): scan_receipt(self.frame(), 16, partial=True)
+        with self.assertRaises(AssertionError): scan_receipt(root, 32, partial=True)
 
 
     def test_scan_receipt_requires_foreground_return_and_confirmed_detail_opening(self):
@@ -40,9 +40,21 @@ class ScanReceiptTest(unittest.TestCase):
              patch.object(smoke.ui,'tree',side_effect=[before,after,after]), \
              patch.object(smoke.ui,'find',return_value=close),patch.object(smoke.ui,'tap'), \
              patch.object(smoke.ui,'tap_node') as tap,patch.object(smoke.ui,'screenshot'),patch.object(smoke.time,'sleep'):
-            self.assertIn('Neu: 12',smoke.wait_scan('confirmed'))
+            self.assertIn('Neu: 16',smoke.wait_scan('confirmed'))
             ready.assert_called_once()
             tap.assert_called_once()
+
+    def test_broken_cover_fixture_preserves_the_original_audio_bytes(self):
+        original = b'ID3\x04\x00\x00' + smoke.syncsafe(4) + b'tags' + b'audio-bytes'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'synthetic.mp3'
+            path.write_bytes(original)
+            smoke.add_broken_embedded_cover(path)
+            changed = path.read_bytes()
+            tag_size = sum((byte & 0x7f) << shift for byte, shift in zip(changed[6:10], (21, 14, 7, 0)))
+            self.assertTrue(changed[10:].startswith(b'APIC'))
+            self.assertIn(b'not-a-valid-image', changed[:10 + tag_size])
+            self.assertEqual(changed[10 + tag_size:], b'audio-bytes')
 
 
     def test_focus_query_includes_display_state_not_only_window_details(self):

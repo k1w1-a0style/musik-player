@@ -200,7 +200,7 @@ jobs:
           command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y ffmpeg; }
           python3 -m venv "$RUNNER_TEMP/scan-ui-venv"
           "$RUNNER_TEMP/scan-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
-      - name: Diagnose the same exact APK with twelve synthetic audio files and public UI
+      - name: Diagnose the same exact APK with sixteen synthetic audio files and public UI
         run: |
           set -euo pipefail
           "$RUNNER_TEMP/scan-ui-venv/bin/python" scripts/ci/androidScanFixSmoke.py 2>&1 | tee ci-logs/scan-device.log

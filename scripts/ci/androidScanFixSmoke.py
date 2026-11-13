@@ -10,7 +10,7 @@ import time
 import xml.etree.ElementTree as ET
 import androidReleaseInteractionSmoke as ui
 
-TITLES = [f'K1W1 Scan {i:02}' for i in range(1, 13)]
+TITLES = [f'K1W1 Scan {i:02}' for i in range(1, 17)]
 OUT = Path('ci-logs/scan-device')
 
 
@@ -70,7 +70,7 @@ def open_scan_details(name):
         raise
 
 
-def wait_scan(name, expected=12, partial=False, details_delay=0):
+def wait_scan(name, expected=16, partial=False, details_delay=0):
     if details_delay:
         time.sleep(details_delay)
     open_scan_details(name)
@@ -90,6 +90,26 @@ def wait_scan(name, expected=12, partial=False, details_delay=0):
     raise AssertionError('Synthetic folder did not complete in a single scan')
 
 
+def syncsafe(value):
+    assert 0 <= value < (1 << 28)
+    return bytes((value >> shift) & 0x7f for shift in (21, 14, 7, 0))
+
+
+def add_broken_embedded_cover(path):
+    """Add invalid APIC payload to a synthetic MP3 while preserving its audio."""
+    data = path.read_bytes()
+    assert data[:3] == b'ID3' and data[3] in (3, 4) and data[5] == 0, 'Unexpected fixture ID3 layout'
+    size = 0
+    for byte in data[6:10]:
+        assert byte < 128
+        size = (size << 7) | byte
+    assert len(data) >= 10 + size
+    payload = b'\x00image/jpeg\x00\x03\x00not-a-valid-image'
+    frame_size = syncsafe(len(payload)) if data[3] == 4 else len(payload).to_bytes(4, 'big')
+    frame = b'APIC' + frame_size + b'\x00\x00' + payload
+    path.write_bytes(data[:6] + syncsafe(size + len(frame)) + frame + data[10:])
+
+
 def make_audio():
     directory = OUT / 'synthetic-audio'
     directory.mkdir(parents=True, exist_ok=True)
@@ -98,6 +118,9 @@ def make_audio():
         target = directory / f'ScanFix-{index+1:02}.{extension}'
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'sine=frequency={330+index*20}:sample_rate=22050',
                         '-t', '65', '-c:a', codec, '-metadata', 'title=' + title, '-metadata', 'artist=V3 Proof', str(target)], check=True)
+        if index in (0, 3):
+            add_broken_embedded_cover(target)
+            subprocess.run(['ffmpeg', '-v', 'error', '-i', str(target), '-map', '0:a:0', '-f', 'null', '-'], check=True)
     ui.adb('shell', 'mkdir', '-p', '/sdcard/Music/K1W1ScanFix')
     for target in directory.iterdir():
         ui.adb('push', str(target), '/sdcard/Music/K1W1ScanFix/' + target.name)
@@ -249,12 +272,12 @@ def main():
     open_library_action('library-menu-item-ordner-hinzuf-gen')
     ui.choose_folder(['Music', 'K1W1ScanFix'])
     first = wait_scan('first-single-saf-scan')
-    assert first.startswith('Neu: 12 · Geändert: 0'), 'All twelve files must be new in the single initial scan'
+    assert first.startswith('Neu: 16 · Geändert: 0'), 'All sixteen files must be new in the single initial scan'
     baseline = verify_rows()
     playlist_ids = create_source_playlist(baseline)
     update_library()
     repeated = wait_scan('repeated-incremental-scan')
-    assert repeated.startswith('Neu: 0 · Geändert: 0 · Unverändert: 12'), 'Repeated update reimported existing audio'
+    assert repeated.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16'), 'Repeated update reimported existing audio'
     remove_named_folder('K1W1ScanFix')
     assert_empty_active_library()
     verify_source_playlist(playlist_ids)
@@ -262,37 +285,37 @@ def main():
     assert_empty_active_library()
     add_named_folder('K1W1ScanFix')
     readded = wait_scan('readded-folder-cache-reuse')
-    assert readded.startswith('Neu: 0 · Geändert: 0 · Unverändert: 12')
+    assert readded.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16')
     assert verify_rows() == baseline, 'Re-adding the folder changed track IDs'
     permission = 'android.permission.READ_MEDIA_AUDIO' if api >= 33 else 'android.permission.READ_EXTERNAL_STORAGE'
     ui.adb('shell', 'pm', 'grant', ui.PACKAGE, permission)
     permission_proof = verify_system_music_grant(permission, api)
     ui.public_cold_start()
-    combined = wait_scan('granted-mediastore-and-saf', 24)
-    assert combined.startswith('Neu: 0 · Geändert: 0 · Unverändert: 24')
+    combined = wait_scan('granted-mediastore-and-saf', 32)
+    assert combined.startswith('Neu: 0 · Geändert: 0 · Unverändert: 32')
     assert verify_rows() == baseline, 'MediaStore and SAF produced duplicate or changed track IDs'
     # A temporarily unreachable empty SAF root must stay registered while the
-    # twelve real tracks remain usable through the other sources.
+    # sixteen real tracks remain usable through the other sources.
     ui.adb('shell', 'mkdir', '-p', '/sdcard/Music/K1W1TransientSource')
     add_named_folder('K1W1TransientSource')
     ui.library_tab('folders')
     ui.adb('shell', 'mv', '/sdcard/Music/K1W1TransientSource', '/sdcard/Music/K1W1TransientSource-offline')
     ui.library_tab('tracks'); update_library()
-    partial = wait_scan('unreadable-saf-healthy-mediastore', 24, partial=True)
+    partial = wait_scan('unreadable-saf-healthy-mediastore', 32, partial=True)
     assert verify_rows() == baseline
     ui.library_tab('folders')
     assert len(folder_remove_actions(ui.tree(compressed=False))) == 2, 'Unreadable folder was silently removed'
     ui.adb('shell', 'mv', '/sdcard/Music/K1W1TransientSource-offline', '/sdcard/Music/K1W1TransientSource')
     ui.library_tab('tracks'); update_library()
-    wait_scan('recovered-saf-source', 24)
+    wait_scan('recovered-saf-source', 32)
     remove_named_folder('K1W1ScanFix')
     assert verify_rows() == baseline, 'Removing SAF hid tracks still authorized through MediaStore'
-    update_library(); media_only = wait_scan('granted-mediastore-without-music-saf', 12)
-    assert media_only.startswith('Neu: 0 · Geändert: 0 · Unverändert: 12')
+    update_library(); media_only = wait_scan('granted-mediastore-without-music-saf', 16)
+    assert media_only.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16')
     add_named_folder('K1W1ScanFix'); wait_scan('restore-music-source', details_delay=6)
     add_named_folder(None); wait_scan('overlapping-parent-source')
     ui.adb('shell', 'pm', 'revoke', ui.PACKAGE, permission)
-    ui.public_cold_start(); wait_scan('restart-with-only-overlapping-saf', 24)
+    ui.public_cold_start(); wait_scan('restart-with-only-overlapping-saf', 32)
     remove_named_folder('K1W1ScanFix')
     assert verify_rows() == baseline, 'Overlapping parent source was lost'
     remove_named_folder('Music')
@@ -305,8 +328,20 @@ def main():
     ui.assert_native_playback(TITLES[0], 65)
     ui.tap('controls-play-pause')
     ui.back()
+    ui.play_title(TITLES[3])
+    ui.tap('mini-player-open')
+    ui.assert_duration(65)
+    ui.assert_native_playback(TITLES[3], 65)
+    ui.tap('controls-play-pause')
+    ui.back()
     ui.adb('shell', 'settings', 'put', 'system', 'font_scale', '2.0')
     ui.wait_uncovered_library_header()
+    frame = ui.tree(compressed=False)
+    heading = ui.candidate('K1W1 Music', frame)
+    search = ui.candidate('library-toggle-search', frame)
+    assert heading is not None and search is not None, 'Library title or search control is missing at 200% font scale'
+    assert ui.rect(heading)[2] <= ui.rect(search)[0], 'Library title overlaps search at 200% font scale'
+    ui.screenshot('library-header-font2')
     last = ui.scroll_to(TITLES[-1] + ' von V3 Proof')
     mini = ui.find('mini-player-open')
     assert ui.rect(last)[3] <= ui.rect(mini)[1], 'Mini-player permanently hides the last track at 200% font scale'
@@ -331,10 +366,12 @@ def main():
     (OUT / 'logcat.txt').write_text(logs)
     assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|ANR in ' + re.escape(ui.PACKAGE), logs), 'App runtime failure'
     result = {'status': 'diagnostics-passed', 'releaseAccepted': False, 'api': api, 'sourceCommit': os.environ.get('REVIEWED_APK_SOURCE_COMMIT', os.environ['GITHUB_SHA']), 'harnessCommit': os.environ['GITHUB_SHA'],
-              'apkSha256': expected, 'syntheticFixtures': fixtures, 'firstScanCounts': first, 'repeatScanCounts': repeated,
+              'apkSha256': expected, 'syntheticFixtures': fixtures, 'malformedArtworkFixtures': ['ScanFix-01.mp3', 'ScanFix-04.mp3'],
+              'firstScanCounts': first, 'repeatScanCounts': repeated,
               'restartRows': len(TITLES), 'readdedCounts': readded, 'combinedCounts': combined, 'partialSourceCounts': partial,
               'mediaOnlyCounts': media_only, 'systemPermission': permission_proof, 'stableTrackIds': baseline, 'preservedPlaylistIds': playlist_ids, 'nativePlayback': ui.PLAYBACK_PROOFS, 'fontScale': 2, 'settingsCategories': categories, 'launcherDialogs': ui.LAUNCHER_DIALOGS,
-              'limitations': ['no physical Samsung provider', 'permanently blocked provider behavior covered by host regressions, not this device fixture',
+              'limitations': ['no physical Samsung provider', 'malformed APIC is present in two fixtures; provider extraction behavior is not independently confirmed',
+                              'permanently blocked provider behavior covered by host regressions, not this device fixture',
                               'security and full release acceptance remain independent requirements']}
     (OUT / 'result.json').write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2), flush=True)

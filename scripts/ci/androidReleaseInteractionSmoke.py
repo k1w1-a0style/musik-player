@@ -420,16 +420,19 @@ def screenshot(name):
 
 
 def validate_library_header_touch_areas(frame):
-    controls = [candidate(key,frame) for key in ('library-open-cleaner','library-toggle-search','library-open-menu')]
+    controls = [candidate(key,frame) for key in ('library-toggle-search','library-open-menu')]
     for node in controls:
         assert node is not None and node.get('package') == PACKAGE and node.get('enabled') == 'true', 'Header control missing or not enabled app-owned UI'
         x1,y1,x2,y2 = rect(node)
         assert 0 <= x1 < x2 <= 480 and 0 <= y1 < y2 <= 960, 'Header control is clipped by screen'
         assert x2-x1 >= 72 and y2-y1 >= 72, 'Header control is smaller than 48dp'
-    cleaner,search,menu = (rect(node) for node in controls)
-    assert cleaner[2] <= search[0], 'Header cleaner overlaps search'
+    search,menu = (rect(node) for node in controls)
     assert search[2] <= menu[0], 'Header search overlaps menu'
-    return {'cleanerBounds':cleaner,'searchBounds':search,'menuBounds':menu}
+    title = candidate('K1W1 Music', frame)
+    assert title is not None and title.get('package') == PACKAGE and visible(title), 'Library title is missing'
+    title_bounds = rect(title)
+    assert 0 <= title_bounds[0] < title_bounds[2] <= search[0] and 0 <= title_bounds[1] < title_bounds[3] <= 960, 'Library title is clipped or overlaps search'
+    return {'titleBounds':title_bounds,'searchBounds':search,'menuBounds':menu}
 
 
 def validate_library_panel_background(frame, info_key, read_pixel):
@@ -1964,7 +1967,9 @@ def cleaner_playlist_font_acceptance():
         screenshot('cleaner-playlist-font2-'+appearance)
         back()
         library_tab('tracks')
-        select('library-open-cleaner',top=True)
+        tap('library-open-menu')
+        find('library-menu-card')
+        select('library-menu-item-sammlung-aufr-umen',top=True)
         select('tag-cleaner-last-result',top=True)
         find('tag-cleaner-result')
         scroll_to('tag-cleaner-result-export',top=True)
