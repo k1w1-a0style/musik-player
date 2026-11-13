@@ -451,11 +451,20 @@ def validate_library_panel_background(frame, info_key, read_pixel):
     assert sx1 <= vx1 < vx2 <= sx2 and sy1 <= vy1 < vy2 <= sy2, 'Song viewport escapes panel'
     assert sx1 <= mx1 < mx2 <= sx2 and my2 <= sy2, 'Painted panel stops above/behind mini-player'
     gap = my1-vy2
-    assert 28 <= gap <= 32, 'Library reserves bottom safe area twice or overlaps mini-player'
+    # Newer library lists deliberately extend behind the floating player, with
+    # their content inset instead of shortening the native scroll viewport.
+    # In both layouts the actual controls must be visible above the overlay.
+    if vy2 > my1:
+        assert vy2 == sy2, 'Library viewport ends unexpectedly beneath mini-player'
+        assert scroll_candidate(info_key, frame) is not None, 'Song action overlaps mini-player or is clipped'
+        sample_y = my1
+    else:
+        assert 28 <= gap <= 32, 'Library reserves bottom safe area twice or overlaps mini-player'
+        sample_y = vy2
     samples=[]
     for x in (sx1+6,sx2-6):
-        before=tuple(read_pixel((x,vy2-2)))[:3]
-        after=tuple(read_pixel((x,vy2+2)))[:3]
+        before=tuple(read_pixel((x,sample_y-2)))[:3]
+        after=tuple(read_pixel((x,sample_y+2)))[:3]
         delta=max(abs(a-b) for a,b in zip(before,after))
         assert delta <= 3, 'Abrupt background band at lower list viewport edge'
         samples.append({'x':x,'above':before,'below':after,'maximumChannelStep':delta})

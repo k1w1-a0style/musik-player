@@ -1193,8 +1193,23 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                 lambda point:(20,21,27) if point[1]<759 else (10,12,15))
         overlap=self.panel_frame()
         smoke.vertical_scroll_surface(overlap,key).set('bounds','[12,529][468,800]')
-        with self.assertRaisesRegex(AssertionError,'overlaps mini-player'):
+        with self.assertRaisesRegex(AssertionError,'ends unexpectedly'):
             smoke.validate_library_panel_background(overlap,key,lambda _: (20,21,27))
+
+    def test_full_height_scroll_view_keeps_real_controls_above_floating_player(self):
+        key='song-card-info-1000000019'
+        frame=self.panel_frame()
+        surface=smoke.vertical_scroll_surface(frame,key)
+        surface.set('bounds','[12,529][468,924]')
+        proof=smoke.validate_library_panel_background(frame,key,lambda _: (20,21,27))
+        self.assertEqual(proof['listBounds'][3],924)
+        self.assertEqual(proof['miniPlayerBounds'][1],789)
+        with self.assertRaisesRegex(AssertionError,'Abrupt background band'):
+            smoke.validate_library_panel_background(frame,key,
+                lambda point:(20,21,27) if point[1]<789 else (10,12,15))
+        smoke.candidate(key,frame).set('bounds','[380,770][452,842]')
+        with self.assertRaisesRegex(AssertionError,'overlaps mini-player'):
+            smoke.validate_library_panel_background(frame,key,lambda _: (20,21,27))
 
     def test_recorded_whole_font2_song_info_requires_no_gesture(self):
         key = 'song-card-info-1000000019'
