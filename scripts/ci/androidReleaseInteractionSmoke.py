@@ -26,6 +26,7 @@ DEVICE = None
 DEVICE_SERIAL = None
 DEVICE_BOOT_ID = None
 TRANSPORT_RECOVERIES = []
+MAX_TRANSPORT_RECOVERIES = 3
 LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
 FORMAT_DURATIONS = (90, 120, 150, 1260)
@@ -130,7 +131,7 @@ def dump_hierarchy(compressed):
     try:
         return DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
     except Exception as error:
-        if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or TRANSPORT_RECOVERIES:
+        if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or len(TRANSPORT_RECOVERIES) >= MAX_TRANSPORT_RECOVERIES:
             raise
         record = {'error': repr(error), 'serial': DEVICE_SERIAL, 'bootId': DEVICE_BOOT_ID, 'status': 'attempting'}
         TRANSPORT_RECOVERIES.append(record)
@@ -139,14 +140,14 @@ def dump_hierarchy(compressed):
         boot_id = adb('-s', DEVICE_SERIAL, 'shell', 'cat', '/proc/sys/kernel/random/boot_id').decode().strip()
         assert boot_id == DEVICE_BOOT_ID, 'Emulator rebooted during UI transport failure'
         logs = adb('-s', DEVICE_SERIAL, 'logcat', '-d', '-v', 'threadtime').decode(errors='replace')
-        (OUT / 'transport-recovery-logcat.txt').write_text(logs)
+        (OUT / f'transport-recovery-logcat-{len(TRANSPORT_RECOVERIES)}.txt').write_text(logs)
         assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'Runtime failure before UI transport recovery'
         import uiautomator2
         DEVICE = uiautomator2.connect(DEVICE_SERIAL)
         raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
         record['status'] = 'recovered-same-boot-no-app-restart'
         (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
-        print('Recovered UI transport once on the same emulator boot; app not restarted.', flush=True)
+        print(f'Recovered UI transport {len(TRANSPORT_RECOVERIES)}/{MAX_TRANSPORT_RECOVERIES} on the same emulator boot; app not restarted.', flush=True)
         return raw
 
 

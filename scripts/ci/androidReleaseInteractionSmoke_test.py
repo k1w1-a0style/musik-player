@@ -666,27 +666,29 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             smoke.add_public_playlist_songs([smoke.TITLES[0]])
             tap.assert_called_once()
 
-    def test_transport_recovery_is_once_same_boot_and_never_restarts_app(self):
+    def test_transport_recovery_is_bounded_same_boot_and_never_restarts_app(self):
         original = Mock()
         original.dump_hierarchy.side_effect = json.JSONDecodeError('empty HTTP response', '', 0)
         restored = Mock()
-        restored.dump_hierarchy.return_value = '<hierarchy/>'
+        loss = lambda: json.JSONDecodeError('empty HTTP response', '', 0)
+        restored.dump_hierarchy.side_effect = ['<hierarchy/>', loss(), '<hierarchy/>', loss(), '<hierarchy/>', loss()]
         connector = Mock(connect=Mock(return_value=restored))
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
              patch.object(smoke, 'DEVICE', original), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
              patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
-             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash']) as adb, \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash'] * 3) as adb, \
              patch.dict('sys.modules', {'uiautomator2': connector}):
             self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
-            connector.connect.assert_called_once_with('emulator-5554')
+            self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
+            self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
+            self.assertEqual(connector.connect.call_count, 3)
             adb.assert_any_call('-s', 'emulator-5554', 'wait-for-device', timeout=30)
             self.assertFalse(any('force-stop' in call.args or 'install' in call.args for call in adb.call_args_list))
             proof = json.loads((Path(directory) / 'transport-recovery.json').read_text())
-            self.assertEqual(proof[0]['status'], 'recovered-same-boot-no-app-restart')
-            restored.dump_hierarchy.side_effect = json.JSONDecodeError('second loss', '', 0)
+            self.assertEqual([item['status'] for item in proof], ['recovered-same-boot-no-app-restart'] * 3)
             with self.assertRaises(json.JSONDecodeError):
                 smoke.dump_hierarchy(True)
-            connector.connect.assert_called_once()
+            self.assertEqual(connector.connect.call_count, 3)
 
     def test_transport_recovery_rejects_reboot_or_runtime_failure(self):
         for boot, logs in [('different-boot', b'no crash'), ('same-boot', b'FATAL EXCEPTION: main'),
