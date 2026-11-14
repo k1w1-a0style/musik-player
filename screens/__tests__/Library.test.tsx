@@ -303,7 +303,8 @@ describe('Library', () => {
     fireEvent.press(view.getByLabelText('Scan abbrechen'));
     expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
     expect(view.getByText('Aktualisierung – abgebrochen')).toBeTruthy();
-    expect(view.getByText('1 von 2 gefundenen Dateien verarbeitet')).toBeTruthy();
+    expect(view.getByText('1 von 2 Quelleinträgen verarbeitet')).toBeTruthy();
+    expect(view.getByText('Die Zähler erfassen Einträge je Quelle. Dieselbe Datei kann in mehreren Quellen vorkommen.')).toBeTruthy();
     await waitFor(() => expect(scanOptions.signal.aborted).toBe(true));
     const publications = mockSetSongs.mock.calls.length;
     await act(async () => {
@@ -315,7 +316,7 @@ describe('Library', () => {
     expect(mockSetSongs).toHaveBeenCalledTimes(publications);
     expect(mockSongLibrary.getCurrent().map(song => song.id).sort()).toEqual(['confirmed', 's1']);
     expect(alert).not.toHaveBeenCalled();
-    expect(view.getByText('1 von 2 gefundenen Dateien verarbeitet')).toBeTruthy();
+    expect(view.getByText('1 von 2 Quelleinträgen verarbeitet')).toBeTruthy();
     view.unmount();
   });
 
