@@ -9,7 +9,7 @@ from androidScanFixSmoke import scan_receipt
 class ScanReceiptTest(unittest.TestCase):
     def frame(self, terminal='Aktualisierung – abgeschlossen', processed=16, total=16, errors=0):
         root=ET.Element('hierarchy')
-        for text in (terminal,f'{processed} von {total} gefundenen Dateien verarbeitet',f'Neu: 16 · Geändert: 0 · Unverändert: 0 · Ungeprüft: 0 · Leseprobleme: {errors}'):
+        for text in (terminal,f'{processed} von {total} Quelleinträgen verarbeitet', 'Die Zähler erfassen Einträge je Quelle. Dieselbe Datei kann in mehreren Quellen vorkommen.', f'Neu: 16 · Geändert: 0 · Unverändert: 0 · Ungeprüft: 0 · Leseprobleme: {errors}'):
             ET.SubElement(root,'node',{'text':text,'package':'com.k1w1a0style.musikplayer'})
         return root
     def test_complete_requires_real_terminal_ack_and_all_sixteen_files(self):
@@ -20,6 +20,13 @@ class ScanReceiptTest(unittest.TestCase):
         root=self.frame()
         for node in root:node.set('package','other.app')
         with self.assertRaises(AssertionError):scan_receipt(root,16)
+    def test_source_entry_explanation_is_required(self):
+        root = self.frame()
+        for node in list(root):
+            if node.get('text', '').startswith('Die Zähler erfassen'):
+                root.remove(node)
+        with self.assertRaisesRegex(AssertionError, 'not explained'):
+            scan_receipt(root, 16)
     def test_partial_source_requires_an_actual_warning_and_all_known_readable_files(self):
         root = self.frame(terminal='Aktualisierung – teilweise abgeschlossen', errors=1)
         self.assertIn('Leseprobleme: 1', scan_receipt(root, 16, partial=True))

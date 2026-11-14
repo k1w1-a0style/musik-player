@@ -29,6 +29,7 @@ test('retains an honest completed scan summary after the import and preparation 
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Aktualisierung – abgeschlossen')).toBeTruthy();
   expect(view.getByTestId('library-scan-summary-counts').props.children).toBe('Neu: 1 · Geändert: 2 · Unverändert: 3 · Ungeprüft: 4 · Leseprobleme: 1');
+  expect(view.getByText('Die Zähler erfassen Einträge je Quelle. Dieselbe Datei kann in mehreren Quellen vorkommen.')).toBeTruthy();
   expect(view.getByText(/bekannte Dateien ohne verlässliche Änderungsdaten/)).toBeTruthy();
   expect(view.queryByTestId('library-import-scan-animation')).toBeNull();
   fireEvent.press(view.getByLabelText('Scan-Ergebnis ausblenden'));
@@ -45,7 +46,7 @@ test('cancellation flushes the newest internal counters and rejects old-generati
   act(() => stopLibraryScan(first, 'cancelled'));
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
   expect(view.getByText('Aktualisierung – abgebrochen')).toBeTruthy();
-  expect(view.getByText('12 von 20 gefundenen Dateien verarbeitet')).toBeTruthy();
+  expect(view.getByText('12 von 20 Quelleinträgen verarbeitet')).toBeTruthy();
   let second = 0;
   act(() => { second = beginLibraryScan(true); });
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
@@ -127,7 +128,7 @@ test('a completed scan remains reachable after a delayed Android tap without ope
   act(() => jest.advanceTimersByTime(10000));
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
   fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
-  expect(view.getByText('12 von 12 gefundenen Dateien verarbeitet')).toBeTruthy();
+  expect(view.getByText('12 von 12 Quelleinträgen verarbeitet')).toBeTruthy();
   act(() => jest.advanceTimersByTime(30000));
   expect(view.getByTestId('library-scan-summary')).toBeTruthy();
   jest.useRealTimers();

@@ -25,9 +25,10 @@ const ScanDetails = ({ scan, color }: { scan: LibraryScanOperation; color: strin
     + ` · Ungeprüft: ${statistics.unverifiedCount} · Leseprobleme: ${statistics.errorCount}` : undefined;
   return <View style={styles.details}>
     {counts ? <Text style={[styles.counts, { color }]} testID="library-scan-summary-counts">{counts}</Text> : null}
+    {statistics ? <Text style={[styles.counts, { color }]}>Die Zähler erfassen Einträge je Quelle. Dieselbe Datei kann in mehreren Quellen vorkommen.</Text> : null}
     {scan.diagnostics ? <Text style={[styles.counts, { color }]}>{`${scan.diagnostics.importedCount} Titel eingelesen · ${scan.diagnostics.fileErrorCount} Dateiprobleme · ${statistics?.duplicateCount ?? 0} doppelte Quellen übersprungen`}</Text> : null}
     {scan.progress ? <Text style={[styles.counts, { color }]}>
-      {`${scan.progress.processed} von ${scan.progress.total} gefundenen Dateien verarbeitet`}
+      {`${scan.progress.processed} von ${scan.progress.total} Quelleinträgen verarbeitet`}
     </Text> : null}
     {statistics && statistics.unverifiedCount > 0 ? <Text style={[styles.counts, { color }]}>
       {scan.fullScan ? 'Ungeprüft: Revision nicht sicher vergleichbar; umfasst auch neue/geänderte Dateien ohne Inhaltsprüfung.'

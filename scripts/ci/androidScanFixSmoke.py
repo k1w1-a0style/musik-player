@@ -18,7 +18,8 @@ def scan_receipt(root, expected, partial=False):
     texts = [n.get('text', '') for n in root.iter('node') if n.get('package') == ui.PACKAGE]
     terminal = 'Aktualisierung – teilweise abgeschlossen' if partial else 'Aktualisierung – abgeschlossen'
     assert terminal in texts, 'The public scan has not reached its expected honest terminal state'
-    assert f'{expected} von {expected} gefundenen Dateien verarbeitet' in texts, 'The scan left a pending tail'
+    assert f'{expected} von {expected} Quelleinträgen verarbeitet' in texts, 'The scan left a pending tail'
+    assert 'Die Zähler erfassen Einträge je Quelle. Dieselbe Datei kann in mehreren Quellen vorkommen.' in texts, 'Source-entry counts are not explained'
     counts = next((text for text in texts if text.startswith('Neu: ')), '')
     pattern = r'Leseprobleme: [1-9]\d*(?:\D|$)' if partial else r'Leseprobleme: 0(?:\D|$)'
     assert re.search(pattern, counts), 'Read problems do not match the expected source outcome'
