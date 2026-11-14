@@ -13,6 +13,40 @@ from androidReleaseInteractionSmoke import (validate_target, rect, matches,
 import xml.etree.ElementTree as ET
 
 class ReleaseAcceptanceSafetyTest(unittest.TestCase):
+    def test_final_screenshot_retries_offline_on_same_boot_with_clean_logs(self):
+        offline = subprocess.CalledProcessError(255, ['adb'], stderr=b'error: device offline\n')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), \
+             patch.object(smoke, 'screenshot', side_effect=[offline, None]) as capture, \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot\n', b'clean logs']) as adb:
+            smoke.capture_final_screenshot()
+            self.assertEqual((Path(directory) / 'final-transport-recovery-logcat.txt').read_text(), 'clean logs')
+        self.assertEqual(capture.call_count, 2)
+        self.assertEqual(adb.call_args_list[0].args, ('-s', 'emulator-5554', 'wait-for-device'))
+
+    def test_final_screenshot_rejects_reboot_crash_and_unrelated_errors(self):
+        offline = subprocess.CalledProcessError(255, ['adb'], stderr=b'error: device offline\n')
+        for responses in ([b'', b'different-boot\n'], [b'', b'same-boot\n', b'FATAL EXCEPTION: main']):
+            with self.subTest(responses=responses), tempfile.TemporaryDirectory() as directory, \
+                 patch.object(smoke, 'OUT', Path(directory)), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
+                 patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'screenshot', side_effect=offline), \
+                 patch.object(smoke, 'adb', side_effect=responses), self.assertRaises(AssertionError):
+                smoke.capture_final_screenshot()
+        with patch.object(smoke, 'screenshot', side_effect=subprocess.CalledProcessError(1, ['adb'], stderr=b'permission denied')), \
+             patch.object(smoke, 'adb') as adb, self.assertRaises(subprocess.CalledProcessError):
+            smoke.capture_final_screenshot()
+        adb.assert_not_called()
+
+    def test_final_screenshot_still_fails_if_reconnection_does_not_restore_capture(self):
+        offline = subprocess.CalledProcessError(255, ['adb'], stderr=b'error: device offline\n')
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), \
+             patch.object(smoke, 'screenshot', side_effect=offline) as capture, \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot\n', b'clean logs']), \
+             self.assertRaises(subprocess.CalledProcessError):
+            smoke.capture_final_screenshot()
+        self.assertEqual(capture.call_count, 2)
+
     def completed_font2_fixture(self):
         harness='f5ff31bef3dfc9457f6d4b5710ab0ea9539157b5'
         cases=[{'fontScale':'2.0','appearance':a,'skin':s,'density':d,

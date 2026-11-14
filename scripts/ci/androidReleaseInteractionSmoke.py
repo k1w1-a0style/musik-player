@@ -51,6 +51,22 @@ def adb(*args, check=True, timeout=30):
     return subprocess.run(['adb', *args], check=check, capture_output=True, timeout=timeout).stdout
 
 
+def capture_final_screenshot():
+    try:
+        screenshot('final')
+    except subprocess.CalledProcessError as error:
+        stderr = error.stderr.decode(errors='replace') if isinstance(error.stderr, bytes) else (error.stderr or '')
+        if 'device offline' not in stderr or not DEVICE_SERIAL or not DEVICE_BOOT_ID:
+            raise
+        adb('-s', DEVICE_SERIAL, 'wait-for-device', timeout=30)
+        boot_id = adb('-s', DEVICE_SERIAL, 'shell', 'cat', '/proc/sys/kernel/random/boot_id').decode().strip()
+        assert boot_id == DEVICE_BOOT_ID, 'Emulator rebooted before final screenshot'
+        logs = adb('-s', DEVICE_SERIAL, 'logcat', '-d', '-v', 'threadtime').decode(errors='replace')
+        (OUT / 'final-transport-recovery-logcat.txt').write_text(logs)
+        assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'Runtime failure before final screenshot'
+        screenshot('final')
+
+
 def validate_target(apk, expected_sha, reviewed_commit, artifact_commit, emulator):
     assert emulator.strip() == '1', 'Release UI acceptance may run only on an isolated emulator'
     assert re.fullmatch(r'[0-9a-f]{40}', reviewed_commit), 'Missing immutable reviewed source'
@@ -2441,7 +2457,7 @@ def main():
     finally:
         from androidSmokeDiagnostics import collect_diagnostics, capture_final_snapshot
         collect_diagnostics(OUT, PACKAGE)
-        capture_final_snapshot(lambda: screenshot('final'))
+        capture_final_snapshot(capture_final_screenshot)
         capture_final_snapshot(lambda: (OUT / 'meminfo.txt').write_bytes(adb('shell', 'dumpsys', 'meminfo', PACKAGE, check=False)))
         capture_final_snapshot(lambda: (OUT / 'gfxinfo.txt').write_bytes(adb('shell', 'dumpsys', 'gfxinfo', PACKAGE, 'framestats', check=False)))
 
