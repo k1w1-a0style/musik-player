@@ -1000,9 +1000,40 @@ def timeline_values(root):
     raise AssertionError('Decoded progress and duration are not visible in the timeline')
 
 
+def tap_ready_scan_menu_action(timeout=150):
+    key = 'library-menu-item-musikbibliothek-aktualisieren'
+    deadline = time.monotonic() + timeout
+    seen_menu = False
+    stable_enabled = 0
+    while time.monotonic() < deadline:
+        frame = tree(compressed=False)
+        menu = candidate('library-menu-card', frame)
+        if menu is None:
+            assert not seen_menu, 'Library menu disappeared before scan action'
+            time.sleep(.3)
+            continue
+        seen_menu = True
+        assert menu.get('package') == PACKAGE, 'Scan menu is not app-owned'
+        action = candidate(key, frame)
+        assert action is not None and action in menu.iter('node') and action.get('package') == PACKAGE, 'Scan action missing from app menu'
+        stable_enabled = stable_enabled + 1 if action.get('enabled') == 'true' else 0
+        if stable_enabled >= 2:
+            tap_node(action)
+            break
+        time.sleep(.3)
+    else:
+        raise AssertionError('Scan action did not become enabled')
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if candidate('library-menu-card', tree(compressed=False)) is None:
+            return
+        time.sleep(.3)
+    raise AssertionError('Scan menu did not close after the action')
+
+
 def import_public_collection():
     tap('library-open-menu')
-    tap('library-menu-item-musikbibliothek-aktualisieren')
+    tap_ready_scan_menu_action()
     find(TITLES[0] + ' von V3 Proof', timeout=150)
     screenshot('01-mediastore-import')
     CHECKS.append('MediaStore-import-public-UI')

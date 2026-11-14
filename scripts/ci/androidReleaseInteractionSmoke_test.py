@@ -667,6 +667,32 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             smoke.add_public_playlist_songs([smoke.TITLES[0]])
             tap.assert_called_once()
 
+    def test_scan_menu_waits_until_action_is_enabled_and_confirms_dismissal(self):
+        def menu(enabled):
+            return ET.fromstring(f'<hierarchy><node resource-id="library-menu-card" package="{smoke.PACKAGE}" bounds="[20,80][460,900]"><node resource-id="library-menu-item-musikbibliothek-aktualisieren" package="{smoke.PACKAGE}" enabled="{enabled}" bounds="[25,285][443,432]"/></node></hierarchy>')
+        disabled, enabled, closed = menu('false'), menu('true'), ET.fromstring('<hierarchy/>')
+        with patch.object(smoke, 'tree', side_effect=[disabled, enabled, enabled, closed]) as tree, \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke.time, 'sleep'):
+            smoke.tap_ready_scan_menu_action()
+            self.assertEqual(tree.call_count, 4)
+            tap.assert_called_once_with(smoke.candidate('library-menu-item-musikbibliothek-aktualisieren', enabled))
+
+    def test_scan_menu_does_not_tap_a_disabled_action(self):
+        frame = ET.fromstring(f'<hierarchy><node resource-id="library-menu-card" package="{smoke.PACKAGE}" bounds="[20,80][460,900]"><node resource-id="library-menu-item-musikbibliothek-aktualisieren" package="{smoke.PACKAGE}" enabled="false" bounds="[25,285][443,432]"/></node></hierarchy>')
+        with patch.object(smoke, 'tree', return_value=frame), patch.object(smoke, 'tap_node') as tap, \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=[0, 0, 200]):
+            with self.assertRaisesRegex(AssertionError, 'did not become enabled'):
+                smoke.tap_ready_scan_menu_action()
+            tap.assert_not_called()
+
+    def test_scan_menu_requires_dismissal_after_tap(self):
+        frame = ET.fromstring(f'<hierarchy><node resource-id="library-menu-card" package="{smoke.PACKAGE}" bounds="[20,80][460,900]"><node resource-id="library-menu-item-musikbibliothek-aktualisieren" package="{smoke.PACKAGE}" enabled="true" bounds="[25,285][443,432]"/></node></hierarchy>')
+        with patch.object(smoke, 'tree', return_value=frame), patch.object(smoke, 'tap_node') as tap, \
+             patch.object(smoke.time, 'sleep'), patch.object(smoke.time, 'monotonic', side_effect=[0, 0, 0, 0, 0, 21]):
+            with self.assertRaisesRegex(AssertionError, 'did not close'):
+                smoke.tap_ready_scan_menu_action()
+            tap.assert_called_once()
+
     def test_transport_recovery_is_bounded_same_boot_and_never_restarts_app(self):
         original = Mock()
         original.dump_hierarchy.side_effect = json.JSONDecodeError('empty HTTP response', '', 0)
@@ -953,12 +979,11 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_public_update_uses_one_action_without_obsolete_source_or_confirmation_dialog(self):
         with patch.object(smoke, 'tap') as tap, patch.object(smoke, 'find') as find, \
-             patch.object(smoke, 'screenshot'), patch.object(smoke, 'tap_node') as tap_node:
+             patch.object(smoke, 'screenshot'), patch.object(smoke, 'tap_ready_scan_menu_action') as update:
             smoke.import_public_collection()
-        self.assertEqual([call.args[0] for call in tap.call_args_list],
-                         ['library-open-menu', 'library-menu-item-musikbibliothek-aktualisieren'])
+        self.assertEqual([call.args[0] for call in tap.call_args_list], ['library-open-menu'])
+        update.assert_called_once_with()
         find.assert_called_once_with(smoke.TITLES[0] + ' von V3 Proof', timeout=150)
-        tap_node.assert_not_called()
 
     def test_saf_import_below_viewport_must_scroll_and_prove_native_playback(self):
         row = ET.fromstring('<node bounds="[28,520][290,603]"/>')
@@ -973,7 +998,7 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                 self.assertEqual(duration, 80)
                 raise ReachedSafProof()
         with patch.object(smoke, 'find', side_effect=visible_find), \
-             patch.object(smoke, 'tap'), patch.object(smoke, 'tap_node'), \
+             patch.object(smoke, 'tap'), patch.object(smoke, 'tap_node'), patch.object(smoke, 'tap_ready_scan_menu_action'), \
              patch.object(smoke, 'back'), patch.object(smoke, 'screenshot'), \
              patch.object(smoke, 'tree'), patch.object(smoke, 'import_confirmation_button'), \
              patch.object(smoke, 'wait_collection_idle'), \
