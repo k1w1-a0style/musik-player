@@ -128,27 +128,33 @@ def transport_error(error):
 
 def dump_hierarchy(compressed):
     global DEVICE
-    try:
-        return DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
-    except Exception as error:
-        if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or len(TRANSPORT_RECOVERIES) >= MAX_TRANSPORT_RECOVERIES:
-            raise
-        record = {'error': repr(error), 'serial': DEVICE_SERIAL, 'bootId': DEVICE_BOOT_ID, 'status': 'attempting'}
-        TRANSPORT_RECOVERIES.append(record)
-        (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
-        adb('-s', DEVICE_SERIAL, 'wait-for-device', timeout=30)
-        boot_id = adb('-s', DEVICE_SERIAL, 'shell', 'cat', '/proc/sys/kernel/random/boot_id').decode().strip()
-        assert boot_id == DEVICE_BOOT_ID, 'Emulator rebooted during UI transport failure'
-        logs = adb('-s', DEVICE_SERIAL, 'logcat', '-d', '-v', 'threadtime').decode(errors='replace')
-        (OUT / f'transport-recovery-logcat-{len(TRANSPORT_RECOVERIES)}.txt').write_text(logs)
-        assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'Runtime failure before UI transport recovery'
-        import uiautomator2
-        DEVICE = uiautomator2.connect(DEVICE_SERIAL)
-        raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
-        record['status'] = 'recovered-same-boot-no-app-restart'
-        (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
-        print(f'Recovered UI transport {len(TRANSPORT_RECOVERIES)}/{MAX_TRANSPORT_RECOVERIES} on the same emulator boot; app not restarted.', flush=True)
-        return raw
+    record = None
+    while True:
+        try:
+            raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
+            if record is not None:
+                record['status'] = 'recovered-same-boot-no-app-restart'
+                (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
+                print(f'Recovered UI transport {len(TRANSPORT_RECOVERIES)}/{MAX_TRANSPORT_RECOVERIES} on the same emulator boot; app not restarted.', flush=True)
+            return raw
+        except Exception as error:
+            if record is not None:
+                record['status'] = 'transport-failed-after-reconnect'
+                (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
+                record = None
+            if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or len(TRANSPORT_RECOVERIES) >= MAX_TRANSPORT_RECOVERIES:
+                raise
+            record = {'error': repr(error), 'serial': DEVICE_SERIAL, 'bootId': DEVICE_BOOT_ID, 'status': 'attempting'}
+            TRANSPORT_RECOVERIES.append(record)
+            (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
+            adb('-s', DEVICE_SERIAL, 'wait-for-device', timeout=30)
+            boot_id = adb('-s', DEVICE_SERIAL, 'shell', 'cat', '/proc/sys/kernel/random/boot_id').decode().strip()
+            assert boot_id == DEVICE_BOOT_ID, 'Emulator rebooted during UI transport failure'
+            logs = adb('-s', DEVICE_SERIAL, 'logcat', '-d', '-v', 'threadtime').decode(errors='replace')
+            (OUT / f'transport-recovery-logcat-{len(TRANSPORT_RECOVERIES)}.txt').write_text(logs)
+            assert not re.search(r'FATAL EXCEPTION|ErrorBoundary caught|Expected .onGestureHandlerEvent.|ANR in '+re.escape(PACKAGE), logs), 'Runtime failure before UI transport recovery'
+            import uiautomator2
+            DEVICE = uiautomator2.connect(DEVICE_SERIAL)
 
 
 def tree(compressed=True):

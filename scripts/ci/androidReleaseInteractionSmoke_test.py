@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 from pathlib import Path
 import tempfile
 import subprocess
@@ -689,6 +690,27 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             with self.assertRaises(json.JSONDecodeError):
                 smoke.dump_hierarchy(True)
             self.assertEqual(connector.connect.call_count, 3)
+
+    def test_transport_can_retry_when_the_first_reconnected_dump_also_disconnects(self):
+        disconnected = lambda: http.client.RemoteDisconnected('no response')
+        original = Mock()
+        original.dump_hierarchy.side_effect = disconnected()
+        first = Mock()
+        first.dump_hierarchy.side_effect = disconnected()
+        second = Mock()
+        second.dump_hierarchy.return_value = '<hierarchy/>'
+        connector = Mock(connect=Mock(side_effect=[first, second]))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE', original), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
+             patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash'] * 2) as adb, \
+             patch.dict('sys.modules', {'uiautomator2': connector}):
+            self.assertEqual(smoke.dump_hierarchy(False), '<hierarchy/>')
+            self.assertEqual(connector.connect.call_count, 2)
+            self.assertEqual(adb.call_count, 6)
+            self.assertFalse(any('force-stop' in call.args or 'install' in call.args for call in adb.call_args_list))
+            proof = json.loads((Path(directory) / 'transport-recovery.json').read_text())
+            self.assertEqual([x['status'] for x in proof], ['transport-failed-after-reconnect', 'recovered-same-boot-no-app-restart'])
 
     def test_transport_recovery_rejects_reboot_or_runtime_failure(self):
         for boot, logs in [('different-boot', b'no crash'), ('same-boot', b'FATAL EXCEPTION: main'),
