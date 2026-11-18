@@ -158,12 +158,34 @@ def add_download_fixture():
     raise AssertionError('Download fixture never appeared in MediaStore')
 
 
+def download_scope_matches(frame, visible):
+    search = ui.candidate('library-search-input', frame)
+    if search is None or search.get('package') != ui.PACKAGE or search.get('text') != DOWNLOAD_TITLE:
+        return False
+    rows = [
+        node for node in frame.iter('node')
+        if node.get('package') == ui.PACKAGE
+        and node.get('resource-id', '').split(':id/')[-1].startswith('song-card-')
+        and node.get('content-desc', '').startswith(DOWNLOAD_TITLE + ' von ')
+        and ui.visible(node)
+    ]
+    if visible:
+        return len(rows) == 1 and rows[0].get('enabled') == 'true'
+    empty = ui.candidate('Keine Treffer gefunden.', frame)
+    return not rows and empty is not None and empty.get('package') == ui.PACKAGE
+
+
 def verify_download_visibility(visible):
     ui.tap('library-toggle-search')
     ui.tap('library-search-input')
     ui.adb('shell', 'input', 'text', DOWNLOAD_TITLE)
-    key = DOWNLOAD_TITLE + ' von V3 Proof' if visible else 'Keine Treffer gefunden.'
-    ui.find(key)
+    deadline = time.monotonic() + 25
+    while time.monotonic() < deadline:
+        if download_scope_matches(ui.tree(compressed=False), visible):
+            break
+        time.sleep(.25)
+    else:
+        raise AssertionError(f'Download scope search did not confirm expected track visibility: {visible}')
     ui.back()
     ui.tap('library-toggle-search')
 

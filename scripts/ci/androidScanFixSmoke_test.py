@@ -34,6 +34,27 @@ class ScanReceiptTest(unittest.TestCase):
         with self.assertRaises(AssertionError): scan_receipt(self.frame(), 16, partial=True)
         with self.assertRaises(AssertionError): scan_receipt(root, 32, partial=True)
 
+    def test_download_scope_accepts_android10_mediastore_artist_and_rejects_duplicates(self):
+        root = ET.Element('hierarchy')
+        attributes = {'package': smoke.ui.PACKAGE, 'enabled': 'true', 'bounds': '[20,120][460,200]'}
+        ET.SubElement(root, 'node', dict(attributes, text=smoke.DOWNLOAD_TITLE, **{'resource-id': 'library-search-input'}))
+        row = ET.SubElement(root, 'node', dict(attributes, **{'resource-id': 'song-card-29',
+            'content-desc': smoke.DOWNLOAD_TITLE + ' von Unbekannt'}))
+        self.assertTrue(smoke.download_scope_matches(root, visible=True))
+        self.assertFalse(smoke.download_scope_matches(root, visible=False))
+        ET.SubElement(root, 'node', dict(row.attrib, **{'resource-id': 'song-card-30'}))
+        self.assertFalse(smoke.download_scope_matches(root, visible=True))
+
+    def test_hidden_download_scope_requires_acknowledged_query_and_app_empty_state(self):
+        root = ET.Element('hierarchy')
+        attributes = {'package': smoke.ui.PACKAGE, 'enabled': 'true', 'bounds': '[20,120][460,200]'}
+        search = ET.SubElement(root, 'node', dict(attributes, text='other query', **{'resource-id': 'library-search-input'}))
+        empty = ET.SubElement(root, 'node', dict(attributes, text='Keine Treffer gefunden.'))
+        self.assertFalse(smoke.download_scope_matches(root, visible=False))
+        search.set('text', smoke.DOWNLOAD_TITLE)
+        self.assertTrue(smoke.download_scope_matches(root, visible=False))
+        empty.set('package', 'other.app')
+        self.assertFalse(smoke.download_scope_matches(root, visible=False))
 
     def test_scan_receipt_requires_foreground_return_and_confirmed_detail_opening(self):
         before=ET.fromstring('<hierarchy><node package="com.k1w1a0style.musikplayer" resource-id="library-processing-control" content-desc="Verarbeitungsdetails öffnen, busy" enabled="true" bounds="[23,51][95,123]"/></hierarchy>')
