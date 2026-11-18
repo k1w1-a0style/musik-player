@@ -7,6 +7,7 @@ import { runNativeReadWithTimeout } from './nativeReadTimeout';
 import { isAbortError, throwIfAborted } from './withTimeout';
 import { inspectEmbeddedArtwork } from './embeddedArtworkInspection';
 import { coverRetryIsDeferred, recordCoverReadFailure } from './songCoverRetry';
+import { withSongProcessing } from './songProcessingActivity';
 
 export interface SongCoverBackfillResult {
   songs: Song[];
@@ -151,11 +152,11 @@ export const backfillEmbeddedSongCovers = async (
         await maybeYield();
         continue;
       }
-      const coverRead = await readAndCacheEmbeddedCover(candidate.song, uri, {
+      const coverRead = await withSongProcessing(uri, 'cover', () => readAndCacheEmbeddedCover(candidate.song, uri, {
         ...options,
         signal,
         coverCacheProtection,
-      });
+      }));
       if (coverRead.kind === 'unavailable') { attempted += 1; return; }
       if (coverRead.kind !== 'success') {
         const failed = recordCoverReadFailure(candidate.song);

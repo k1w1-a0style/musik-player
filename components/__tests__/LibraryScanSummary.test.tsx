@@ -36,6 +36,18 @@ test('retains an honest completed scan summary after the import and preparation 
   expect(view.queryByTestId('library-scan-summary')).toBeNull();
 });
 
+test('identifies a failed SAF title by name and keeps its actual reason visible', () => {
+  const id = beginLibraryScan(false);
+  recordLibraryScanResult(id, { statistics, errorDetails: [{
+    uri: 'content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2FDJ%20Set.mp3',
+    phase: 'cover', code: 'native-timeout', message: 'Zeitlimit beim Coverlesen', recoverable: true,
+  }] });
+  completeLibraryScan(id);
+  const view = render(<LibraryPreparationStatus visible={false} />);
+  fireEvent.press(view.getByLabelText('Verarbeitungsdetails öffnen'));
+  expect(view.getByText('DJ Set.mp3 · Cover lesen · native-timeout: Zeitlimit beim Coverlesen')).toBeTruthy();
+});
+
 test('cancellation flushes the newest internal counters and rejects old-generation responses during the next scan', () => {
   const first = beginLibraryScan(false);
   updateLibraryScanProgress(first, progress);

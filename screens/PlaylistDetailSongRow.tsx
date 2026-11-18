@@ -19,7 +19,7 @@ import { displayArtist, displayTitle } from '../utils/libraryPresentation';
 import { getArtworkSource, getSongArtworkUri } from '../utils/songArtwork';
 import { useSongPreparation } from '../hooks/useSongPreparation';
 import SongWaveformStatus from '../components/SongWaveformStatus';
-import type { WaveformStatus } from '../utils/waveformStatus';
+import SongPreparationProgress from '../components/SongPreparationProgress';
 
 export const PLAYLIST_DETAIL_ROW_HEIGHT = 68;
 export const playlistDetailRowHeight = (fontScale: number): number => Math.max(68, Math.ceil(58 * Math.max(1, fontScale) + 10));
@@ -59,7 +59,7 @@ const usePlaylistRowAccessibilityAction = (index: number, songCount: number,
   [index, onReorder, songCount],
 );
 
-const SongText = ({ song, preparation }: { song: Song; preparation: WaveformStatus }) => {
+const SongText = ({ song }: { song: Song }) => {
   const { theme } = useAppTheme();
   return <View style={styles.songTextWrap}>
     <Text style={[styles.songTitle, { color: theme.palette.text.primary }]} numberOfLines={1}>
@@ -68,7 +68,6 @@ const SongText = ({ song, preparation }: { song: Song; preparation: WaveformStat
     <Text style={[styles.songSubtitle, { color: theme.palette.text.secondary }]} numberOfLines={1}>
       {displayArtist(song)}
     </Text>
-    <SongWaveformStatus song={song} status={preparation} />
   </View>;
 };
 
@@ -122,9 +121,10 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           <Animated.View style={styles.longPressArea}>
             <Text style={[styles.songIndex, { color: theme.palette.text.muted }]}>{index + 1}</Text>
             <SongArtwork song={song} />
-            <SongText song={song} preparation={preparation} />
+            <SongText song={song} />
           </Animated.View>
         </PanGestureHandler>
+        <SongWaveformStatus song={song} status={preparation} />
         <Pressable accessibilityRole="button" accessibilityLabel={`${title} aus Playlist entfernen`}
           onPress={event => { event?.stopPropagation?.(); onRemove(song); }} style={[styles.removeSongButton,
             { backgroundColor: theme.palette.surface, borderColor: theme.palette.error }]}
@@ -143,13 +143,13 @@ const PlaylistDetailSongRow = React.memo(({ song, index, songCount, previewOffse
           </PanGestureHandler>
         ) : null}
       </Pressable>
+      <SongPreparationProgress song={song} status={preparation} />
     </Animated.View>
   );
 });
 
 const styles = StyleSheet.create({
   animatedRow: { zIndex: 1 },
-  preparing: { opacity: 0.5 },
   animatedRowDragging: { zIndex: 20, elevation: 9 },
   songRow: {
     flex: 1,

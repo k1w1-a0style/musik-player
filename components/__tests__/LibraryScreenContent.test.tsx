@@ -93,3 +93,13 @@ test('hides search and status when inactive', () => {
   expect(screen.queryByText('Search: abc')).toBeNull();
   expect(screen.queryByText('Status: Import läuft')).toBeNull();
 });
+
+test('opens source permissions from the processing details and closes the details sheet', () => {
+  const onShowFolders = jest.fn();
+  const screen = render(<LibraryScreenContent {...baseProps}
+    menuModalProps={{ ...baseProps.menuModalProps, onShowFolders }} />);
+  fireEvent.press(screen.getByLabelText('Verarbeitungsdetails öffnen'));
+  fireEvent.press(screen.getByRole('button', { name: 'Quellenzugriff prüfen' }));
+  expect(onShowFolders).toHaveBeenCalledTimes(1);
+  expect(screen.queryByLabelText('Verarbeitungsdetails schließen')).toBeNull();
+});

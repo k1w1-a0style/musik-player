@@ -4,6 +4,7 @@ import { isTimeoutError, throwIfAborted, withTimeout } from './withTimeout';
 import { normalizeMetadataText } from './musicParser';
 import { MANUAL_METADATA_REFRESH_PER_TRACK_TIMEOUT_MS } from './libraryOperationTimeouts';
 import SystemAudio, { type FastMetadataResult } from '../modules/expo-system-audio';
+import { withSongProcessing } from './songProcessingActivity';
 
 export interface SongMetadataRefreshError {
   uri: string;
@@ -312,7 +313,7 @@ export const refreshSongsFromId3 = async (
     if (!uri) return { song, updatedDelta: 0, skippedDelta: 1, failedDelta: 0 };
 
     try {
-      const tags = await parseTagsForSong(song, uri);
+      const tags = await withSongProcessing(uri, 'metadata', () => parseTagsForSong(song, uri));
       throwIfAborted(signal);
       const patch = buildId3SongPatch(song, tags);
       const next = Object.keys(patch).length > 0 ? { ...song, ...patch } : song;

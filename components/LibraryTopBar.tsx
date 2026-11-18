@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { MoreVertical, Search, X } from 'lucide-react-native';
 import { APP_THEME_TOKENS as staticTokens } from '../utils/appTheme';
 import { KIWI_MUSIC_ARTWORK } from '../utils/songArtwork';
@@ -21,17 +21,17 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
   onOpenMenu,
 }) => {
   const { theme } = useAppTheme();
+  const { width } = useWindowDimensions();
 
   return (
     <View style={styles.topBar} testID="library-top-bar">
       <View style={styles.brandRow}>
-        <View style={{ width: 32, height: 32 }}>
         <View pointerEvents="none"><Image source={KIWI_MUSIC_ARTWORK} style={[styles.brandLogo, { borderColor: theme.palette.borderStrong }]}
           fadeDuration={0} accessible={false} /></View>
-        {activity}
-        </View>
-        <View style={styles.brandText}>
-          <Text numberOfLines={2} style={[styles.brand, { color: theme.palette.text.primary }]}>{title}</Text>
+        <View style={styles.brandText} testID="library-brand-title">
+          <Text numberOfLines={2} style={[styles.brand, width < 360 && styles.compactBrand,
+            { color: theme.palette.text.primary }]}>{title}</Text>
+          {activity}
         </View>
       </View>
       <View style={styles.topActions}>
@@ -62,11 +62,12 @@ const LibraryTopBar: React.FC<LibraryTopBarProps> = ({
 };
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, marginBottom: 8 },
-  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandText: { flex: 1, minWidth: 0 },
-  brandLogo: { width: 32, height: 32, flexShrink: 0, borderRadius: 9, borderWidth: StyleSheet.hairlineWidth },
-  brand: { fontFamily: staticTokens.fonts.heading, fontSize: 21, letterSpacing: -0.5 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, marginBottom: 6 },
+  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  brandText: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  brandLogo: { width: 28, height: 28, flexShrink: 0, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
+  brand: { flexShrink: 1, fontFamily: staticTokens.fonts.heading, fontSize: 21, letterSpacing: -0.5 },
+  compactBrand: { fontSize: 18 },
   topActions: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconButton: { width: 48, height: 48, flexShrink: 0, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { countImportSourceOutcome, emptyImportScanStatistics, type ImportScanStatistics, type ImportSourceDecision } from './libraryImportStatistics';
 import type { ImportErrorPhase } from './mediaLibraryImport';
+import { beginSongProcessing, type SongProcessingPhase } from './songProcessingActivity';
 
 export const IMPORT_PHASE_LABELS: Record<ImportErrorPhase, string> = { directory: 'Ordner lesen', revision: 'Datei prüfen',
   tags: 'Tags lesen', audioInfo: 'Audio analysieren', cover: 'Cover lesen', songBuild: 'Titel erfassen' };
@@ -42,6 +43,19 @@ export const createImportFileProgressReporter = (
   let total = 0;
   let processed = 0;
   const active = new Map<string, ImportErrorPhase | undefined>();
+  const trackActivity = new Map<string, () => void>();
+  const finishActivity = (uri: string): void => {
+    trackActivity.get(uri)?.();
+    trackActivity.delete(uri);
+  };
+  signal?.addEventListener('abort', () => {
+    for (const finish of trackActivity.values()) finish();
+    trackActivity.clear();
+  }, { once: true });
+  const markActivity = (uri: string, phase: SongProcessingPhase): void => {
+    finishActivity(uri);
+    if (!signal?.aborted) trackActivity.set(uri, beginSongProcessing(uri, phase));
+  };
   const statistics = emptyImportScanStatistics();
   const publish = (): void => {
     const current = active.entries().next().value;
@@ -51,11 +65,18 @@ export const createImportFileProgressReporter = (
   };
   return {
     addFiles: (count: number): void => { total += count; publish(); },
-    start: (uri: string): void => { active.set(uri, undefined); publish(); },
+    start: (uri: string): void => { active.set(uri, undefined); markActivity(uri, 'capture'); publish(); },
     activity: (): void => publish(),
-    phase: (uri: string, phase: ImportErrorPhase): void => { if (active.has(uri)) active.set(uri, phase); publish(); },
+    phase: (uri: string, phase: ImportErrorPhase): void => {
+      if (active.has(uri) && active.get(uri) !== phase) {
+        active.set(uri, phase);
+        markActivity(uri, phase === 'tags' ? 'metadata' : phase === 'audioInfo' || phase === 'cover' ? phase : 'capture');
+      }
+      publish();
+    },
     finish: (uri: string, decision?: ImportSourceDecision): void => {
       active.delete(uri);
+      finishActivity(uri);
       if (decision) countImportSourceOutcome(statistics, decision);
       processed += 1; publish();
     },

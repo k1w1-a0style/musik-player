@@ -5,6 +5,7 @@ import { dismissLibraryScan, useLibraryScanOperation, type LibraryScanStatus } f
 import type { LibraryScanOperation } from '../utils/libraryScanOperation';
 import { useMetadataRefreshOperation } from '../utils/metadataRefreshOperation';
 import { IMPORT_PHASE_LABELS } from '../utils/libraryImportProgress';
+import { deriveSafDisplayName } from '../utils/mediaLibraryImport';
 
 const labels: Record<LibraryScanStatus, string> = { idle: '', running: 'läuft', completed: 'abgeschlossen',
   partial: 'teilweise abgeschlossen', cancelled: 'abgebrochen', failed: 'fehlgeschlagen' };
@@ -35,7 +36,7 @@ const ScanDetails = ({ scan, color }: { scan: LibraryScanOperation; color: strin
         : 'Ungeprüft: bekannte Dateien ohne verlässliche Änderungsdaten. Der vollständige Scan prüft den Inhalt.'}
     </Text> : null}
     {scan.errorDetails?.map((detail, index) => <Text key={`${detail.uri}-${index}`} style={[styles.counts, { color }]}>
-      {`${IMPORT_PHASE_LABELS[detail.phase]} · ${detail.code}: ${detail.message}`}
+      {`${deriveSafDisplayName(detail.uri)} · ${IMPORT_PHASE_LABELS[detail.phase]} · ${detail.code}: ${detail.message}`}
     </Text>)}
   </View>;
 };
@@ -67,7 +68,6 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = f
   // Key the expanded state to the operation so a new scan starts compact.
   const [expandedId, setExpandedId] = useState<number | null>(expandedByDefault ? scan.id : null);
   const details = expandedId === scan.id;
-  const statistics = scan.progress?.statistics;
   const warning = scan.folderPersistenceWarning;
   const cleanSuccess = isCleanScan(scan) && !persistenceWarning;
   if (!shouldShowSummary(scan, refresh.status)) return null;
@@ -89,9 +89,6 @@ const LibraryScanSummary = ({ onRetry, persistenceWarning, expandedByDefault = f
     {scan.errorMessage ? <Text accessibilityRole="alert" testID="library-scan-summary-error"
       style={[styles.counts, { color: theme.palette.text.secondary }]}>{scan.errorMessage}</Text> : null}
     {!cleanSuccess && issues ? <Text style={[styles.counts, { color: theme.palette.text.secondary }]}>{issues}</Text> : null}
-    {statistics && statistics.errorCount > 0 ? <Text style={[styles.counts, { color: theme.palette.text.secondary }]}>
-      Nicht lesbare Scan-Ordner kannst du unter „Scan-Ordner“ mit „Zugriff erneuern“ wieder freigeben.
-    </Text> : null}
     {scan.remainingCount ? <Text style={[styles.counts, { color: theme.palette.text.secondary }]}>
       {`${scan.remainingCount} Datei(en) noch nicht geprüft`}
     </Text> : null}

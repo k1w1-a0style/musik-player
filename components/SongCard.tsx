@@ -10,6 +10,7 @@ import { getArtworkSource, getSongArtworkUri, getSongArtworkRevision } from '../
 import { getSongCardMetadataLabel } from '../utils/songCardMetadata';
 import type { LibrarySongCardVariant } from '../utils/libraryViewMode';
 import SongWaveformStatus from './SongWaveformStatus';
+import SongPreparationProgress from './SongPreparationProgress';
 import { getSongCardHeight } from '../utils/libraryRendererHelpers';
 import { useArtworkThumbnail } from '../hooks/useArtworkThumbnail';
 import { useSongPreparation } from '../hooks/useSongPreparation';
@@ -52,9 +53,6 @@ const SongMetadata = ({ song, label, color, tile = false }: {
   return <Text style={[tile ? styles.tileMetadata : styles.metadata, { color }]} numberOfLines={1}
     testID={`song-card-meta-${song.id.trim() || buildSongKey(song)}`}>{label}</Text>;
 };
-
-const EmptySongInfoSlot = ({ variant }: { variant: LibrarySongCardVariant }) =>
-  <View style={[styles.infoButton, variant === 'tile' && styles.tileInfoButton]} />;
 
 const useSongCardArtwork = (song: Song, variant: LibrarySongCardVariant) => {
   const [coverFailed, setCoverFailed] = useState(false);
@@ -140,7 +138,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
     >
       <CircleEllipsis color={theme.palette.text.muted} size={17} />
     </Pressable>
-  ) : <EmptySongInfoSlot variant={variant} />;
+  ) : null;
+  const retry = <SongWaveformStatus song={song} status={preparation} />;
+  const progress = <SongPreparationProgress song={song} status={preparation} id={songTestId} />;
 
   if (variant === 'tile') {
     return (
@@ -175,9 +175,9 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
         </View>
       </Pressable>
       <View style={styles.tileActions}>
-        <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
-        {infoButton}
+        {retry}{infoButton}
       </View>
+      {progress}
       </View>
       </View>
     );
@@ -228,9 +228,10 @@ const SongCardComponent: React.FC<SongCardProps> = ({ song, onPressSong, onInfoS
             color={theme.palette.text.muted} />
         </View>
         </Pressable>
-        <View style={styles.statusSlot}><SongWaveformStatus song={song} status={preparation} /></View>
+        {retry}
         {infoButton}
       </View>
+      {progress}
     </View>
     </View>
   );
@@ -262,8 +263,7 @@ const styles = StyleSheet.create({
   rowContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   playArea: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6 },
   compactContainer: { paddingVertical: 3 },
-  statusSlot: { width: 48, minHeight: 48 },
-  tileActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' },
+  tileActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' },
   bannerContainer: { paddingVertical: 6 },
   pressed: { opacity: 0.72 },
   activeRail: { position: 'absolute', left: -10, width: 3, height: 34, borderRadius: 3, backgroundColor: 'transparent' },

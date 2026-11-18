@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet, Text } from 'react-native';
 
 const mockAppTheme = {
   palette: {
@@ -38,6 +39,15 @@ test('renders custom title', () => {
   const { getByText } = render(<LibraryTopBar title="Meine Musik" onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);
 
   expect(getByText('Meine Musik')).toBeTruthy();
+});
+
+test('places the optional activity directly after the title in the brand row', () => {
+  const view = render(<LibraryTopBar activity={<Text testID="test-library-activity">!</Text>}
+    onToggleSearch={jest.fn()} onOpenMenu={jest.fn()} />);
+  const brand = view.getByTestId('library-brand-title');
+  expect(StyleSheet.flatten(brand.props.style)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
+  expect(brand.children.map(child => typeof child === 'string' ? child : child.props.testID ?? child.props.children))
+    .toEqual(['K1W1 Music', 'test-library-activity']);
 });
 
 test('calls onToggleSearch when search button is pressed', () => {

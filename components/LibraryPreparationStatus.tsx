@@ -1,11 +1,13 @@
 import React from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { CircleAlert, Info } from 'lucide-react-native';
 import { useAppTheme } from '../contexts/AppThemeContext';
-import { cancelWaveformPreparation, resumeWaveformPreparation,
+import { cancelWaveformPreparation, resumeWaveformPreparation, retrySongPreparation,
   type WaveformPreparationState } from '../utils/libraryWaveformPreparation';
 import { useLibraryProcessingStatus } from '../hooks/useLibraryProcessingStatus';
 import { getLibraryMenuBackdropColor } from '../utils/appThemeOverlays';
 import { DEFAULT_APP_APPEARANCE } from '../utils/appTheme';
+import { runPlaybackUiAction } from '../utils/playbackUiActions';
 import LibraryImportStatus, { type LibraryImportStatusProps } from './LibraryImportStatus';
 import LibraryScanSummary from './LibraryScanSummary';
 
@@ -16,6 +18,18 @@ const waveformLabel = (preparation: WaveformPreparationState): string => {
   return 'Waveformanalyse teilweise fehlgeschlagen';
 };
 
+const WaveformFailures = ({ failures = [] }: { failures?: WaveformPreparationState['failedSongs'] }) => {
+  const { theme } = useAppTheme();
+  return failures.map(({ song, reason }) => <View key={song.id} style={styles.failureRow}>
+    <Text style={[styles.failureMessage, { color: theme.palette.text.secondary }]}>{`${song.title} · ${reason}`}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Vorbereitung für ${song.title} erneut versuchen`}
+      onPress={() => { void runPlaybackUiAction(`prepare-${song.id}`, () => retrySongPreparation(song), { dropIfPending: true }); }}
+      style={styles.action}>
+      <Text style={{ color: theme.palette.primary }}>Erneut versuchen</Text>
+    </Pressable>
+  </View>);
+};
+
 const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPreparationState }) => {
   const { theme } = useAppTheme();
   const running = preparation.status === 'running';
@@ -23,27 +37,33 @@ const WaveformPreparationPanel = ({ preparation }: { preparation: WaveformPrepar
   return <View style={styles.section} testID="library-waveform-preparation">
     <Text style={[styles.title, { color: theme.palette.text.primary }]}>{waveformLabel(preparation)}</Text>
     <Text style={{ color: theme.palette.text.secondary }}>{`${preparation.processed}/${preparation.total} analysiert · ${preparation.failed} fehlgeschlagen`}</Text>
+    {preparation.processed < preparation.total ? <Text style={{ color: theme.palette.text.secondary }}>
+      {`${preparation.total - preparation.processed} offene Aufgaben`}
+    </Text> : null}
     {preparation.currentTitle ? <Text style={{ color: theme.palette.text.secondary }} numberOfLines={2}>{preparation.currentTitle}</Text> : null}
-    <Pressable accessibilityLabel={running ? 'Waveformanalyse abbrechen' : 'Waveformanalyse fortsetzen'}
+    {preparation.status !== 'completed' ? <Pressable accessibilityLabel={running ? 'Waveformanalyse abbrechen' : 'Waveformanalyse fortsetzen'}
       onPress={action} accessibilityRole="button" style={styles.action}>
       <Text style={{ color: theme.palette.primary }}>{running ? 'Abbrechen' : 'Fortsetzen'}</Text>
-    </Pressable>
+    </Pressable> : null}
+    <WaveformFailures failures={preparation.failedSongs} />
   </View>;
 };
 
-const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProps & { visible: boolean }) => {
+const LibraryPreparationStatus = ({ visible, onCheckSourcePermissions, ...props }: LibraryImportStatusProps & {
+  visible: boolean;
+  onCheckSourcePermissions?: () => void;
+}) => {
   const { theme, appearance } = useAppTheme();
   const { height } = useWindowDimensions();
   const { preparation, details, setDetails, showWaveforms, running, needsAttention, show, label } = useLibraryProcessingStatus(visible, props);
   if (!show) return null;
   return <>
     <Pressable testID="library-processing-control" accessibilityRole="button" accessibilityLabel="Verarbeitungsdetails öffnen"
-      accessibilityHint={label} accessibilityState={{ expanded: details }} onPress={() => setDetails(true)} style={styles.control}>
-      {running ? <ActivityIndicator testID="library-import-scan-animation" size="small" color={theme.palette.primary} /> : null}
-      <Text testID="library-processing-label" style={[styles.label, { color: needsAttention ? theme.palette.warning : theme.palette.text.secondary }]}>
-        {needsAttention ? '!' : running ? '' : '✓'}
-      </Text>
-
+      hitSlop={{ left: 10, right: 10 }}
+      accessibilityHint={label} accessibilityState={{ expanded: details, busy: running }} onPress={() => setDetails(true)} style={styles.control}>
+      {running ? <ActivityIndicator testID="library-import-scan-animation" size={15} color={theme.palette.primary} />
+        : needsAttention ? <CircleAlert size={16} color={theme.palette.warning} />
+          : <Info size={15} color={theme.palette.text.secondary} />}
     </Pressable>
     {details ? <Modal transparent animationType="fade" visible onRequestClose={() => setDetails(false)}>
       <View style={[styles.backdrop, { backgroundColor: getLibraryMenuBackdropColor(appearance ?? DEFAULT_APP_APPEARANCE) }]}>
@@ -57,9 +77,16 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
               onPress={() => setDetails(false)} style={styles.action}><Text style={{ color: theme.palette.primary }}>Schließen</Text></Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.details}>
+            <Text style={[styles.overview, { color: needsAttention ? theme.palette.warning : theme.palette.text.secondary }]}>
+              {running ? 'Verarbeitung läuft' : needsAttention ? 'Aufgaben benötigen Aufmerksamkeit' : 'Bibliothek aktuell'}
+            </Text>
             {visible || props.persistenceWarning ? <LibraryImportStatus {...props} expandedByDefault /> : null}
             {showWaveforms ? <WaveformPreparationPanel preparation={preparation} /> : null}
             <LibraryScanSummary onDismiss={() => setDetails(false)} onRetry={props.onRetryScan} persistenceWarning={props.persistenceWarning} expandedByDefault />
+            {onCheckSourcePermissions ? <Pressable accessibilityRole="button" style={[styles.action, styles.sourceAction]}
+              onPress={() => { setDetails(false); onCheckSourcePermissions(); }}>
+              <Text style={{ color: theme.palette.primary }}>Quellenzugriff prüfen</Text>
+            </Pressable> : null}
           </ScrollView>
         </View>
       </View>
@@ -67,13 +94,16 @@ const LibraryPreparationStatus = ({ visible, ...props }: LibraryImportStatusProp
   </>;
 };
 const styles = StyleSheet.create({
-  control: { position: 'absolute', zIndex: 1, left: -5, top: -5, width: 48, height: 48, minHeight: 48, justifyContent: 'flex-end', flexDirection: 'row', alignItems: 'flex-end', gap: 0 },
-  label: { fontSize: 16 },
+  control: { width: 28, minHeight: 48, flexShrink: 0, justifyContent: 'center', alignItems: 'center' },
   backdrop: { flex: 1, justifyContent: 'center', padding: 16 },
   sheet: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, overflow: 'hidden' },
   heading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingHorizontal: 16, gap: 8 },
   title: { flex: 1, fontSize: 16, fontWeight: '600' },
+  overview: { marginHorizontal: 20, fontSize: 12 },
   details: { paddingVertical: 8, gap: 12 }, section: { marginHorizontal: 20, gap: 8 },
   action: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 8 },
+  sourceAction: { marginHorizontal: 12, alignSelf: 'flex-start' },
+  failureRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  failureMessage: { flexGrow: 1, flexShrink: 1, fontSize: 12 },
 });
 export default LibraryPreparationStatus;
