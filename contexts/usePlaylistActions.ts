@@ -33,7 +33,7 @@ export interface PlaylistActions {
   addSongToPlaylist: (playlistId: string, songId: string) => void;
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   moveSongInPlaylist: (playlistId: string, songId: string, request: PlaylistSongMoveRequest) => void;
-  playPlaylist: (playlistId: string) => Promise<void>;
+  playPlaylist: (playlistId: string, selectedSongs?: Song[]) => Promise<void>;
 }
 
 export const usePlaylistActions = ({
@@ -100,9 +100,9 @@ export const usePlaylistActions = ({
     [setPlaylists],
   );
 
-  const playPlaylist = useCallback(async (playlistId: string) => {
+  const playPlaylist = useCallback(async (playlistId: string, selectedSongs?: Song[]) => {
     await runPlayPlaylistAction({
-      playlistId, playlists, songs: songsRef.current, playSong,
+      playlistId, playlists, songs: selectedSongs ?? songsRef.current, playSong,
     });
   }, [playSong, playlists, songsRef]);
 

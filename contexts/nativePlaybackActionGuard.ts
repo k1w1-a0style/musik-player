@@ -21,7 +21,7 @@ export interface NativePlaybackActions {
   addSongToQueue: (song: Song) => Promise<NativeQueueActionResult>;
   reorderQueue: (fromIndex: number, toIndex: number) => Promise<NativeQueueActionResult>;
   toggleShuffle: () => Promise<NativeQueueActionResult>;
-  playPlaylist: (playlistId: string) => Promise<void>;
+  playPlaylist: (playlistId: string, selectedSongs?: Song[]) => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
   togglePlayPause: () => Promise<void>;

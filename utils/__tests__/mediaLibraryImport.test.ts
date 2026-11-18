@@ -1139,7 +1139,7 @@ describe('mediaLibraryImport', () => {
   });
 
 
-  test('a file that fails both primary and fallback enrichment does not abort later SAF files', async () => {
+  test('a file that fails both primary and fallback artwork enrichment does not abort later SAF files', async () => {
     (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([
       'content://dir/bad.mp3',
       'content://dir/good.mp3',
@@ -1151,7 +1151,7 @@ describe('mediaLibraryImport', () => {
 
     const result = await mediaImport.scanFromSafFolders([
       { id: 'f1', name: 'Music', uri: 'content://dir', addedAt: 1, enabled: true },
-    ] as any, { loadNativeCover: false, readId3Tags: false });
+    ] as any, { loadNativeCover: true, readId3Tags: false });
 
     expect(result.songs.map(song => song.uri)).toEqual(['content://dir/good.mp3']);
     expect(result.errors).toEqual(['content://dir/bad.mp3']);

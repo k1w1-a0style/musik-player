@@ -128,7 +128,7 @@ test('keeps the scrollable menu outside the backdrop press target', () => {
 test('offers and disables the explicit full scan alongside the normal import', () => {
   const onDeepScan = jest.fn();
   const screen = render(<LibraryMenuModal {...defaultProps} onDeepScan={onDeepScan} />);
-  expect(screen.getByText('Neue und geänderte Musik aus allen freigegebenen Quellen.')).toBeTruthy();
+  expect(screen.getByText('Neue und geänderte Musik aus deinen ausgewählten Quellen.')).toBeTruthy();
   expect(screen.queryByText('Vollständige Prüfung')).toBeNull();
   fireEvent.press(screen.getByLabelText('Weitere Scanoptionen'));
   expect(screen.getByLabelText('Vollständige Prüfung').props.accessibilityHint).toBe('Nur bei Problemen: bereits bekannte Dateien und Inhalte erneut überprüfen.');

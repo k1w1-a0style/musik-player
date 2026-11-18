@@ -53,7 +53,7 @@ export interface MusicContextValue {
   addSongToPlaylist: (playlistId: string, songId: string) => void;
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   moveSongInPlaylist?: (playlistId: string, songId: string, request: PlaylistSongMoveRequest) => void;
-  playPlaylist: (playlistId: string) => Promise<void>;
+  playPlaylist: (playlistId: string, selectedSongs?: Song[]) => Promise<void>;
   isReady: boolean;
 }
 
@@ -80,7 +80,7 @@ export interface LibraryMusicContextValue {
   addSongToPlaylist: (playlistId: string, songId: string) => void;
   removeSongFromPlaylist: (playlistId: string, songId: string) => void;
   moveSongInPlaylist?: (playlistId: string, songId: string, request: PlaylistSongMoveRequest) => void;
-  playPlaylist: (playlistId: string) => Promise<void>;
+  playPlaylist: (playlistId: string, selectedSongs?: Song[]) => Promise<void>;
 }
 
 export type EqualizerMusicContextValue = Pick<MusicContextValue,

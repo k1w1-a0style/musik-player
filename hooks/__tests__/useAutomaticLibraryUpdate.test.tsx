@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { AppState, type AppStateStatus } from 'react-native';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import SystemAudio from 'expo-system-audio';
 import { useAutomaticLibraryUpdate } from '../useAutomaticLibraryUpdate';
 
 let mockPreferences = { onOpen: false, whileOpen: true, includeDeviceMusic: true };
@@ -17,6 +18,7 @@ let removeApp: jest.Mock;
 let removeMedia: jest.Mock;
 let permission: jest.Mock;
 jest.mock('expo-media-library/legacy', () => ({ getPermissionsAsync: jest.fn(), requestPermissionsAsync: jest.fn(), addListener: jest.fn() }));
+jest.mock('expo-system-audio', () => ({ __esModule: true, default: { subscribeSafLibraryFolders: jest.fn() } }));
 const options = () => ({ ready: true, busy: false, hasFolders: false, update: jest.fn(async () => undefined) });
 const changeAppState = (state: AppStateStatus) => { AppState.currentState = state; onAppState(state); };
 beforeEach(() => {
@@ -78,6 +80,23 @@ test('does not subscribe to or request MediaStore for folder-only updates', asyn
   expect(props.update).toHaveBeenCalledTimes(1);
   expect(permission).not.toHaveBeenCalled();
   expect(MediaLibrary.addListener).not.toHaveBeenCalled();
+});
+
+test('coalesces selected folder notifications independently of MediaStore and releases the observer', async () => {
+  mockPreferences.includeDeviceMusic = false;
+  const roots = ['content://provider/tree/Music'];
+  const remove = jest.fn();
+  let change: () => void = () => undefined;
+  const observe = jest.mocked(SystemAudio.subscribeSafLibraryFolders);
+  observe.mockImplementation((_roots, listener) => { change = listener; return { remove }; });
+  const props = { ...options(), hasFolders: true, folderUris: roots };
+  const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  expect(observe).toHaveBeenCalledWith(roots, expect.any(Function));
+  await act(async () => { change(); change(); await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+  expect(permission).not.toHaveBeenCalled();
+  hook.unmount();
+  expect(remove).toHaveBeenCalledTimes(1);
 });
 
 test('never asks for new permissions and waits for folder hydration', async () => {

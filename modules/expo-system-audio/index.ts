@@ -168,8 +168,11 @@ export type RecoveryRunResult = {
   }>;
 };
 
-declare class ExpoSystemAudioModule extends NativeModule {
+declare class ExpoSystemAudioModule extends NativeModule<{
+  onSafLibraryFolderChanged: () => void;
+}> {
   primaryStoragePath?: string;
+  observeSafLibraryFolders?(roots: string[]): Promise<void>;
   eqInit(audioSessionId: number): Promise<EqInitResult | null>;
   eqSetEnabled(enabled: boolean): boolean;
   eqSetBandLevel(band: number, millibel: number): boolean;
@@ -362,6 +365,17 @@ export const SystemAudio = {
   hasNativeWaveformExtraction,
   hasNativeWaveformCancellation,
   hasNativeWaveformPreview: waveformNative?.supportsWaveformPreview === true,
+
+  subscribeSafLibraryFolders(roots: readonly string[], listener: () => void): { remove: () => void } | null {
+    const module = native;
+    if (!module?.observeSafLibraryFolders || !roots.length) return null;
+    const subscription = module.addListener('onSafLibraryFolderChanged', listener);
+    void module.observeSafLibraryFolders([...roots]).catch(() => undefined);
+    return { remove: () => {
+      subscription.remove();
+      void module.observeSafLibraryFolders?.([]).catch(() => undefined);
+    } };
+  },
 
   subscribeWaveformProgress(listener: (event: { requestId: string; progress: number }) => void): { remove: () => void } | null {
     return waveformNative?.supportsWaveformProgress

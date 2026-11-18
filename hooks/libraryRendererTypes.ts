@@ -6,7 +6,7 @@ import type { LibraryPlaylistItem } from '../utils/libraryPlaylists';
 import type { LibrarySongViewMode } from '../utils/libraryViewMode';
 
 export type LibraryRendererPlaySong = (song: Song, queue: Song[]) => unknown;
-export type LibraryRendererPlayPlaylist = (playlistId: string) => unknown;
+export type LibraryRendererPlayPlaylist = (playlistId: string, selectedSongs: Song[]) => unknown;
 export type LibraryRendererOpenPlaylistDetail = (playlistId: string) => unknown;
 export type LibraryRendererRemoveFolder = (folder: ScanFolder) => void | Promise<void>;
 export type LibraryRendererRepairFolder = (folder: ScanFolder) => void | Promise<void>;

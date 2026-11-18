@@ -374,7 +374,9 @@ export const buildSongFromImportSource = async (
   const fallback = parseFilename(filename);
   const tagTitle = normalizeMetadataText(tags.title);
   const tagArtist = normalizeMetadataText(tags.artist);
-  const { cover, status: coverStatus, embeddedArtworkChecked } = await readImportArtwork(source, tags.cover, options);
+  const { cover, status: coverStatus, embeddedArtworkChecked } = options.loadNativeCover === false && !tags.cover
+    ? { cover: undefined, status: 'none' as const, embeddedArtworkChecked: false }
+    : await readImportArtwork(source, tags.cover, options);
   const size = await resolveAssetSize(source.uri, source.size);
 
   return {

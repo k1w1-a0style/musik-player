@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { Song } from '../types/Song';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import { useLibraryAudioInfoBackfill } from './useLibraryAudioInfoBackfill';
@@ -20,10 +21,11 @@ export const useLibraryBackgroundAnalysis = ({ songs, applySongMetadataPatches, 
   update?: (options?: LibraryScanRequest) => Promise<void>;
 }): void => {
   const enabled = isReady && !isPlaying && !loading;
+  const folderUris = useMemo(() => getEnabledScanFolders(scanFolders).map(folder => folder.uri), [scanFolders]);
   useLibraryCoverBackfill({ songs, applySongMetadataPatches, enabled });
   useLibraryAudioInfoBackfill({ songs, applySongMetadataPatches, enabled });
   useLibraryWaveformPreload(songs, enabled);
   useAutomaticLibraryUpdate({ ready: isReady && foldersHydrated, busy: loading,
-    hasFolders: getEnabledScanFolders(scanFolders).length > 0, update: update ?? noUpdate });
+    hasFolders: folderUris.length > 0, folderUris, update: update ?? noUpdate });
 };
 const noUpdate = async (): Promise<void> => undefined;

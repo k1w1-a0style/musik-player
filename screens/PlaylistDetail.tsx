@@ -79,21 +79,22 @@ const PlaylistDetail: React.FC = () => {
   const songsById = useMemo(() => new Map(songs.map(song => [song.id, song])), [songs]);
   const getVisibleSong = useCallback((song: Song) => getActiveLibrarySong(song, scanFolders, includeDeviceMusic),
     [includeDeviceMusic, scanFolders]);
-  const playlistSongs = useMemo(() => {
-    if (!playlist) return [];
-    return playlist.songIds.flatMap(songId => {
-      const stored = songsById.get(songId);
-      const song = stored && getVisibleSong(stored);
-      return song ? [song] : [];
-    });
-  }, [getVisibleSong, playlist, songsById]);
+  const storedPlaylistSongs = useMemo(() => playlist?.songIds.flatMap(songId => {
+    const song = songsById.get(songId);
+    return song ? [song] : [];
+  }) ?? [], [playlist, songsById]);
+  const playlistSongs = useMemo(() => storedPlaylistSongs.flatMap(stored => {
+    const song = getVisibleSong(stored);
+    return song ? [song] : [];
+  }), [getVisibleSong, storedPlaylistSongs]);
 
   const addableSongs = useMemo(
     () => (addOpen && playlist ? songs.filter(song => !playlistSongIds.has(song.id) && getVisibleSong(song)) : []),
     [addOpen, getVisibleSong, playlist, playlistSongIds, songs],
   );
 
-  const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;
+  const missingSongs = (playlist?.songIds.length ?? 0) - storedPlaylistSongs.length;
+  const inactiveSongs = storedPlaylistSongs.length - playlistSongs.length;
   const playDisabled = playlistSongs.length === 0;
   const handlePlaySong = useCallback((song: Song | undefined) => {
     if (!song) return;
@@ -247,7 +248,7 @@ const PlaylistDetail: React.FC = () => {
               {playlist.name}
             </Text>
             <Text style={[styles.subtitle, { color: theme.palette.text.secondary }]}>{playlistTrackLabel(playlistSongs.length)}</Text>
-            <PlaylistFileExportButton name={playlist.name} songs={playlistSongs} missingCount={missingSongs} />
+            <PlaylistFileExportButton name={playlist.name} songs={storedPlaylistSongs} missingCount={missingSongs} />
             <View style={styles.actionRow}>
               <PlaylistCleanerButton songs={playlistSongs} onOpen={ids => navigation.navigate('TagCleaner', { songIds: ids })} />
               <Pressable
@@ -378,11 +379,16 @@ const PlaylistDetail: React.FC = () => {
             {missingSongs > 0 && (
               <Text style={[styles.warning, { color: theme.palette.error }]}>{missingSongs} nicht mehr gefunden</Text>
             )}
+            {inactiveSongs > 0 && (
+              <Text style={[styles.warning, { color: theme.palette.text.muted }]} testID="playlist-detail-inactive-sources">
+                {inactiveSongs} Titel aus inaktiven Quellen
+              </Text>
+            )}
           </View>
         )}
         ListEmptyComponent={(
           <Text style={[styles.empty, { color: theme.palette.text.muted }]} testID="playlist-detail-empty">
-            Diese Playlist ist noch leer.
+            {inactiveSongs > 0 ? 'Keine Titel aus aktiven Quellen.' : 'Diese Playlist ist noch leer.'}
           </Text>
         )}
       />

@@ -13,7 +13,7 @@ export interface UseLibraryControllerRenderersOptions {
   onOpenPlaylistDetail: (playlistId: string) => void;
   onOpenTrackInfo: (song: Song) => void;
   onOpenSongActions?: (song: Song) => void;
-  playPlaylist: (playlistId: string) => unknown;
+  playPlaylist: (playlistId: string, selectedSongs: Song[]) => unknown;
   playSong: (song: Song, queue?: Song[]) => unknown;
   removeFolder: (folder: ScanFolder) => void | Promise<void>;
   repairFolder: (folder: ScanFolder) => void | Promise<void>;

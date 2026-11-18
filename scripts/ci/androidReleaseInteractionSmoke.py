@@ -1052,11 +1052,29 @@ def tap_ready_scan_menu_action(timeout=150):
 
 
 def import_public_collection():
+    set_device_music_scope(True, allow_legacy=True)
     tap('library-open-menu')
     tap_ready_scan_menu_action()
     find(TITLES[0] + ' von V3 Proof', timeout=150)
     screenshot('01-mediastore-import')
     CHECKS.append('MediaStore-import-public-UI')
+
+
+def set_device_music_scope(enabled, allow_legacy=False):
+    header = wait_uncovered_library_header()
+    tap_node(header)
+    find('library-menu-card')
+    tap_node(scroll_to('library-menu-item-einstellungen'))
+    find('settings-screen')
+    key = 'settings-library-update-includeDeviceMusic'
+    try:
+        tap_node(scroll_to('settings-group-library', top=True))
+        checkbox(key, enabled)
+    except AssertionError:
+        assert allow_legacy and not any(matches(node, key) for node in tree(compressed=False).iter('node'))
+    finally:
+        back()
+        wait_uncovered_library_header()
 
 
 def return_format_player_to_library():

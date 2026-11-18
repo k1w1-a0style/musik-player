@@ -53,6 +53,7 @@ class SystemAudioModule : Module() {
   private val equalizerExecutor = BoundedNativeTaskExecutor("audio-equalizer", 1, 1)
   private val artworkCleanupExecutor = BoundedNativeTaskExecutor("artwork-lease-cleanup", 2, 2)
   private val artworkLeaseOwner = ArtworkCacheLeaseOwner()
+  private val safFolderObserver = SafFolderObserver()
   private var thumbnailCache: ArtworkThumbnailCache? = null
   private val equalizerLifecycle = SerializedSessionEffect(
     create = { sessionId: Int ->
@@ -75,6 +76,14 @@ class SystemAudioModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudio")
     Constants("primaryStoragePath" to android.os.Environment.getExternalStorageDirectory().absolutePath)
+    Events("onSafLibraryFolderChanged")
+
+    AsyncFunction("observeSafLibraryFolders") { roots: List<String> ->
+      val resolver = appContext.reactContext?.contentResolver
+      if (resolver != null) safFolderObserver.replace(resolver, roots) {
+        sendEvent("onSafLibraryFolderChanged", emptyMap<String, Any>())
+      }
+    }.runOnQueue(Queues.MAIN)
 
     // ---------- Equalizer ----------
 
@@ -219,6 +228,7 @@ class SystemAudioModule : Module() {
     }.runOnQueue(Queues.MAIN)
 
     OnDestroy {
+      safFolderObserver.close()
       mediaReadExecutor.close()
       artworkReadExecutor.close()
       paletteExecutor.close()

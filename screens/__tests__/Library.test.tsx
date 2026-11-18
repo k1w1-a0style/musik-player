@@ -78,6 +78,11 @@ const mockMediaCandidates = jest.fn<Promise<any>, []>(async () => ({ assets: [],
 const mockMediaEnrich = jest.fn<Promise<any>, any[]>(async () => ({ songs: [], skipped: [], errors: [], sourceSummary: [] }));
 const mockRefreshSongsFromId3 = jest.fn<Promise<any>, [any[]]>(async songs => ({ songs, updated: 0, skipped: 0, failed: 0, errors: [] }));
 let mockLibraryControllerCrash = false;
+let mockIncludeDeviceMusic = false;
+jest.mock('../../contexts/LibraryUpdateContext', () => ({
+  useLibraryUpdatePreferences: () => ({ preferences: { onOpen: false, whileOpen: false,
+    includeDeviceMusic: mockIncludeDeviceMusic }, isHydrated: true }),
+}));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -168,6 +173,7 @@ describe('Library', () => {
     });
     mockPlaylists = [];
     mockLibraryControllerCrash = false;
+    mockIncludeDeviceMusic = false;
     mockSongLibrary = createSongLibraryState([{ id: 's1', title: 'Song', artist: 'Artist', cover: 'file:///broken.jpg' }]);
     mockSongLibrary.configurePersistence(async read => read());
     mockSongLibrary.configureImportPublication(songs => { mockSetSongs(songs); mockSongLibrary.setSongs(songs); });
@@ -237,7 +243,7 @@ describe('Library', () => {
     expect(getByText('1 Titel')).toBeTruthy();
 
     fireEvent.press(getByLabelText('Playlist Meine Liste abspielen'));
-    expect(mockPlayPlaylist).toHaveBeenCalledWith('pl1');
+    expect(mockPlayPlaylist).toHaveBeenCalledWith('pl1', [expect.objectContaining({ id: 's1' })]);
 
     view.unmount();
   });
@@ -339,6 +345,7 @@ describe('Library', () => {
   });
 
   test('authorized media imports without an extra confirmation popup', async () => {
+    mockIncludeDeviceMusic = true;
     mockMediaCandidates.mockResolvedValueOnce({ assets: [{ id: 'a1', uri: 'file:///a.mp3' }], skipped: [] });
     jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
       buttons?.[0]?.onPress?.();
@@ -385,7 +392,8 @@ describe('Library', () => {
     view.unmount();
   });
 
-  test('uses media-library fallback when no scan folders', async () => {
+  test('uses MediaStore without folders when device music was explicitly selected', async () => {
+    mockIncludeDeviceMusic = true;
     mockMediaCandidates.mockResolvedValueOnce({ assets: [{ id: 'a1', uri: 'file:///a.mp3' }], skipped: [] });
     mockMediaEnrich.mockResolvedValueOnce({ songs: [{ id: 'a1', title: 'A', artist: 'B', uri: 'file:///a.mp3' }], skipped: [], errors: [], sourceSummary: [] });
     jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
@@ -407,6 +415,7 @@ describe('Library', () => {
   });
 
   test('offers the real SAF picker after permanently denied global access without changing saved titles', async () => {
+    mockIncludeDeviceMusic = true;
     mockGetMediaPermission.mockReset().mockResolvedValue({ status: 'denied', canAskAgain: false });
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const view = render(<Library />);

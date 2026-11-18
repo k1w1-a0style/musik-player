@@ -1024,8 +1024,10 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_public_update_uses_one_action_without_obsolete_source_or_confirmation_dialog(self):
         with patch.object(smoke, 'tap') as tap, patch.object(smoke, 'find') as find, \
-             patch.object(smoke, 'screenshot'), patch.object(smoke, 'tap_ready_scan_menu_action') as update:
+             patch.object(smoke, 'set_device_music_scope') as scope, patch.object(smoke, 'screenshot'), \
+             patch.object(smoke, 'tap_ready_scan_menu_action') as update:
             smoke.import_public_collection()
+        scope.assert_called_once_with(True, allow_legacy=True)
         self.assertEqual([call.args[0] for call in tap.call_args_list], ['library-open-menu'])
         update.assert_called_once_with()
         find.assert_called_once_with(smoke.TITLES[0] + ' von V3 Proof', timeout=150)

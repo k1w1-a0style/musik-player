@@ -35,7 +35,7 @@ export const useLibraryPlaylistFolderRenderers = ({
       playlist={item}
       onOpen={playlistId => void onOpenPlaylistDetail?.(playlistId)}
       onPlay={playlistId => {
-        void runPlaybackUiAction(`library-playlist-${playlistId}`, () => playPlaylist(playlistId), { dropIfPending: false });
+        void runPlaybackUiAction(`library-playlist-${playlistId}`, () => playPlaylist(playlistId, item.songs), { dropIfPending: false });
       }}
     />
   ), [onOpenPlaylistDetail, playPlaylist]);

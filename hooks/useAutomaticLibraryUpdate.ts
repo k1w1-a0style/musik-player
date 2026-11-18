@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import SystemAudio from 'expo-system-audio';
 import { useLibraryUpdatePreferences } from '../contexts/LibraryUpdateContext';
 import { getLibraryScanOperation, subscribeLibraryScanOperation } from '../utils/libraryScanOperation';
 import type { LibraryScanRequest } from '../utils/libraryScanSources';
@@ -40,8 +41,9 @@ const createMediaObserver = (onChange: () => void) => {
   };
 };
 /** Foreground events only. No polling, OS background-service claim or permission prompts. */
-export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
+export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, folderUris, update }: {
   ready: boolean; busy: boolean; hasFolders: boolean;
+  folderUris?: readonly string[];
   update: (options?: LibraryScanRequest) => Promise<void>;
 }): void => {
   const { preferences, isHydrated } = useLibraryUpdatePreferences();
@@ -52,6 +54,7 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
   const startupHandled = useRef(false);
   const pending = useRef(new Set<'startup' | 'change'>());
   const inFlight = useRef(false);
+  const scheduleSafChange = useRef<() => void>(() => undefined);
   useEffect(() => {
     if (!ready || !isHydrated) return;
     if (!preferences.onOpen) pending.current.delete('startup');
@@ -103,6 +106,7 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       } else schedule();
     });
     const mediaObserver = preferences.whileOpen && includeDeviceMusic ? createMediaObserver(() => schedule('change')) : undefined;
+    scheduleSafChange.current = () => { if (alive) schedule('change'); };
     const appSubscription = AppState.addEventListener('change', next => {
       const resumed = next === 'active' && appState !== 'active';
       appState = next;
@@ -111,4 +115,9 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
     mediaObserver?.refresh();
     return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaObserver?.remove(); stopObservingScanStarts(); };
   }, [ready, busy, isHydrated, includeDeviceMusic, preferences.onOpen, preferences.whileOpen]);
+  useEffect(() => {
+    if (!ready || !isHydrated || !preferences.whileOpen || !folderUris?.length) return;
+    const subscription = SystemAudio.subscribeSafLibraryFolders?.(folderUris, () => scheduleSafChange.current());
+    return () => subscription?.remove();
+  }, [folderUris, isHydrated, preferences.whileOpen, ready]);
 };

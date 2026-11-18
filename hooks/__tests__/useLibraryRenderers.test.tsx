@@ -279,13 +279,14 @@ test('renderPlaylistItem opens the playlist detail from the row body', () => {
   expect(onOpenPlaylistDetail).toHaveBeenCalledWith('playlist-to-open');
 });
 
-test('renderPlaylistItem calls playPlaylist with the playlist id', () => {
+test('renderPlaylistItem passes only the selected-source songs to playback', () => {
   const playPlaylist = jest.fn();
-  const screen = render(<HookHarness playPlaylist={playPlaylist} playlistItem={playlist('playlist-to-play')} />);
+  const item = playlist('playlist-to-play');
+  const screen = render(<HookHarness playPlaylist={playPlaylist} playlistItem={item} />);
 
   fireEvent.press(screen.getByText('playlist-play-playlist-to-play'));
 
-  expect(playPlaylist).toHaveBeenCalledWith('playlist-to-play');
+  expect(playPlaylist).toHaveBeenCalledWith('playlist-to-play', item.songs);
 });
 
 test('renderFolderItem calls removeFolder with the folder object', () => {

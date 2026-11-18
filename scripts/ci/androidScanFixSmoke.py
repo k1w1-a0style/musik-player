@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 import androidReleaseInteractionSmoke as ui
 
 TITLES = [f'K1W1 Scan {i:02}' for i in range(1, 17)]
+DOWNLOAD_TITLE = 'V6DownloadScope'
 OUT = Path('ci-logs/scan-device')
 
 
@@ -129,6 +130,35 @@ def make_audio():
     return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in directory.iterdir()}
 
 
+def add_download_fixture():
+    path = OUT / 'V6DownloadScope.mp3'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=760:sample_rate=22050',
+                    '-t', '65', '-c:a', 'libmp3lame', '-metadata', 'title=' + DOWNLOAD_TITLE,
+                    '-metadata', 'artist=V3 Proof', str(path)], check=True)
+    target = '/sdcard/Download/' + path.name
+    ui.adb('shell', 'mkdir', '-p', '/sdcard/Download')
+    ui.adb('push', str(path), target)
+    ui.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + target)
+    deadline = time.monotonic() + 40
+    while time.monotonic() < deadline:
+        listing = ui.adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media',
+                         '--projection', '_display_name:title').decode(errors='replace')
+        if '_display_name=' + path.name + ', title=' + DOWNLOAD_TITLE in listing:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+        time.sleep(.5)
+    raise AssertionError('Download fixture never appeared in MediaStore')
+
+
+def verify_download_visibility(visible):
+    ui.tap('library-toggle-search')
+    ui.tap('library-search-input')
+    ui.adb('shell', 'input', 'text', DOWNLOAD_TITLE)
+    key = DOWNLOAD_TITLE + ' von V3 Proof' if visible else 'Keine Treffer gefunden.'
+    ui.find(key)
+    ui.back()
+    ui.tap('library-toggle-search')
+
+
 def verify_rows():
     identifiers = {}
     for title in TITLES:
@@ -241,10 +271,14 @@ def create_source_playlist(baseline):
     return identifiers
 
 
-def verify_source_playlist(identifiers):
+def verify_source_playlist(identifiers, active=True):
     ui.library_tab('playlists'); ui.tap('Playlist SourceProof')
-    ui.validate_playlist_contents(ui.tree(compressed=False), identifiers, TITLES[:2])
-    ui.screenshot('playlist-preserved-with-inactive-source')
+    if active:
+        ui.validate_playlist_contents(ui.tree(compressed=False), identifiers, TITLES[:2])
+    else:
+        ui.find('playlist-detail-inactive-sources')
+        assert ui.find('playlist-detail-play-button').get('enabled') == 'false'
+        ui.screenshot('playlist-preserved-with-inactive-source')
     ui.back(); ui.library_tab('tracks')
 
 
@@ -291,19 +325,27 @@ def main():
     assert repeated.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16'), 'Repeated update reimported existing audio'
     remove_named_folder('K1W1ScanFix')
     assert_empty_active_library()
-    verify_source_playlist(playlist_ids)
+    verify_source_playlist(playlist_ids, active=False)
     ui.public_cold_start()
     assert_empty_active_library()
     add_named_folder('K1W1ScanFix')
     readded = wait_scan('readded-folder-cache-reuse')
     assert readded.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16')
     assert verify_rows() == baseline, 'Re-adding the folder changed track IDs'
+    verify_source_playlist(playlist_ids)
     permission = 'android.permission.READ_MEDIA_AUDIO' if api >= 33 else 'android.permission.READ_EXTERNAL_STORAGE'
     ui.adb('shell', 'pm', 'grant', ui.PACKAGE, permission)
     permission_proof = verify_system_music_grant(permission, api)
+    fixtures['V6DownloadScope.mp3'] = add_download_fixture()
     ui.public_cold_start()
-    combined = wait_scan('granted-mediastore-and-saf', 32)
-    assert combined.startswith('Neu: 0 · Geändert: 0 · Unverändert: 32')
+    folder_only = wait_scan('granted-mediastore-folder-scope-only', 16)
+    assert folder_only.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16')
+    verify_download_visibility(False)
+    ui.set_device_music_scope(True)
+    update_library()
+    combined = wait_scan('explicit-mediastore-and-saf', 33)
+    assert combined.startswith('Neu: 1 · Geändert: 0 · Unverändert: 32')
+    verify_download_visibility(True)
     assert verify_rows() == baseline, 'MediaStore and SAF produced duplicate or changed track IDs'
     # A temporarily unreachable empty SAF root must stay registered while the
     # sixteen real tracks remain usable through the other sources.
@@ -312,27 +354,30 @@ def main():
     ui.library_tab('folders')
     ui.adb('shell', 'mv', '/sdcard/Music/K1W1TransientSource', '/sdcard/Music/K1W1TransientSource-offline')
     ui.library_tab('tracks'); update_library()
-    partial = wait_scan('unreadable-saf-healthy-mediastore', 32, partial=True)
+    partial = wait_scan('unreadable-saf-healthy-mediastore', 33, partial=True)
     assert verify_rows() == baseline
     ui.library_tab('folders')
     assert len(folder_remove_actions(ui.tree(compressed=False))) == 2, 'Unreadable folder was silently removed'
     ui.adb('shell', 'mv', '/sdcard/Music/K1W1TransientSource-offline', '/sdcard/Music/K1W1TransientSource')
     ui.library_tab('tracks'); update_library()
-    wait_scan('recovered-saf-source', 32)
+    wait_scan('recovered-saf-source', 33)
     remove_named_folder('K1W1ScanFix')
     assert verify_rows() == baseline, 'Removing SAF hid tracks still authorized through MediaStore'
-    update_library(); media_only = wait_scan('granted-mediastore-without-music-saf', 16)
-    assert media_only.startswith('Neu: 0 · Geändert: 0 · Unverändert: 16')
+    update_library(); media_only = wait_scan('granted-mediastore-without-music-saf', 17)
+    assert media_only.startswith('Neu: 0 · Geändert: 0 · Unverändert: 17')
     add_named_folder('K1W1ScanFix'); wait_scan('restore-music-source', details_delay=6)
     add_named_folder(None); wait_scan('overlapping-parent-source')
+    ui.set_device_music_scope(False)
+    verify_download_visibility(False)
     ui.adb('shell', 'pm', 'revoke', ui.PACKAGE, permission)
     ui.public_cold_start(); wait_scan('restart-with-only-overlapping-saf', 32)
     remove_named_folder('K1W1ScanFix')
     assert verify_rows() == baseline, 'Overlapping parent source was lost'
     remove_named_folder('Music')
-    assert_empty_active_library(); verify_source_playlist(playlist_ids)
+    assert_empty_active_library(); verify_source_playlist(playlist_ids, active=False)
     add_named_folder('K1W1ScanFix'); wait_scan('restore-after-overlap-removal')
     assert verify_rows() == baseline
+    verify_source_playlist(playlist_ids)
     verify_playback()
     ui.adb('shell', 'settings', 'put', 'system', 'font_scale', '2.0')
     ui.wait_uncovered_library_header()
@@ -357,7 +402,8 @@ def main():
         categories.append({'group': group, 'bounds': bounds})
     ui.screenshot('settings-five-categories-font2')
     ui.tap_node(ui.scroll_to('settings-group-library', top=True))
-    for key in ('settings-library-update-onOpen', 'settings-library-update-whileOpen', 'settings-density-compact', 'settings-tag-cleaner'):
+    for key in ('settings-library-update-onOpen', 'settings-library-update-whileOpen', 'settings-library-update-includeDeviceMusic',
+                'settings-density-compact', 'settings-tag-cleaner'):
         node = ui.scroll_to(key, top=True)
         assert node.get('enabled') == 'true', 'A preserved library setting is inaccessible: ' + key
     ui.tap_node(ui.scroll_to('settings-group-data', top=True))
