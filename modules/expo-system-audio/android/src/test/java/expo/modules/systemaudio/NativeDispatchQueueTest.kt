@@ -18,14 +18,14 @@ class NativeDispatchQueueTest {
     val sdkObservers = setOf("startObserving", "stopObserving")
     val audio = SystemAudioModule().definition().asyncFunctions.filterKeys { it !in sdkObservers }
     val waveform = SystemAudioWaveformModule().definition().asyncFunctions.filterKeys { it !in sdkObservers }
-    assertEquals(setOf("eqInit", "createArtworkThumbnail", "extractPalette", "extractAudioInfo", "extractImportSnapshot",
+    assertEquals(setOf("observeSafLibraryFolders", "eqInit", "createArtworkThumbnail", "extractPalette", "extractAudioInfo", "extractImportSnapshot",
       "readImportFileStat", "extractMetadataFast", "writeAudioTags", "verifyAudioTagDeletion",
       "getAudioTagRecoveryStatus", "recoverPendingAudioTagTransactions", "acknowledgeAudioTagRecoveryOutcomes",
       "extractEmbeddedArtwork", "releaseEmbeddedArtworkLease"), audio.keys)
     assertEquals(setOf("extractWaveformPeaks"), waveform.keys)
     (audio + waveform).forEach { (name, function) ->
-      // Each body only submits to the bounded worker. Actual provider/codec
-      // work must never execute on either this ingress queue or Expo's default.
+      // Audio work is submitted to bounded workers. SAF observer registration
+      // calls Android's content service without enumerating or opening files.
       assertEquals("$name must remain dispatchable while legacy FS is blocked", Queues.MAIN, queue.get(function))
     }
   }
