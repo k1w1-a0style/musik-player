@@ -21,6 +21,10 @@ test('round trips automatic update opt-outs while keeping older backups valid', 
   expect(parseMusicBackup(serializeMusicBackup(backup))).toEqual(backup);
   backup.settings.libraryUpdateV1 = { onOpen: true, whileOpen: false };
   expect(parseMusicBackup(serializeMusicBackup(backup)).settings.libraryUpdateV1).toEqual({ onOpen: true, whileOpen: false });
+  backup.settings.libraryUpdateV1.includeDeviceMusic = true;
+  expect(parseMusicBackup(serializeMusicBackup(backup)).settings.libraryUpdateV1).toEqual({
+    onOpen: true, whileOpen: false, includeDeviceMusic: true,
+  });
   expect(() => parseMusicBackup(JSON.stringify({ ...backup, settings: { libraryUpdateV1: { onOpen: true } } }))).toThrow();
 });
 

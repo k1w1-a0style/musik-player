@@ -135,6 +135,7 @@ const songFileInfoSchema = z.object({
   source: z.string().optional(),
   librarySources: z.array(z.string()).catch([]).optional(),
   absentLibrarySources: z.array(z.string()).catch([]).optional(),
+  librarySourceUris: z.record(z.string(), z.string()).optional().catch(undefined),
   importedAt: z.number().optional(),
 }).passthrough();
 

@@ -2,17 +2,19 @@ import type { Song } from '../types/Song';
 import { isAbortError, throwIfAborted } from './withTimeout';
 
 export type LibraryScanSource = 'media-library' | 'folders' | 'both' | 'auto';
+export type ResolvedLibraryScanSource = Exclude<LibraryScanSource, 'auto'> | 'none';
 export interface LibraryScanRequest { source?: LibraryScanSource; refreshExisting?: boolean; automatic?: boolean }
 
 /** Only explicit "both" runs a second source; an unreadable source never causes a hidden fallback. */
 export const runSelectedLibrarySources = async (options: {
-  source: LibraryScanSource;
+  source: ResolvedLibraryScanSource;
   signal: AbortSignal;
   media: () => Promise<Song[]>;
   folders: () => Promise<Song[]>;
   beginSource: () => void;
   onSourceFailure: (error: unknown) => void;
 }): Promise<Song[]> => {
+  if (options.source === 'none') return [];
   const actions = options.source === 'both' ? [options.media, options.folders]
     : [options.source === 'folders' ? options.folders : options.media];
   const prepared: Song[] = [];

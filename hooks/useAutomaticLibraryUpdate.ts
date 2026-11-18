@@ -45,6 +45,7 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
   update: (options?: LibraryScanRequest) => Promise<void>;
 }): void => {
   const { preferences, isHydrated } = useLibraryUpdatePreferences();
+  const { includeDeviceMusic } = preferences;
   const latest = useRef({ busy, hasFolders, update });
   latest.current = { busy, hasFolders, update };
   const lastStarted = useRef(-Infinity);
@@ -70,7 +71,8 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
       let started = false;
       try {
         const source = 'auto' as const;
-        if (!latest.current.hasFolders && (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted') return;
+        if (!latest.current.hasFolders &&
+          (!includeDeviceMusic || (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted')) return;
         if (!canBeginUpdate(alive, pending.current.size, latest.current.busy, false)) return;
         if (Date.now() - lastStarted.current < MIN_UPDATE_INTERVAL_MS) { schedule(); return; }
         pending.current.clear();
@@ -100,7 +102,7 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
         pending.current.clear(); if (timer) clearTimeout(timer); timer = undefined;
       } else schedule();
     });
-    const mediaObserver = preferences.whileOpen ? createMediaObserver(() => schedule('change')) : undefined;
+    const mediaObserver = preferences.whileOpen && includeDeviceMusic ? createMediaObserver(() => schedule('change')) : undefined;
     const appSubscription = AppState.addEventListener('change', next => {
       const resumed = next === 'active' && appState !== 'active';
       appState = next;
@@ -108,5 +110,5 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, update }: {
     });
     mediaObserver?.refresh();
     return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaObserver?.remove(); stopObservingScanStarts(); };
-  }, [ready, busy, isHydrated, preferences.onOpen, preferences.whileOpen]);
+  }, [ready, busy, isHydrated, includeDeviceMusic, preferences.onOpen, preferences.whileOpen]);
 };

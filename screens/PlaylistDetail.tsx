@@ -28,6 +28,9 @@ import PlaylistCleanerButton from '../components/PlaylistCleanerButton';
 import PlaylistFileExportButton from '../components/PlaylistFileExportButton';
 import PlaylistAddSongsModal from './PlaylistAddSongsModal';
 import PlaylistDetailSongRow, { playlistDetailRowHeight } from './PlaylistDetailSongRow';
+import { useLibraryStoredState } from '../hooks/useLibraryStoredState';
+import { useLibraryUpdatePreferences } from '../contexts/LibraryUpdateContext';
+import { getActiveLibrarySong } from '../utils/librarySourceOwnership';
 
 type PlaylistDetailRoute = RouteProp<AppStackParamList, 'PlaylistDetail'>;
 type PlaylistDetailNavigation = NativeStackNavigationProp<AppStackParamList, 'PlaylistDetail'>;
@@ -50,6 +53,8 @@ const PlaylistDetail: React.FC = () => {
     playSong,
     songs,
   } = useLibraryMusicContext();
+  const { scanFolders } = useLibraryStoredState('playlists');
+  const { preferences: { includeDeviceMusic } } = useLibraryUpdatePreferences();
   const playlistId = route.params.playlistId;
   const [renameOpen, setRenameOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -72,17 +77,20 @@ const PlaylistDetail: React.FC = () => {
   const playlistSongIds = useMemo(() => new Set(playlist?.songIds ?? []), [playlist?.songIds]);
 
   const songsById = useMemo(() => new Map(songs.map(song => [song.id, song])), [songs]);
+  const getVisibleSong = useCallback((song: Song) => getActiveLibrarySong(song, scanFolders, includeDeviceMusic),
+    [includeDeviceMusic, scanFolders]);
   const playlistSongs = useMemo(() => {
     if (!playlist) return [];
     return playlist.songIds.flatMap(songId => {
-      const song = songsById.get(songId);
+      const stored = songsById.get(songId);
+      const song = stored && getVisibleSong(stored);
       return song ? [song] : [];
     });
-  }, [playlist, songsById]);
+  }, [getVisibleSong, playlist, songsById]);
 
   const addableSongs = useMemo(
-    () => (addOpen && playlist ? songs.filter(song => !playlistSongIds.has(song.id)) : []),
-    [addOpen, playlist, playlistSongIds, songs],
+    () => (addOpen && playlist ? songs.filter(song => !playlistSongIds.has(song.id) && getVisibleSong(song)) : []),
+    [addOpen, getVisibleSong, playlist, playlistSongIds, songs],
   );
 
   const missingSongs = playlist ? Math.max(playlist.songIds.length - playlistSongs.length, 0) : 0;

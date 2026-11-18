@@ -23,6 +23,27 @@ afterEach(() => {
   resetImportFileReadsForTests(); jest.useRealTimers();
 });
 
+test('basic SAF import publishes all sixteen tracks while artwork is unavailable on two files', async () => {
+  const sixteen = Array.from({ length: 16 }, (_, index) => `content://test/document/music%2F${index}.mp3`);
+  (StorageAccessFramework.readDirectoryAsync as jest.Mock).mockResolvedValue(sixteen);
+  SystemAudio.readImportFileStat = jest.fn(async () => ({ size: 100, modificationTime: 20 }));
+  SystemAudio.extractImportSnapshot = jest.fn(async uri => {
+    if (sixteen.slice(0, 2).includes(uri)) throw Error('corrupt embedded artwork');
+    return { audioInfo: { durationMs: 60_000 }, artwork: { checked: true, artwork: null } };
+  });
+  (parseId3FromUri as jest.Mock).mockImplementation(async (_uri, { includeCover }) => {
+    if (includeCover) throw Error('broken artwork parser');
+    return { title: 'Readable audio' };
+  });
+  const pending = scanFromSafFolders([folder], { loadNativeCover: false });
+  await jest.advanceTimersByTimeAsync(150);
+  const result = await pending;
+  expect(result.songs.map(song => song.uri).sort()).toEqual([...sixteen].sort());
+  expect(result.songs.every(song => song.coverInfo?.embeddedArtworkChecked === false)).toBe(true);
+  expect(result.errors).toEqual([]);
+  expect(SystemAudio.extractImportSnapshot).not.toHaveBeenCalled();
+});
+
 test('a single slow SAF scan confirms all twelve tracks progressively and reuses them on the next update', async () => {
   SystemAudio.readImportFileStat = jest.fn(async () => { await delay(6); return { size: 100, modificationTime: 20 }; });
   (parseId3FromUri as jest.Mock).mockImplementation(async () => { await delay(6); return { title: 'Verified title' }; });

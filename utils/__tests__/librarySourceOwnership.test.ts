@@ -1,4 +1,4 @@
-import { isSongInActiveLibrary, reconcileSourceObservation } from '../librarySourceOwnership';
+import { getActiveLibrarySong, isSongInActiveLibrary, reconcileSourceObservation } from '../librarySourceOwnership';
 import { mergeSongs } from '../libraryPresentation';
 import type { Song } from '../../types/Song';
 const root = 'content://com.android.externalstorage.documents/tree/primary%3AMusic';
@@ -21,7 +21,7 @@ test('a remaining overlapping folder keeps the track active', () => {
 });
 test('a confirmed MediaStore alias preserves the track after its SAF folder is removed', () => {
   const observed = reconcileSourceObservation([song], { source: 'media-library', uris: [uri], complete: true });
-  expect(isSongInActiveLibrary(observed[0], [{ ...folder, enabled: false, removed: true }])).toBe(true);
+  expect(isSongInActiveLibrary(observed[0], [{ ...folder, enabled: false, removed: true }], true)).toBe(true);
   expect(isSongInActiveLibrary(observed[0], [{ ...folder, enabled: false, removed: true }], false)).toBe(false);
   expect(isSongInActiveLibrary(observed[0], [folder], false)).toBe(true);
   expect(observed[0].id).toBe('stable');
@@ -42,5 +42,23 @@ test('a renamed path retires only its confirmed old source and never matches ano
   const observed = reconcileSourceObservation([song, renamed], { source: root, uris: [renamed.uri], complete: true });
   expect(observed.filter(item => isSongInActiveLibrary(item, [folder])).map(item => item.id)).toEqual(['new-path']);
   expect(observed).toHaveLength(2); // Retain the old playlist reference, not a duplicate active row.
-  expect(isSongInActiveLibrary({ ...song, uri: uri.replace('Music%2F', 'Other%2F') }, [{ ...folder, enabled: false, removed: true }])).toBe(true);
+  expect(isSongInActiveLibrary({ ...song, uri: uri.replace('Music%2F', 'Other%2F') }, [{ ...folder, enabled: false, removed: true }])).toBe(false);
+});
+
+test('a stored Download song is visible only with explicit device scope', () => {
+  const download = { ...song, uri: 'content://media/external/audio/media/145', fileInfo: { source: 'media-library' } };
+  expect(isSongInActiveLibrary(download, [folder])).toBe(false);
+  expect(isSongInActiveLibrary(download, [folder], true)).toBe(true);
+  expect(isSongInActiveLibrary(download, [folder], false)).toBe(false);
+});
+
+test('verified URI aliases switch with source selection while playlist identity stays stable', () => {
+  const otherTree = 'content://com.android.externalstorage.documents/tree/primary%3AMusic%2FMixes';
+  const document = '/document/primary%3AMusic%2FMixes%2Fset.mp3';
+  const first = otherTree + document;
+  const second = root + document;
+  const stored = { ...song, uri: first, fileInfo: { source: 'saf', uri: first } };
+  const withNewGrant = reconcileSourceObservation([stored], { source: root, uris: [second], complete: true })[0];
+  expect(getActiveLibrarySong(withNewGrant, [folder])).toMatchObject({ id: 'stable', uri: second, fileInfo: { uri: second } });
+  expect(withNewGrant.uri).toBe(first);
 });

@@ -846,7 +846,7 @@ test.each(['saf', 'media'] as const)('an unverified %s result keeps a visible wa
 });
 
 
-test.each(['denied', 'granted'] as const)('automatic source selection preserves SAF when MediaStore is %s or rejects its query', async status => {
+test.each(['denied', 'granted'] as const)('folder-only scope skips MediaStore even when its permission is %s', async status => {
   const existing = song('keep-existing');
   const state = createSongLibraryState([existing]);
   state.configurePersistence(async read => read());
@@ -859,7 +859,7 @@ test.each(['denied', 'granted'] as const)('automatic source selection preserves 
   fireEvent.press(screen.getByText('import'));
   await waitFor(() => expect(setLoading).toHaveBeenLastCalledWith(false));
   expect(folders).toHaveBeenCalledTimes(1);
-  expect(media).toHaveBeenCalledTimes(status === 'granted' ? 1 : 0);
+  expect(media).not.toHaveBeenCalled();
   expect(request).not.toHaveBeenCalled(); expect(showAlert).not.toHaveBeenCalled();
   expect(state.getCurrent().map(song => song.id).sort()).toEqual(['healthy-folder', 'keep-existing']);
 });

@@ -1,5 +1,5 @@
-import { useMediaLibraryAuthorization } from './useMediaLibraryAuthorization';
-import { isSongInActiveLibrary } from '../utils/librarySourceOwnership';
+import { useLibraryUpdatePreferences } from '../contexts/LibraryUpdateContext';
+import { selectActiveLibrarySongs } from '../utils/librarySourceOwnership';
 import { useMemo } from 'react';
 import type { Playlist, Song } from '../types/Song';
 import type { ScanFolder } from '../types/ScanFolder';
@@ -44,14 +44,14 @@ export const useLibraryViewState = ({
   scanFolders,
   songs,
 }: UseLibraryViewStateOptions): UseLibraryViewStateResult => {
-  const mediaGranted = useMediaLibraryAuthorization(scanFolders);
+  const { preferences: { includeDeviceMusic } } = useLibraryUpdatePreferences();
   const displayedSongs = useMemo(
-    () => getLibraryDisplaySongs(songs, isReady, isDev, nodeEnv),
-    [isDev, isReady, nodeEnv, songs],
+    () => selectActiveLibrarySongs(getLibraryDisplaySongs(songs, isReady, isDev, nodeEnv), scanFolders, includeDeviceMusic),
+    [includeDeviceMusic, isDev, isReady, nodeEnv, scanFolders, songs],
   );
   const filteredSongs = useMemo(
-    () => filterLibrarySongs(displayedSongs.filter(song => isSongInActiveLibrary(song, scanFolders, mediaGranted)), query),
-    [displayedSongs, query, scanFolders, mediaGranted],
+    () => filterLibrarySongs(displayedSongs, query),
+    [displayedSongs, query],
   );
   const albumGroups = useMemo(
     () => activeTab === 'albums' ? groupSongs(filteredSongs, 'album', displayedSongs) : NO_GROUPS,

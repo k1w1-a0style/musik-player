@@ -81,7 +81,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
   const {
     activeFolders,
     albumGroups,
-    artistGroups,
+    artistGroups, displayedSongs,
     emptyMessage,
     filteredSongs,
     genreGroups,
@@ -171,7 +171,7 @@ export const useLibraryController = (): UseLibraryControllerResult => {
     }
   }, [addSongToPlaylist, playlistPickerSong, removeSongFromPlaylist]);
 
-  useLibraryBackgroundAnalysis({ songs, applySongMetadataPatches, isReady, isPlaying, loading, scanFolders, foldersHydrated, update: importFromDevice });
+  useLibraryBackgroundAnalysis({ songs: displayedSongs, applySongMetadataPatches, isReady, isPlaying, loading, scanFolders, foldersHydrated, update: importFromDevice });
 
   const refreshOperation = useMetadataRefreshOperation();
   const refreshHasResumable = canResumeMetadataRefresh(refreshOperation);

@@ -1,13 +1,17 @@
 import { withTimeout, throwIfAborted, isAbortError } from './withTimeout';
 import { DEFAULT_LIBRARY_NATIVE_READ_TIMEOUT_MS } from './libraryOperationTimeouts';
 import { MediaLibraryReadAccessError, type AudioPermissionQuery } from './mediaLibraryReadAccess';
-import type { LibraryScanSource } from './libraryScanSources';
+import type { ResolvedLibraryScanSource } from './libraryScanSources';
 
 /** A SAF grant never implies a MediaStore grant. Do not prompt to scan a source
  * which the user has not authorized when another source is already usable. */
 export const resolveAutomaticLibrarySource = async (hasFolders: boolean, get: AudioPermissionQuery,
-  automatic: boolean, options: { signal?: AbortSignal; onFailure?: (message: string) => void } = {}): Promise<LibraryScanSource> => {
+  automatic: boolean, options: {
+    includeDeviceMusic?: boolean; signal?: AbortSignal; onFailure?: (message: string) => void;
+  } = {}): Promise<ResolvedLibraryScanSource> => {
   throwIfAborted(options.signal);
+  if (!options.includeDeviceMusic) return hasFolders ? 'folders' : 'none';
+  if (!automatic) return hasFolders ? 'both' : 'media-library';
   const permission = await withTimeout(() => get(false, ['audio']), DEFAULT_LIBRARY_NATIVE_READ_TIMEOUT_MS,
     'Medienzugriff konnte nicht bestätigt werden.', { signal: options.signal }).catch(error => {
       if (isAbortError(error)) throw error;
@@ -17,6 +21,5 @@ export const resolveAutomaticLibrarySource = async (hasFolders: boolean, get: Au
   throwIfAborted(options.signal);
   if (permission.status === 'granted') return hasFolders ? 'both' : 'media-library';
   if (hasFolders) return 'folders';
-  if (!automatic) return 'media-library';
   throw new MediaLibraryReadAccessError();
 };

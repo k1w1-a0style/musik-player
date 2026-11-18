@@ -9,15 +9,15 @@ beforeEach(() => { jest.clearAllMocks(); (storage.get as jest.Mock).mockResolved
 test('hydrates old installs without writing, and persisted opt-out survives restart', async () => {
   const hook = renderHook(useLibraryUpdatePreferences, { wrapper });
   await waitFor(() => expect(hook.result.current.isHydrated).toBe(true));
-  expect(hook.result.current.preferences).toEqual({ onOpen: true, whileOpen: true });
+  expect(hook.result.current.preferences).toEqual({ onOpen: true, whileOpen: true, includeDeviceMusic: false });
   expect(storage.set).not.toHaveBeenCalled();
-  act(() => hook.result.current.setPreferences?.(() => ({ onOpen: true, whileOpen: false })));
-  await waitFor(() => expect(storage.set).toHaveBeenLastCalledWith(LIBRARY_UPDATE_KEY, { onOpen: true, whileOpen: false }));
+  act(() => hook.result.current.setPreferences?.(() => ({ onOpen: true, whileOpen: false, includeDeviceMusic: true })));
+  await waitFor(() => expect(storage.set).toHaveBeenLastCalledWith(LIBRARY_UPDATE_KEY, { onOpen: true, whileOpen: false, includeDeviceMusic: true }));
   (storage.get as jest.Mock).mockResolvedValue((storage.set as jest.Mock).mock.calls.at(-1)[1]);
   hook.unmount();
   const next = renderHook(useLibraryUpdatePreferences, { wrapper });
   await waitFor(() => expect(next.result.current.isHydrated).toBe(true));
-  expect(next.result.current.preferences).toEqual({ onOpen: true, whileOpen: false });
+  expect(next.result.current.preferences).toEqual({ onOpen: true, whileOpen: false, includeDeviceMusic: true });
 });
 test('a failed write restores the confirmed automatic-update preference', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -27,6 +27,6 @@ test('a failed write restores the confirmed automatic-update preference', async 
   await waitFor(() => expect(hook.result.current.isHydrated).toBe(true));
   act(() => hook.result.current.setPreferences?.(previous => ({ ...previous, whileOpen: true })));
   await waitFor(() => expect(warn).toHaveBeenCalled());
-  expect(hook.result.current.preferences).toEqual({ onOpen: true, whileOpen: false });
+  expect(hook.result.current.preferences).toEqual({ onOpen: true, whileOpen: false, includeDeviceMusic: false });
   warn.mockRestore();
 });

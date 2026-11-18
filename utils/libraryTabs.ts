@@ -13,7 +13,7 @@ export const LIBRARY_TABS = [
 export type LibraryTab = (typeof LIBRARY_TABS)[number]['key'];
 
 export const countActiveScanFolders = (folders: ScanFolder[]): number =>
-  folders.filter(folder => folder.enabled).length;
+  folders.filter(folder => folder.enabled && !folder.removed).length;
 
 export const getLibraryEmptyMessage = (activeTab: LibraryTab): string => {
   if (activeTab === 'folders') return 'Noch keine Scan-Ordner. Über ⋮ kannst du Ordner hinzufügen.';

@@ -5,6 +5,7 @@ import { buildLibraryGroups } from './libraryPresentation';
 import { buildLibraryPlaylistItems } from './libraryPlaylists';
 import { filterFavoriteSongs, filterLibrarySongs } from './librarySongs';
 import { countActiveScanFolders, getLibraryEmptyMessage, type LibraryTab } from './libraryTabs';
+import { selectActiveLibrarySongs } from './librarySourceOwnership';
 
 interface LibraryViewStateOptions {
   activeTab: LibraryTab;
@@ -16,6 +17,7 @@ interface LibraryViewStateOptions {
   query: string;
   scanFolders: ScanFolder[];
   songs: Song[];
+  includeDeviceMusic?: boolean;
 }
 
 export const buildLibraryViewState = ({
@@ -28,8 +30,9 @@ export const buildLibraryViewState = ({
   query,
   scanFolders,
   songs,
+  includeDeviceMusic,
 }: LibraryViewStateOptions) => {
-  const displayedSongs = getLibraryDisplaySongs(songs, isReady, isDev, nodeEnv);
+  const displayedSongs = selectActiveLibrarySongs(getLibraryDisplaySongs(songs, isReady, isDev, nodeEnv), scanFolders, includeDeviceMusic);
   const filteredSongs = filterLibrarySongs(displayedSongs, query);
   const { albumGroups, artistGroups, genreGroups } = buildLibraryGroups(filteredSongs);
   const favoriteSongs = filterFavoriteSongs(filteredSongs, favoriteIds);

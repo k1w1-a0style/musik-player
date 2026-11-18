@@ -80,3 +80,25 @@ test('builds only the expensive collection required by the active tab', () => {
   expect(rendered.result.current.albumGroups).toEqual([]);
   expect(rendered.result.current.favoriteSongs.map(item => item.id)).toEqual(['a']);
 });
+
+test('selected source scope applies to tracks, groups, favorites and playlist counts without changing IDs', () => {
+  const root = 'content://com.android.externalstorage.documents/tree/primary%3AMusic';
+  const visible = song({ id: 'visible', uri: root + '/document/primary%3AMusic%2Fa.mp3', fileInfo: { source: 'saf' } });
+  const hidden = song({ id: 'hidden', title: 'Download', uri: 'content://media/external/audio/media/145',
+    fileInfo: { source: 'media-library' } });
+  const playlist = { id: 'p', name: 'Mix', songIds: ['visible', 'hidden'], createdAt: 1, updatedAt: 1 };
+  const base: UseLibraryViewStateOptions = { activeTab: 'tracks', favoriteIds: ['visible', 'hidden'], isDev: false,
+    isReady: true, nodeEnv: 'test', playlists: [playlist], query: '', scanFolders: [{ ...folder('music', true), uri: root }],
+    songs: [visible, hidden] };
+  const view = renderHook(useLibraryViewState, { initialProps: base });
+  expect(view.result.current.filteredSongs).toEqual([visible]);
+  for (const [tab, key] of [['albums', 'albumGroups'], ['artists', 'artistGroups'], ['genres', 'genreGroups']] as const) {
+    view.rerender({ ...base, activeTab: tab });
+    expect(view.result.current[key][0].songs).toEqual([visible]);
+  }
+  view.rerender({ ...base, activeTab: 'favorites' });
+  expect(view.result.current.favoriteSongs).toEqual([visible]);
+  view.rerender({ ...base, activeTab: 'playlists' });
+  expect(view.result.current.playlistItems[0]).toMatchObject({ songs: [visible], validCount: 1, totalCount: 2 });
+  expect(playlist.songIds).toEqual(['visible', 'hidden']);
+});

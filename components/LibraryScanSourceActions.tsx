@@ -12,7 +12,7 @@ const LibraryScanSourceActions = ({ disabled, onImport, onDeepScan }: {
   const { theme } = useAppTheme();
   return <>
     <LibraryMenuItem icon={Music} label="Musikbibliothek aktualisieren"
-      description="Neue und geänderte Musik aus allen freigegebenen Quellen."
+      description="Neue und geänderte Musik aus deinen ausgewählten Quellen."
       onPress={() => onImport()} disabled={disabled} />
     {onDeepScan ? <Pressable accessibilityRole="button" accessibilityLabel="Weitere Scanoptionen"
       disabled={disabled} onPress={() => setAdvanced(value => !value)}

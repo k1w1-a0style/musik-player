@@ -3,7 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useAutomaticLibraryUpdate } from '../useAutomaticLibraryUpdate';
 
-let mockPreferences = { onOpen: false, whileOpen: true };
+let mockPreferences = { onOpen: false, whileOpen: true, includeDeviceMusic: true };
 let mockHydrated = true;
 jest.mock('../../contexts/LibraryUpdateContext', () => ({ useLibraryUpdatePreferences: () => ({ preferences: mockPreferences, isHydrated: mockHydrated }) }));
 let mockScanStatus = 'idle';
@@ -21,7 +21,7 @@ const options = () => ({ ready: true, busy: false, hasFolders: false, update: je
 const changeAppState = (state: AppStateStatus) => { AppState.currentState = state; onAppState(state); };
 beforeEach(() => {
   mockScanStatus = 'idle'; mockScanId = 0; mockScanListener = () => undefined;
-  jest.clearAllMocks(); jest.useFakeTimers(); mockPreferences = { onOpen: false, whileOpen: true }; mockHydrated = true;
+  jest.clearAllMocks(); jest.useFakeTimers(); mockPreferences = { onOpen: false, whileOpen: true, includeDeviceMusic: true }; mockHydrated = true;
   AppState.currentState = 'active'; removeApp = jest.fn(); removeMedia = jest.fn();
   jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => { onAppState = listener; return { remove: removeApp }; });
   permission = (MediaLibrary.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
@@ -64,10 +64,20 @@ test('neither scans in background nor overlaps an active manual scan', async () 
 });
 
 test('disabled preferences remove automatic updates without affecting manual folder selection', async () => {
-  mockPreferences = { onOpen: false, whileOpen: false };
+  mockPreferences = { ...mockPreferences, onOpen: false, whileOpen: false };
   const props = options(); renderHook(useAutomaticLibraryUpdate, { initialProps: props });
   await act(async () => { changeAppState('background'); changeAppState('active'); await jest.advanceTimersByTimeAsync(60_000); });
   expect(props.update).not.toHaveBeenCalled(); expect(MediaLibrary.addListener).not.toHaveBeenCalled();
+});
+
+test('does not subscribe to or request MediaStore for folder-only updates', async () => {
+  mockPreferences = { onOpen: true, whileOpen: true, includeDeviceMusic: false };
+  const props = { ...options(), hasFolders: true };
+  renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+  expect(permission).not.toHaveBeenCalled();
+  expect(MediaLibrary.addListener).not.toHaveBeenCalled();
 });
 
 test('never asks for new permissions and waits for folder hydration', async () => {
@@ -167,22 +177,22 @@ test('a denied automatic permission check does not schedule repeated permission 
 });
 
 test('disabling foreground updates cancels their queued event while startup updates remain enabled', async () => {
-  mockPreferences = { onOpen: true, whileOpen: true };
+  mockPreferences = { ...mockPreferences, onOpen: true, whileOpen: true };
   const props = options(); const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
   await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
   expect(props.update).toHaveBeenCalledTimes(1);
   await act(async () => { onMedia(); });
-  mockPreferences = { onOpen: true, whileOpen: false };
+  mockPreferences = { ...mockPreferences, onOpen: true, whileOpen: false };
   hook.rerender(props);
   await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
   expect(props.update).toHaveBeenCalledTimes(1);
 });
 
 test('disabling startup updates cancels the queued startup without disabling media changes', async () => {
-  mockPreferences = { onOpen: true, whileOpen: true };
+  mockPreferences = { ...mockPreferences, onOpen: true, whileOpen: true };
   const props = options(); const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
   await act(async () => { await Promise.resolve(); });
-  mockPreferences = { onOpen: false, whileOpen: true };
+  mockPreferences = { ...mockPreferences, onOpen: false, whileOpen: true };
   hook.rerender(props);
   await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
   expect(props.update).not.toHaveBeenCalled();
@@ -191,7 +201,7 @@ test('disabling startup updates cancels the queued startup without disabling med
 });
 
 test('a user folder scan consumes pending startup work and throttles the next lifecycle update', async () => {
-  mockPreferences = { onOpen: true, whileOpen: true };
+  mockPreferences = { ...mockPreferences, onOpen: true, whileOpen: true };
   permission.mockResolvedValue({ status: 'denied' });
   const props = options(); const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
   await act(async () => { await jest.advanceTimersByTimeAsync(1000); });

@@ -11,8 +11,12 @@ test('hydration protects both switches and each choice preserves the other persi
   expect(view.getByTestId('settings-library-update-onOpen').props.disabled).toBe(true);
   await waitFor(() => expect(view.getByTestId('settings-library-update-onOpen').props.disabled).toBe(false));
   await act(async () => { fireEvent(view.getByTestId('settings-library-update-onOpen'), 'valueChange', false); });
-  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: true });
+  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: true, includeDeviceMusic: false });
   await act(async () => { fireEvent(view.getByTestId('settings-library-update-whileOpen'), 'valueChange', false); });
-  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: false });
+  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: false, includeDeviceMusic: false });
+  const scope = view.getByTestId('settings-library-update-includeDeviceMusic');
+  expect(scope.props.value).toBe(false);
+  await act(async () => { fireEvent(scope, 'valueChange', true); });
+  expect(storage.set).toHaveBeenLastCalledWith('libraryUpdateV1', { onOpen: false, whileOpen: false, includeDeviceMusic: true });
   expect(view.getByText(/nur bei geöffneter App/)).toBeTruthy();
 });

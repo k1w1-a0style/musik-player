@@ -5,7 +5,7 @@ import { useLibraryUpdatePreferences } from '../contexts/LibraryUpdateContext';
 const LibraryUpdateSettings = () => {
   const { theme } = useAppTheme();
   const { preferences, isHydrated, setPreferences } = useLibraryUpdatePreferences();
-  const row = (key: 'onOpen' | 'whileOpen', label: string, hint: string) => <View key={key} style={styles.row}>
+  const row = (key: keyof typeof preferences, label: string, hint: string) => <View key={key} style={styles.row}>
     <View style={styles.copy}><Text style={{ color: theme.palette.text.primary, fontSize: 15 }}>{label}</Text>
       <Text style={{ color: theme.palette.text.secondary, fontSize: 12 }}>{hint}</Text></View>
     <Switch testID={`settings-library-update-${key}`} accessibilityLabel={label} value={preferences[key]}
@@ -15,6 +15,7 @@ const LibraryUpdateSettings = () => {
   return <View style={styles.section} testID="settings-library-update">
     {row('onOpen', 'Beim App-Start aktualisieren', 'Prüft neue und geänderte Titel.')}
     {row('whileOpen', 'Automatisch aktuell halten', 'Bei Rückkehr zur App und gemeldeten Medienänderungen.')}
+    {row('includeDeviceMusic', 'Gesamte Gerätemusik', 'Schließt zusätzlich die Android-Mediathek ein, auch Musik aus Downloads.')}
     <Text style={{ color: theme.palette.text.secondary, fontSize: 12, lineHeight: 17 }}>
       Neue Ordner werden nach der Auswahl eingelesen. Automatische Updates laufen nur bei geöffneter App und vorhandenem Lesezugriff.
     </Text>
