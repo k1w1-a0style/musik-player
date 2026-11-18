@@ -55,22 +55,30 @@ def open_scan_details(name):
     # A source picker may expose the app hierarchy before input focus returns.
     ui.wait_uncovered_library_header()
     ui.find('library-processing-control', timeout=25)
-    wait_for_app_focus(name)
-    before = ui.tree(compressed=False)
-    assert ui.candidate('Verarbeitungsdetails schließen', before) is None, 'Scan details opened without a user request'
-    target = ui.candidate('library-processing-control', before)
-    assert target is not None and target.get('package') == ui.PACKAGE and target.get('enabled') == 'true', 'Scan detail action is unavailable'
-    assert target.get('content-desc', '').split(',')[0] == 'Verarbeitungsdetails öffnen', 'Scan detail action lacks its accessibility label'
-    (OUT / (name + '-before-tap.xml')).write_text(ET.tostring(before, encoding='unicode'))
-    ui.tap_node(target)
-    try:
-        ui.find('Verarbeitungsdetails schließen', timeout=15)
-        after = ui.tree(compressed=False)
-        validate_details_ack(after)
-        (OUT / (name + '-tap-ack.xml')).write_text(ET.tostring(after, encoding='unicode'))
-    except AssertionError:
-        ui.screenshot(name + '-tap-not-acknowledged')
-        raise
+    for attempt in (1, 2):
+        suffix = '' if attempt == 1 else '-settled-retry'
+        wait_for_app_focus(name + suffix)
+        before = ui.tree(compressed=False)
+        if ui.candidate('Verarbeitungsdetails schließen', before) is not None:
+            assert attempt == 2, 'Scan details opened without a user request'
+            validate_details_ack(before)
+            (OUT / (name + '-tap-ack.xml')).write_text(ET.tostring(before, encoding='unicode'))
+            return
+        target = ui.candidate('library-processing-control', before)
+        assert target is not None and target.get('package') == ui.PACKAGE and target.get('enabled') == 'true', 'Scan detail action is unavailable'
+        assert target.get('content-desc', '').split(',')[0] == 'Verarbeitungsdetails öffnen', 'Scan detail action lacks its accessibility label'
+        (OUT / (name + suffix + '-before-tap.xml')).write_text(ET.tostring(before, encoding='unicode'))
+        ui.tap_node(target)
+        try:
+            ui.find('Verarbeitungsdetails schließen', timeout=15)
+            after = ui.tree(compressed=False)
+            validate_details_ack(after)
+            (OUT / (name + '-tap-ack.xml')).write_text(ET.tostring(after, encoding='unicode'))
+            return
+        except AssertionError:
+            ui.screenshot(name + suffix + '-tap-not-acknowledged')
+            if attempt == 2:
+                raise
 
 
 def wait_scan(name, expected=16, partial=False, details_delay=0):

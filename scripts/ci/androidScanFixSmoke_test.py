@@ -51,6 +51,22 @@ class ScanReceiptTest(unittest.TestCase):
             ready.assert_called_once()
             tap.assert_called_once()
 
+    def test_scan_details_retries_once_after_an_observed_unacknowledged_tap(self):
+        before = ET.fromstring('<hierarchy><node package="com.k1w1a0style.musikplayer" resource-id="library-processing-control" content-desc="Verarbeitungsdetails öffnen, busy" enabled="true" bounds="[210,48][254,120]"/></hierarchy>')
+        after = self.frame()
+        for label in ('Scan-Details', 'Verarbeitungsdetails schließen'):
+            ET.SubElement(after, 'node', {'package': smoke.ui.PACKAGE, 'text': label, 'content-desc': label,
+                'enabled': 'true', 'bounds': '[30,100][450,172]'})
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke.ui, 'wait_uncovered_library_header'), patch.object(smoke, 'wait_for_app_focus') as focus, \
+             patch.object(smoke.ui, 'tree', side_effect=[before, before, after]), \
+             patch.object(smoke.ui, 'find', side_effect=[before[0], AssertionError('no modal'), after[-1]]), \
+             patch.object(smoke.ui, 'tap_node') as tap, patch.object(smoke.ui, 'screenshot'):
+            smoke.open_scan_details('settlement')
+            self.assertEqual(focus.call_count, 2)
+            self.assertEqual(tap.call_count, 2)
+            self.assertTrue((Path(directory) / 'settlement-tap-ack.xml').exists())
+
     def test_broken_cover_fixture_preserves_the_original_audio_bytes(self):
         original = b'ID3\x04\x00\x00' + smoke.syncsafe(4) + b'tags' + b'audio-bytes'
         with tempfile.TemporaryDirectory() as directory:
