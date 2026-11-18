@@ -36,7 +36,7 @@ class ScanReceiptTest(unittest.TestCase):
 
 
     def test_scan_receipt_requires_foreground_return_and_confirmed_detail_opening(self):
-        before=ET.fromstring('<hierarchy><node package="com.k1w1a0style.musikplayer" content-desc="Verarbeitungsdetails öffnen" enabled="true" bounds="[23,51][95,123]"/></hierarchy>')
+        before=ET.fromstring('<hierarchy><node package="com.k1w1a0style.musikplayer" resource-id="library-processing-control" content-desc="Verarbeitungsdetails öffnen, busy" enabled="true" bounds="[23,51][95,123]"/></hierarchy>')
         after=self.frame()
         for text in ('Scan-Details','Verarbeitungsdetails schließen'):
             ET.SubElement(after,'node',{'package':smoke.ui.PACKAGE,'text':text,'content-desc':text,'enabled':'true','bounds':'[30,100][450,172]'})

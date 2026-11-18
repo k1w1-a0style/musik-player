@@ -271,6 +271,19 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             tap.assert_called_once()
             restart.assert_not_called()
 
+    def test_terminal_optional_file_failure_does_not_require_a_cancel_action(self):
+        frame = self.header_frame()
+        panel = ET.SubElement(frame, 'node', {'resource-id': 'library-waveform-preparation',
+            'package': smoke.PACKAGE, 'bounds': '[30,210][450,330]'})
+        ET.SubElement(panel, 'node', {'text': 'Waveformanalyse teilweise fehlgeschlagen',
+            'package': smoke.PACKAGE, 'bounds': '[50,220][300,290]'})
+        with patch.object(smoke, 'tree', return_value=frame), patch.object(smoke, 'screenshot') as evidence, \
+             patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'public_cold_start') as restart:
+            smoke.quiesce_optional_preparation()
+            evidence.assert_called_once_with('optional-preparation-already-terminal')
+            tap.assert_not_called()
+            restart.assert_not_called()
+
     def test_picker_waits_for_system_package_and_never_taps_app_navigate_up(self):
         app = ET.fromstring(f'<hierarchy><node package="{smoke.PACKAGE}" content-desc="Navigate up" bounds="[0,36][84,120]"/></hierarchy>')
         docs = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" enabled="true" resource-id="com.google.android.documentsui:id/breadcrumb_text" bounds="[0,108][275,180]"/></hierarchy>')

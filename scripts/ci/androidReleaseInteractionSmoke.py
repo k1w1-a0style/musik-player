@@ -2250,7 +2250,7 @@ def quiesce_optional_preparation(timeout=60):
     panel = candidate('library-waveform-preparation', frame)
     opened = False
     if panel is None and candidate('library-processing-control', frame) is not None:
-        tap('Verarbeitungsdetails öffnen')
+        tap('library-processing-control')
         opened = True
         frame = tree(compressed=False)
         panel = candidate('library-waveform-preparation', frame)
@@ -2258,6 +2258,12 @@ def quiesce_optional_preparation(timeout=60):
         if opened: tap('Verarbeitungsdetails schließen')
         return
     cancel = candidate('Waveformanalyse abbrechen', frame)
+    if cancel is None and any(node.get('package') == PACKAGE and node.get('text') in (
+            'Waveformanalyse teilweise fehlgeschlagen', 'Waveformanalyse angehalten',
+            'Vorbereitung angehalten – Speicherzugriff fehlgeschlagen') for node in panel.iter('node')):
+        screenshot('optional-preparation-already-terminal')
+        if opened: tap('Verarbeitungsdetails schließen')
+        return
     assert cancel is not None and cancel.get('package') == PACKAGE and cancel.get('enabled') == 'true', 'Optional preparation has no valid public cancellation action'
     sequence = len(V5_PROOFS.setdefault('optionalPreparation', [])) + 1
     screenshot(f'optional-preparation-{sequence}-before-cancel')
@@ -2292,7 +2298,7 @@ def wait_collection_idle(timeout=150):
         frame = tree(compressed=False)
         compact = candidate('library-processing-control', frame)
         if compact is not None and not details and not compact_ack:
-            tap('Verarbeitungsdetails öffnen')
+            tap('library-processing-control')
             details = True
             continue
         busy = candidate('library-import-status', frame)

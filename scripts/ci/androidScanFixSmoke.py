@@ -54,12 +54,13 @@ def wait_for_app_focus(name):
 def open_scan_details(name):
     # A source picker may expose the app hierarchy before input focus returns.
     ui.wait_uncovered_library_header()
-    ui.find('Verarbeitungsdetails öffnen', timeout=25)
+    ui.find('library-processing-control', timeout=25)
     wait_for_app_focus(name)
     before = ui.tree(compressed=False)
     assert ui.candidate('Verarbeitungsdetails schließen', before) is None, 'Scan details opened without a user request'
-    target = ui.candidate('Verarbeitungsdetails öffnen', before)
+    target = ui.candidate('library-processing-control', before)
     assert target is not None and target.get('package') == ui.PACKAGE and target.get('enabled') == 'true', 'Scan detail action is unavailable'
+    assert target.get('content-desc', '').split(',')[0] == 'Verarbeitungsdetails öffnen', 'Scan detail action lacks its accessibility label'
     (OUT / (name + '-before-tap.xml')).write_text(ET.tostring(before, encoding='unicode'))
     ui.tap_node(target)
     try:
