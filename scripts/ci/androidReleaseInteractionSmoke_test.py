@@ -273,9 +273,9 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
 
     def test_terminal_optional_file_failure_does_not_require_a_cancel_action(self):
         frame = self.header_frame()
-        panel = ET.SubElement(frame, 'node', {'resource-id': 'library-waveform-preparation',
+        ET.SubElement(frame, 'node', {'resource-id': 'library-waveform-preparation',
             'package': smoke.PACKAGE, 'bounds': '[30,210][450,330]'})
-        ET.SubElement(panel, 'node', {'text': 'Waveformanalyse teilweise fehlgeschlagen',
+        ET.SubElement(frame, 'node', {'text': 'Waveformanalyse teilweise fehlgeschlagen',
             'package': smoke.PACKAGE, 'bounds': '[50,220][300,290]'})
         with patch.object(smoke, 'tree', return_value=frame), patch.object(smoke, 'screenshot') as evidence, \
              patch.object(smoke, 'tap_node') as tap, patch.object(smoke, 'public_cold_start') as restart:

@@ -2245,6 +2245,20 @@ def ui_matrix(font2_only=False, selected_cases=None):
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
 
 
+def terminal_waveform_preparation(frame, panel):
+    if panel.get('package') != PACKAGE:
+        return False
+    left, top, right, bottom = rect(panel)
+    for label in ('Waveformanalyse teilweise fehlgeschlagen', 'Waveformanalyse angehalten',
+                  'Vorbereitung angehalten – Speicherzugriff fehlgeschlagen'):
+        status = candidate(label, frame)
+        if status is not None and status.get('package') == PACKAGE:
+            x1, y1, x2, y2 = rect(status)
+            if left <= x1 < x2 <= right and top <= y1 < y2 <= bottom:
+                return True
+    return False
+
+
 def quiesce_optional_preparation(timeout=60):
     frame = tree(compressed=False)
     panel = candidate('library-waveform-preparation', frame)
@@ -2258,9 +2272,7 @@ def quiesce_optional_preparation(timeout=60):
         if opened: tap('Verarbeitungsdetails schließen')
         return
     cancel = candidate('Waveformanalyse abbrechen', frame)
-    if cancel is None and any(node.get('package') == PACKAGE and node.get('text') in (
-            'Waveformanalyse teilweise fehlgeschlagen', 'Waveformanalyse angehalten',
-            'Vorbereitung angehalten – Speicherzugriff fehlgeschlagen') for node in panel.iter('node')):
+    if cancel is None and terminal_waveform_preparation(frame, panel):
         screenshot('optional-preparation-already-terminal')
         if opened: tap('Verarbeitungsdetails schließen')
         return
