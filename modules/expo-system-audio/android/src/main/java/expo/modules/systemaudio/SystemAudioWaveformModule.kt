@@ -57,7 +57,7 @@ class SystemAudioWaveformModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("ExpoSystemAudioWaveform")
-    Constants("supportsWaveformProgress" to true)
+    Constants("supportsWaveformProgress" to true, "supportsWaveformPreview" to true)
     Events("onWaveformProgress")
 
     AsyncFunction("extractWaveformPeaks") { uri: String, requestedPoints: Int?, requestId: String?, promise: Promise ->
@@ -108,25 +108,32 @@ class SystemAudioWaveformModule : Module() {
       extractor.selectTrack(audioTrackIndex)
       val format = extractor.getTrackFormat(audioTrackIndex)
       val durationMs = readDurationMs(uri, format, cancellation)
-        ?.takeIf { it > 0 }
+        ?.takeIf { it in 1..(Long.MAX_VALUE / 1000L) }
         ?: return null
-      val progress = WaveformProgressReporter(durationMs * 1000L) { ratio ->
+      val durationUs = durationMs * 1000L
+      val preview = durationMs > WaveformPreviewPlan.MAX_EXACT_DURATION_MS
+      val progress = WaveformProgressReporter(if (preview) pointCount.coerceAtMost(WaveformPreviewPlan.MAX_POINTS).toLong() else durationUs) { ratio ->
         if (!cancellation.get() && !requestId.isNullOrBlank()) {
           sendEvent("onWaveformProgress", mapOf("requestId" to requestId, "progress" to ratio))
         }
       }
-      val bassEnvelope = PcmBassEnvelope(durationMs * 1000L)
-      val peaks = readDecodedPcmEnvelope(extractor, format, pointCount, durationMs, cancellation, bassEnvelope) { positionUs ->
-        progress.update(positionUs, SystemClock.elapsedRealtime())
+      val bassEnvelope = if (preview) null else PcmBassEnvelope(durationUs)
+      val updateProgress: (Long) -> Unit = { progress.update(it, SystemClock.elapsedRealtime()) }
+      val peaks = if (preview) {
+        readPreview(extractor, format, pointCount, durationUs, cancellation, updateProgress)
+      } else {
+        val envelope = PcmWaveformEnvelope(pointCount, durationUs)
+        if (!readDecodedPcm(extractor, format, envelope, cancellation, bassEnvelope, updateProgress)) return null
+        envelope.normalizedPoints()
       }
       throwIfCancelled(cancellation)
       if (peaks.isEmpty()) return null
       progress.complete()
       mapOf(
         "points" to peaks,
-        "bassPoints" to bassEnvelope.normalizedPoints(),
+        "bassPoints" to bassEnvelope?.normalizedPoints(),
         "durationMs" to durationMs,
-        "analysis" to ANALYSIS_VERSION,
+        "analysis" to (if (preview) PREVIEW_ANALYSIS_VERSION else ANALYSIS_VERSION),
         "analysisDurationMs" to (SystemClock.elapsedRealtime() - startedAt),
       )
     } catch (_: CancellationException) {
@@ -195,56 +202,76 @@ class SystemAudioWaveformModule : Module() {
     }
   }
 
-  private fun readDecodedPcmEnvelope(
+  private fun readPreview(
     extractor: MediaExtractor,
     inputFormat: MediaFormat,
     pointCount: Int,
-    durationMs: Long,
+    durationUs: Long,
     cancellation: AtomicBoolean,
-    bassEnvelope: PcmBassEnvelope,
     onProgress: (Long) -> Unit,
   ): List<Double> {
-    if (durationMs > Long.MAX_VALUE / 1000L) return emptyList()
-    val durationUs = durationMs * 1000L
-    val mime = inputFormat.stringValue(MediaFormat.KEY_MIME) ?: return emptyList()
+    val windows = WaveformPreviewPlan.forDuration(durationUs, pointCount)
+    if (windows.isEmpty()) return emptyList()
+    val envelope = PcmWaveformEnvelope(windows.size, durationUs)
+    windows.forEachIndexed { index, window ->
+      throwIfCancelled(cancellation)
+      extractor.seekTo(window.startUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+      // Some providers can open a file but cannot seek. Never decode across a
+      // long gap to compensate or display an unsampled bucket as silence.
+      if (!window.acceptsSeek(extractor.sampleTime)) return emptyList()
+      if (!readDecodedPcm(extractor, inputFormat, envelope, cancellation, null, {}, window.endUs)) return emptyList()
+      onProgress(index + 1L)
+    }
+    return if (envelope.hasSamplesInEveryBucket()) envelope.normalizedPoints() else emptyList()
+  }
+
+  private fun readDecodedPcm(
+    extractor: MediaExtractor,
+    inputFormat: MediaFormat,
+    envelope: PcmWaveformEnvelope,
+    cancellation: AtomicBoolean,
+    bassEnvelope: PcmBassEnvelope?,
+    onProgress: (Long) -> Unit,
+    endTimeUs: Long = Long.MAX_VALUE,
+  ): Boolean {
+    val mime = inputFormat.stringValue(MediaFormat.KEY_MIME) ?: return false
     return if (mime == MediaFormat.MIMETYPE_AUDIO_RAW) {
-      readRawPcmEnvelope(extractor, inputFormat, pointCount, durationUs, cancellation, bassEnvelope, onProgress)
+      readRawPcm(extractor, inputFormat, envelope, cancellation, bassEnvelope, onProgress, endTimeUs)
     } else {
-      CallbackPcmWaveformDecoder.decode(extractor, inputFormat, mime, pointCount, durationUs, cancellation, onProgress, bassEnvelope)
+      CallbackPcmWaveformDecoder.decodeInto(extractor, inputFormat, mime, envelope, cancellation, onProgress, bassEnvelope, endTimeUs)
     }
   }
 
-  private fun readRawPcmEnvelope(
+  private fun readRawPcm(
     extractor: MediaExtractor,
     format: MediaFormat,
-    pointCount: Int,
-    durationUs: Long,
+    envelope: PcmWaveformEnvelope,
     cancellation: AtomicBoolean,
-    bassEnvelope: PcmBassEnvelope,
+    bassEnvelope: PcmBassEnvelope?,
     onProgress: (Long) -> Unit,
-  ): List<Double> {
+    endTimeUs: Long,
+  ): Boolean {
     if (format.intValue(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
-      != AudioFormat.ENCODING_PCM_16BIT) return emptyList()
+      != AudioFormat.ENCODING_PCM_16BIT) return false
     val sampleRate = format.intValue(MediaFormat.KEY_SAMPLE_RATE, 0)
     val channelCount = format.intValue(MediaFormat.KEY_CHANNEL_COUNT, 0)
-    if (sampleRate <= 0 || channelCount <= 0) return emptyList()
-    val envelope = PcmWaveformEnvelope(pointCount, durationUs)
+    if (sampleRate <= 0 || channelCount <= 0) return false
     val buffer = ByteBuffer.allocateDirect(SAMPLE_BUFFER_BYTES).order(ByteOrder.nativeOrder())
     while (true) {
       throwIfCancelled(cancellation)
       val presentationTimeUs = extractor.sampleTime
-      if (presentationTimeUs < 0) break
+      if (presentationTimeUs !in 0 until endTimeUs) break
       buffer.clear()
       val size = extractor.readSampleData(buffer, 0)
       if (size <= 0) break
       buffer.position(0)
       buffer.limit(size)
       envelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
-      bassEnvelope.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
+      bassEnvelope?.addPcm16(buffer, presentationTimeUs, sampleRate, channelCount)
       onProgress(presentationTimeUs)
       if (!extractor.advance()) break
     }
-    return envelope.normalizedPoints()
+    return true
   }
 
   private fun MediaFormat.stringValue(key: String): String? =
@@ -265,5 +292,6 @@ class SystemAudioWaveformModule : Module() {
     private const val MAX_WAVEFORM_POINTS = 1024
     private const val SAMPLE_BUFFER_BYTES = 64 * 1024
     private const val ANALYSIS_VERSION = "decoded-pcm-v1"
+    private const val PREVIEW_ANALYSIS_VERSION = "sampled-pcm-v1"
   }
 }

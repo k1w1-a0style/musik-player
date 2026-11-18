@@ -10,7 +10,8 @@ import { getCachedWaveform, resetWaveformCacheStateForTests, setCachedWaveform }
 import { buildNativeWaveform, getWaveformSourceIdentity } from '../waveformGenerator';
 import { resetWaveformExtractionLifecycleForTests } from '../waveformExtractionLifecycle';
 import { cancelWaveformPreparation, clearWaveformPreparation, getWaveformPreparationState, hasPendingWaveformPreparation, prepareLibraryWaveforms,
-  resetWaveformPreparationForTests, resumeWaveformPreparation, retrySongPreparation } from '../libraryWaveformPreparation';
+  resetWaveformPreparationForTests, resumeWaveformPreparation, retrySongPreparation,
+  setWaveformPreparationPlaybackActive } from '../libraryWaveformPreparation';
 import { getWaveformStatus } from '../waveformStatus';
 import { markSongPrepared, resetSongPreparationForTests, wasSongPrepared } from '../songPreparationStore';
 
@@ -56,6 +57,47 @@ test('prepares uncached songs once, keeps cached songs, and continues after an u
   // Survives a fresh JS cache: success is backed by the stored waveform.
   resetWaveformCacheStateForTests();
   await expect(getCachedWaveform(getWaveformSourceIdentity(fresh))).resolves.toMatchObject({ source: 'native' });
+});
+
+test('reports one failed track and updates its result after targeted repair', async () => {
+  const broken = song('repairable');
+  const healthy = song('healthy');
+  audio.extractWaveformPeaks.mockResolvedValueOnce(null);
+  const batch = prepareLibraryWaveforms([broken, healthy]);
+  await jest.advanceTimersByTimeAsync(1000);
+  await batch;
+  expect(getWaveformPreparationState()).toMatchObject({ failed: 1, ready: 1,
+    failedSongs: [{ song: broken, reason: expect.any(String) }] });
+
+  const retry = retrySongPreparation(broken);
+  await jest.advanceTimersByTimeAsync(1000);
+  await expect(retry).resolves.toBe(true);
+  expect(getWaveformPreparationState()).toMatchObject({ failed: 0, ready: 2, failedSongs: [] });
+  expect(audio.extractWaveformPeaks.mock.calls.map(call => call[0]))
+    .toEqual([broken.uri, healthy.uri, broken.uri]);
+});
+
+test('pauses optional preparation when playback starts and resumes the unfinished track', async () => {
+  const first = song('completed');
+  const next = song('playback-paused');
+  let finish!: (value: typeof decoded) => void;
+  audio.extractWaveformPeaks.mockResolvedValueOnce(decoded)
+    .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const batch = prepareLibraryWaveforms([first, next]);
+  await jest.advanceTimersByTimeAsync(240);
+  expect(getWaveformPreparationState()).toMatchObject({ processed: 1, ready: 1 });
+
+  setWaveformPreparationPlaybackActive(true);
+  await batch;
+  expect(getWaveformPreparationState()).toMatchObject({ pausedForPlayback: true, processed: 1, failed: 0 });
+  await jest.advanceTimersByTimeAsync(1_000);
+  expect(audio.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+
+  finish(decoded);
+  setWaveformPreparationPlaybackActive(false);
+  await jest.advanceTimersByTimeAsync(1_000);
+  expect(getWaveformPreparationState()).toMatchObject({ status: 'completed', total: 1, ready: 1, failed: 0 });
+  expect(audio.extractWaveformPeaks.mock.calls.filter(call => call[0] === first.uri)).toHaveLength(1);
 });
 
 test('cancel preserves completed cache entries and resume skips their decoder work', async () => {

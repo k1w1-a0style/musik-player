@@ -2,6 +2,7 @@ export const WAVEFORM_VERSION = 6;
 export const WAVEFORM_CACHE_POINT_COUNT = 1024;
 export const DEFAULT_WAVEFORM_POINT_COUNT = WAVEFORM_CACHE_POINT_COUNT;
 export const WAVEFORM_FINGERPRINT_PREFIX = `wf${WAVEFORM_VERSION}:`;
+export const MAX_EXACT_WAVEFORM_DURATION_MS = 20 * 60 * 1000;
 
 export type WaveformSource = 'fallback' | 'native';
 
@@ -15,6 +16,8 @@ export interface SongWaveform extends WaveformSourceIdentity {
   points: number[];
   /** Decoded bass energy (35–160 Hz), uniformly spaced over durationMs. */
   bassPoints?: number[];
+  /** The visible shape represents short samples from across a long recording. */
+  preview?: true;
   durationMs: number;
   source: WaveformSource;
   generatedAt: number;
@@ -25,7 +28,7 @@ export interface NativeWaveformResult {
   /** Decoded bass energy (35–160 Hz), uniformly spaced over durationMs. */
   bassPoints?: number[];
   durationMs?: number;
-  analysis?: 'decoded-pcm-v1';
+  analysis?: 'decoded-pcm-v1' | 'sampled-pcm-v1';
   analysisDurationMs?: number;
 }
 
@@ -52,6 +55,7 @@ export const isSongWaveform = (value: unknown): value is SongWaveform => {
     && isWaveformSourceIdentity(value)
     && isNonNegativeFinite(candidate.durationMs)
     && (candidate.source === 'fallback' || candidate.source === 'native')
+    && (candidate.preview === undefined || (candidate.preview === true && candidate.source === 'native'))
     && isNormalizedPointArray(candidate.points, WAVEFORM_CACHE_POINT_COUNT)
     && (candidate.bassPoints === undefined || isNormalizedPointArray(candidate.bassPoints, 24_000))
     && isNonNegativeFinite(candidate.generatedAt);

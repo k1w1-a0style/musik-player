@@ -103,6 +103,16 @@ const WaveformVisual = ({ ready, points, svgWidth, sourceKey, restColor, accent,
   );
 };
 
+const WaveformTimeRow = ({ position, duration, color, preview }: {
+  position: number; duration: number; color: string; preview?: boolean;
+}) => (
+  <View style={styles.timeRow}>
+    <Text style={[styles.time, { color }]}>{formatTime(position)}</Text>
+    {preview && <Text style={[styles.time, { color }]}>Waveform-Vorschau</Text>}
+    <Text style={[styles.time, { color }]}>{formatTime(duration)}</Text>
+  </View>
+);
+
 const useHeldWaveformSeek = (animatedRatio: Animated.Value, baseRatioRef: React.MutableRefObject<number>,
   setPreviewPosition: React.Dispatch<React.SetStateAction<number | null>>, onSeek: (position: number) => void,
   draggingRef: React.MutableRefObject<boolean>, latestRatioRef: React.MutableRefObject<number>) => {
@@ -235,10 +245,8 @@ const WaveformScrubber: React.FC<WaveformScrubberProps> = ({ waveform, currentPo
           sourceKey={waveform.sourceKey} restColor={resolvedRestColor} accent={accent}
           height={height} surfaceWidth={surfaceWidth} animatedRatio={animatedRatio} />
       </View>
-      <View style={styles.timeRow}>
-        <Text style={[styles.time, { color: theme.palette.text.muted }]}>{formatTime(displayPosition)}</Text>
-        <Text style={[styles.time, { color: theme.palette.text.muted }]}>{formatTime(safeDuration)}</Text>
-      </View>
+      <WaveformTimeRow position={displayPosition} duration={safeDuration}
+        preview={waveform.preview} color={theme.palette.text.muted} />
     </View>
   );
 };

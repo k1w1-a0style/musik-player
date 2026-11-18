@@ -655,6 +655,45 @@ test('refreshes buffering play intent from native signals even while audible sta
   hook.unmount();
 });
 
+test('reports the native failure of the active track without carrying it to the next track', async () => {
+  native.getActiveMediaItem.mockReturnValue({ mediaId: 'first', url: 'content://music/first' });
+  const hook = renderHook(() => adapter.usePlaybackState());
+  await act(async () => { await flush(); });
+
+  const error = { code: 'source', message: 'Source error',
+    platformCode: 'ERROR_CODE_IO_NO_PERMISSION', mediaId: 'first' };
+  native.getPlaybackState.mockReturnValue('error');
+  await act(async () => {
+    ReactNative.DeviceEventEmitter.emit('event.playback-error', error);
+    await flush();
+  });
+  expect(hook.result.current).toEqual({ state: adapter.State.Error, error });
+
+  native.getActiveMediaItem.mockReturnValue({ mediaId: 'second', url: 'content://music/second' });
+  await act(async () => {
+    ReactNative.DeviceEventEmitter.emit('event.playback-state-changed', { state: 'error' });
+    await flush();
+  });
+  expect(hook.result.current).toEqual({ state: adapter.State.Error });
+  hook.unmount();
+});
+
+test('retries only the still-active failed track through play without clearing the queue', async () => {
+  native.getActiveMediaItem.mockReturnValue({ mediaId: 'active', url: 'content://music/active' });
+  native.getPlaybackState.mockReturnValue('error');
+  await controls.retryTrackPlayerPlayback('old');
+  expect(native.play).not.toHaveBeenCalled();
+
+  await controls.retryTrackPlayerPlayback('active');
+  expect(native.play).toHaveBeenCalledTimes(1);
+  expect(native.clear).not.toHaveBeenCalled();
+  expect(native.setMediaItems).not.toHaveBeenCalled();
+
+  native.getPlaybackState.mockReturnValue('buffering');
+  await controls.retryTrackPlayerPlayback('active');
+  expect(native.play).toHaveBeenCalledTimes(1);
+});
+
 test('preserves pending play intent in ready state without claiming audible output', async () => {
   native.getPlaybackState.mockReturnValue('ready');
   native.getPlayWhenReady.mockReturnValue(true);

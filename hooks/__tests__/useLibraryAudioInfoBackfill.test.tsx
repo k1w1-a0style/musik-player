@@ -7,6 +7,7 @@ import {
 } from '../useLibraryAudioInfoBackfill';
 import {
   backfillExistingSongAudioInfo,
+  audioInfoRetryIsDeferred,
   needsAudioInfoBackfill,
 } from '../../utils/songAudioInfoBackfill';
 
@@ -87,6 +88,19 @@ describe('useLibraryAudioInfoBackfill', () => {
         channels: 2,
       },
     }))).toBe(false);
+  });
+
+  test('persists a bounded retry budget across serialized track snapshots and resets it on file revision', async () => {
+    (SystemAudio.extractAudioInfo as jest.Mock).mockResolvedValue(null);
+    let candidate = song('retry');
+    for (let failures = 1; failures <= 3; failures++) {
+      const result = await backfillExistingSongAudioInfo([candidate], { recordRetry: true });
+      candidate = JSON.parse(JSON.stringify(result.songs[0])) as Song;
+      expect(candidate.audioInfo?.backfillRetry).toMatchObject({ failures, reason: 'unavailable' });
+      expect(audioInfoRetryIsDeferred(candidate)).toBe(true);
+    }
+    expect(candidate.audioInfo?.backfillRetry?.after).toBe(Number.MAX_SAFE_INTEGER);
+    expect(audioInfoRetryIsDeferred({ ...candidate, fileInfo: { ...candidate.fileInfo, modificationTime: 42 } })).toBe(false);
   });
 
   test('backfills duration, file size and audio info without overwriting existing positive values', async () => {

@@ -1,6 +1,7 @@
 import SystemAudio, { type AudioInfoResult } from 'expo-system-audio';
 import type { Song, SongAudioInfo, SongFileInfo } from '../types/Song';
 import { runNativeReadWithTimeout } from './nativeReadTimeout';
+import { beginSongProcessing } from './songProcessingActivity';
 
 export interface AudioInfoBackfillOptions {
   concurrency?: number;
@@ -9,6 +10,7 @@ export interface AudioInfoBackfillOptions {
   nativeReadTimeoutMs?: number;
   shouldProcessSong?: (song: Song, index: number) => boolean;
   onSongProcessed?: (song: Song, index: number) => void;
+  recordRetry?: boolean;
 }
 
 export interface AudioInfoBackfillResult {
@@ -20,6 +22,7 @@ export interface AudioInfoBackfillResult {
 
 const DEFAULT_AUDIO_INFO_BACKFILL_CONCURRENCY = 2;
 const DEFAULT_AUDIO_INFO_BACKFILL_BATCH_SIZE = 8;
+const AUDIO_RETRY_DELAYS_MS = [60_000, 15 * 60_000];
 
 const isPositiveFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -31,6 +34,25 @@ const preferPositiveNumber = (current: unknown, incoming: unknown): number | und
 };
 
 const resolveAudioInfoUri = (song: Song): string | undefined => song.fileInfo?.uri ?? song.uri;
+const audioInfoRevision = (song: Song): string => JSON.stringify([
+  resolveAudioInfoUri(song), song.fileInfo?.modificationTime, song.fileInfo?.contentHash, song.fileInfo?.importedAt,
+]);
+const currentRetry = (song: Song) => {
+  const retry = song.audioInfo?.backfillRetry;
+  return retry?.revision === audioInfoRevision(song) ? retry : undefined;
+};
+
+export const audioInfoRetryIsDeferred = (song: Song, now = Date.now()): boolean =>
+  (currentRetry(song)?.after ?? 0) > now;
+
+export const nextAudioInfoRetryAt = (songs: Song[], now = Date.now()): number | undefined => {
+  let earliest = Number.MAX_SAFE_INTEGER;
+  for (const song of songs) {
+    const after = currentRetry(song)?.after;
+    if (after !== undefined && after > now && after < earliest) earliest = after;
+  }
+  return earliest === Number.MAX_SAFE_INTEGER ? undefined : earliest;
+};
 
 const isNativeAudioInfoUri = (uri?: string): uri is string =>
   Boolean(uri && (uri.startsWith('file://') || uri.startsWith('content://')));
@@ -67,6 +89,7 @@ export const buildAudioInfoBackfillAttemptKey = (song: Song): string =>
     song.audioInfo?.bitrateMode ?? '',
     song.audioInfo?.sampleRate ?? '',
     song.audioInfo?.channels ?? '',
+    currentRetry(song)?.failures ?? '',
   ].join('|');
 
 const shallowEqualSongAudioInfo = (left?: SongAudioInfo, right?: SongAudioInfo): boolean =>
@@ -150,12 +173,30 @@ const readNativeAudioInfo = async (
 ): Promise<{ audioInfo: AudioInfoResult | null; timedOut: boolean }> => {
   const uri = resolveAudioInfoUri(song);
   if (!isNativeAudioInfoUri(uri)) return { audioInfo: null, timedOut: false };
-  const outcome = await runNativeReadWithTimeout(
-    () => SystemAudio.extractAudioInfo(uri),
-    { timeoutMs, signal, label: 'Native audio-info extraction' },
-  );
-  if (outcome.kind === 'success') return { audioInfo: outcome.value, timedOut: false };
-  return { audioInfo: null, timedOut: outcome.kind === 'timeout' };
+  const finish = beginSongProcessing(uri, 'audioInfo');
+  try {
+    const outcome = await runNativeReadWithTimeout(
+      () => SystemAudio.extractAudioInfo(uri), { timeoutMs, signal, label: 'Native audio-info extraction' },
+    );
+    if (outcome.kind === 'success') return { audioInfo: outcome.value, timedOut: false };
+    return { audioInfo: null, timedOut: outcome.kind === 'timeout' };
+  } finally {
+    finish();
+  }
+};
+
+const recordReadOutcome = (song: Song, timedOut: boolean): Song => {
+  const audioInfo = { ...song.audioInfo };
+  if (hasUsableAudioInfo(song)) {
+    if (!audioInfo.backfillRetry) return song;
+    delete audioInfo.backfillRetry;
+  } else {
+    const failures = Math.min((currentRetry(song)?.failures ?? 0) + 1, AUDIO_RETRY_DELAYS_MS.length + 1);
+    audioInfo.backfillRetry = { revision: audioInfoRevision(song), failures,
+      after: failures <= AUDIO_RETRY_DELAYS_MS.length ? Date.now() + AUDIO_RETRY_DELAYS_MS[failures - 1] : Number.MAX_SAFE_INTEGER,
+      reason: timedOut ? 'timeout' : 'unavailable' };
+  }
+  return { ...song, audioInfo };
 };
 
 const abortError = (): DOMException => {
@@ -203,7 +244,8 @@ export const backfillExistingSongAudioInfo = async (
       );
       throwIfAborted(options.signal);
 
-      const patched = mergeNativeAudioInfoIntoSong(current.song, nativeRead.audioInfo);
+      const merged = mergeNativeAudioInfoIntoSong(current.song, nativeRead.audioInfo);
+      const patched = options.recordRetry ? recordReadOutcome(merged, nativeRead.timedOut) : merged;
       if (patched !== current.song) {
         nextSongs[current.index] = patched;
         updated += 1;

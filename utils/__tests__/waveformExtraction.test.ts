@@ -44,6 +44,7 @@ describe('waveformExtraction', () => {
     jest.useRealTimers();
     mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue(null);
     mockedSystemAudio.hasNativeWaveformCancellation = false;
+    mockedSystemAudio.hasNativeWaveformPreview = false;
     mockedSystemAudio.cancelWaveformExtraction = jest.fn().mockReturnValue(false);
     delete (mockedSystemAudio as { subscribeWaveformProgress?: unknown }).subscribeWaveformProgress;
   });
@@ -183,6 +184,24 @@ describe('waveformExtraction', () => {
       });
 
       await expect(extractNativeWaveform(baseSong, 1000)).resolves.toMatchObject({ source: 'native' });
+    });
+
+    test('retains the preview marker for a sample from an hour-long mix', async () => {
+      const duration = 65 * 60 * 1000;
+      mockedSystemAudio.hasNativeWaveformPreview = true;
+      mockedSystemAudio.extractWaveformPeaks = jest.fn().mockResolvedValue({
+        points: dynamicPeaks, durationMs: duration, analysis: 'sampled-pcm-v1',
+      });
+      await expect(extractNativeWaveform({ ...baseSong, duration }, duration))
+        .resolves.toMatchObject({ source: 'native', durationMs: duration, preview: true });
+    });
+
+    test('does not start an unbounded full-file decoder on older native builds for a long mix', async () => {
+      const duration = 65 * 60 * 1000;
+      const onDecision = jest.fn();
+      await expect(extractNativeWaveform({ ...baseSong, duration }, duration, { onDecision })).resolves.toBeNull();
+      expect(mockedSystemAudio.extractWaveformPeaks).not.toHaveBeenCalled();
+      expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({ decision: 'native-preview-unavailable' }));
     });
 
     test('returns null when native extractor rejects', async () => {

@@ -29,9 +29,10 @@ const clampPosition = (value: number, duration: number): number => {
   return Math.max(0, Math.min(duration, value));
 };
 
-const WaveformTimeRow = ({ position, duration }: { position: number; duration: number }) => (
+const WaveformTimeRow = ({ position, duration, preview }: { position: number; duration: number; preview?: true }) => (
   <View pointerEvents="none" style={styles.timeRow}>
     <Text style={styles.time} testID="soundcloud-waveform-current-time">{formatTime(position)}</Text>
+    {preview && <Text style={styles.time}>Waveform-Vorschau</Text>}
     <Text style={styles.time} testID="soundcloud-waveform-total-time">{formatTime(duration)}</Text>
   </View>
 );
@@ -90,7 +91,8 @@ const SoundCloudWaveformViewport: React.FC<SoundCloudWaveformViewportProps> = ({
         accessibilityLabel="Waveform erneut laden" testID="soundcloud-waveform-retry">
         <Text style={styles.retry}>Waveform erneut laden</Text>
       </Pressable> : null}
-      <WaveformTimeRow position={previewPosition ?? safePosition} duration={safeDuration} />
+      <WaveformTimeRow position={previewPosition ?? safePosition} duration={safeDuration}
+        preview={ready ? waveform.preview : undefined} />
     </View>
   );
 };

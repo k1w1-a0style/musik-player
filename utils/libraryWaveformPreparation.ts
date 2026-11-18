@@ -11,6 +11,7 @@ import { OperationAbortError, isAbortError, throwIfAborted } from './withTimeout
 import { beginMetadataRefreshActivity, endMetadataRefreshActivity } from './metadataRefreshActivity';
 import { loadPreparedSources, queueSongPrepared } from './songPreparationStore';
 import { PreparationStorageError, waitForPreparationStorage } from './preparationStorage';
+import type { NativeWaveformDecision } from './waveformDecision';
 
 export interface WaveformPreparationState {
   status: 'idle' | 'running' | 'cancelled' | 'completed' | 'failed';
@@ -19,8 +20,10 @@ export interface WaveformPreparationState {
   processed: number;
   ready: number;
   failed: number;
+  failedSongs?: readonly { song: Song; reason: string }[];
   currentTitle: string;
   currentFingerprint: string;
+  pausedForPlayback?: true;
 }
 const idle: WaveformPreparationState = {
   status: 'idle', total: 0, processed: 0, ready: 0, failed: 0, currentTitle: '', currentFingerprint: '',
@@ -29,6 +32,8 @@ let state = idle;
 let active: AbortController | null = null;
 let lastSongs: Song[] = [];
 let deferredSongs: Song[] = [];
+let playbackActive = false;
+let resumeAfterPlayback = false;
 const listeners = new Set<() => void>();
 const publish = (next: WaveformPreparationState): void => {
   state = next;
@@ -43,7 +48,19 @@ const subscribe = (listener: () => void): (() => void) => {
 export const useWaveformPreparation = (): WaveformPreparationState =>
   useSyncExternalStore(subscribe, getWaveformPreparationState, getWaveformPreparationState);
 
-type PreparationOutcome = 'cached' | 'prepared' | 'failed';
+const MAX_REPORTED_FAILURES = 20;
+type PreparationOutcome = { kind: 'cached' | 'prepared' } | { kind: 'failed'; reason: string };
+const unavailableReason = 'Die Wellenform konnte nicht gelesen werden.';
+const preparationFailureReason = (decision?: NativeWaveformDecision): string => {
+  if (decision === 'native-timeout') return 'Die Waveform-Analyse hat zu lange gedauert.';
+  if (decision === 'native-preview-unavailable') return 'Diese Version unterstützt keine Waveform-Vorschau für lange Titel.';
+  if (decision === 'no-uri') return 'Es fehlt eine gültige Dateireferenz.';
+  if (decision === 'native-scheduler-unavailable' || decision === 'native-scheduler-preempted') {
+    return 'Der Audiodecoder ist vorübergehend belegt.';
+  }
+  return unavailableReason;
+};
+
 const prepareSong = async (song: Song, signal: AbortSignal): Promise<PreparationOutcome> => {
   const identity = getWaveformSourceIdentity(song);
   clearWaveformFailure(identity.sourceFingerprint);
@@ -52,22 +69,20 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<Preparation
     throwIfAborted(signal);
     const cached = await waitForPreparationStorage(() => getCachedWaveformForSong(song), signal);
     throwIfAborted(signal);
-    if (cached?.source === 'native') return 'cached';
-    let deferred = false;
+    if (cached?.source === 'native') return { kind: 'cached' };
+    let decision: NativeWaveformDecision | undefined;
     const waveform = await extractNativeWaveform(song, song.duration ?? song.audioInfo?.durationMs ?? 0, {
       priority: 'background', signal,
-      onDecision: ({ decision }) => {
-        deferred = decision === 'native-scheduler-unavailable' || decision === 'native-scheduler-preempted';
-      },
+      onDecision: result => { decision = result.decision; },
     });
     throwIfAborted(signal);
     if (waveform) {
       await waitForPreparationStorage(() => setCachedWaveform(waveform), signal);
-      return 'prepared';
+      return { kind: 'prepared' };
     }
-    if (!deferred) {
+    if (decision !== 'native-scheduler-unavailable' && decision !== 'native-scheduler-preempted') {
       setWaveformStatus(identity.sourceFingerprint, 'unavailable');
-      return 'failed';
+      return { kind: 'failed', reason: preparationFailureReason(decision) };
     }
     // Visible playback wins. Resume this same source after contention instead
     // of counting a preempted job as a corrupt file or abandoning the batch.
@@ -75,26 +90,52 @@ const prepareSong = async (song: Song, signal: AbortSignal): Promise<Preparation
     await waitForWaveformSchedulerAvailability(signal, 'background', deadline - Date.now());
   }
   setWaveformStatus(identity.sourceFingerprint, 'unavailable');
-  return 'failed';
+  return { kind: 'failed', reason: preparationFailureReason('native-scheduler-unavailable') };
 };
 
-const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<boolean> => {
+const prepareSongSafely = async (song: Song, signal: AbortSignal): Promise<PreparationOutcome> => {
   try {
     const result = await prepareSong(song, signal);
     // Reusing durable data must not serialize historical completion again.
-    if (result === 'prepared') queueSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint);
-    return result !== 'failed';
+    if (result.kind === 'prepared') queueSongPrepared(getWaveformSourceIdentity(song).sourceFingerprint);
+    return result;
   }
   catch (error) {
     if (isAbortError(error) || signal.aborted || error instanceof PreparationStorageError) throw error;
     setWaveformStatus(getWaveformSourceIdentity(song).sourceFingerprint, 'unavailable');
-    return false;
+    return { kind: 'failed', reason: unavailableReason };
   }
 };
 
 /** A row retry joins the scheduler without replacing or cancelling the library batch. */
-export const retrySongPreparation = (song: Song): Promise<boolean> =>
-  prepareSongSafely(song, new AbortController().signal);
+export const retrySongPreparation = async (song: Song): Promise<boolean> => {
+  const result = await prepareSongSafely(song, new AbortController().signal);
+  if (result.kind === 'failed') return false;
+  const fingerprint = getWaveformSourceIdentity(song).sourceFingerprint;
+  const failedSongs = state.failedSongs?.filter(({ song: failedSong }) =>
+    getWaveformSourceIdentity(failedSong).sourceFingerprint !== fingerprint);
+  if (failedSongs && failedSongs.length < (state.failedSongs?.length ?? 0)) {
+    publish({ ...state, failedSongs, failed: state.failed - 1, ready: state.ready + 1 });
+  }
+  return true;
+};
+
+const suspendBatchDuringPlayback = (total: number, signal?: AbortSignal): boolean => {
+  if (!playbackActive || total === 0 || signal?.aborted) return false;
+  active = null;
+  resumeAfterPlayback = true;
+  publish({ ...idle, status: 'cancelled', total, pausedForPlayback: true });
+  return true;
+};
+
+const recordPreparationOutcome = (song: Song, result: PreparationOutcome): void => {
+  const failedSongs = state.failedSongs ?? [];
+  const failed = result.kind === 'failed';
+  publish({ ...state, processed: state.processed + 1,
+    ready: state.ready + Number(!failed), failed: state.failed + Number(failed),
+    ...(failed && failedSongs.length < MAX_REPORTED_FAILURES
+      ? { failedSongs: [...failedSongs, { song, reason: result.reason }] } : {}) });
+};
 
 /** Explicit import/refresh preparation: serial, cancellable, cache-backed and resumable. */
 export const prepareLibraryWaveforms = async (
@@ -105,9 +146,10 @@ export const prepareLibraryWaveforms = async (
     .map(song => [getWaveformSourceIdentity(song).sourceFingerprint, song])).values()];
   deferredSongs = [];
   active?.abort(new OperationAbortError('Preparation superseded'));
+  lastSongs = queue;
+  if (suspendBatchDuringPlayback(queue.length, signal)) return;
   const controller = new AbortController();
   active = controller;
-  lastSongs = queue;
   const abort = () => controller.abort(new OperationAbortError('Preparation cancelled'));
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
@@ -124,15 +166,15 @@ export const prepareLibraryWaveforms = async (
     for (const song of queue) {
       throwIfAborted(controller.signal);
       publish({ ...state, currentTitle: song.title, currentFingerprint: getWaveformSourceIdentity(song).sourceFingerprint });
-      const ready = await prepareSongSafely(song, controller.signal);
+      const result = await prepareSongSafely(song, controller.signal);
       throwIfAborted(controller.signal);
-      publish({ ...state, processed: state.processed + 1,
-        ready: state.ready + Number(ready), failed: state.failed + Number(!ready) });
+      recordPreparationOutcome(song, result);
     }
     publish({ ...state, status: 'completed', currentTitle: '' });
   } catch (error) {
     if (active === controller) publish({ ...state, currentTitle: '',
       status: isAbortError(error) || controller.signal.aborted ? 'cancelled' : 'failed',
+      ...(resumeAfterPlayback ? { pausedForPlayback: true as const } : {}),
       failure: error instanceof PreparationStorageError ? 'storage' : 'analysis' });
   } finally {
     endMetadataRefreshActivity();
@@ -141,15 +183,33 @@ export const prepareLibraryWaveforms = async (
   }
 };
 
-export const cancelWaveformPreparation = (): void => active?.abort(new OperationAbortError('Preparation cancelled'));
+/** Optional analysis yields immediately to native playback and resumes the unfinished tail. */
+export const setWaveformPreparationPlaybackActive = (playing: boolean): void => {
+  if (playbackActive === playing) return;
+  playbackActive = playing;
+  if (playing && active) {
+    resumeAfterPlayback = true;
+    active.abort(new OperationAbortError('Preparation paused for playback'));
+  } else if (!playing && resumeAfterPlayback) {
+    resumeAfterPlayback = false;
+    void prepareLibraryWaveforms([]);
+  }
+};
+
+export const cancelWaveformPreparation = (): void => {
+  resumeAfterPlayback = false;
+  active?.abort(new OperationAbortError('Preparation cancelled'));
+};
 export const resumeWaveformPreparation = (): Promise<void> => prepareLibraryWaveforms(lastSongs);
 export const clearWaveformPreparation = (): void => {
   if (state.status === 'running' || state.status === 'cancelled' || state.status === 'failed') deferredSongs = lastSongs.slice(state.processed);
   active?.abort(new OperationAbortError('New library operation'));
   active = null;
+  resumeAfterPlayback = false;
   publish(idle);
 };
 export const resetWaveformPreparationForTests = (): void => {
   active?.abort(); active = null; lastSongs = []; deferredSongs = []; state = idle; listeners.clear();
+  playbackActive = false; resumeAfterPlayback = false;
 };
 

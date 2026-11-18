@@ -75,6 +75,20 @@ export const stopTrackPlayerPlayback = async (): Promise<void> => {
   await runOrderedPlaybackControl(() => TrackPlayer.stop(), trackIdentityMutationOptions());
 };
 
+/** Reprepare the same failed native track in place, through the ordered control lane. */
+export const retryTrackPlayerPlayback = (songId: string | undefined): Promise<void> => {
+  const capturedRevision = getNativePlaybackIntent().revision;
+  return runOrderedPlaybackControl(async ({ assertHydrationCurrent }) => {
+    if (!songId || (await TrackPlayer.getActiveTrack())?.id !== songId) return;
+    assertHydrationCurrent();
+    if ((await TrackPlayer.getPlaybackState()).state !== State.Error) return;
+    assertHydrationCurrent();
+    if (getNativePlaybackIntent().revision !== capturedRevision) return;
+    const request = recordNativePlaybackIntent('playing');
+    await restoreNativePlaybackIntent('playing', request.revision, () => { assertHydrationCurrent(); return true; });
+  }, stableReadyHydrationOptions());
+};
+
 export const seekToMillis = async (millis: number, song?: Song | null): Promise<void> => {
   // Seeking runs on a dedicated lane that coalesces rapid scrub updates and is
   // not serialized behind native queue rebuilds or metadata jobs.

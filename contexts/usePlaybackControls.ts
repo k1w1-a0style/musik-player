@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { State, usePlaybackState, usePlayWhenReady } from 'react-native-track-player';
 import type { RepeatMode, Song } from '../types/Song';
+import { setWaveformPreparationPlaybackActive } from '../utils/libraryWaveformPreparation';
 import {
   applyVolumeToTrackPlayer,
   cycleTrackPlayerRepeatMode,
@@ -51,6 +52,8 @@ export const usePlaybackControls = (currentSong?: Song | null): PlaybackControls
   const repeatModeRef = useRef<RepeatMode>('off');
   const confirmedVolumeRef = useRef(1);
   const volumeRequestIdRef = useRef(0);
+
+  useEffect(() => { setWaveformPreparationPlaybackActive(isPlaying); }, [isPlaying]);
 
   useEffect(() => {
     // React may replay effects in development. Re-arm the lifecycle guard on

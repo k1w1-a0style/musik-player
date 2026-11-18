@@ -208,7 +208,11 @@ export const getAudioSessionId = (): Promise<number | null> => read(() => native
 
 const playbackState = (): PlaybackState => {
   const state = Player.getPlaybackState();
-  if (state === NativeState.Error) return { state: State.Error, error: latestError };
+  if (state === NativeState.Error) {
+    const error = latestError;
+    if (error?.mediaId && Player.getActiveMediaItem()?.mediaId !== error.mediaId) return { state: State.Error };
+    return { state: State.Error, error };
+  }
   if (state === NativeState.Buffering) return { state: State.Buffering };
   if (state === NativeState.Ended) return { state: State.Ended };
   if (state === NativeState.Idle) {

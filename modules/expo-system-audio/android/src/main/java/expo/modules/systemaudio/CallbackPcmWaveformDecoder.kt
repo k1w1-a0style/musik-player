@@ -33,8 +33,23 @@ internal object CallbackPcmWaveformDecoder {
     onProgress: (Long) -> Unit = {},
     bassEnvelope: PcmBassEnvelope? = null,
   ): List<Double> {
-    checkCancellation(cancellation)
     val envelope = PcmWaveformEnvelope(pointCount, durationUs)
+    return if (decodeInto(extractor, inputFormat, mime, envelope, cancellation, onProgress, bassEnvelope)) {
+      envelope.normalizedPoints()
+    } else emptyList()
+  }
+
+  fun decodeInto(
+    extractor: MediaExtractor,
+    inputFormat: MediaFormat,
+    mime: String,
+    envelope: PcmWaveformEnvelope,
+    cancellation: AtomicBoolean,
+    onProgress: (Long) -> Unit,
+    bassEnvelope: PcmBassEnvelope?,
+    endTimeUs: Long = Long.MAX_VALUE,
+  ): Boolean {
+    checkCancellation(cancellation)
     val codec = MediaCodec.createDecoderByType(mime)
     val events = LinkedBlockingQueue<Event>()
     // Callbacks only transfer ownership notifications. Extractor, codec calls
@@ -83,12 +98,13 @@ internal object CallbackPcmWaveformDecoder {
             val buffer = codec.getInputBuffer(event.index)
               ?: error("Decoder input buffer unavailable")
             buffer.clear()
-            val size = extractor.readSampleData(buffer, 0)
+            val sampleTime = extractor.sampleTime
+            val size = if (sampleTime in 0 until endTimeUs) extractor.readSampleData(buffer, 0) else -1
             if (size < 0) {
               codec.queueInputBuffer(event.index, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
               inputEnded = true
             } else {
-              codec.queueInputBuffer(event.index, 0, size, extractor.sampleTime.coerceAtLeast(0L), 0)
+              codec.queueInputBuffer(event.index, 0, size, sampleTime, 0)
               extractor.advance()
             }
           }
@@ -117,7 +133,7 @@ internal object CallbackPcmWaveformDecoder {
         }
       }
       checkCancellation(cancellation)
-      if (encoding == AudioFormat.ENCODING_PCM_16BIT) envelope.normalizedPoints() else emptyList()
+      encoding == AudioFormat.ENCODING_PCM_16BIT
     } finally {
       if (started) try { codec.stop() } catch (_: Throwable) {}
       try { codec.release() } catch (_: Throwable) {}

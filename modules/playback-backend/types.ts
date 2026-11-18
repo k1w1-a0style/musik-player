@@ -64,7 +64,12 @@ export interface NavigationSnapshot {
 
 /** Positions and durations remain seconds at this boundary, as in V4. */
 export interface Progress { position: number; duration: number; buffered: number }
-export interface PlaybackError { code: string; message: string }
+export interface PlaybackError {
+  code: string;
+  message: string;
+  platformCode?: string;
+  mediaId?: string;
+}
 export interface PlaybackState { state: State; error?: PlaybackError }
 export interface PlaybackActiveTrackChangedEvent {
   index?: number;

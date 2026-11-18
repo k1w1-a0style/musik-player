@@ -151,7 +151,7 @@
   {
     "path": "android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt",
     "upstreamSha256": "80942d533e1f14e254231732aad5853b773a2a7805f191cc14fa302c1ed2a691",
-    "patchedSha256": "9a7204349b530d0cc33f30b5dfa87a6d3efc3e1a0d10724dbebd0af7a973513f",
+    "patchedSha256": "73ec7bb11c29acb5f090070460ca3ea31e8464720ddbebe0fd86f2f657f4ce01",
     "edits": [
       {
         "from": "      override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {\n        if (!playWhenReady || isPlaybackOngoing) cancelPlaybackStart()\n      }",
@@ -168,6 +168,21 @@
       {
         "from": "    const val COMMAND_AWAIT_PLAYER_COMMANDS = \"com.doublesymmetry.trackplayer.AWAIT_PLAYER_COMMANDS\"",
         "to": "    const val COMMAND_AWAIT_PLAYER_COMMANDS = \"com.doublesymmetry.trackplayer.AWAIT_PLAYER_COMMANDS\"\n    const val COMMAND_K1W1_AUDIO_SESSION = \"com.k1w1.musikplayer.GET_AUDIO_SESSION\""
+      },
+      {
+        "from": "            message = error.message ?: \"Unknown playback error\",\n",
+        "to": "            message = error.message ?: \"Unknown playback error\",\n            platformCode = error.errorCodeName,\n            mediaId = activePlayer.currentMediaItem?.mediaId,\n"
+      }
+    ]
+  },
+  {
+    "path": "android/src/main/java/com/doublesymmetry/trackplayer/models/EmitEventType.kt",
+    "upstreamSha256": "00767a07c715e1669ad7dcd6b51cb14702526ec194d52c0c46d9eee69fefa290",
+    "patchedSha256": "2a6315b2c80b3fa8d72f699a8cd08341a8b25c12d04a0a6aa06cc715a1d2a23a",
+    "edits": [
+      {
+        "from": "data class PlaybackErrorEvent(\n  val code: String,\n  val message: String,\n): EmitEvent {\n  override val type = EmitEventType.PLAYBACK_ERROR\n\n  override fun pairs(): Array<Pair<String, Any>> {\n    return arrayOf(\"code\" to code, \"message\" to message)\n  }\n}",
+        "to": "data class PlaybackErrorEvent(\n  val code: String,\n  val message: String,\n  val platformCode: String? = null,\n  val mediaId: String? = null,\n): EmitEvent {\n  override val type = EmitEventType.PLAYBACK_ERROR\n\n  override fun pairs(): Array<Pair<String, Any?>> {\n    return arrayOf(\"code\" to code, \"message\" to message, \"platformCode\" to platformCode, \"mediaId\" to mediaId)\n  }\n}"
       }
     ]
   }

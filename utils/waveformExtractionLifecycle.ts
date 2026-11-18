@@ -1,4 +1,5 @@
 import { OperationAbortError, TimeoutError, throwIfAborted } from './withTimeout';
+import type { NativeWaveformResult } from './waveformTypes';
 
 export const WAVEFORM_EXTRACTION_DEBOUNCE_MS = 120;
 export const WAVEFORM_FAILURE_BACKOFF_MS = 30_000;
@@ -7,11 +8,7 @@ export const MAX_DETACHED_NATIVE_WAVEFORM_FLIGHTS = 2;
 export const WAVEFORM_SCHEDULER_WAIT_TIMEOUT_MS = 30_000;
 export const MAX_WAVEFORM_CONTENTION_RETRIES = 6;
 
-type NativeResult = {
-  points: number[];
-  durationMs?: number;
-  analysis?: 'decoded-pcm-v1';
-} | null;
+type NativeResult = NativeWaveformResult | null;
 type NativeOperation = (signal: AbortSignal) => Promise<NativeResult>;
 export type WaveformExtractionPriority = 'foreground' | 'preload' | 'background';
 

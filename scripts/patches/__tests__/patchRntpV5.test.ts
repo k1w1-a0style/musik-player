@@ -43,7 +43,7 @@ afterEach(() => roots.splice(0).forEach(root => fs.rmSync(root, { recursive: tru
 describe('pinned RNTP V5 native acknowledgement patch', () => {
   test('patches verified upstream once and verifies the full patched checksum on reinstallation', () => {
     const root = createFixture();
-    expect(run(root)).toContain('4 source files patched');
+    expect(run(root)).toContain('5 source files patched');
     const first = readSources(root);
     first.forEach((source, index) => expect(hash(source)).toBe(plan[index].patchedSha256));
     expect(run(root)).toContain('0 source files patched');
@@ -95,5 +95,8 @@ describe('pinned RNTP V5 native acknowledgement patch', () => {
     expect(service).toContain('currentPlaybackRoute() == PlaybackRoute.LOCAL');
     expect(service).toContain('audioSessionId?.takeIf { it > 0 }');
     expect(service).toContain('IsPlayingChangedEvent(activePlayer.isPlaying)');
+    expect(service).toContain('platformCode = error.errorCodeName');
+    expect(service).toContain('mediaId = activePlayer.currentMediaItem?.mediaId');
+    expect(readSources(root)[4]).toContain('"platformCode" to platformCode, "mediaId" to mediaId');
   });
 });

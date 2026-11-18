@@ -8,12 +8,12 @@ import {
 } from './waveformExtractionLifecycle';
 import { getWaveformSourceIdentity } from './waveformGenerator';
 import { logWaveformDecision } from './waveformTelemetry';
-import { WAVEFORM_CACHE_POINT_COUNT, type SongWaveform } from './waveformTypes';
+import { MAX_EXACT_WAVEFORM_DURATION_MS, WAVEFORM_CACHE_POINT_COUNT, type SongWaveform } from './waveformTypes';
 import type { WaveformSourceDiagnostics } from './waveformDecision';
 import { waitForPreparationStorage } from './preparationStorage';
 
 const MAX_IN_FLIGHT_WAVEFORM_PRELOADS = 4;
-export const MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS = 20 * 60 * 1000;
+export const MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS = MAX_EXACT_WAVEFORM_DURATION_MS;
 interface PreloadFlight { controller: AbortController; promise: Promise<SongWaveform | null>; waiters: number }
 const preloadFlights = new Map<string, PreloadFlight>();
 type WaveformPreloadPriority = Extract<WaveformExtractionPriority, 'preload' | 'background'>;

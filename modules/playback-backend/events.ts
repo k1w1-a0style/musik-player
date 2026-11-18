@@ -53,9 +53,13 @@ const addRemoteListener = <T extends Event>(event: T, listener: PlayerEventListe
 
 const subscribeSnapshot = <T>(load: () => Promise<T>, listener: (payload: T) => unknown): Subscription => {
   let active = true;
+  let revision = 0;
   const refresh = async () => {
-    const snapshot = await load();
-    if (active) return listener(snapshot);
+    const requested = ++revision;
+    try {
+      const snapshot = await load();
+      if (active && revision === requested) return listener(snapshot);
+    } catch { /* The owning playback controller reports connection failures. */ }
   };
   const subscriptions = [
     Player.addEventListener(NativeEvent.PlaybackStateChanged, refresh),

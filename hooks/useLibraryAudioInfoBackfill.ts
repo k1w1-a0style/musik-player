@@ -3,11 +3,14 @@ import type { Song } from '../types/Song';
 import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import {
   backfillExistingSongAudioInfo,
+  audioInfoRetryIsDeferred,
   buildAudioInfoBackfillAttemptKey,
   needsAudioInfoBackfill,
+  nextAudioInfoRetryAt,
 } from '../utils/songAudioInfoBackfill';
 import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
 import { useAfterInitialInteractions } from './useAfterInitialInteractions';
+import { useCoverRetryWake } from './useCoverRetryWake';
 
 interface UseLibraryAudioInfoBackfillOptions {
   songs: Song[];
@@ -78,6 +81,7 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
   const metadataRefreshActive = useMetadataRefreshActive();
   const afterInitialInteractions = useAfterInitialInteractions();
   const backfillSongs = selectBackfillSongs(songs, enabled, afterInitialInteractions);
+  const retryWake = useCoverRetryWake(backfillSongs, nextAudioInfoRetryAt);
 
   latestSongsRef.current = songs;
 
@@ -90,7 +94,7 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
     if (metadataRefreshActive) return undefined;
     const candidates = backfillSongs.filter(song => {
       const key = buildAudioInfoBackfillAttemptKey(song);
-      return needsAudioInfoBackfill(song) && !attemptedRef.current.has(key);
+      return needsAudioInfoBackfill(song) && !audioInfoRetryIsDeferred(song) && !attemptedRef.current.has(key);
     });
     if (candidates.length === 0) return undefined;
 
@@ -141,6 +145,7 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
       concurrency: 2,
       batchSize: 8,
       signal: controller.signal,
+      recordRetry: true,
       shouldProcessSong: song => candidateKeys.has(buildAudioInfoBackfillAttemptKey(song)),
       onSongProcessed: queueProgressivePatch,
     }).then(result => {
@@ -150,10 +155,6 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
         || result.attempted === 0
       ) {
         return;
-      }
-
-      if (!result.aborted) {
-        candidates.forEach(song => attemptedRef.current.add(buildAudioInfoBackfillAttemptKey(song)));
       }
 
       flushProgressivePatches();
@@ -176,5 +177,5 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
     });
 
     return () => controller.abort();
-  }, [songs, backfillSongs, applySongMetadataPatches, metadataRefreshActive]);
+  }, [songs, backfillSongs, applySongMetadataPatches, metadataRefreshActive, retryWake]);
 };

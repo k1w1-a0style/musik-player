@@ -80,6 +80,8 @@ internal class PcmWaveformEnvelope(
     }
   }
 
+  fun hasSamplesInEveryBucket(): Boolean = frameCounts.all { it > 0L }
+
   private companion object {
     private const val MICROS_PER_SECOND = 1_000_000L
     private const val MIN_VISIBLE_POINT = 0.04

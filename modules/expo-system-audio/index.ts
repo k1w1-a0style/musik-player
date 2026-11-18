@@ -109,7 +109,7 @@ export interface WaveformPeaksResult {
   bassPoints?: number[];
   durationMs?: number;
   /** Identifies results derived from decoded audio samples, not container packet sizes. */
-  analysis?: 'decoded-pcm-v1';
+  analysis?: 'decoded-pcm-v1' | 'sampled-pcm-v1';
   analysisDurationMs?: number;
 }
 
@@ -193,6 +193,7 @@ declare class ExpoSystemAudioWaveformModule extends NativeModule<{
   onWaveformProgress: (event: { requestId: string; progress: number }) => void;
 }> {
   supportsWaveformProgress?: boolean;
+  supportsWaveformPreview?: boolean;
   extractWaveformPeaks?(uri: string, pointCount?: number, requestId?: string): Promise<WaveformPeaksResult | null>;
   cancelWaveformExtraction?(requestId: string): boolean;
 }
@@ -360,6 +361,7 @@ export const SystemAudio = {
   hasNativeMetadataFastPath,
   hasNativeWaveformExtraction,
   hasNativeWaveformCancellation,
+  hasNativeWaveformPreview: waveformNative?.supportsWaveformPreview === true,
 
   subscribeWaveformProgress(listener: (event: { requestId: string; progress: number }) => void): { remove: () => void } | null {
     return waveformNative?.supportsWaveformProgress

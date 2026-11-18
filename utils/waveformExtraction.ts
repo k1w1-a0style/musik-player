@@ -10,7 +10,8 @@ import {
   WaveformSchedulerUnavailableError,
 } from './waveformExtractionLifecycle';
 import { buildFallbackWaveform, buildNativeWaveform, getWaveformSourceIdentity } from './waveformGenerator';
-import { DEFAULT_WAVEFORM_POINT_COUNT, type NativeWaveformResult, type SongWaveform } from './waveformTypes';
+import { DEFAULT_WAVEFORM_POINT_COUNT, MAX_EXACT_WAVEFORM_DURATION_MS,
+  type NativeWaveformResult, type SongWaveform } from './waveformTypes';
 import { logWaveformTiming } from './waveformTelemetry';
 import { getWaveformStatus, setWaveformProgress, setWaveformStatus } from './waveformStatus';
 import {
@@ -26,7 +27,11 @@ export const getWaveformExtractionTimeoutMs = (durationMs: number): number =>
     : WAVEFORM_EXTRACTION_TIMEOUT_MS;
 
 const resolveWaveformDurationMs = (song: Song | null | undefined, durationMs: number): number =>
-  song?.duration && Number.isFinite(song.duration) && song.duration > 0 ? song.duration : durationMs;
+  [song?.duration, song?.audioInfo?.durationMs, durationMs]
+    .find(value => typeof value === 'number' && Number.isFinite(value) && value > 0) ?? 0;
+
+const canAnalyzeDuration = (durationMs: number): boolean =>
+  durationMs <= MAX_EXACT_WAVEFORM_DURATION_MS || SystemAudio.hasNativeWaveformPreview === true;
 
 let waveformRequestSequence = 0;
 
@@ -66,7 +71,7 @@ interface NativeWaveformCancellationApi {
 }
 
 const recordNativeAnalysis = (result: NativeWaveformResult | null): NativeWaveformResult | null => {
-  if (result?.analysis === 'decoded-pcm-v1' && typeof result.analysisDurationMs === 'number'
+  if (result?.analysis && typeof result.analysisDurationMs === 'number'
     && Number.isFinite(result.analysisDurationMs)) {
     logWaveformTiming('analysis', result.analysisDurationMs, result.points.length);
   }
@@ -115,7 +120,8 @@ const runScheduledNativeExtraction = (
       priority,
       // Full PCM decoding on slower devices can exceed 25 s for ordinary songs.
       // Keep a bounded duration-based deadline; cancellation still wins on skip.
-      timeoutMs: getWaveformExtractionTimeoutMs(durationMs),
+      timeoutMs: durationMs > MAX_EXACT_WAVEFORM_DURATION_MS
+        ? WAVEFORM_EXTRACTION_TIMEOUT_MS : getWaveformExtractionTimeoutMs(durationMs),
       rejoinDetached: !cancellationApi.hasNativeWaveformCancellation
         || !cancellationApi.cancelWaveformExtraction,
     },
@@ -146,7 +152,7 @@ const acceptDecodedNativeResult = ({
   }
   // Older Development APKs returned compressed packet sizes. Those values can
   // visibly contradict silence/peaks in the actual audio and are never shown.
-  if (result.analysis !== 'decoded-pcm-v1') {
+  if (result.analysis !== 'decoded-pcm-v1' && result.analysis !== 'sampled-pcm-v1') {
     recordFailure('native-unsupported-analysis');
     report('native-unsupported-analysis', points.length);
     return null;
@@ -221,6 +227,7 @@ export const extractNativeWaveform = async (
     extractWaveformPeaks?: NativeWaveformExtractor;
   }).extractWaveformPeaks;
   const cancellationApi = SystemAudio as NativeWaveformCancellationApi;
+  const knownDurationMs = resolveWaveformDurationMs(song, durationMs);
 
   if (!uri) {
     report('no-uri', 0);
@@ -230,13 +237,17 @@ export const extractNativeWaveform = async (
     report('no-native-extractor', 0);
     return null;
   }
+  if (!canAnalyzeDuration(knownDurationMs)) {
+    report('native-preview-unavailable', 0);
+    return null;
+  }
 
   if (getWaveformFailureBackoff(extractionKey)) return null;
 
   try {
     const result = await runScheduledNativeExtraction(
       extractor, cancellationApi, uri, pointCount, extractionKey,
-      resolveWaveformDurationMs(song, durationMs), options?.signal, priority,
+      knownDurationMs, options?.signal, priority,
     );
     const waveform = acceptDecodedNativeResult({
       result, song, durationMs, pointCount, sourceKey, sourceFingerprint,

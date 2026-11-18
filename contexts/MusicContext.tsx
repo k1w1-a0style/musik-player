@@ -4,6 +4,8 @@ import { MusicContextProviders } from './MusicContextProviders';
 import { useMusicProviderController } from './useMusicProviderController';
 import AppLoading from '../components/AppLoading';
 import PlaybackRecoveryBanner from '../components/PlaybackRecoveryBanner';
+import PlaybackTrackErrorNotice from '../components/PlaybackTrackErrorNotice';
+import { retryTrackPlayerPlayback } from './playbackControlHelpers';
 export {
   useEqualizerMusicContext,
   useLibraryMusicContext,
@@ -27,7 +29,9 @@ export const MusicProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       {contentReady
         ? <View style={{ flex: 1 }}>
           {children}
-          {(hydrationFailed || recovering) && <PlaybackRecoveryBanner recovering={recovering} onRetry={value.retryHydration} />}
+          {hydrationFailed || recovering
+            ? <PlaybackRecoveryBanner recovering={recovering} onRetry={value.retryHydration} />
+            : <PlaybackTrackErrorNotice currentSongId={value.currentSong?.id} onRetry={retryTrackPlayerPlayback} />}
         </View>
         : <AppLoading degraded={hydrationFailed} onRetry={value.retryHydration} />}
     </MusicContextProviders>

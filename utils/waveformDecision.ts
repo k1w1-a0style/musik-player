@@ -26,6 +26,7 @@ export type NativeWaveformDecision =
   | 'no-native-extractor'
   | 'native-empty'
   | 'native-unsupported-analysis'
+  | 'native-preview-unavailable'
   | 'native-unusable-shape'
   | 'native-source-key-changed'
   | 'native-timeout'

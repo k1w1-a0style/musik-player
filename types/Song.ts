@@ -24,6 +24,7 @@ export interface SongAudioInfo {
   bitrateMode?: BitrateMode;
   sampleRate?: number;
   channels?: number;
+  backfillRetry?: { revision: string; failures: number; after: number; reason: 'timeout' | 'unavailable' };
 }
 
 export interface SongCoverInfo {
