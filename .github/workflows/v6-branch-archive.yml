@@ -1,0 +1,151 @@
+name: Archive approved V6 work branches
+
+on:
+  push:
+    branches: [codex]
+    paths: ['.github/workflows/v6-branch-archive.yml']
+
+permissions: {}
+
+concurrency:
+  group: v6-branch-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    if: github.repository == 'k1w1-a0style/musik-player' && github.ref == 'refs/heads/codex'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Archive and remove the reviewed exact refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          import subprocess
+          import tempfile
+          import textwrap
+
+          repo = 'k1w1-a0style/musik-player'
+          source = f'https://github.com/{repo}.git'
+          baseline = 'd3ac70918b9ec83f579328f4e725a35acceb371f'
+          reviewed = dict((ref, sha) for sha, ref in (
+              line.split() for line in '''
+          151f8c6774790e6dee46daa168175d2d558f02ea refs/heads/backup/codex-before-consolidated-fixes-20261017
+          a1725abb0050bc64cb4b3445624f382658eca8fc refs/heads/backup/codex-before-plan-v3-20261009-a1725abb
+          8662eb321b59f5fca9e12e2dd5c53cfa9daeac3a refs/heads/backup/codex-before-v5-20261012-8662eb3
+          332249f77dbc7768434019ccc27bc7d7f1920104 refs/heads/backup/codex-before-v5-resume-20261013-332249f
+          6a4a8a7a34c97b44aaf8aa23b26c9435a3845aee refs/heads/backup/codex-v5-inspected-70275c7-20261013
+          d5c8f5f3ffbb75a6cd2118700c646a63ef6836ad refs/heads/backup/codex-v5-offline-20261013-77ff72d-152555
+          fd29e3e2bb71c347d6e403b566aa06cef68a1e3a refs/heads/qa/v5-acceptance/70275c7-cleaner-cold-native-queue
+          9832f369f69bec9500228de22d7c941afae52805 refs/heads/qa/v5-acceptance/70275c7-collection-ready
+          a3a54d6d56b0b57b484d9a8fadc84c7059ce3713 refs/heads/qa/v5-acceptance/70275c7-final-stages
+          292f9bcb86cae9fcb167a946a9e2292e39d5e325 refs/heads/qa/v5-acceptance/70275c7-folder-navigation-probe
+          c493826d978af245d086b8efcdde16a9be6dcceb refs/heads/qa/v5-acceptance/70275c7-full-controlled
+          956aa2411c67ba890369a686b6ffdb402070f99a refs/heads/qa/v5-acceptance/70275c7-full-menu-matrix
+          8185785cdd4b13463511877f2c93cac308249874 refs/heads/qa/v5-acceptance/70275c7-full-v5
+          53ddf9fb15eb7ca7041211c0c15a050f13d864e1 refs/heads/qa/v5-acceptance/70275c7-ime-reveal
+          c286fc1f8bda3e07679ce9ca2c5168d5038c25f3 refs/heads/qa/v5-acceptance/70275c7-input-focus
+          f6484fecf9215c203d4eb76dc1de734411077f23 refs/heads/qa/v5-acceptance/70275c7-last10-observed-settings-order
+          fbf3c23c2a2455c5ce1e5e0d727250cd3c1567dd refs/heads/qa/v5-acceptance/70275c7-media-ready
+          bec436877f15bc31891990f5f4f4fbfc0b678ccc refs/heads/qa/v5-acceptance/70275c7-native-boundary-last10
+          8c9ef09274c303a26ee16441ed2862a924874156 refs/heads/qa/v5-acceptance/70275c7-native-resume-clock
+          011bf0cecf8132609219e3c116c2dd6adfc51055 refs/heads/qa/v5-acceptance/70275c7-optional-work-settled
+          23ba41975a702c212f9fa61e72ebb1bd8a10add7 refs/heads/qa/v5-acceptance/70275c7-playlist-add
+          e65cf4ce3d87a7ad310facf43a27c7d076782557 refs/heads/qa/v5-acceptance/70275c7-remaining-font2-menu
+          a94564cfa1e88a5771c7378c4e68dd608b444d46 refs/heads/qa/v5-acceptance/70275c7-root-breadcrumb-ack
+          bc1646d8f171e2910d5f07f8afd61a3fcc586a84 refs/heads/qa/v5-acceptance/70275c7-scroll-full
+          b99d808e205b053c9c65410235df97c334aed0af refs/heads/qa/v5-acceptance/70275c7-settled-root-cleaner-matrix
+          693ea636321a92ff0ff34375d5a901a96488e8a5 refs/heads/qa/v5-acceptance/70275c7-swipe-probe
+          7bf017033eda03657f9a9b9823365b07fce5a5f7 refs/heads/qa/v5-acceptance/70275c7-switch-controlled-drag
+          5f07654c02f59a371dbdbe94c11706138d6884f3 refs/heads/qa/v5-acceptance/70275c7-switch-full-target
+          afe6cc2f111598906c6b9f7a1073a0c76e5548d4 refs/heads/qa/v5-acceptance/70275c7-system-picker-owned
+          c83b0863b9dbf832a6ae224f4f70ecd48eadfe55 refs/heads/qa/v5-acceptance/70275c7-tab-ack
+          28fa0fa97236df2d101d47b438975e0b1dcb3c85 refs/heads/qa/v5-acceptance/70275c7-transport
+          49e0f183e859bfd124792f3e6ac734fa30b633b4 refs/heads/qa/v5-acceptance/c47-section-public-pause
+          aa68e02d9c559e408d24e3554d4f9085108e99c7 refs/heads/qa/v5-acceptance/source30d-verified-sdk
+          a48b1adc61f99936224e52976c11ef02be6d0af1 refs/heads/qa/v5-control/diagnostic-output-stop-20261013
+          c3fd19362a6b4dcbb5b17eda786fdf3cccfc9073 refs/heads/qa/v5-control/read-final-prefix-evidence
+          ef840b51474503223d32426301a90ab0b0981d5a refs/heads/qa/v5-control/read-matrix-956-progress
+          f2f8842720a4cd9e59f138e033119e1918e1483b refs/heads/qa/v5-control/read-picker-11864115656
+          64950329019ae944e0114348a1c6a7a859a6c0f4 refs/heads/qa/v5-control/read-source-30d
+          c598e9137e96b63591f9cc54c6d71265f593cfaa refs/heads/qa/v5-control/sdk57-patch30
+          '''.splitlines() if line.strip()
+          ))
+          assert reviewed and all(ref.startswith(('refs/heads/backup/', 'refs/heads/qa/')) for ref in reviewed)
+
+          def output(command):
+              return subprocess.check_output(command, text=True)
+
+          with tempfile.TemporaryDirectory() as temp:
+              checkout = Path(temp, 'repo')
+              git = ['git', '-c', 'credential.helper=', '-c', 'credential.helper=!gh auth git-credential']
+              subprocess.run([*git, 'clone', '--quiet', '--filter=blob:none', '--no-checkout', source, checkout], check=True)
+              git += ['-C', str(checkout)]
+
+              def refs(*options):
+                  return dict((ref, sha) for sha, ref in (
+                      line.split() for line in output([*git, 'ls-remote', '--refs', *options, 'origin']).splitlines()))
+
+              def pull_request_refs():
+                  pages = json.loads(output(['gh', 'api', '--paginate', '--slurp',
+                      f'repos/{repo}/pulls?state=open&per_page=100']))
+                  return {f"refs/heads/{side['ref']}" for page in pages for pr in page
+                      for side in (pr['base'], pr['head']) if side['repo'] and side['repo']['full_name'] == repo}
+
+              before = refs('--heads')
+              protected = pull_request_refs()
+              candidates = {ref: sha for ref, sha in reviewed.items()
+                  if before.get(ref) == sha and ref not in protected}
+              for ref in sorted(reviewed.keys() - candidates.keys()):
+                  print(f'Preserved changed, absent, or PR-linked ref {ref}', flush=True)
+
+              tags = {'refs/tags/baseline/v6-pre-repair-2026-11-18': baseline}
+              for ref, sha in candidates.items():
+                  ancestry = subprocess.run([*git, 'merge-base', '--is-ancestor', sha, before['refs/heads/codex']])
+                  if ancestry.returncode == 1:
+                      tags['refs/tags/archive/v6/2026-11-18/' + ref.removeprefix('refs/heads/')] = sha
+                  else:
+                      ancestry.check_returncode()
+              existing_tags = refs('--tags')
+              assert all(existing_tags.get(ref, sha) == sha for ref, sha in tags.items()), 'An archive tag points at a different commit'
+              additions = [f'{sha}:{ref}' for ref, sha in tags.items() if ref not in existing_tags]
+              if additions:
+                  subprocess.run([*git, 'push', '--atomic', 'origin', *additions], check=True)
+              verified = refs('--tags')
+              assert all(verified.get(ref) == sha for ref, sha in tags.items()), 'Archive verification failed'
+              for ref, sha in sorted(tags.items()):
+                  print(f'Verified archive {ref} {sha}', flush=True)
+
+              if candidates:
+                  current_protected = pull_request_refs()
+                  assert not current_protected.intersection(candidates), 'Pull requests changed during archival'
+                  hooks = Path(temp, 'hooks')
+                  hooks.mkdir()
+                  hook = hooks / 'pre-push'
+                  hook.write_text('#!/usr/bin/env python3\n' + textwrap.dedent(f'''
+                      import sys
+                      expected = {candidates!r}
+                      observed = {{}}
+                      for line in sys.stdin:
+                          local_ref, local_sha, remote_ref, remote_sha = line.split()
+                          if local_ref != '(delete)' or local_sha != '0' * 40 or remote_ref in observed:
+                              raise SystemExit('Unexpected push operation')
+                          observed[remote_ref] = remote_sha
+                      if observed != expected:
+                          raise SystemExit('A branch tip changed after archival; nothing was deleted')
+                  '''))
+                  hook.chmod(0o700)
+                  subprocess.run([*git, '-c', f'core.hooksPath={hooks}', 'push', '--atomic', 'origin',
+                      *[f':{ref}' for ref in sorted(candidates)]], check=True)
+              after = refs('--heads')
+              assert not after.keys() & candidates.keys(), 'Some reviewed refs remain'
+              assert {'refs/heads/main', 'refs/heads/codex'} <= after.keys()
+              print(json.dumps({'before': len(before), 'after': len(after), 'deleted': sorted(candidates),
+                  'verifiedTags': sorted(tags), 'remaining': sorted(after)}, indent=2))
+          PYTHON
