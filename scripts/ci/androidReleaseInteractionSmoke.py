@@ -26,7 +26,7 @@ DEVICE = None
 DEVICE_SERIAL = None
 DEVICE_BOOT_ID = None
 TRANSPORT_RECOVERIES = []
-MAX_TRANSPORT_RECOVERIES = 3
+MAX_HIERARCHY_RECONNECTS = 3
 LAUNCHER_DIALOGS = 0
 TITLES = ['V3 MP3 langer deutscher Titel zum Prüfen der Bedienbarkeit', 'V3 M4A', 'V3 FLAC', 'V3 Mix 21 Minuten']
 FORMAT_DURATIONS = (90, 120, 150, 1260)
@@ -145,21 +145,25 @@ def transport_error(error):
 def dump_hierarchy(compressed):
     global DEVICE
     record = None
+    # The retry budget belongs to this read. A successful snapshot ends the
+    # outage, even if a later matrix case encounters another disconnect.
+    reconnects = 0
     while True:
         try:
             raw = DEVICE.dump_hierarchy(compressed=compressed, max_depth=80)
             if record is not None:
                 record['status'] = 'recovered-same-boot-no-app-restart'
                 (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
-                print(f'Recovered UI transport {len(TRANSPORT_RECOVERIES)}/{MAX_TRANSPORT_RECOVERIES} on the same emulator boot; app not restarted.', flush=True)
+                print(f'Recovered UI transport on the same emulator boot after {reconnects} reconnect(s); app not restarted.', flush=True)
             return raw
         except Exception as error:
             if record is not None:
                 record['status'] = 'transport-failed-after-reconnect'
                 (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))
                 record = None
-            if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or len(TRANSPORT_RECOVERIES) >= MAX_TRANSPORT_RECOVERIES:
+            if not transport_error(error) or not DEVICE_SERIAL or not DEVICE_BOOT_ID or reconnects >= MAX_HIERARCHY_RECONNECTS:
                 raise
+            reconnects += 1
             record = {'error': repr(error), 'serial': DEVICE_SERIAL, 'bootId': DEVICE_BOOT_ID, 'status': 'attempting'}
             TRANSPORT_RECOVERIES.append(record)
             (OUT / 'transport-recovery.json').write_text(json.dumps(TRANSPORT_RECOVERIES, indent=2))

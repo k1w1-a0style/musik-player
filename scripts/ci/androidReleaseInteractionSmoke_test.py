@@ -727,29 +727,40 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
                 smoke.tap_ready_scan_menu_action()
             tap.assert_called_once()
 
-    def test_transport_recovery_is_bounded_same_boot_and_never_restarts_app(self):
+    def test_separate_transport_disconnects_recover_on_same_boot_without_restarting_app(self):
         original = Mock()
         original.dump_hierarchy.side_effect = json.JSONDecodeError('empty HTTP response', '', 0)
         restored = Mock()
-        loss = lambda: json.JSONDecodeError('empty HTTP response', '', 0)
-        restored.dump_hierarchy.side_effect = ['<hierarchy/>', loss(), '<hierarchy/>', loss(), '<hierarchy/>', loss()]
+        restored.dump_hierarchy.side_effect = ['<hierarchy/>', http.client.RemoteDisconnected('no response')] * 4
         connector = Mock(connect=Mock(return_value=restored))
         with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
              patch.object(smoke, 'DEVICE', original), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
              patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
-             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash'] * 3) as adb, \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash'] * 4) as adb, \
              patch.dict('sys.modules', {'uiautomator2': connector}):
-            self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
-            self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
-            self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
-            self.assertEqual(connector.connect.call_count, 3)
+            for _ in range(4):
+                self.assertEqual(smoke.dump_hierarchy(True), '<hierarchy/>')
+            self.assertEqual(connector.connect.call_count, 4)
             adb.assert_any_call('-s', 'emulator-5554', 'wait-for-device', timeout=30)
             self.assertFalse(any('force-stop' in call.args or 'install' in call.args for call in adb.call_args_list))
             proof = json.loads((Path(directory) / 'transport-recovery.json').read_text())
-            self.assertEqual([item['status'] for item in proof], ['recovered-same-boot-no-app-restart'] * 3)
-            with self.assertRaises(json.JSONDecodeError):
+            self.assertEqual([item['status'] for item in proof], ['recovered-same-boot-no-app-restart'] * 4)
+
+    def test_persistent_transport_loss_exhausts_the_retry_budget_for_one_read(self):
+        device = Mock()
+        device.dump_hierarchy.side_effect = http.client.RemoteDisconnected('no response')
+        connector = Mock(connect=Mock(return_value=device))
+        with tempfile.TemporaryDirectory() as directory, patch.object(smoke, 'OUT', Path(directory)), \
+             patch.object(smoke, 'DEVICE', device), patch.object(smoke, 'DEVICE_SERIAL', 'emulator-5554'), \
+             patch.object(smoke, 'DEVICE_BOOT_ID', 'same-boot'), patch.object(smoke, 'TRANSPORT_RECOVERIES', []), \
+             patch.object(smoke, 'adb', side_effect=[b'', b'same-boot', b'no crash'] * 3), \
+             patch.dict('sys.modules', {'uiautomator2': connector}):
+            with self.assertRaises(http.client.RemoteDisconnected):
                 smoke.dump_hierarchy(True)
             self.assertEqual(connector.connect.call_count, 3)
+            self.assertEqual(device.dump_hierarchy.call_count, 4)
+            proof = json.loads((Path(directory) / 'transport-recovery.json').read_text())
+            self.assertEqual([item['status'] for item in proof], ['transport-failed-after-reconnect'] * 3)
 
     def test_transport_can_retry_when_the_first_reconnected_dump_also_disconnects(self):
         disconnected = lambda: http.client.RemoteDisconnected('no response')
