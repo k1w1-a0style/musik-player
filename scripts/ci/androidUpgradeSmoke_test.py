@@ -28,7 +28,7 @@ class UpgradeProofTest(unittest.TestCase):
             '  userId=10078\n  versionCode=14 minSdk=24\n  versionName=1.0.2-test.12\n'
             '    firstInstallTime=2026-11-19 02:20:00\n')
         after = install_receipt(
-            '  appId=10078\n  versionCode=20 minSdk=24\n  versionName=1.0.2-test.18\n'
+            '  appId=10078\n  versionCode=21 minSdk=24\n  versionName=1.0.2-test.19\n'
             '    firstInstallTime=2026-11-19 02:20:00\n')
         assert_in_place_upgrade(before, after)
         for change in ({'uid': '10079'}, {'versionCode': '19'}, {'firstInstallTime': '2026-11-19 02:20:10'}):

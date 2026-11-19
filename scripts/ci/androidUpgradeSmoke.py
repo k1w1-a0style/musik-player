@@ -39,7 +39,7 @@ def install_receipt(raw):
 
 def assert_in_place_upgrade(before, after):
     assert before['versionCode'] == '14' and before['versionName'] == '1.0.2-test.12'
-    assert after['versionCode'] == '20' and after['versionName'] == '1.0.2-test.18'
+    assert after['versionCode'] == '21' and after['versionName'] == '1.0.2-test.19'
     assert before['uid'] == after['uid'] and before['firstInstallTime'] == after['firstInstallTime'], 'Package was reinstalled from scratch'
 
 
@@ -93,15 +93,41 @@ def enable_resume():
     ui.wait_uncovered_library_header()
 
 
-def export_legacy_backup(playlist_ids, favorite_id):
-    backup_folder = '/sdcard/Download/V7UpgradeBackup'
-    ui.adb('shell', 'mkdir', '-p', backup_folder)
+def trigger_backup_export(folder):
     scan.open_settings()
     ui.tap_node(ui.scroll_to('settings-group-data', top=True))
     ui.tap_node(ui.scroll_to('backup-create', top=True))
-    ui.choose_folder(['Download', 'V7UpgradeBackup'])
-    ui.find('Backup gespeichert', timeout=45)
-    ui.tap('android:id/button1')
+    ui.choose_folder(['Download', folder])
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        frame = ui.tree(compressed=False)
+        if ui.candidate('Backup gespeichert', frame) is not None:
+            ui.tap('android:id/button1')
+            return True
+        failure = ui.candidate('Backup nicht abgeschlossen', frame)
+        if failure is not None:
+            message = ui.candidate('android:id/message', frame)
+            assert failure.get('package') == ui.PACKAGE and message is not None
+            assert 'OutOfMemoryError' in message.get('text', ''), 'Backup export reported an unexpected failure'
+            ui.screenshot('backup-export-heap-exhausted-' + folder)
+            ui.tap('android:id/button1')
+            return False
+        time.sleep(.3)
+    raise AssertionError('Backup export did not publish its success or failure receipt')
+
+
+def export_backup(folder, playlist_ids, favorite_id, legacy=False):
+    backup_folder = '/sdcard/Download/' + folder
+    ui.adb('shell', 'mkdir', '-p', backup_folder)
+    ui.wait_collection_idle()
+    saved = trigger_backup_export(folder)
+    if legacy and not saved:
+        # test.12 can exhaust the API 29 heap during its 12 MiB read-back.
+        # Retry only after the exact error and a real cold-start recovery.
+        ui.public_cold_start()
+        ui.wait_collection_idle()
+        saved = trigger_backup_export(folder)
+    assert saved, 'Backup was not saved with a confirmed read-back'
     files = ui.adb('shell', 'ls', backup_folder).decode().splitlines()
     assert len(files) == 1 and re.fullmatch(r'[a-zA-Z0-9._-]+', files[0]), 'Legacy backup file missing or unexpected'
     path = backup_folder + '/' + files[0]
@@ -110,8 +136,7 @@ def export_legacy_backup(playlist_ids, favorite_id):
     assert data['format'] == 'k1w1-musik-backup' and data['version'] == 1
     assert data['favorites'] == [favorite_id]
     assert [entry['songIds'] for entry in data['playlists']] == [playlist_ids]
-    ui.back()
-    ui.wait_uncovered_library_header()
+    leave_backup_settings()
     return path, hashlib.sha256(backup).hexdigest()
 
 
@@ -210,7 +235,7 @@ def seed_legacy(legacy):
     ui.tap('controls-play-pause')
     ui.back()
     check_favorite(LEGACY_TITLES[0])
-    backup = export_legacy_backup(playlist_ids, baseline[LEGACY_TITLES[0]])
+    backup = export_backup('V7UpgradeBackup', playlist_ids, baseline[LEGACY_TITLES[0]], legacy=True)
     ui.play_title(LEGACY_TITLES[2])
     ui.tap('mini-player-open')
     ui.assert_duration(LEGACY_RESUME_DURATION)
@@ -308,9 +333,11 @@ def main():
     print('Stage: upgrade in place and confirm persisted access and user state', flush=True)
     migration = upgrade(candidate, baseline, playlist_ids, saved)
     assert hashlib.sha256(ui.adb('exec-out', 'cat', backup[0])).hexdigest() == backup[1], 'Original backup was modified'
+    _, candidate_backup_hash = export_backup('V7VerifiedBackup', playlist_ids, baseline[LEGACY_TITLES[0]])
     (OUT / 'migration-receipt.json').write_text(json.dumps({
         'apkSha256': sha, 'legacySha256': LEGACY_SHA, 'sourceCommit': source, 'migration': migration,
         'stableTrackIds': baseline, 'preservedPlaylistIds': playlist_ids, 'legacyBackupSha256': backup[1],
+        'candidateBackupSha256': candidate_backup_hash,
     }, indent=2))
     print('Stage: seek and play real 65-minute MP3, WAV and FLAC files after upgrade', flush=True)
     files.update(exercise_long_formats())
@@ -323,7 +350,7 @@ def main():
               'api': int(ui.adb('shell', 'getprop', 'ro.build.version.sdk').decode().strip()),
               'migration': migration, 'stableTrackIds': baseline, 'preservedPlaylistIds': playlist_ids,
               'nativePlayback': ui.PLAYBACK_PROOFS, 'longPreviews': ['mp3', 'wav', 'flac'],
-              'unchangedOriginals': files, 'legacyBackupSha256': backup[1]}
+              'unchangedOriginals': files, 'legacyBackupSha256': backup[1], 'candidateBackupSha256': candidate_backup_hash}
     (OUT / 'result.json').write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2), flush=True)
 

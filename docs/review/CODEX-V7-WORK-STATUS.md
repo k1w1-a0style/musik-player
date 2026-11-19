@@ -10,6 +10,7 @@
 
 - A delayed migration could publish an old library after a newer serialized write. `songLibraryStorage.ts` now checks the exact legacy bytes and manifest under the mutation lock. The regression covers the race and a disk-full retry after restart.
 - The legacy favorites migration previously treated a failed or corrupt favorites read as an empty list and overwrote it. It now leaves those bytes and the migration marker untouched when input cannot be verified.
+- An Android 10 legacy export hit a 12 MiB native heap allocation on a tiny backup. The same read path was still used by V7. `backupFiles.ts` now reads byte blocks of at most 256 KiB and decodes UTF-8 after reassembly. The total byte and text caps, exact export read-back and fresh-file cleanup remain enforced.
 - A stalled MediaStore permission preflight could block later authorized folder updates. `useAutomaticLibraryUpdate.ts` bounds and cancels the preflight, reserves scan ownership for actual updates, and wakes the current scheduler after an older scan settles.
 - Audio-info work could keep an obsolete revision or copy a projected URI into the underlying record. Backfill now matches the full file revision and applies the missing file facts without replacing the storage and playback URIs.
 - The idle waveform index previously skipped all tracks over 20 minutes after restart and marked a canceled decoder waiter as attempted. Capable native builds now resume bounded previews and reuse the resulting cache. An interrupted waiter stays eligible. Older native builds retain the short-track bound.
@@ -19,7 +20,7 @@
 
 - Host storage tests passed for migration, corruption, rollback, and persistence budgets. Upgrade fixtures cover legacy settings, edited metadata, current song and resume position, favorites, playlist IDs, inactive Download entries, and backup compatibility.
 - The original `1.0.2-test.12` APK was recovered from [CI 40413357386](https://github.com/k1w1-a0style/musik-player/actions/runs/40413357386). SHA-256 `3cf9a5196b40d46701e1abe05f4eb1e18c16019561ea472b01582033dbc732e6`. It has the same verified signing certificate as V6.
-- Next verify the new signed `1.0.2-test.18` APK, fresh scans and the in-place update on API 29/35. A physical Samsung remains outside the available test environment.
+- The signed `1.0.2-test.18` passed fresh scans on API 29 and 35 and an in-place update plus native 65-minute MP3/WAV/FLAC seeking on API 35. The backup heap fix requires a new signed `1.0.2-test.19` APK and exact device verification. A physical Samsung remains outside the available test environment.
 - Dependabot #408 and #416–#421 were open at the start. Expo SDK, dev client, React Native and React Native Screens updates need coordinated native qualification. Zod is a patch candidate. Workflow and lint tooling proposals can be qualified independently.
 - ReplayGain is deferred. The current RNTP volume contract is global and capped at unity gain. A future gain stage needs native per-track handoff and peak headroom before EQ, with persisted opt-in.
 

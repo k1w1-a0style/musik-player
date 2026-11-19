@@ -1,14 +1,37 @@
 import { StorageAccessFramework, EncodingType } from 'expo-file-system/legacy';
 import { MAX_BACKUP_CODE_UNITS, parseMusicBackup, serializeMusicBackup, type MusicBackup } from './backupFormat';
+import { decodeBase64ToBytes } from './base64';
+import { concatBytes } from './tagWriterBytes';
 
-// The pinned native FileSystem reader honours length AND position for UTF-8
-// and SAF streams. Both options are mandatory; provider size is not trusted.
 const MAX_BACKUP_BYTES = MAX_BACKUP_CODE_UNITS * 3;
+export const BACKUP_READ_CHUNK_BYTES = 256 * 1024;
+const oversizedBackup = () => new Error('Backupdatei überschreitet das sichere Größenlimit.');
+
+const readBackupBytes = async (uri: string): Promise<Uint8Array> => {
+  const parts: Uint8Array[] = [];
+  let position = 0;
+  while (position <= MAX_BACKUP_BYTES) {
+    // Expo allocates the whole requested range on the Android heap, even at
+    // EOF. Read bounded byte blocks and decode UTF-8 only after reassembly.
+    const length = Math.min(BACKUP_READ_CHUNK_BYTES, MAX_BACKUP_BYTES + 1 - position);
+    const encoded = await StorageAccessFramework.readAsStringAsync(uri, {
+      encoding: EncodingType.Base64, position, length,
+    });
+    if (encoded.length > Math.ceil(length / 3) * 4) throw oversizedBackup();
+    if (!encoded) break;
+    const bytes = decodeBase64ToBytes(encoded);
+    position += bytes.length;
+    if (bytes.length > length || position > MAX_BACKUP_BYTES) throw oversizedBackup();
+    parts.push(bytes);
+    if (bytes.length < length) break;
+  }
+  return parts.length === 1 ? parts[0] : concatBytes(parts);
+};
+
 export const readBackupFile = async (uri: string): Promise<{ backup: MusicBackup; raw: string }> => {
-  const raw = await StorageAccessFramework.readAsStringAsync(uri, {
-    encoding: EncodingType.UTF8, position: 0, length: MAX_BACKUP_BYTES + 1,
-  });
-  if (raw.length > MAX_BACKUP_CODE_UNITS) throw new Error('Backupdatei überschreitet das sichere Größenlimit.');
+  const bytes = await readBackupBytes(uri);
+  const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  if (raw.length > MAX_BACKUP_CODE_UNITS) throw oversizedBackup();
   return { backup: parseMusicBackup(raw), raw };
 };
 export const chooseBackupFolder = async (): Promise<string[] | null> => {
