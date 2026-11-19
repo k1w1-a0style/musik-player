@@ -1,10 +1,9 @@
 {
   "version": 1,
   "repository": "k1w1-a0style/musik-player",
-  "sourceCommit": "a5ece6d25574496b26dad07ee0c1bd1aa43c5945",
-  "runId": 44380254262,
-  "artifactId": 14464397028,
-  "artifactDigest": "sha256:2ed44493a0a5d1420373b0b6d6ecbac345baafcf269feb88125be2f6f6b7d1c0",
-
-  "apkSha256": "65e27c283bb8811d4cdb21d019b94bb8da30bd42c4119cc55a9466f1bd3ee29d"
+  "sourceCommit": "64e18cbeb6d406431023626ae420c5c8a4dca741",
+  "runId": 44443461864,
+  "artifactId": 14493157421,
+  "artifactDigest": "sha256:c07c12a29f9caa03264dbf4a9f290521f3892512b9799b6ba19bcd0877990c49",
+  "apkSha256": "e357c46242a1699d7567146f61415381658d4099d42b424bba8414650a71ddfc"
 }

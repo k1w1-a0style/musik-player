@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import ssl
 import subprocess
 import time
 
@@ -41,12 +42,18 @@ def assert_in_place_upgrade(before, after):
     assert before['uid'] == after['uid'] and before['firstInstallTime'] == after['firstInstallTime'], 'Package was reinstalled from scratch'
 
 
+def signer_fingerprint(report):
+    assert 'Verified using v2 scheme (APK Signature Scheme v2): true' in report, 'APK v2 verification failed'
+    certificates = re.findall(r'-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----', report)
+    assert len(certificates) == 1, 'Expected exactly one APK signing certificate'
+    return hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificates[0])).hexdigest()
+
+
 def verify_signer(apk):
     build_tools = Path(os.environ['ANDROID_HOME']) / 'build-tools'
     signer = sorted(build_tools.glob('*/apksigner'))[-1]
-    report = subprocess.check_output([str(signer), 'verify', '--print-certs', str(apk)], text=True)
-    certs = re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([a-f0-9]{64})$', report, re.M)
-    assert certs == [PREVIEW_SIGNER], 'Unexpected preview signing identity'
+    report = subprocess.check_output([str(signer), 'verify', '--verbose', '--print-certs-pem', str(apk)], text=True)
+    assert signer_fingerprint(report) == PREVIEW_SIGNER, 'Unexpected preview signing identity'
 
 
 def make_fixture(title, ext, codec, seconds):

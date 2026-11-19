@@ -1,10 +1,19 @@
+import hashlib
 import unittest
 
 import androidReleaseInteractionSmoke as ui
-from androidUpgradeSmoke import assert_in_place_upgrade, install_receipt
+from androidUpgradeSmoke import assert_in_place_upgrade, install_receipt, signer_fingerprint
 
 
 class UpgradeProofTest(unittest.TestCase):
+    def test_signer_check_uses_verified_certificate_bytes_independent_of_output_labels(self):
+        signature = 'Verified using v2 scheme (APK Signature Scheme v2): true'
+        certificate = '-----BEGIN CERTIFICATE-----\nYWJj\n-----END CERTIFICATE-----'
+        self.assertEqual(signer_fingerprint(signature + '\n' + certificate), hashlib.sha256(b'abc').hexdigest())
+        for report in (certificate, signature, signature + '\n' + certificate * 2):
+            with self.assertRaises(AssertionError):
+                signer_fingerprint(report)
+
     def test_package_receipt_requires_same_install_and_exact_versions(self):
         before = install_receipt(
             '  userId=10078\n  versionCode=14 minSdk=24\n  versionName=1.0.2-test.12\n'
