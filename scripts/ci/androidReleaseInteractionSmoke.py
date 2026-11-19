@@ -1155,8 +1155,10 @@ def validate_resumed_position(before, after, elapsed):
 
 def native_position_clock(session, title, state):
     validate_selected_session(session, title)
-    match = re.search(r'PlaybackState\s*\{state=' + state +
-                      r'\(\d+\), position=(\d+),[^}]*speed=([0-9.]+), updated=(\d+)', session)
+    code = {'PLAYING': '3', 'PAUSED': '2'}[state]
+    expected_state = rf'(?:{state}\({code}\)|{code})'
+    match = re.search(r'PlaybackState\s*\{state=' + expected_state +
+                      r', position=(\d+),[^}]*speed=([0-9.]+), updated=(\d+)', session)
     assert match, 'Exact native position, speed and Android clock missing'
     position, speed, updated = float(match[1])/1000, float(match[2]), int(match[3])/1000
     assert speed == (1.0 if state == 'PLAYING' else 0.0), 'Native playback speed differs'

@@ -1,5 +1,7 @@
 # K1W1 Music V6
 
+V6 was saved to both branches at `6d85428a0b4cdfaa863c98b2569cb3911dcd50cf`. The [V7 work status](CODEX-V7-WORK-STATUS.md) tracks the subsequent review and upgrade checks on `codex`.
+
 ## GitHub and baseline
 
 - Baseline `d3ac70918b9ec83f579328f4e725a35acceb371f`. Fast-forwarded `main` from `b62b91b59c7400fd310a5db8fcbf9fc6444ff393` and independently verified both remote heads.

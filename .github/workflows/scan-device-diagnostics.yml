@@ -24,6 +24,7 @@ jobs:
         id: ci
         env:
           GH_READ_TOKEN: ${{ github.token }}
+          BUILD_EXACT_APK: ${{ contains(github.event.head_commit.message, '[v7 upgrade]') }}
         run: |
           python3 - <<'CHECK'
           import json,os,re,subprocess,time,urllib.request
@@ -33,7 +34,8 @@ jobs:
               request=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_READ_TOKEN'],'Accept':'application/vnd.github+json'})
               with urllib.request.urlopen(request,timeout=30) as response:return json.load(response)
           request=Path('docs/review/scan-device-request.json')
-          source=json.loads(request.read_text())['sourceCommit'] if request.exists() else os.environ['GITHUB_SHA']
+          reuse=request.exists() and os.environ['BUILD_EXACT_APK'] != 'true'
+          source=json.loads(request.read_text())['sourceCommit'] if reuse else os.environ['GITHUB_SHA']
           assert re.fullmatch(r'[0-9a-f]{40}',source),'Unpinned diagnostic APK source'
           subprocess.run(['git','merge-base','--is-ancestor',source,os.environ['GITHUB_SHA']],check=True)
           changed=subprocess.check_output(['git','diff','--name-only',source,os.environ['GITHUB_SHA']],text=True).splitlines()
@@ -66,6 +68,7 @@ jobs:
       fail-fast: false
       matrix:
         api: ['29', '35']
+        mode: ${{ fromJSON(contains(github.event.head_commit.message, '[v7 upgrade]') && '["scan","upgrade"]' || '["scan"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 65
     env:
@@ -86,6 +89,14 @@ jobs:
           run-id: ${{ needs.locate.outputs.run_id }}
           github-token: ${{ github.token }}
           path: preview-input
+      - name: Download the pinned Android upgrade baseline
+        if: matrix.mode == 'upgrade'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: musik-player-preview-d63f4885c08e893864551e8619f94aaeeb9f0ef6
+          run-id: 40413357386
+          github-token: ${{ github.token }}
+          path: legacy-input
       - name: Verify APK provenance and capture current upstream package versions
         run: |
           python3 - <<'VERIFY'
@@ -202,9 +213,15 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/scan-ui-venv"
           "$RUNNER_TEMP/scan-ui-venv/bin/python" -m pip install --disable-pip-version-check --no-input -r scripts/ci/android-smoke-requirements.txt
       - name: Diagnose the same exact APK with sixteen synthetic audio files and public UI
+        if: matrix.mode == 'scan'
         run: |
           set -euo pipefail
           "$RUNNER_TEMP/scan-ui-venv/bin/python" scripts/ci/androidScanFixSmoke.py 2>&1 | tee ci-logs/scan-device.log
+      - name: Exercise a data-preserving APK upgrade from test.12
+        if: matrix.mode == 'upgrade'
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/scan-ui-venv/bin/python" scripts/ci/androidUpgradeSmoke.py 2>&1 | tee ci-logs/upgrade-device.log
       - name: Capture independent diagnostics
         if: always()
         run: python3 scripts/ci/androidSmokeDiagnostics.py ci-logs/final "$PACKAGE_NAME"
@@ -212,7 +229,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: scan-diagnostics-api-${{ matrix.api }}-${{ github.sha }}
+          name: ${{ matrix.mode }}-diagnostics-api-${{ matrix.api }}-${{ github.sha }}
           path: ci-logs/
           retention-days: 14
           if-no-files-found: error
