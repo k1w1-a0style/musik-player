@@ -756,7 +756,17 @@ def picker_breadcrumbs(root):
 
 def picker_at_internal_root(root):
     crumbs = picker_breadcrumbs(root)
-    return len(crumbs) == 1 and storage_label(crumbs[0]) and crumbs[0].get('enabled') == 'true'
+    if crumbs:
+        return len(crumbs) == 1 and storage_label(crumbs[0]) and crumbs[0].get('enabled') == 'true'
+    nodes = document_nodes(root)
+    headers = {node.get('text', '').casefold() for node in nodes if node.get('resource-id', '').endswith(':id/header_title')}
+    for toolbar in nodes:
+        if not toolbar.get('resource-id', '').endswith(':id/toolbar'):
+            continue
+        if any(child.get('package') == toolbar.get('package') and storage_label(child)
+               and ('Files on ' + child.get('text', '')).casefold() in headers for child in toolbar):
+            return True
+    return False
 
 
 def picker_root_touch(root):
@@ -829,9 +839,18 @@ def reveal_internal_storage(root):
                    and node.get('enabled') == 'true'), None)
     assert opener is not None, 'System picker overflow action missing'
     tap_node(opener)
-    option = scroll_to('Show internal storage')
-    assert option.get('package') in DOCUMENTS_PACKAGES, 'Storage visibility action is not DocumentsUI-owned'
-    tap_node(option)
+    deadline = time.monotonic() + 25
+    previous = None
+    while time.monotonic() < deadline:
+        options = [node for node in document_nodes(tree(compressed=False)) if node.get('text') == 'Show internal storage'
+                   and node.get('enabled') == 'true']
+        bounds = rect(options[0]) if len(options) == 1 else None
+        if bounds is not None and bounds == previous:
+            tap_node(options[0])
+            return
+        previous = bounds
+        time.sleep(.3)
+    raise AssertionError('System Show internal storage action never settled')
 
 
 def picker_drawer_open(root):
@@ -839,18 +858,32 @@ def picker_drawer_open(root):
 
 
 def open_picker_roots(root, timeout=25):
-    if picker_drawer_open(root):
-        return root
-    opener = next((node for node in document_nodes(root) if node.get('content-desc') in ('Show roots', 'Navigate up')
-                   and node.get('enabled') == 'true'), None)
-    assert opener is not None, 'System storage navigation action absent'
-    tap_node(opener)
     deadline = time.monotonic() + timeout
+    dismissed_sort = False
+    while True:
+        if picker_at_internal_root(root) or picker_drawer_open(root):
+            return root
+        nodes = document_nodes(root)
+        labels = {node.get('text', '') for node in nodes}
+        if {'SORT BY', 'File name (A to Z)'} <= labels:
+            assert not dismissed_sort, 'System sort popup did not dismiss'
+            back()
+            dismissed_sort = True
+        else:
+            actions = [node for node in nodes if node.get('content-desc') in ('Show roots', 'Navigate up')
+                       and node.get('enabled') == 'true']
+            if len(actions) == 1:
+                tap_node(actions[0])
+                break
+        if time.monotonic() >= deadline:
+            raise AssertionError('System storage navigation action absent')
+        root = tree(compressed=False)
+        time.sleep(.3)
     while True:
         root = tree(compressed=False)
         # A slow dump can return the requested acknowledged frame at the end of
         # the budget. Process that frame before deciding whether to read again.
-        if picker_drawer_open(root) or any(storage_label(node) for node in document_nodes(root)):
+        if picker_at_internal_root(root) or picker_drawer_open(root):
             return root
         if time.monotonic() >= deadline:
             raise AssertionError('System picker roots drawer did not arrive')
@@ -864,10 +897,17 @@ def select_picker_storage(timeout=25):
     if picker_breadcrumbs(root):
         navigate_picker_root(root, timeout)
         return
-    root = open_picker_roots(root, timeout)
-    storage = [node for node in document_nodes(root) if storage_label(node)]
-    if not storage:
+    for attempt in range(2):
+        root = open_picker_roots(root, timeout)
+        if picker_at_internal_root(root):
+            return
         assert picker_drawer_open(root), 'System storage roots have no observed navigation surface'
+        storage = [node for node in document_nodes(root) if storage_label(node)]
+        if storage:
+            assert len(storage) == 1, 'System internal-storage action is ambiguous'
+            tap_node(storage[0])
+            return
+        assert attempt == 0, 'System internal-storage action is absent after choosing to show it'
         back()
         deadline = time.monotonic() + timeout
         while True:
@@ -878,10 +918,7 @@ def select_picker_storage(timeout=25):
                 raise AssertionError('System picker roots drawer did not close')
             time.sleep(.3)
         reveal_internal_storage(root)
-        root = open_picker_roots(tree(compressed=False), timeout)
-        storage = [node for node in document_nodes(root) if storage_label(node)]
-    assert len(storage) == 1, 'System internal-storage action absent or ambiguous'
-    tap_node(storage[0])
+        root = tree(compressed=False)
 
 
 

@@ -7,6 +7,21 @@ import xml.etree.ElementTree as ET
 from androidScanFixSmoke import scan_receipt
 
 class ScanReceiptTest(unittest.TestCase):
+    def test_source_playlist_requires_exact_rows_after_each_public_addition(self):
+        titles = smoke.TITLES[:2]
+        frame = ET.Element('hierarchy')
+        with patch.object(smoke.ui, 'library_tab'), patch.object(smoke.ui, 'create_public_playlist'), \
+             patch.object(smoke.ui, 'back'), patch.object(smoke.ui, 'tap') as tap, \
+             patch.object(smoke.ui, 'add_public_playlist_songs') as add, patch.object(smoke.ui, 'find') as find, \
+             patch.object(smoke.ui, 'tree', return_value=frame), patch.object(smoke.ui, 'validate_playlist_contents') as validate:
+            self.assertEqual(smoke.create_source_playlist(dict(zip(titles, ['first', 'second']))), ['first', 'second'])
+            self.assertEqual([call.args[0] for call in add.call_args_list], [[titles[0]], [titles[1]]])
+            self.assertEqual([call.args[0] for call in find.call_args_list], ['playlist-detail-song-first', 'playlist-detail-song-second'])
+            self.assertEqual([call.args[1] for call in validate.call_args_list], [['first'], ['first', 'second']])
+            self.assertEqual([call.args[0] for call in tap.call_args_list],
+                             ['Playlist SourceProof', 'playlist-detail-add-button', 'playlist-detail-add-close',
+                              'playlist-detail-add-button', 'playlist-detail-add-close'])
+
     def frame(self, terminal='Aktualisierung – abgeschlossen', processed=16, total=16, errors=0):
         root=ET.Element('hierarchy')
         for text in (terminal,f'{processed} von {total} Quelleinträgen verarbeitet', 'Die Zähler erfassen Einträge je Quelle. Dieselbe Datei kann in mehreren Quellen vorkommen.', f'Neu: 16 · Geändert: 0 · Unverändert: 0 · Ungeprüft: 0 · Leseprobleme: {errors}'):

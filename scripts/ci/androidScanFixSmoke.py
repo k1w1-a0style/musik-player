@@ -293,11 +293,14 @@ def create_source_playlist(baseline):
     ui.library_tab('playlists')
     ui.create_public_playlist('SourceProof')
     ui.tap('Playlist SourceProof')
-    ui.tap('playlist-detail-add-button')
-    ui.add_public_playlist_songs(TITLES[:2])
-    ui.tap('playlist-detail-add-close')
-    identifiers = [baseline[title] for title in TITLES[:2]]
-    ui.validate_playlist_contents(ui.tree(compressed=False), identifiers, TITLES[:2])
+    identifiers = []
+    for index, title in enumerate(TITLES[:2]):
+        ui.tap('playlist-detail-add-button')
+        ui.add_public_playlist_songs([title])
+        ui.tap('playlist-detail-add-close')
+        identifiers.append(baseline[title])
+        ui.find('playlist-detail-song-' + identifiers[-1])
+        ui.validate_playlist_contents(ui.tree(compressed=False), list(identifiers), TITLES[:index + 1])
     ui.back(); ui.library_tab('tracks')
     return identifiers
 

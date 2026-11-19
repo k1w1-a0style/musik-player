@@ -69,7 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         api: ['29', '35']
-        mode: ${{ fromJSON(contains(github.event.head_commit.message, '[v7 upgrade]') && (contains(github.event.head_commit.message, '[preview apk]') && '["scan","upgrade"]' || '["upgrade"]') || '["scan"]') }}
+        mode: ${{ fromJSON(contains(github.event.head_commit.message, '[v7 upgrade]') && ((contains(github.event.head_commit.message, '[preview apk]') || contains(github.event.head_commit.message, '[v7 scan]')) && '["scan","upgrade"]' || '["upgrade"]') || '["scan"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 65
     env:

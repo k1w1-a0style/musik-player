@@ -294,7 +294,8 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
     def test_picker_opens_only_system_roots_and_waits_for_storage_ack(self):
         docs = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" content-desc="Show roots" enabled="true" bounds="[0,36][84,120]"/></hierarchy>')
         pending = ET.fromstring('<hierarchy/>')
-        storage = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" bounds="[20,200][300,272]"/></hierarchy>')
+        storage = ET.fromstring('<hierarchy><node package="com.google.android.documentsui" text="Open from" bounds="[20,50][300,100]"/>'
+                                '<node package="com.google.android.documentsui" text="sdk_gphone64_x86_64" bounds="[20,200][300,272]"/></hierarchy>')
         with patch.object(smoke,'tree',side_effect=[docs,pending,storage]), patch.object(smoke.time,'sleep'), patch.object(smoke,'tap_node') as tap:
             smoke.select_picker_storage()
             self.assertEqual(tap.call_count,2)
@@ -304,7 +305,8 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
         pkg='com.android.documentsui'
         initial=ET.fromstring(f'<hierarchy><node package="{pkg}" content-desc="Show roots" enabled="true" bounds="[12,48][96,120]"/></hierarchy>')
         drawer=ET.fromstring(f'<hierarchy><node package="{pkg}" text="Open from" bounds="[24,47][194,96]"/></hierarchy>')
-        storage=ET.fromstring(f'<hierarchy><node package="{pkg}" text="Internal storage" bounds="[20,200][300,272]"/></hierarchy>')
+        storage=ET.fromstring(f'<hierarchy><node package="{pkg}" text="Open from" bounds="[24,47][194,96]"/>'
+                              f'<node package="{pkg}" text="Internal storage" bounds="[20,200][300,272]"/></hierarchy>')
         with patch.object(smoke,'tree',side_effect=[initial,drawer,initial,initial,storage]), patch.object(smoke.time,'sleep'), \
              patch.object(smoke,'tap_node') as tap, patch.object(smoke,'back') as back, patch.object(smoke,'reveal_internal_storage') as reveal:
             smoke.select_picker_storage()
@@ -420,6 +422,34 @@ class ReleaseAcceptanceSafetyTest(unittest.TestCase):
             tap.assert_called_once()
             self.assertEqual(smoke.rect(tap.call_args.args[0]),[0,108,160,180])
             self.assertTrue((Path(directory)/'picker-internal-root-ack.xml').exists())
+
+    def test_picker_accepts_recorded_breadcrumbless_system_root_without_touching_toolbar(self):
+        package = 'com.google.android.documentsui'
+        root = ET.fromstring(f'<hierarchy><node package="{package}" resource-id="{package}:id/toolbar" bounds="[0,36][480,108]">'
+            f'<node package="{package}" text="sdk_gphone64_x86_64" enabled="true" bounds="[24,51][252,92]"/></node>'
+            f'<node package="{package}" resource-id="{package}:id/horizontal_breadcrumb" bounds="[0,108][480,180]"/>'
+            f'<node package="{package}" resource-id="{package}:id/header_title" text="Files on sdk_gphone64_x86_64" bounds="[36,180][372,270]"/></hierarchy>')
+        self.assertTrue(smoke.picker_at_internal_root(root))
+        with patch.object(smoke, 'tree', return_value=root), patch.object(smoke, 'tap_node') as tap:
+            smoke.select_picker_storage()
+            tap.assert_not_called()
+        root[-1].set('text', 'Files in Music')
+        self.assertFalse(smoke.picker_at_internal_root(root))
+        root[-1].set('text', 'Files on sdk_gphone64_x86_64')
+        root[0][0].set('package', smoke.PACKAGE)
+        self.assertFalse(smoke.picker_at_internal_root(root))
+
+    def test_picker_roots_can_dismiss_only_the_observed_system_sort_popup(self):
+        package = 'com.android.documentsui'
+        sort = ET.fromstring(f'<hierarchy><node package="{package}" text="SORT BY" bounds="[0,241][116,312]"/>'
+            f'<node package="{package}" text="File name (A to Z)" bounds="[0,312][432,384]"/></hierarchy>')
+        restored = ET.fromstring(f'<hierarchy><node package="{package}" content-desc="Show roots" enabled="true" bounds="[12,48][96,120]"/></hierarchy>')
+        drawer = ET.fromstring(f'<hierarchy><node package="{package}" text="Open from" bounds="[0,48][360,120]"/></hierarchy>')
+        with patch.object(smoke, 'tree', side_effect=[restored, drawer]), patch.object(smoke, 'back') as back, \
+             patch.object(smoke, 'tap_node') as tap:
+            self.assertIs(smoke.open_picker_roots(sort), drawer)
+            back.assert_called_once()
+            tap.assert_called_once_with(restored[0])
 
     def test_picker_root_tap_without_location_ack_and_clipped_owner_still_fail(self):
         nested=self.picker_trail_frame()
