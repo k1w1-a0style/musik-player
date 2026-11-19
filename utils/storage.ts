@@ -396,7 +396,7 @@ const readSongsStorageValue = async (): Promise<Song[] | null> => {
   await migrateLegacySongLibraryIfNeeded(
     legacyKey,
     JSON.stringify(songs),
-    snapshot.source,
+    snapshot,
   ).catch(() => undefined);
   return songs;
 };

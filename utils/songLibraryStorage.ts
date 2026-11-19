@@ -29,7 +29,8 @@ interface SongLibraryManifest {
 }
 
 export type StoredSongLibrarySnapshot =
-  | { source: 'chunked' | 'legacy'; serialized: string }
+  | { source: 'chunked'; serialized: string }
+  | { source: 'legacy'; serialized: string; manifestRaw: string | null }
   | { source: 'missing'; serialized: null };
 
 export class SongLibraryStorageError extends Error {
@@ -232,7 +233,7 @@ export const readStoredSongLibrary = async (
           && manifest.legacyFallbackChecksum != null
           && legacyRaw.length <= MAX_SONG_LIBRARY_SERIALIZED_CODE_UNITS
           && hashString(legacyRaw) === manifest.legacyFallbackChecksum) {
-          return { source: 'legacy', serialized: legacyRaw };
+          return { source: 'legacy', serialized: legacyRaw, manifestRaw };
         }
         throw error;
       }
@@ -244,7 +245,7 @@ export const readStoredSongLibrary = async (
     if (legacyRaw != null) assertSnapshotBudget(legacyRaw);
     return legacyRaw == null
       ? { source: 'missing', serialized: null }
-      : { source: 'legacy', serialized: legacyRaw };
+      : { source: 'legacy', serialized: legacyRaw, manifestRaw };
   });
 
 let revisionSequence = 0;
@@ -293,14 +294,14 @@ const writeVerifiedChunks = async (uniqueWrites: Map<string, string>): Promise<v
 export const writeStoredSongLibrary = async (
   legacyKey: string,
   serialized: string,
-  options: { removeLegacy?: boolean } = {},
+  options: { removeLegacy?: boolean; legacySnapshot?: Extract<StoredSongLibrarySnapshot, { source: 'legacy' }> } = {},
 ): Promise<void> => {
   assertPersistenceWritable();
   assertSnapshotBudget(serialized);
   const owner = capturePersistenceEpoch();
   // A later migration protects the rollback key before any queued/native
   // deletion wait, and before an older cleanup can reserve that key.
-  setSongLibraryLegacyPolicy(legacyKey, options.removeLegacy !== false);
+  if (!options.legacySnapshot) setSongLibraryLegacyPolicy(legacyKey, options.removeLegacy !== false);
   return trackPersistenceWork(runSerializedMutation(async () => {
     assertPersistenceEpoch(owner);
     const { manifest, uniqueWrites } = prepareLibraryWrite(serialized);
@@ -311,6 +312,13 @@ export const writeStoredSongLibrary = async (
         ...(options.removeLegacy === false ? [legacyKey] : [])]);
       assertPersistenceEpoch(owner);
       const legacyFallback = options.removeLegacy === false ? await AsyncStorage.getItem(legacyKey) : null;
+      if (options.legacySnapshot) {
+        const manifestRaw = await AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY);
+        assertPersistenceEpoch(owner);
+        // A write queued after the read may have already replaced the manifest.
+        if (legacyFallback !== options.legacySnapshot.serialized || manifestRaw !== options.legacySnapshot.manifestRaw) return;
+        setSongLibraryLegacyPolicy(legacyKey, false);
+      }
       if (legacyFallback != null) {
         assertSnapshotBudget(legacyFallback);
         manifest.legacyFallbackChecksum = hashString(legacyFallback);
@@ -359,10 +367,10 @@ export const removeStoredSongLibrary = async (legacyKey: string): Promise<void> 
 export const migrateLegacySongLibraryIfNeeded = async (
   legacyKey: string,
   normalizedSerialized: string,
-  source: StoredSongLibrarySnapshot['source'],
+  snapshot: StoredSongLibrarySnapshot,
 ): Promise<void> => {
-  if (source !== 'legacy') return;
-  await writeStoredSongLibrary(legacyKey, normalizedSerialized, { removeLegacy: false });
+  if (snapshot.source !== 'legacy') return;
+  await writeStoredSongLibrary(legacyKey, normalizedSerialized, { removeLegacy: false, legacySnapshot: snapshot });
 };
 
 export const resetSongLibraryStorageForTests = (): void => {

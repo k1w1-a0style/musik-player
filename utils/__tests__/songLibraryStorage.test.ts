@@ -47,6 +47,35 @@ describe('chunked song library storage', () => {
     await expect(AsyncStorage.getItem(legacySongsKey)).resolves.toBe(legacyJson);
   });
 
+  it('does not overwrite a newer saved library when a legacy read migrates after it', async () => {
+    const legacy = [{ id: 'legacy', title: 'Legacy', artist: 'Artist' }];
+    const newer = [{ id: 'new', title: 'Edited while migrating', artist: 'Artist' }];
+    const raw = JSON.stringify(legacy);
+    await AsyncStorage.setItem(legacySongsKey, raw);
+
+    const read = storage.getSongs();
+    const edited = storage.setSongs(newer);
+    await expect(read).resolves.toEqual(legacy);
+    await edited;
+    await expect(storage.getSongs()).resolves.toEqual(newer);
+  });
+
+  it('keeps original bytes after a disk-full migration and retries after restart', async () => {
+    const songs = [{ id: 'legacy', title: 'Custom title', artist: 'Artist' }];
+    const raw = JSON.stringify(songs);
+    await AsyncStorage.setItem(legacySongsKey, raw);
+    jest.spyOn(AsyncStorage, 'multiSet').mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(storage.getSongs()).resolves.toEqual(songs);
+    await expect(AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).resolves.toBeNull();
+    await expect(AsyncStorage.getItem(legacySongsKey)).resolves.toBe(raw);
+
+    resetSongLibraryStorageForTests();
+    await expect(storage.getSongs()).resolves.toEqual(songs);
+    await expect(AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).resolves.not.toBeNull();
+    await expect(AsyncStorage.getItem(legacySongsKey)).resolves.toBe(raw);
+  });
+
   it('keeps the committed snapshot readable when a replacement chunk write fails', async () => {
     const oldSongs = [{ id: 'old', title: 'Old', artist: 'Artist' }];
     const newSongs = [{ id: 'new', title: 'New', artist: 'Artist' }];

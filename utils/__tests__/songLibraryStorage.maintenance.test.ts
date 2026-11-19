@@ -192,7 +192,7 @@ test('failed explicit key enumeration preserves a legacy-only library', async ()
   await AsyncStorage.setItem(legacyKey, snapshot);
   jest.spyOn(AsyncStorage, 'getAllKeys').mockRejectedValueOnce(new Error('enumeration failed'));
   await expect(removeStoredSongLibrary(legacyKey)).rejects.toThrow('enumeration failed');
-  await expect(readStoredSongLibrary(legacyKey)).resolves.toEqual({ source: 'legacy', serialized: snapshot });
+  await expect(readStoredSongLibrary(legacyKey)).resolves.toMatchObject({ source: 'legacy', serialized: snapshot });
 });
 
 test('failed explicit chunk deletion preserves the committed library and its legacy rollback', async () => {
