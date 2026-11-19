@@ -154,9 +154,12 @@ def inspect_legacy_backup(path, playlist_ids):
         reference = ui.candidate('backup-reference-' + song_id, frame)
         assert reference is not None and reference.get('package') == ui.PACKAGE and ', zugeordnet,' in reference.get('content-desc', '')
     ui.screenshot('legacy-backup-mapped-by-original-song-ids')
-    close = ui.find('Schließen')
-    assert close.get('package') == ui.PACKAGE and close.get('enabled') == 'true'
-    ui.tap_node(close)
+    (OUT / 'backup-inspection-receipt.json').write_text(json.dumps({'mappedIds': playlist_ids, 'readOnly': True}, indent=2))
+    # Back is the modal's public onRequestClose action. The close button sits
+    # in a virtualized footer that need not be mounted when mappings are visible.
+    ui.back()
+    settings = ui.tree(compressed=False)
+    assert ui.candidate('backup-preview', settings) is None and ui.candidate('settings-screen', settings) is not None
     ui.back()
     ui.wait_uncovered_library_header()
 
@@ -217,7 +220,7 @@ def seed_legacy(legacy):
     return baseline, playlist_ids, saved, backup
 
 
-def upgrade(candidate, baseline, playlist_ids, saved, backup):
+def upgrade(candidate, baseline, playlist_ids, saved):
     before = install_receipt(ui.adb('shell', 'dumpsys', 'package', ui.PACKAGE).decode())
     response = ui.adb('install', '-r', str(candidate), timeout=180).decode()
     assert 'Success' in response, 'Android did not acknowledge the in-place update'
@@ -243,7 +246,6 @@ def upgrade(candidate, baseline, playlist_ids, saved, backup):
     ui.assert_native_playback(LEGACY_TITLES[2], LEGACY_RESUME_DURATION)
     ui.tap('controls-play-pause')
     ui.back()
-    inspect_legacy_backup(backup[0], playlist_ids)
     ui.set_device_music_scope(True)
     scan.update_library()
     scan.verify_download_visibility(True)
@@ -298,7 +300,7 @@ def main():
     print('Stage: seed the original installation through the public UI', flush=True)
     baseline, playlist_ids, saved, backup = seed_legacy(legacy)
     print('Stage: upgrade in place and confirm persisted access and user state', flush=True)
-    migration = upgrade(candidate, baseline, playlist_ids, saved, backup)
+    migration = upgrade(candidate, baseline, playlist_ids, saved)
     assert hashlib.sha256(ui.adb('exec-out', 'cat', backup[0])).hexdigest() == backup[1], 'Original backup was modified'
     (OUT / 'migration-receipt.json').write_text(json.dumps({
         'apkSha256': sha, 'legacySha256': LEGACY_SHA, 'sourceCommit': source, 'migration': migration,
@@ -306,6 +308,8 @@ def main():
     }, indent=2))
     print('Stage: seek and play real 65-minute MP3, WAV and FLAC files after upgrade', flush=True)
     files.update(exercise_long_formats())
+    print('Stage: inspect the old backup with its original track IDs', flush=True)
+    inspect_legacy_backup(backup[0], playlist_ids)
     for path, digest in files.items():
         actual = ui.adb('shell', 'sha256sum', path, timeout=60).decode().split()[0]
         assert actual == digest, 'The app modified an original fixture: ' + path
