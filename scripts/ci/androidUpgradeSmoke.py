@@ -115,15 +115,48 @@ def export_legacy_backup(playlist_ids, favorite_id):
     return path, hashlib.sha256(backup).hexdigest()
 
 
-def inspect_legacy_backup(path):
+def open_backup_inspection(path):
     scan.open_settings()
     ui.tap_node(ui.scroll_to('settings-group-data', top=True))
     ui.tap_node(ui.scroll_to('backup-inspect', top=True))
     ui.choose_folder(['Download', 'V7UpgradeBackup'])
     ui.tap(path.rsplit('/', 1)[1])
-    ui.find('backup-preview')
-    assert ui.candidate('backup-restore-apply') is None, 'Backup inspection exposed a data mutation action'
-    ui.tap_node(ui.scroll_to('Schließen'))
+    deadline = time.monotonic() + 25
+    while time.monotonic() < deadline:
+        frame = ui.tree(compressed=False)
+        if ui.candidate('backup-preview', frame) is not None:
+            return frame
+        busy = ui.candidate('Sammlung wird bearbeitet', frame)
+        if busy is not None:
+            notice = ui.candidate('Bitte warte auf den Abschluss des laufenden Scans oder der Metadatenbearbeitung.', frame)
+            assert busy.get('package') == ui.PACKAGE and notice is not None and notice.get('package') == ui.PACKAGE
+            ui.screenshot('backup-inspection-busy-guard')
+            ui.tap('android:id/button1')
+            ui.back()
+            ui.wait_uncovered_library_header()
+            return None
+        time.sleep(.25)
+    raise AssertionError('Backup inspection acknowledged neither a preview nor a collection-busy guard')
+
+
+def inspect_legacy_backup(path, playlist_ids):
+    ui.wait_collection_idle()
+    frame = open_backup_inspection(path)
+    if frame is None:
+        # The provider may finish selection while enrichment is starting.
+        # Retry only the acknowledged busy guard and wait for real idle first.
+        ui.wait_collection_idle()
+        ui.quiesce_optional_preparation()
+        frame = open_backup_inspection(path)
+    assert frame is not None, 'Backup inspection refused twice while the collection was busy'
+    assert ui.candidate('backup-restore-apply', frame) is None, 'Backup inspection exposed a data mutation action'
+    for song_id in playlist_ids:
+        reference = ui.candidate('backup-reference-' + song_id, frame)
+        assert reference is not None and reference.get('package') == ui.PACKAGE and ', zugeordnet,' in reference.get('content-desc', '')
+    ui.screenshot('legacy-backup-mapped-by-original-song-ids')
+    close = ui.find('Schließen')
+    assert close.get('package') == ui.PACKAGE and close.get('enabled') == 'true'
+    ui.tap_node(close)
     ui.back()
     ui.wait_uncovered_library_header()
 
@@ -210,7 +243,7 @@ def upgrade(candidate, baseline, playlist_ids, saved, backup):
     ui.assert_native_playback(LEGACY_TITLES[2], LEGACY_RESUME_DURATION)
     ui.tap('controls-play-pause')
     ui.back()
-    inspect_legacy_backup(backup[0])
+    inspect_legacy_backup(backup[0], playlist_ids)
     ui.set_device_music_scope(True)
     scan.update_library()
     scan.verify_download_visibility(True)
