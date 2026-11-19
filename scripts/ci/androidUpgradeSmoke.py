@@ -132,6 +132,12 @@ def seek_to_fraction(duration, fraction):
     raise AssertionError('Long mix did not seek to the requested region')
 
 
+def assert_long_preview(title):
+    node = ui.find('Waveform-Vorschau', timeout=75)
+    assert node.get('package') == ui.PACKAGE, 'Waveform preview marker is not owned by the app'
+    ui.screenshot('waveform-preview-' + title)
+
+
 def seed_legacy(legacy):
     ui.adb('install', str(legacy), timeout=180)
     api = int(ui.adb('shell', 'getprop', 'ro.build.version.sdk').decode().strip())
@@ -194,6 +200,7 @@ def upgrade(candidate, baseline, playlist_ids, saved, backup):
     ui.validate_resumed_position(saved, position, 0)
     ui.tap('mini-player-open')
     ui.assert_native_playback(LEGACY_TITLES[2], LONG_DURATION)
+    assert_long_preview('mp3')
     ui.tap('controls-play-pause')
     ui.back()
     inspect_legacy_backup(backup[0])
@@ -210,7 +217,7 @@ def exercise_long_formats():
     files = dict(make_fixture(title, ext, codec, LONG_DURATION) for title, ext, codec in formats)
     scan.update_library()
     scan.wait_scan('long-file-formats', len(LEGACY_TITLES) + len(formats))
-    for title, _, _ in formats:
+    for title, ext, _ in formats:
         song_title = ui.scroll_to(title, top=True)
         assert song_title.get('package') == ui.PACKAGE and song_title.get('text') == title
         ui.tap_node(song_title)
@@ -219,6 +226,7 @@ def exercise_long_formats():
         ui.assert_duration(LONG_DURATION)
         seek_to_fraction(LONG_DURATION, .75)
         ui.assert_native_playback(title, LONG_DURATION)
+        assert_long_preview(ext)
         ui.tap('controls-play-pause')
         ui.back()
     return files
@@ -256,7 +264,8 @@ def main():
     result = {'status': 'upgrade-passed', 'apkSha256': sha, 'sourceCommit': source, 'legacySha256': LEGACY_SHA,
               'api': int(ui.adb('shell', 'getprop', 'ro.build.version.sdk').decode().strip()),
               'migration': migration, 'stableTrackIds': baseline, 'preservedPlaylistIds': playlist_ids,
-              'nativePlayback': ui.PLAYBACK_PROOFS, 'unchangedOriginals': files, 'legacyBackupSha256': backup[1]}
+              'nativePlayback': ui.PLAYBACK_PROOFS, 'longPreviews': ['mp3', 'wav', 'flac'],
+              'unchangedOriginals': files, 'legacyBackupSha256': backup[1]}
     (OUT / 'result.json').write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2), flush=True)
 

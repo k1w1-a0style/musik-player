@@ -24,7 +24,7 @@ jobs:
         id: ci
         env:
           GH_READ_TOKEN: ${{ github.token }}
-          BUILD_EXACT_APK: ${{ contains(github.event.head_commit.message, '[v7 upgrade]') }}
+          BUILD_EXACT_APK: ${{ contains(github.event.head_commit.message, '[v7 upgrade]') && contains(github.event.head_commit.message, '[preview apk]') }}
         run: |
           python3 - <<'CHECK'
           import json,os,re,subprocess,time,urllib.request
@@ -41,7 +41,8 @@ jobs:
           changed=subprocess.check_output(['git','diff','--name-only',source,os.environ['GITHUB_SHA']],text=True).splitlines()
           allowed={'.github/workflows/scan-device-diagnostics.yml','scripts/ci/androidScanFixSmoke.py','scripts/ci/androidScanFixSmoke_test.py',
               'scripts/ci/androidReleaseInteractionSmoke.py','scripts/ci/androidReleaseInteractionSmoke_test.py','docs/review/scan-device-request.json',
-              'docs/review/apk-retest-request.json','docs/review/CODEX-V6-WORK-STATUS.md'}
+              'docs/review/apk-retest-request.json','docs/review/CODEX-V6-WORK-STATUS.md','docs/review/CODEX-V7-WORK-STATUS.md',
+              'scripts/ci/androidUpgradeSmoke.py','scripts/ci/androidUpgradeSmoke_test.py'}
           assert set(changed)<=allowed,'Product or build source changed: a fresh exact APK is required'
           with open(os.environ['GITHUB_OUTPUT'],'a') as output:output.write('source_sha='+source+'\n')
           deadline=time.monotonic()+2400

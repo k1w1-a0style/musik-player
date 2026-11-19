@@ -636,10 +636,11 @@ export const storage: StorageApi = {
 // Named aliases are kept for production dependency injection at library-startup boundaries.
 export const getFavoriteSongIds = async (): Promise<string[]> => storage.getFavoriteSongIds();
 
-const getLegacySongFavoritesMigrationCompleted = async (): Promise<boolean> => {
+const getLegacySongFavoritesMigrationCompleted = async (): Promise<boolean | null> => {
   const raw = await getItem(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED);
   if (raw == null) return false;
-  return parseStoredValue(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED, raw) === true;
+  const parsed = parseStoredValue(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED, raw);
+  return typeof parsed === 'boolean' ? parsed : null;
 };
 
 const markLegacySongFavoritesMigrationCompleted = async (): Promise<void> => {
@@ -654,13 +655,21 @@ const tryMarkLegacySongFavoritesMigrationCompleted = async (): Promise<void> => 
   }
 };
 
+const readFavoritesForMigration = async (): Promise<string[] | null> => {
+  const raw = await getItem(StorageKeys.FAVORITE_SONG_IDS);
+  if (raw === null) return [];
+  const value: unknown = JSON.parse(raw);
+  return Array.isArray(value) ? normalizeFavoriteSongIds(value) : null;
+};
+
 export const migrateLegacySongFavoritesFromStoredSongs = async (): Promise<string[]> =>
   withFavoriteSongIdsMutationLock(async () => {
     const [existingIds, migrationCompleted] = await Promise.all([
-      storage.getFavoriteSongIds().catch(() => []),
-      getLegacySongFavoritesMigrationCompleted().catch(() => false),
+      readFavoritesForMigration().catch(() => null),
+      getLegacySongFavoritesMigrationCompleted().catch(() => null),
     ]);
-    if (migrationCompleted) return existingIds;
+    // Keep the persisted bytes and retry if the existing state could not be read.
+    if (existingIds === null || migrationCompleted !== false) return existingIds ?? [];
 
     try {
       const rawSongs = await getItem(StorageKeys.SONGS);

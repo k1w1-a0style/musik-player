@@ -9,9 +9,10 @@
 ## Confirmed fixes
 
 - A delayed migration could publish an old library after a newer serialized write. `songLibraryStorage.ts` now checks the exact legacy bytes and manifest under the mutation lock. The regression covers the race and a disk-full retry after restart.
+- The legacy favorites migration previously treated a failed or corrupt favorites read as an empty list and overwrote it. It now leaves those bytes and the migration marker untouched when input cannot be verified.
 - A stalled MediaStore permission preflight could block later authorized folder updates. `useAutomaticLibraryUpdate.ts` bounds and cancels the preflight, reserves scan ownership for actual updates, and wakes the current scheduler after an older scan settles.
 - Audio-info work could keep an obsolete revision or copy a projected URI into the underlying record. Backfill now matches the full file revision and applies the missing file facts without replacing the storage and playback URIs.
-- The idle waveform index previously skipped all tracks over 20 minutes after restart. Capable native builds now resume bounded previews and reuse the resulting cache. Older native builds retain the short-track bound.
+- The idle waveform index previously skipped all tracks over 20 minutes after restart and marked a canceled decoder waiter as attempted. Capable native builds now resume bounded previews and reuse the resulting cache. An interrupted waiter stays eligible. Older native builds retain the short-track bound.
 - `AGENTS.md` now reflects the verified New Architecture and RNTP v5 configuration. The native architecture remains unchanged.
 
 ## Evidence and remaining verification

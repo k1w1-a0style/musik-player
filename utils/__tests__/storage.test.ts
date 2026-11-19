@@ -1917,7 +1917,7 @@ describe('storage', () => {
     await expect(getFavoriteSongIds()).resolves.toEqual(['existing']);
   });
 
-  test('falls back to [] when favoriteSongIds read fails', async () => {
+  test('defers favorite migration after a read failure and retries without finalizing', async () => {
     await AsyncStorage.setItem(storageTestKey(StorageKeys.SONGS), JSON.stringify([
       { id: 's1', title: 'Song', artist: 'A', favorite: true },
     ]));
@@ -1930,6 +1930,8 @@ describe('storage', () => {
       return null;
     });
 
+    await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([]);
+    await expect(storage.get(StorageKeys.LEGACY_SONG_FAVORITES_MIGRATION_COMPLETED)).resolves.toBeNull();
     await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual(['s1']);
     await expect(getFavoriteSongIds()).resolves.toEqual(['s1']);
   });

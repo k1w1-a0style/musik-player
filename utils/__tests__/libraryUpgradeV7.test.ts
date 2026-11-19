@@ -9,7 +9,7 @@ import { LIBRARY_UPDATE_KEY, normalizeLibraryUpdate } from '../libraryUpdatePref
 import { getResumeSource, RESUME_ENABLED_KEY, RESUME_POSITIONS_KEY, serializeResumePositions } from '../resumePosition';
 import { ResumePositionStore } from '../resumePositionStore';
 import { SONG_LIBRARY_MANIFEST_KEY, resetSongLibraryStorageForTests } from '../songLibraryStorage';
-import { storage } from '../storage';
+import { migrateLegacySongFavoritesFromStoredSongs, storage } from '../storage';
 
 const tree = 'content://com.android.externalstorage.documents/tree/primary%3AMusic';
 const safUri = tree + '/document/primary%3AMusic%2FMix.mp3';
@@ -81,4 +81,31 @@ test('malformed old scan preference uses safe scope while leaving persisted libr
   await expect(AsyncStorage.getItem(SONG_LIBRARY_MANIFEST_KEY)).resolves.not.toBeNull();
   await expect(AsyncStorage.getItem(key(LIBRARY_UPDATE_KEY))).resolves.toBe('{');
   expect(normalizeLibraryUpdate(await storage.get(LIBRARY_UPDATE_KEY)).includeDeviceMusic).toBe(false);
+});
+
+test('a temporary favorites read failure cannot overwrite previously saved favorites', async () => {
+  const original = (AsyncStorage.getItem as jest.Mock).getMockImplementation()!;
+  jest.spyOn(AsyncStorage, 'getItem').mockImplementationOnce(async name => {
+    expect(name).toBe(key('favoriteSongIds'));
+    throw new Error('temporary SQLite read failure');
+  });
+  await migrateLegacySongFavoritesFromStoredSongs();
+  await expect(original(key('favoriteSongIds'))).resolves.toBe(JSON.stringify([songs[1].id]));
+  await expect(original(key('legacySongFavoritesMigrationCompleted'))).resolves.toBeNull();
+  await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([songs[1].id, songs[0].id]);
+});
+
+test('does not replace corrupt favorites or finalize an unverified migration', async () => {
+  const damaged = '{"interrupted":';
+  await AsyncStorage.setItem(key('favoriteSongIds'), damaged);
+  await migrateLegacySongFavoritesFromStoredSongs();
+  await expect(AsyncStorage.getItem(key('favoriteSongIds'))).resolves.toBe(damaged);
+  await expect(AsyncStorage.getItem(key('legacySongFavoritesMigrationCompleted'))).resolves.toBeNull();
+});
+
+test('preserves the current favorites if the previous migration marker cannot be read', async () => {
+  await AsyncStorage.setItem(key('legacySongFavoritesMigrationCompleted'), '{');
+  await expect(migrateLegacySongFavoritesFromStoredSongs()).resolves.toEqual([songs[1].id]);
+  await expect(storage.getFavoriteSongIds()).resolves.toEqual([songs[1].id]);
+  await expect(AsyncStorage.getItem(key('legacySongFavoritesMigrationCompleted'))).resolves.toBe('{');
 });
