@@ -18,7 +18,8 @@ LEGACY_SOURCE = 'd63f4885c08e893864551e8619f94aaeeb9f0ef6'
 LEGACY_SHA = '3cf9a5196b40d46701e1abe05f4eb1e18c16019561ea472b01582033dbc732e6'
 PREVIEW_SIGNER = 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c'
 FOLDER = 'K1W1V7Upgrade'
-LEGACY_TITLES = [*scan.TITLES[:2], 'V7 Long MP3']
+LEGACY_TITLES = [*scan.TITLES[:2], 'V7ResumeMP3']
+LEGACY_RESUME_DURATION = 1260
 LONG_DURATION = 3900
 
 
@@ -58,7 +59,7 @@ def verify_signer(apk):
 
 def make_fixture(title, ext, codec, seconds):
     path = OUT / (title.replace(' ', '-') + '.' + ext)
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=16000',
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=22050',
                     '-t', str(seconds), '-c:a', codec, '-metadata', 'title=' + title, '-metadata', 'artist=V3 Proof',
                     str(path)], timeout=180, check=True)
     remote = '/sdcard/Music/' + FOLDER + '/' + title.replace(' ', '_') + '.' + ext
@@ -71,7 +72,8 @@ def make_fixture(title, ext, codec, seconds):
 
 
 def row_id(title):
-    row = ui.scroll_to(title + ' von V3 Proof', top=True)
+    # The old release publishes file rows as native base metadata settles.
+    row = ui.find(title + ' von V3 Proof', timeout=120)
     resource = row.get('resource-id', '').split(':id/')[-1]
     assert resource.startswith('song-card-') and row.get('package') == ui.PACKAGE and row.get('enabled') == 'true'
     return resource.removeprefix('song-card-')
@@ -153,7 +155,6 @@ def seed_legacy(legacy):
         ui.adb('shell', 'pm', 'grant', ui.PACKAGE, 'android.permission.POST_NOTIFICATIONS', check=False)
     ui.public_cold_start()
     scan.add_named_folder(FOLDER)
-    ui.find(LEGACY_TITLES[0] + ' von V3 Proof', timeout=150)
     baseline = {title: row_id(title) for title in LEGACY_TITLES}
     ui.adb('shell', 'pm', 'grant', ui.PACKAGE, permission)
     ui.public_cold_start()
@@ -170,12 +171,12 @@ def seed_legacy(legacy):
     backup = export_legacy_backup(playlist_ids, baseline[LEGACY_TITLES[0]])
     ui.play_title(LEGACY_TITLES[2])
     ui.tap('mini-player-open')
-    ui.assert_duration(LONG_DURATION)
-    seek_to_fraction(LONG_DURATION, .55)
+    ui.assert_duration(LEGACY_RESUME_DURATION)
+    seek_to_fraction(LEGACY_RESUME_DURATION, .55)
     ui.tap('controls-play-pause')
     pause = ui.wait_paused_session(LEGACY_TITLES[2])
     saved, _ = ui.native_position_clock(pause, LEGACY_TITLES[2], 'PAUSED')
-    assert saved > LONG_DURATION / 2
+    assert saved > LEGACY_RESUME_DURATION / 2
     ui.back()
     ui.adb('shell', 'input', 'keyevent', '3')
     time.sleep(3)
@@ -206,8 +207,7 @@ def upgrade(candidate, baseline, playlist_ids, saved, backup):
     # The native position is the acknowledged seek base, not UI elapsed time.
     ui.validate_resumed_position(saved, position, 0)
     ui.tap('mini-player-open')
-    ui.assert_native_playback(LEGACY_TITLES[2], LONG_DURATION)
-    assert_long_preview('mp3')
+    ui.assert_native_playback(LEGACY_TITLES[2], LEGACY_RESUME_DURATION)
     ui.tap('controls-play-pause')
     ui.back()
     inspect_legacy_backup(backup[0])
@@ -220,7 +220,8 @@ def upgrade(candidate, baseline, playlist_ids, saved, backup):
 
 
 def exercise_long_formats():
-    formats = [('V7LongWAV', 'wav', 'pcm_s16le'), ('V7LongFLAC', 'flac', 'flac')]
+    formats = [('V7LongMP3', 'mp3', 'libmp3lame'), ('V7LongWAV', 'wav', 'pcm_s16le'),
+               ('V7LongFLAC', 'flac', 'flac')]
     files = dict(make_fixture(title, ext, codec, LONG_DURATION) for title, ext, codec in formats)
     scan.update_library()
     scan.wait_scan('long-file-formats', len(LEGACY_TITLES) + len(formats))
@@ -257,14 +258,21 @@ def main():
     import uiautomator2
     ui.DEVICE = uiautomator2.connect(ui.DEVICE_SERIAL)
     ui.adb('shell', 'mkdir', '-p', '/sdcard/Music/' + FOLDER)
-    files = dict(make_fixture(title, 'mp3', 'libmp3lame', LONG_DURATION if index == 2 else 65)
+    files = dict(make_fixture(title, 'mp3', 'libmp3lame', LEGACY_RESUME_DURATION if index == 2 else 65)
                  for index, title in enumerate(LEGACY_TITLES))
     download = scan.add_download_fixture()
     files['/sdcard/Download/' + scan.DOWNLOAD_TITLE + '.mp3'] = download
+    print('Stage: seed the original installation through the public UI', flush=True)
     baseline, playlist_ids, saved, backup = seed_legacy(legacy)
+    print('Stage: upgrade in place and confirm persisted access and user state', flush=True)
     migration = upgrade(candidate, baseline, playlist_ids, saved, backup)
-    files.update(exercise_long_formats())
     assert hashlib.sha256(ui.adb('exec-out', 'cat', backup[0])).hexdigest() == backup[1], 'Original backup was modified'
+    (OUT / 'migration-receipt.json').write_text(json.dumps({
+        'apkSha256': sha, 'legacySha256': LEGACY_SHA, 'sourceCommit': source, 'migration': migration,
+        'stableTrackIds': baseline, 'preservedPlaylistIds': playlist_ids, 'legacyBackupSha256': backup[1],
+    }, indent=2))
+    print('Stage: seek and play real 65-minute MP3, WAV and FLAC files after upgrade', flush=True)
+    files.update(exercise_long_formats())
     for path, digest in files.items():
         actual = ui.adb('shell', 'sha256sum', path, timeout=60).decode().split()[0]
         assert actual == digest, 'The app modified an original fixture: ' + path
