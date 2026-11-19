@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, InteractionManager } from 'react-native';
+import SystemAudio from 'expo-system-audio';
 import type { Song } from '../types/Song';
 import { useMetadataRefreshActive } from '../utils/metadataRefreshActivity';
 import { setCachedWaveform } from '../utils/waveformCache';
@@ -50,6 +51,7 @@ const prepareIdleWaveforms = async (
     });
     if (signal.aborted) break;
     if (deferred && await waitForIdleRetry(fingerprint, contention, signal)) return true;
+    if (signal.aborted) break;
     index.markAttempted(fingerprint); contention.delete(fingerprint);
     if (waveform) await waitForPreparationStorage(() => setCachedWaveform(waveform), signal);
   }
@@ -59,7 +61,13 @@ const prepareIdleWaveforms = async (
 /** Prepare recent imports while idle, one decoder at a time; playback wins. */
 export const useLibraryWaveformPreload = (songs: Song[], enabled: boolean): void => {
   const preparationIndex = useRef<LibraryWaveformPreloadIndex | null>(null);
-  if (!preparationIndex.current) preparationIndex.current = new LibraryWaveformPreloadIndex(MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS);
+  if (!preparationIndex.current) {
+    // A native preview samples short windows, so unfinished long mixes can
+    // join the idle pass after restart. Older engines only have full decoding.
+    const maxDuration = SystemAudio.hasNativeWaveformPreview === true
+      ? Number.POSITIVE_INFINITY : MAX_BACKGROUND_WAVEFORM_PRELOAD_DURATION_MS;
+    preparationIndex.current = new LibraryWaveformPreloadIndex(maxDuration);
+  }
   const index = preparationIndex.current;
   const wakeRef = useRef<(() => void) | null>(null);
   const appActive = useAppActive();

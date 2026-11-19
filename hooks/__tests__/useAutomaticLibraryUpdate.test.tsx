@@ -166,7 +166,9 @@ test('retains a media change arriving during an automatic update, including the 
   hook.rerender({ ...props, busy: true });
   await act(async () => { await Promise.resolve(); onMedia(); });
   hook.rerender(props);
-  await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(30_000); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(40_000); });
+  expect(update).toHaveBeenCalledTimes(1);
+  await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(1000); });
   expect(update).toHaveBeenCalledTimes(2);
   await act(async () => { finish(); await Promise.resolve(); await jest.advanceTimersByTimeAsync(300_000); });
   expect(update).toHaveBeenCalledTimes(2);
@@ -192,6 +194,51 @@ test('a denied automatic permission check does not schedule repeated permission 
   await act(async () => { onMedia(); await jest.advanceTimersByTimeAsync(300_000); });
   expect(props.update).not.toHaveBeenCalled();
   expect(permission).toHaveBeenCalledTimes(2); // Listener eligibility, then one event-triggered check.
+  expect(MediaLibrary.requestPermissionsAsync).not.toHaveBeenCalled();
+});
+
+test('a stalled device-only permission check cannot block a newer foreground update of selected folders', async () => {
+  mockPreferences.onOpen = true;
+  let resolveOld!: (value: { status: string }) => void;
+  permission.mockResolvedValueOnce({ status: 'granted' })
+    .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+  const props = options();
+  const hook = renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+  expect(permission).toHaveBeenCalledTimes(2);
+  expect(props.update).not.toHaveBeenCalled();
+
+  mockPreferences = { ...mockPreferences, includeDeviceMusic: false };
+  hook.rerender({ ...props, hasFolders: true });
+  await act(async () => {
+    changeAppState('background');
+    changeAppState('active');
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(props.update).toHaveBeenCalledTimes(1);
+  expect(permission).toHaveBeenCalledTimes(2);
+
+  await act(async () => { resolveOld({ status: 'granted' }); await jest.advanceTimersByTimeAsync(60_000); });
+  expect(props.update).toHaveBeenCalledTimes(1);
+  expect(MediaLibrary.requestPermissionsAsync).not.toHaveBeenCalled();
+});
+
+test('a timed-out device permission check waits for another foreground event and can then scan', async () => {
+  mockPreferences.onOpen = true;
+  permission.mockResolvedValueOnce({ status: 'granted' })
+    .mockImplementationOnce(() => new Promise(() => undefined));
+  const props = options();
+  renderHook(useAutomaticLibraryUpdate, { initialProps: props });
+  await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+  expect(permission).toHaveBeenCalledTimes(2);
+  expect(props.update).not.toHaveBeenCalled();
+
+  await act(async () => {
+    changeAppState('background');
+    changeAppState('active');
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(props.update).toHaveBeenCalledTimes(1);
   expect(MediaLibrary.requestPermissionsAsync).not.toHaveBeenCalled();
 });
 

@@ -11,6 +11,7 @@ import { toPlayableSongs } from '../utils/playableSong';
 import { toTrackPlayerTrack } from '../utils/trackPlayerTrack';
 import { assertTagSourceAvailableForPlayback } from '../utils/tagPlaybackSafety';
 import { runExclusiveNativeQueueReplacement } from '../utils/nativeQueueMutationLock';
+import { mergeMissingAudioFileInfo, type AudioFileInfoPatch } from '../utils/songAudioInfoBackfill';
 import {
   mergeUniqueSongs,
   normalizeSongIdForLibrary,
@@ -30,7 +31,8 @@ export interface LibraryActionsArgs {
   setPlaylists: Dispatch<SetStateAction<Playlist[]>>;
 }
 
-export type SongMetadataPatchesById = Record<string, Partial<Song>>;
+export type SongMetadataPatch = Partial<Song> & { audioFileInfo?: AudioFileInfoPatch };
+export type SongMetadataPatchesById = Record<string, SongMetadataPatch>;
 
 export interface LibraryActions {
   setSongs: (songs: Song[]) => void;
@@ -43,8 +45,8 @@ export { mergeUniqueSongs, patchSongById } from './libraryActionHelpers';
 
 
 
-const normalizeMetadataPatchMap = (patchesBySongId: SongMetadataPatchesById): Map<string, Partial<Song>> => {
-  const normalized = new Map<string, Partial<Song>>();
+const normalizeMetadataPatchMap = (patchesBySongId: SongMetadataPatchesById): Map<string, SongMetadataPatch> => {
+  const normalized = new Map<string, SongMetadataPatch>();
   Object.entries(patchesBySongId).forEach(([songId, patch]) => {
     const normalizedSongId = normalizeSongIdForLibrary(songId);
     if (!normalizedSongId || Object.keys(patch).length === 0) return;
@@ -53,21 +55,30 @@ const normalizeMetadataPatchMap = (patchesBySongId: SongMetadataPatchesById): Ma
   return normalized;
 };
 
-const patchSongByMetadataPatchMap = (patchesByNormalizedSongId: ReadonlyMap<string, Partial<Song>>) => (song: Song): Song => {
+const patchSongByMetadataPatchMap = (patchesByNormalizedSongId: ReadonlyMap<string, SongMetadataPatch>) => (song: Song): Song => {
   const normalizedSongId = normalizeSongIdForLibrary(song.id);
   if (!normalizedSongId) return song;
   const patch = patchesByNormalizedSongId.get(normalizedSongId);
   if (!patch) return song;
+  const { audioFileInfo, ...metadata } = patch;
 
   let changed = song.id !== normalizedSongId;
   const next: Song = { ...song, ...(song.id === normalizedSongId ? {} : { id: normalizedSongId }) };
-  (Object.keys(patch) as Array<keyof Song>).forEach(key => {
-    const value = patch[key];
+  (Object.keys(metadata) as Array<keyof Song>).forEach(key => {
+    const value = metadata[key];
     if (next[key] !== value) {
       (next as Record<keyof Song, unknown>)[key] = value;
       changed = true;
     }
   });
+  if (audioFileInfo) {
+    // The library and a queued song can use different verified source URIs.
+    const fileInfo = mergeMissingAudioFileInfo(next.fileInfo, audioFileInfo);
+    if (fileInfo !== next.fileInfo) {
+      next.fileInfo = fileInfo;
+      changed = true;
+    }
+  }
   return changed ? next : song;
 };
 

@@ -1,6 +1,10 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
+import { useMemo, useRef, useState } from 'react';
 import SystemAudio from 'expo-system-audio';
+import { useLibraryActions } from '../../contexts/useLibraryActions';
+import type { ScanFolder } from '../../types/ScanFolder';
 import type { Song } from '../../types/Song';
+import { getActiveLibrarySong } from '../../utils/librarySourceOwnership';
 import {
   buildSafeAudioInfoBackfillPatches,
   useLibraryAudioInfoBackfill,
@@ -8,6 +12,7 @@ import {
 import {
   backfillExistingSongAudioInfo,
   audioInfoRetryIsDeferred,
+  buildAudioInfoBackfillAttemptKey,
   needsAudioInfoBackfill,
 } from '../../utils/songAudioInfoBackfill';
 
@@ -167,7 +172,7 @@ describe('useLibraryAudioInfoBackfill', () => {
     await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledWith({
       a: expect.objectContaining({
         duration: 180000,
-        fileInfo: expect.objectContaining({
+        audioFileInfo: expect.objectContaining({
           size: 1234567,
           mimeType: 'audio/mpeg',
         }),
@@ -195,5 +200,79 @@ describe('useLibraryAudioInfoBackfill', () => {
       currentSongs: [current],
       candidateKeys: new Set(['not-the-current-key']),
     })).toEqual({});
+  });
+
+  test.each([
+    { modificationTime: 2 },
+    { contentHash: 'replacement-hash' },
+    { importedAt: 2 },
+  ])('rejects a pending result when the file revision changes to %o', revision => {
+    const initial = song('a');
+    const original = { ...initial, fileInfo: { ...initial.fileInfo, size: 1234 } };
+    const replacement = { ...original, fileInfo: { ...original.fileInfo, ...revision } };
+    const patched = { ...original, duration: 180000, audioInfo: { bitrate: 192 } };
+    const originalAttempt = {
+      originalSongs: [original],
+      resultSongs: [patched],
+      candidateKeys: new Set([buildAudioInfoBackfillAttemptKey(original)]),
+    };
+    expect(buildSafeAudioInfoBackfillPatches({ ...originalAttempt, currentSongs: [original] }))
+      .toEqual({ a: { duration: 180000, audioInfo: { bitrate: 192 } } });
+    expect(buildSafeAudioInfoBackfillPatches({ ...originalAttempt, currentSongs: [replacement] })).toEqual({});
+  });
+
+  test('reads a new file revision after attempting the same-sized previous file', async () => {
+    jest.mocked(SystemAudio.extractAudioInfo).mockResolvedValue(null);
+    const applySongMetadataPatches = jest.fn();
+    const initial = song('a');
+    const original = { ...initial, fileInfo: { ...initial.fileInfo, size: 1234, modificationTime: 1 } };
+    const replacement = { ...original, fileInfo: { ...original.fileInfo, modificationTime: 2 } };
+    const rendered = renderHook(({ songs }: { songs: Song[] }) => useLibraryAudioInfoBackfill({
+      songs,
+      applySongMetadataPatches,
+    }), { initialProps: { songs: [original] } });
+
+    await waitFor(() => expect(applySongMetadataPatches).toHaveBeenCalledTimes(1));
+    rendered.rerender({ songs: [replacement] });
+    await waitFor(() => expect(SystemAudio.extractAudioInfo).toHaveBeenCalledTimes(2));
+  });
+
+  test('backfills file facts without replacing distinct library and playback source URIs', async () => {
+    const folderUri = 'content://provider/tree/album';
+    const alias = folderUri + '/document/track';
+    const initial = song('a');
+    const folders: ScanFolder[] = [{ id: 'album', uri: folderUri, name: 'Album', addedAt: 1, enabled: true }];
+    const original = { ...initial, fileInfo: { ...initial.fileInfo,
+      librarySources: [folderUri, 'media-library'], librarySourceUris: { [folderUri]: alias } } };
+    const selected = getActiveLibrarySong(original, folders)!;
+    expect(selected.fileInfo?.uri).toBe(alias);
+    jest.mocked(SystemAudio.extractAudioInfo).mockResolvedValue({
+      durationMs: 180000, sizeBytes: 1234, bitrateBps: 192000, sampleRateHz: 44100, channels: 2,
+    });
+
+    const rendered = renderHook(() => {
+      const [stored, setSongsState] = useState<Song[]>([original]);
+      const [currentSong, setCurrentSong] = useState<Song | null>(selected);
+      const [playbackQueue, setPlaybackQueue] = useState<Song[]>([selected]);
+      const queueContextRef = useRef([selected]);
+      const baseQueueContextRef = useRef([selected]);
+      const nativeQueueRef = useRef<Song[]>([]);
+      const { applySongMetadataPatches } = useLibraryActions({
+        queueContextRef, baseQueueContextRef, nativeQueueRef, setSongsState, setCurrentSong, setPlaybackQueue,
+        setPlaylists: () => undefined,
+      });
+      const active = useMemo(() => [getActiveLibrarySong(stored[0], folders)!], [stored]);
+      useLibraryAudioInfoBackfill({ songs: active, applySongMetadataPatches });
+      return { original: stored[0], currentSong, playbackQueue, queue: queueContextRef.current };
+    });
+
+    await waitFor(() => expect(rendered.result.current.original.fileInfo?.size).toBe(1234));
+    expect(SystemAudio.extractAudioInfo).toHaveBeenCalledWith(alias);
+    expect(rendered.result.current.original.fileInfo).toMatchObject({
+      uri: original.fileInfo.uri, librarySources: original.fileInfo.librarySources,
+    });
+    expect(rendered.result.current.currentSong?.fileInfo).toMatchObject({ uri: alias, size: 1234 });
+    expect(rendered.result.current.playbackQueue[0].fileInfo).toMatchObject({ uri: alias, size: 1234 });
+    expect(rendered.result.current.queue[0].fileInfo).toMatchObject({ uri: alias, size: 1234 });
   });
 });

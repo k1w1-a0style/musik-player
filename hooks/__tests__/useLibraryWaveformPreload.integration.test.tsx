@@ -18,10 +18,13 @@ const librarySong: Song = { id: 'library', title: 'Library', artist: 'CI', uri: 
 const foregroundSong: Song = { ...librarySong, id: 'foreground', uri: 'file:///foreground.mp3' };
 const songs = [librarySong];
 const decoded = { points: [0.1, 0.8, 0.2, 0.7, 0.3, 0.9, 0.4, 0.6], analysis: 'decoded-pcm-v1' as const };
+const longMix: Song = { ...librarySong, duration: 65 * 60_000 };
+const sampled = { ...decoded, durationMs: 65 * 60_000, analysis: 'sampled-pcm-v1' as const };
 type NativeResult = typeof decoded | null;
 const native = SystemAudio as unknown as {
   extractWaveformPeaks: jest.Mock;
   hasNativeWaveformCancellation: boolean;
+  hasNativeWaveformPreview: boolean;
   cancelWaveformExtraction: jest.Mock;
 };
 const flush = async (ms: number) => { await act(async () => { await jest.advanceTimersByTimeAsync(ms); }); };
@@ -33,6 +36,7 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   native.extractWaveformPeaks = jest.fn().mockResolvedValue(decoded);
   native.hasNativeWaveformCancellation = true;
+  native.hasNativeWaveformPreview = false;
   native.cancelWaveformExtraction = jest.fn().mockReturnValue(true);
   Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
   jest.spyOn(InteractionManager, 'runAfterInteractions').mockImplementation(callback => {
@@ -45,6 +49,7 @@ afterEach(() => {
   resetWaveformExtractionLifecycleForTests();
   resetWaveformCacheStateForTests();
   native.hasNativeWaveformCancellation = false;
+  native.hasNativeWaveformPreview = false;
   jest.restoreAllMocks();
   jest.useRealTimers();
 });
@@ -82,12 +87,76 @@ test('disabling idle work cancels its deferred retry before any library decode s
   hook.unmount();
 });
 
+test('an aborted wait for decoder capacity keeps the source eligible when idle work resumes', async () => {
+  let finishBackground!: (value: NativeResult) => void;
+  let finishForeground!: (value: NativeResult) => void;
+  native.extractWaveformPeaks
+    .mockImplementationOnce(() => new Promise(resolve => { finishBackground = resolve; }))
+    .mockImplementationOnce(() => new Promise(resolve => { finishForeground = resolve; }));
+  native.cancelWaveformExtraction.mockImplementation(() => { finishBackground(null); return true; });
+  const hook = renderHook(({ enabled }: { enabled: boolean }) => useLibraryWaveformPreload(songs, enabled),
+    { initialProps: { enabled: true } });
+  await flush(1620);
+  const foreground = extractNativeWaveform(foregroundSong, 60000);
+  await flush(120);
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri)).toEqual([librarySong.uri, foregroundSong.uri]);
+
+  hook.rerender({ enabled: false });
+  await flush(100);
+  finishForeground(decoded);
+  await foreground;
+  hook.rerender({ enabled: true });
+  await flush(1700);
+
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri))
+    .toEqual([librarySong.uri, foregroundSong.uri, librarySong.uri]);
+  await expect(getCachedWaveform(getWaveformSourceIdentity(librarySong))).resolves.toMatchObject({ source: 'native' });
+  hook.unmount();
+});
+
 test('a real decoder failure is attempted once instead of polling indefinitely', async () => {
   native.extractWaveformPeaks.mockResolvedValue(null);
   const hook = renderHook(() => useLibraryWaveformPreload(songs, true));
   await flush(10000);
   expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
   expect(await getCachedWaveform(getWaveformSourceIdentity(librarySong))).toBeNull();
+  hook.unmount();
+});
+
+test('resumes an interrupted hour-long preview after remount and reuses its durable cache', async () => {
+  native.hasNativeWaveformPreview = true;
+  let finishInterrupted!: (value: null) => void;
+  native.extractWaveformPeaks.mockImplementationOnce(() =>
+    new Promise(resolve => { finishInterrupted = resolve; })).mockResolvedValue(sampled);
+  native.cancelWaveformExtraction.mockImplementation(() => { finishInterrupted(null); return true; });
+  const beforeRestart = renderHook(() => useLibraryWaveformPreload([longMix], true));
+  await flush(1700);
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(1);
+  beforeRestart.unmount();
+  expect(native.cancelWaveformExtraction).toHaveBeenCalledTimes(1);
+  await flush(100);
+  resetWaveformExtractionLifecycleForTests();
+  resetWaveformCacheStateForTests();
+
+  const restarted = renderHook(() => useLibraryWaveformPreload([longMix], true));
+  await flush(1700);
+  expect(native.extractWaveformPeaks.mock.calls.map(([uri]) => uri)).toEqual([longMix.uri, longMix.uri]);
+  await expect(getCachedWaveform(getWaveformSourceIdentity(longMix)))
+    .resolves.toMatchObject({ source: 'native', preview: true, durationMs: longMix.duration });
+  restarted.unmount();
+  resetWaveformCacheStateForTests();
+
+  const cachedRestart = renderHook(() => useLibraryWaveformPreload([longMix], true));
+  await flush(1700);
+  expect(native.extractWaveformPeaks).toHaveBeenCalledTimes(2);
+  await expect(getCachedWaveform(getWaveformSourceIdentity(longMix))).resolves.toMatchObject({ preview: true });
+  cachedRestart.unmount();
+});
+
+test('an older native backend never full-decodes an hour-long mix during idle preparation', async () => {
+  const hook = renderHook(() => useLibraryWaveformPreload([longMix], true));
+  await flush(3000);
+  expect(native.extractWaveformPeaks).not.toHaveBeenCalled();
   hook.unmount();
 });
 

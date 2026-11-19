@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Song } from '../types/Song';
-import type { SongMetadataPatchesById } from '../contexts/useLibraryActions';
+import type { SongMetadataPatch, SongMetadataPatchesById } from '../contexts/useLibraryActions';
 import {
   backfillExistingSongAudioInfo,
   audioInfoRetryIsDeferred,
@@ -34,11 +34,14 @@ const selectBackfillSongs = (songs: Song[], enabled: boolean, afterInitialIntera
 
 const shallowEqual = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 
-const buildAudioInfoPatch = (currentSong: Song, patchedSong: Song): Partial<Song> | undefined => {
-  const patch: Partial<Song> = {};
+const buildAudioInfoPatch = (currentSong: Song, patchedSong: Song): SongMetadataPatch | undefined => {
+  const patch: SongMetadataPatch = {};
 
   if (currentSong.duration !== patchedSong.duration) patch.duration = patchedSong.duration;
-  if (!shallowEqual(currentSong.fileInfo, patchedSong.fileInfo)) patch.fileInfo = patchedSong.fileInfo;
+  if (patchedSong.fileInfo && !shallowEqual(currentSong.fileInfo, patchedSong.fileInfo)) {
+    const { filename, mimeType, size } = patchedSong.fileInfo;
+    patch.audioFileInfo = { filename, mimeType, size };
+  }
   if (!shallowEqual(currentSong.audioInfo, patchedSong.audioInfo)) patch.audioInfo = patchedSong.audioInfo;
 
   return Object.keys(patch).length > 0 ? patch : undefined;
@@ -161,7 +164,7 @@ export const useLibraryAudioInfoBackfill = ({ songs, applySongMetadataPatches, e
       const patchesBySongId = buildSafeAudioInfoBackfillPatches({
         originalSongs: candidates,
         resultSongs: result.songs,
-        currentSongs: result.aborted ? latestSongsRef.current : songs,
+        currentSongs: latestSongsRef.current,
         candidateKeys,
       });
 

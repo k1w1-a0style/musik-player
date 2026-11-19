@@ -79,7 +79,7 @@ export const needsAudioInfoBackfill = (song: Song): boolean => {
 export const buildAudioInfoBackfillAttemptKey = (song: Song): string =>
   [
     song.id,
-    resolveAudioInfoUri(song) ?? '',
+    audioInfoRevision(song),
     song.duration ?? '',
     song.fileInfo?.size ?? '',
     song.fileInfo?.mimeType ?? '',
@@ -100,27 +100,19 @@ const shallowEqualSongAudioInfo = (left?: SongAudioInfo, right?: SongAudioInfo):
   && left?.sampleRate === right?.sampleRate
   && left?.channels === right?.channels;
 
-const shallowEqualSongFileInfo = (left?: SongFileInfo, right?: SongFileInfo): boolean =>
-  left?.filename === right?.filename
-  && left?.uri === right?.uri
-  && left?.extension === right?.extension
-  && left?.container === right?.container
-  && left?.mimeType === right?.mimeType
-  && left?.size === right?.size
-  && left?.source === right?.source
-  && left?.importedAt === right?.importedAt;
+export type AudioFileInfoPatch = Pick<SongFileInfo, 'filename' | 'mimeType' | 'size'>;
 
-const mergeMissingFileInfo = (
+export const mergeMissingAudioFileInfo = (
   current: SongFileInfo | undefined,
-  incoming: AudioInfoResult,
-): SongFileInfo => {
-  const next: SongFileInfo = { ...(current ?? {}) };
-  if (!next.filename && incoming.displayName) next.filename = incoming.displayName;
-  if (!next.mimeType && incoming.mimeType) next.mimeType = incoming.mimeType;
-  if (!isPositiveFiniteNumber(next.size) && isPositiveFiniteNumber(incoming.sizeBytes)) {
-    next.size = incoming.sizeBytes;
+  incoming: AudioFileInfoPatch,
+): SongFileInfo | undefined => {
+  const missing: AudioFileInfoPatch = {};
+  if (!current?.filename && incoming.filename) missing.filename = incoming.filename;
+  if (!current?.mimeType && incoming.mimeType) missing.mimeType = incoming.mimeType;
+  if (!isPositiveFiniteNumber(current?.size) && isPositiveFiniteNumber(incoming.size)) {
+    missing.size = incoming.size;
   }
-  return next;
+  return Object.keys(missing).length > 0 ? { ...current, ...missing } : current;
 };
 
 const mergeMissingSongAudioInfo = (
@@ -151,10 +143,12 @@ export const mergeNativeAudioInfoIntoSong = (
   if (!audioInfo) return song;
 
   const nextDuration = preferPositiveNumber(song.duration, audioInfo.durationMs);
-  const nextFileInfo = mergeMissingFileInfo(song.fileInfo, audioInfo);
+  const nextFileInfo = mergeMissingAudioFileInfo(song.fileInfo, {
+    filename: audioInfo.displayName, mimeType: audioInfo.mimeType, size: audioInfo.sizeBytes,
+  });
   const nextAudioInfo = mergeMissingSongAudioInfo(song.audioInfo, audioInfo);
   const durationChanged = nextDuration !== song.duration;
-  const fileInfoChanged = !shallowEqualSongFileInfo(song.fileInfo, nextFileInfo);
+  const fileInfoChanged = nextFileInfo !== song.fileInfo;
   const audioInfoChanged = !shallowEqualSongAudioInfo(song.audioInfo, nextAudioInfo);
   if (!durationChanged && !fileInfoChanged && !audioInfoChanged) return song;
 

@@ -4,12 +4,35 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import SystemAudio from 'expo-system-audio';
 import { useLibraryUpdatePreferences } from '../contexts/LibraryUpdateContext';
 import { getLibraryScanOperation, subscribeLibraryScanOperation } from '../utils/libraryScanOperation';
+import { DEFAULT_LIBRARY_NATIVE_READ_TIMEOUT_MS } from '../utils/libraryOperationTimeouts';
 import type { LibraryScanRequest } from '../utils/libraryScanSources';
+import { withTimeout } from '../utils/withTimeout';
 
 const MIN_UPDATE_INTERVAL_MS = 30_000;
+type AutomaticUpdateReason = 'startup' | 'change';
 const canBeginUpdate = (alive: boolean, pending: number, busy: boolean, inFlight: boolean): boolean =>
   alive && pending > 0 && AppState.currentState === 'active' && !busy && !inFlight
     && getLibraryScanOperation().status !== 'running';
+const hasMediaReadGrant = (signal: AbortSignal): Promise<boolean> =>
+  withTimeout(() => MediaLibrary.getPermissionsAsync(false, ['audio']), DEFAULT_LIBRARY_NATIVE_READ_TIMEOUT_MS,
+    'Medienzugriff konnte nicht bestätigt werden.', { signal })
+    .then(permission => permission.status === 'granted', () => false);
+// Source selection can change while Android is still answering a grant check.
+const createSourcePreflight = (hasFolders: boolean, includeDeviceMusic: boolean) => {
+  const controller = new AbortController();
+  let checkingPermission = false;
+  return {
+    isCurrent: () => !controller.signal.aborted,
+    dispose: () => controller.abort(),
+    async sourceAvailable(): Promise<boolean> {
+      if (hasFolders) return true;
+      if (!includeDeviceMusic || checkingPermission) return false;
+      checkingPermission = true;
+      try { return await hasMediaReadGrant(controller.signal); }
+      finally { checkingPermission = false; }
+    },
+  };
+};
 const subscribeToScanActivity = (onStart: () => void, onIdle: () => void): (() => void) => {
   let observed = -1;
   let running = false;
@@ -48,13 +71,13 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, folderUris,
 }): void => {
   const { preferences, isHydrated } = useLibraryUpdatePreferences();
   const { includeDeviceMusic } = preferences;
-  const latest = useRef({ busy, hasFolders, update });
-  latest.current = { busy, hasFolders, update };
+  const latest = useRef({ busy, update });
+  latest.current = { busy, update };
   const lastStarted = useRef(-Infinity);
   const startupHandled = useRef(false);
-  const pending = useRef(new Set<'startup' | 'change'>());
+  const pending = useRef(new Set<AutomaticUpdateReason>());
   const inFlight = useRef(false);
-  const scheduleSafChange = useRef<() => void>(() => undefined);
+  const schedulePending = useRef<(reason?: AutomaticUpdateReason) => void>(() => undefined);
   useEffect(() => {
     if (!ready || !isHydrated) return;
     if (!preferences.onOpen) pending.current.delete('startup');
@@ -63,36 +86,34 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, folderUris,
       pending.current.delete('startup');
       lastStarted.current = Date.now();
     }
-    let alive = true;
+    const preflight = createSourcePreflight(hasFolders, includeDeviceMusic);
     let timer: ReturnType<typeof setTimeout> | undefined;
     let appState = AppState.currentState;
+    const canRun = () => canBeginUpdate(preflight.isCurrent(), pending.current.size, latest.current.busy, inFlight.current);
     const run = async () => {
       timer = undefined;
-      if (!canBeginUpdate(alive, pending.current.size, latest.current.busy, inFlight.current)) return;
+      if (!canRun()) return;
+      if (Date.now() - lastStarted.current < MIN_UPDATE_INTERVAL_MS) { schedule(); return; }
+      if (!(await preflight.sourceAvailable()) || !canRun()) return;
       if (Date.now() - lastStarted.current < MIN_UPDATE_INTERVAL_MS) { schedule(); return; }
       inFlight.current = true;
-      let started = false;
+      pending.current.clear();
+      lastStarted.current = Date.now();
       try {
-        const source = 'auto' as const;
-        if (!latest.current.hasFolders &&
-          (!includeDeviceMusic || (await MediaLibrary.getPermissionsAsync(false, ['audio'])).status !== 'granted')) return;
-        if (!canBeginUpdate(alive, pending.current.size, latest.current.busy, false)) return;
-        if (Date.now() - lastStarted.current < MIN_UPDATE_INTERVAL_MS) { schedule(); return; }
-        pending.current.clear();
-        started = true;
-        lastStarted.current = Date.now();
-        await latest.current.update({ source, automatic: true });
+        await latest.current.update({ source: 'auto', automatic: true });
       } finally {
         inFlight.current = false;
-        if (alive && started && pending.current.size > 0) schedule();
+        schedulePending.current();
       }
     };
-    const schedule = (reason?: 'startup' | 'change') => {
+    const schedule = (reason?: AutomaticUpdateReason) => {
+      if (!preflight.isCurrent()) return;
       if (reason) pending.current.add(reason);
       if (timer || pending.current.size === 0) return;
       const wait = Math.max(1000, MIN_UPDATE_INTERVAL_MS - (Date.now() - lastStarted.current));
       timer = setTimeout(() => { void run().catch(() => undefined); }, wait);
     };
+    schedulePending.current = schedule;
     if (!startupHandled.current) {
       startupHandled.current = true;
       if (preferences.onOpen) schedule('startup');
@@ -106,18 +127,17 @@ export const useAutomaticLibraryUpdate = ({ ready, busy, hasFolders, folderUris,
       } else schedule();
     });
     const mediaObserver = preferences.whileOpen && includeDeviceMusic ? createMediaObserver(() => schedule('change')) : undefined;
-    scheduleSafChange.current = () => { if (alive) schedule('change'); };
     const appSubscription = AppState.addEventListener('change', next => {
       const resumed = next === 'active' && appState !== 'active';
       appState = next;
       if (resumed && preferences.whileOpen) { mediaObserver?.refresh(); schedule('change'); }
     });
     mediaObserver?.refresh();
-    return () => { alive = false; if (timer) clearTimeout(timer); appSubscription.remove(); mediaObserver?.remove(); stopObservingScanStarts(); };
-  }, [ready, busy, isHydrated, includeDeviceMusic, preferences.onOpen, preferences.whileOpen]);
+    return () => { preflight.dispose(); if (timer) clearTimeout(timer); appSubscription.remove(); mediaObserver?.remove(); stopObservingScanStarts(); };
+  }, [ready, busy, hasFolders, isHydrated, includeDeviceMusic, preferences.onOpen, preferences.whileOpen]);
   useEffect(() => {
     if (!ready || !isHydrated || !preferences.whileOpen || !folderUris?.length) return;
-    const subscription = SystemAudio.subscribeSafLibraryFolders?.(folderUris, () => scheduleSafChange.current());
+    const subscription = SystemAudio.subscribeSafLibraryFolders?.(folderUris, () => schedulePending.current('change'));
     return () => subscription?.remove();
   }, [folderUris, isHydrated, preferences.whileOpen, ready]);
 };
