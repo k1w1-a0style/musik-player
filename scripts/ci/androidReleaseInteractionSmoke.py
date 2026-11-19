@@ -891,9 +891,20 @@ def folder_access_button(root, folder):
                  and node.get('enabled') == 'true'), None)
 
 
+def wait_picker_listing(part, timeout=25):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        nodes = document_nodes(tree(compressed=False))
+        if any((matches(node, part) and node.get('enabled') == 'true') or node.get('scrollable') == 'true' for node in nodes):
+            return
+        time.sleep(.3)
+    raise AssertionError('System folder listing never loaded: ' + part)
+
+
 def choose_folder(parts):
     select_picker_storage()
     for part in parts:
+        wait_picker_listing(part)
         tap_node(scroll_to(part))
         time.sleep(.4)
     use = folder_access_button(tree(), parts[-1])

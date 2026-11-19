@@ -132,8 +132,7 @@ def open_backup_inspection(path):
             assert busy.get('package') == ui.PACKAGE and notice is not None and notice.get('package') == ui.PACKAGE
             ui.screenshot('backup-inspection-busy-guard')
             ui.tap('android:id/button1')
-            ui.back()
-            ui.wait_uncovered_library_header()
+            leave_backup_settings()
             return None
         time.sleep(.25)
     raise AssertionError('Backup inspection acknowledged neither a preview nor a collection-busy guard')
@@ -141,6 +140,7 @@ def open_backup_inspection(path):
 
 def inspect_legacy_backup(path, playlist_ids):
     ui.wait_collection_idle()
+    ui.quiesce_optional_preparation()
     frame = open_backup_inspection(path)
     if frame is None:
         # The provider may finish selection while enrichment is starting.
@@ -160,7 +160,13 @@ def inspect_legacy_backup(path, playlist_ids):
     ui.back()
     settings = ui.tree(compressed=False)
     assert ui.candidate('backup-preview', settings) is None and ui.candidate('settings-screen', settings) is not None
-    ui.back()
+    leave_backup_settings()
+
+
+def leave_backup_settings():
+    target = ui.find('Navigate up')
+    assert target.get('package') == ui.PACKAGE and target.get('enabled') == 'true'
+    ui.tap_node(target)
     ui.wait_uncovered_library_header()
 
 

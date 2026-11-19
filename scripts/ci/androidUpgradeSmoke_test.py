@@ -1,11 +1,20 @@
 import hashlib
 import unittest
+from unittest.mock import patch
+import xml.etree.ElementTree as ET
 
 import androidReleaseInteractionSmoke as ui
 from androidUpgradeSmoke import assert_in_place_upgrade, install_receipt, signer_fingerprint
 
 
 class UpgradeProofTest(unittest.TestCase):
+    def test_folder_navigation_waits_for_system_children_instead_of_scrolling_an_empty_shell(self):
+        shell = ET.fromstring('<hierarchy><node package="com.android.documentsui" content-desc="Show roots" bounds="[12,48][96,120]"/></hierarchy>')
+        populated = ET.fromstring('<hierarchy><node package="com.android.documentsui" text="Music" enabled="true" bounds="[10,120][170,178]"/></hierarchy>')
+        with patch.object(ui, 'tree', side_effect=[shell, populated]) as tree, patch.object(ui.time, 'sleep'):
+            ui.wait_picker_listing('Music')
+        self.assertEqual(tree.call_count, 2)
+
     def test_signer_check_uses_verified_certificate_bytes_independent_of_output_labels(self):
         signature = 'Verified using v2 scheme (APK Signature Scheme v2): true'
         certificate = '-----BEGIN CERTIFICATE-----\nYWJj\n-----END CERTIFICATE-----'
